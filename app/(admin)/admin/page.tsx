@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/base_components/ui/t
 import { EventsManagement } from "@/app/(admin)/admin/components/events-management";
 import { LocationsManagement } from "@/app/(admin)/admin/components/locations-management";
 import { OrganizersManagement } from "@/app/(admin)/admin/components/organizers-management";
+import { CategoriesManagement } from "@/app/(admin)/admin/components/categories-management";
 import { UserRequestsManagement } from "@/app/(admin)/admin/components/user-requests-management";
 import { Button } from "@/base_components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/base_components/ui/card";
@@ -100,11 +101,12 @@ export default function AdminPage() {
 
       <main className="container mx-auto px-4 py-8">
         <Tabs defaultValue="events" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="events">Événements</TabsTrigger>
             <TabsTrigger value="locations">Lieux</TabsTrigger>
             <TabsTrigger value="organizers">Organisateurs</TabsTrigger>
-            <TabsTrigger value="users">Demandes utilisateurs</TabsTrigger>
+            <TabsTrigger value="categories">Catégories</TabsTrigger>
+            <TabsTrigger value="users">Demandes</TabsTrigger>
           </TabsList>
 
           <TabsContent value="events" className="mt-6">
@@ -117,6 +119,10 @@ export default function AdminPage() {
 
           <TabsContent value="organizers" className="mt-6">
             <OrganizersManagement />
+          </TabsContent>
+
+          <TabsContent value="categories" className="mt-6">
+            <CategoriesManagement />
           </TabsContent>
 
           <TabsContent value="users" className="mt-6">

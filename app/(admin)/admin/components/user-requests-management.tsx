@@ -29,13 +29,27 @@ import { fr } from "date-fns/locale";
 
 interface UserRequest {
   id: string;
-  email: string;
+  email: string | null;
   name: string | null;
   requested_at: string;
   status: "pending" | "approved" | "rejected";
   reviewed_by: string | null;
   reviewed_at: string | null;
   notes: string | null;
+  request_type?: "user_account" | "event_creation";
+  event_data?: {
+    title?: string;
+    description?: string;
+    date?: string;
+    category?: string;
+    location_id?: string;
+    organizer_id?: string;
+    price?: number;
+    address?: string;
+    capacity?: number;
+    image_url?: string;
+  };
+  requested_by?: string | null;
 }
 
 export function UserRequestsManagement() {
@@ -68,7 +82,8 @@ export function UserRequestsManagement() {
       const { data, error } = await supabase
         .from("user_requests")
         .select("*")
-        .order("requested_at", { ascending: false });
+        .order("requested_at", { ascending: false })
+        .order("request_type", { ascending: true });
 
       if (error) {
         // Afficher toutes les propriétés de l'erreur
@@ -142,6 +157,30 @@ export function UserRequestsManagement() {
     }
   }
 
+  async function convertEventRequestToEvent(requestId: string) {
+    if (!confirm("Voulez-vous créer un événement à partir de cette demande ?")) return;
+
+    try {
+      const { data, error } = await supabase.rpc("convert_event_request_to_event", {
+        request_id: requestId,
+      });
+
+      if (error) {
+        console.error("Erreur lors de la conversion:", error);
+        alert(`Erreur lors de la conversion: ${error.message}`);
+        return;
+      }
+
+      alert(`Événement créé avec succès ! ID: ${data}`);
+      await loadRequests();
+      setIsDialogOpen(false);
+      setSelectedRequest(null);
+    } catch (error) {
+      console.error("Erreur lors de la conversion:", error);
+      alert("Erreur lors de la conversion de la demande en événement");
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive"> = {
       approved: "default",
@@ -169,9 +208,9 @@ export function UserRequestsManagement() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Gestion des demandes d'utilisateurs</CardTitle>
+        <CardTitle>Gestion des demandes</CardTitle>
         <CardDescription>
-          Validez ou rejetez les demandes de création de comptes utilisateurs
+          Validez les demandes de création de comptes utilisateurs et les demandes d'événements
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -200,8 +239,9 @@ export function UserRequestsManagement() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Nom</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Email / Titre</TableHead>
+                <TableHead>Nom / Catégorie</TableHead>
                 <TableHead>Date de demande</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -210,53 +250,82 @@ export function UserRequestsManagement() {
             <TableBody>
               {requests.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
                     Aucune demande trouvée
                   </TableCell>
                 </TableRow>
               ) : (
-                requests.map((request) => (
-                  <TableRow key={request.id}>
-                    <TableCell className="font-medium">{request.email}</TableCell>
-                    <TableCell>{request.name || "-"}</TableCell>
-                    <TableCell>
-                      {format(new Date(request.requested_at), "PPp", { locale: fr })}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(request.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setSelectedRequest(request);
-                            setIsDialogOpen(true);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {request.status === "pending" && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateRequestStatus(request.id, "approved")}
-                            >
-                              <Check className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateRequestStatus(request.id, "rejected")}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                requests.map((request) => {
+                  const isEventRequest = request.request_type === "event_creation";
+                  return (
+                    <TableRow key={request.id}>
+                      <TableCell>
+                        <Badge variant={isEventRequest ? "default" : "secondary"}>
+                          {isEventRequest ? "Événement" : "Compte"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {isEventRequest
+                          ? request.event_data?.title || "-"
+                          : request.email || "-"}
+                      </TableCell>
+                      <TableCell>
+                        {isEventRequest
+                          ? request.event_data?.category || "-"
+                          : request.name || "-"}
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(request.requested_at), "PPp", { locale: fr })}
+                      </TableCell>
+                      <TableCell>{getStatusBadge(request.status)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setSelectedRequest(request);
+                              setIsDialogOpen(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {request.status === "pending" && (
+                            <>
+                              {isEventRequest ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => convertEventRequestToEvent(request.id)}
+                                  title="Créer un événement"
+                                >
+                                  Créer événement
+                                </Button>
+                              ) : (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => updateRequestStatus(request.id, "approved")}
+                                  >
+                                    <Check className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => updateRequestStatus(request.id, "rejected")}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -276,6 +345,11 @@ export function UserRequestsManagement() {
               updateRequestStatus(selectedRequest.id, "rejected", notes);
             }
           }}
+          onConvert={() => {
+            if (selectedRequest) {
+              convertEventRequestToEvent(selectedRequest.id);
+            }
+          }}
         />
       </CardContent>
     </Card>
@@ -288,12 +362,14 @@ function RequestDetailDialog({
   onOpenChange,
   onApprove,
   onReject,
+  onConvert,
 }: {
   request: UserRequest | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onApprove: (notes?: string) => void;
   onReject: (notes?: string) => void;
+  onConvert?: () => void;
 }) {
   const [notes, setNotes] = useState("");
 
@@ -309,22 +385,78 @@ function RequestDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Détails de la demande</DialogTitle>
-          <DialogDescription>Informations sur la demande de création de compte</DialogDescription>
+          <DialogDescription>
+            {request.request_type === "event_creation"
+              ? "Informations sur la demande de création d'événement"
+              : "Informations sur la demande de création de compte"}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div>
-            <Label>Email</Label>
-            <p className="text-sm font-medium">{request.email}</p>
-          </div>
-
-          <div>
-            <Label>Nom</Label>
-            <p className="text-sm">{request.name || "-"}</p>
-          </div>
+          {request.request_type === "event_creation" ? (
+            <>
+              <div>
+                <Label>Type</Label>
+                <p className="text-sm font-medium">Demande d'événement</p>
+              </div>
+              <div>
+                <Label>Titre</Label>
+                <p className="text-sm font-medium">{request.event_data?.title || "-"}</p>
+              </div>
+              {request.event_data?.description && (
+                <div>
+                  <Label>Description</Label>
+                  <p className="text-sm whitespace-pre-wrap">{request.event_data.description}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Catégorie</Label>
+                  <p className="text-sm">{request.event_data?.category || "-"}</p>
+                </div>
+                {request.event_data?.date && (
+                  <div>
+                    <Label>Date</Label>
+                    <p className="text-sm">
+                      {format(new Date(request.event_data.date), "PPp", { locale: fr })}
+                    </p>
+                  </div>
+                )}
+              </div>
+              {request.event_data?.price !== undefined && (
+                <div>
+                  <Label>Prix</Label>
+                  <p className="text-sm">{request.event_data.price}€</p>
+                </div>
+              )}
+              {request.event_data?.address && (
+                <div>
+                  <Label>Adresse</Label>
+                  <p className="text-sm">{request.event_data.address}</p>
+                </div>
+              )}
+              {request.email && (
+                <div>
+                  <Label>Email du demandeur</Label>
+                  <p className="text-sm">{request.email}</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div>
+                <Label>Email</Label>
+                <p className="text-sm font-medium">{request.email || "-"}</p>
+              </div>
+              <div>
+                <Label>Nom</Label>
+                <p className="text-sm">{request.name || "-"}</p>
+              </div>
+            </>
+          )}
 
           <div>
             <Label>Date de demande</Label>
@@ -358,25 +490,53 @@ function RequestDetailDialog({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Annuler
               </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => {
-                  onReject(notes);
-                }}
-              >
-                <X className="mr-2 h-4 w-4" />
-                Rejeter
-              </Button>
-              <Button
-                type="button"
-                onClick={() => {
-                  onApprove(notes);
-                }}
-              >
-                <Check className="mr-2 h-4 w-4" />
-                Approuver
-              </Button>
+              {request.request_type === "event_creation" ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => {
+                      onReject(notes);
+                    }}
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Rejeter
+                  </Button>
+                  {onConvert && (
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        onConvert();
+                      }}
+                    >
+                      <Check className="mr-2 h-4 w-4" />
+                      Créer l'événement
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => {
+                      onReject(notes);
+                    }}
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Rejeter
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      onApprove(notes);
+                    }}
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Approuver
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>
