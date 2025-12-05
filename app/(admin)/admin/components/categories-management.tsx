@@ -41,7 +41,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, GripVertical } from "lucide-react";
+import { Plus, Edit, Trash2, GripVertical, Search } from "lucide-react";
 import { SortableCategoryRow } from "./sortable-category-row";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -60,9 +60,11 @@ interface Category {
 
 export function CategoriesManagement() {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   useEffect(() => {
     loadCategories();
@@ -77,12 +79,28 @@ export function CategoriesManagement() {
 
       if (error) throw error;
       setCategories(data || []);
+      setFilteredCategories(data || []);
     } catch (error) {
       console.error("Erreur lors du chargement des catégories:", error);
     } finally {
       setLoading(false);
     }
   }
+
+  // Filtrer les catégories par recherche
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredCategories(categories);
+    } else {
+      const query = searchQuery.toLowerCase();
+      setFilteredCategories(
+        categories.filter((category) => 
+          category.name.toLowerCase().includes(query) ||
+          category.description?.toLowerCase().includes(query)
+        )
+      );
+    }
+  }, [categories, searchQuery]);
 
   async function deleteCategory(id: string) {
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette catégorie ?")) return;
@@ -124,6 +142,7 @@ export function CategoriesManagement() {
       
       // Mettre à jour l'état immédiatement avec les nouveaux display_order
       setCategories(newCategories);
+      setFilteredCategories(newCategories);
 
       // Mettre à jour l'ordre dans la base de données
       try {
@@ -156,20 +175,38 @@ export function CategoriesManagement() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <CardTitle>Gestion des catégories</CardTitle>
-            <CardDescription>
-              Gérez les catégories d'événements disponibles. Faites glisser pour réorganiser l'ordre.
-            </CardDescription>
+        <CardTitle>Gestion des catégories</CardTitle>
+        <CardDescription>
+          Gérez les catégories d'événements disponibles. Faites glisser pour réorganiser l'ordre.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {/* Barre de recherche et bouton d'ajout */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher une catégorie..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 min-h-[44px] text-base"
+            />
           </div>
-          <Button onClick={() => handleOpenDialog()} className="min-h-[44px] md:min-h-0">
-            <Plus className="mr-2 h-4 w-4" />
+          <Button
+            onClick={() => handleOpenDialog()}
+            className="min-h-[44px] cursor-pointer"
+          >
+            <Plus className="h-4 w-4 mr-2" />
             Ajouter une catégorie
           </Button>
         </div>
-      </CardHeader>
-      <CardContent>
+
+        {/* Statistiques */}
+        <div className="mb-4 text-sm text-muted-foreground">
+          {filteredCategories.length} catégorie{filteredCategories.length > 1 ? "s" : ""} 
+          {searchQuery && ` (sur ${categories.length} au total)`}
+        </div>
+
         <MobileTableView
           desktopView={
             <div className="rounded-md border">
@@ -190,18 +227,20 @@ export function CategoriesManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {categories.length === 0 ? (
+                    {filteredCategories.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center text-muted-foreground">
-                          Aucune catégorie trouvée
+                          {categories.length === 0 
+                            ? "Aucune catégorie trouvée. Cliquez sur 'Ajouter une catégorie' pour commencer."
+                            : "Aucune catégorie ne correspond à votre recherche"}
                         </TableCell>
                       </TableRow>
                     ) : (
                       <SortableContext
-                        items={categories.map((cat) => cat.id)}
+                        items={filteredCategories.map((cat) => cat.id)}
                         strategy={verticalListSortingStrategy}
                       >
-                        {categories.map((category) => (
+                        {filteredCategories.map((category) => (
                           <SortableCategoryRow
                             key={category.id}
                             category={category}
@@ -217,9 +256,11 @@ export function CategoriesManagement() {
             </div>
           }
           mobileView={
-            categories.length === 0 ? (
+            filteredCategories.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                Aucune catégorie trouvée
+                {categories.length === 0 
+                  ? "Aucune catégorie trouvée. Cliquez sur 'Ajouter une catégorie' pour commencer."
+                  : "Aucune catégorie ne correspond à votre recherche"}
               </div>
             ) : (
               <DndContext
@@ -228,10 +269,10 @@ export function CategoriesManagement() {
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext
-                  items={categories.map((cat) => cat.id)}
+                  items={filteredCategories.map((cat) => cat.id)}
                   strategy={verticalListSortingStrategy}
                 >
-                  {categories.map((category) => (
+                  {filteredCategories.map((category) => (
                     <SortableCategoryCard
                       key={category.id}
                       category={category}

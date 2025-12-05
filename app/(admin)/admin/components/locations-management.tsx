@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AddressInput } from "@/components/ui/address-input";
-import { Plus, Edit, Trash2, Image as ImageIcon, X } from "lucide-react";
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Search } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
 import { compressImage } from "@/lib/image-compression";
@@ -42,9 +42,11 @@ interface Location {
 
 export function LocationsManagement() {
   const [locations, setLocations] = useState<Location[]>([]);
+  const [filteredLocations, setFilteredLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   useEffect(() => {
     loadLocations();
@@ -59,12 +61,28 @@ export function LocationsManagement() {
 
       if (error) throw error;
       setLocations(data || []);
+      setFilteredLocations(data || []);
     } catch (error) {
       console.error("Erreur lors du chargement des lieux:", error);
     } finally {
       setLoading(false);
     }
   }
+
+  // Filtrer les lieux par recherche
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredLocations(locations);
+    } else {
+      const query = searchQuery.toLowerCase();
+      setFilteredLocations(
+        locations.filter((location) => 
+          location.name.toLowerCase().includes(query) ||
+          location.address?.toLowerCase().includes(query)
+        )
+      );
+    }
+  }, [locations, searchQuery]);
 
   async function deleteLocation(id: string) {
     if (!confirm("Êtes-vous sûr de vouloir supprimer ce lieu ?")) return;
@@ -91,18 +109,36 @@ export function LocationsManagement() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Gestion des lieux</CardTitle>
-            <CardDescription>Gérez les lieux disponibles pour les événements</CardDescription>
+        <CardTitle>Gestion des lieux</CardTitle>
+        <CardDescription>Gérez les lieux disponibles pour les événements</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {/* Barre de recherche et bouton d'ajout */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher un lieu..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 min-h-[44px] text-base"
+            />
           </div>
-          <Button onClick={() => handleOpenDialog()}>
-            <Plus className="mr-2 h-4 w-4" />
+          <Button
+            onClick={() => handleOpenDialog()}
+            className="min-h-[44px] cursor-pointer"
+          >
+            <Plus className="h-4 w-4 mr-2" />
             Ajouter un lieu
           </Button>
         </div>
-      </CardHeader>
-      <CardContent>
+
+        {/* Statistiques */}
+        <div className="mb-4 text-sm text-muted-foreground">
+          {filteredLocations.length} lieu{filteredLocations.length > 1 ? "x" : ""} 
+          {searchQuery && ` (sur ${locations.length} au total)`}
+        </div>
+
         <MobileTableView
           desktopView={
             <div className="rounded-md border">
@@ -115,15 +151,17 @@ export function LocationsManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {locations.length === 0 ? (
+                  {filteredLocations.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={3} className="text-center text-muted-foreground">
-                        Aucun lieu trouvé
+                        {locations.length === 0 
+                          ? "Aucun lieu trouvé. Cliquez sur 'Ajouter un lieu' pour commencer."
+                          : "Aucun lieu ne correspond à votre recherche"}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    locations.map((location) => (
-                    <TableRow key={location.id}>
+                    filteredLocations.map((location) => (
+                    <TableRow key={location.id} className="cursor-pointer">
                       <TableCell className="font-medium">{location.name}</TableCell>
                       <TableCell>
                         <div className="space-y-1">
@@ -140,14 +178,22 @@ export function LocationsManagement() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => handleOpenDialog(location)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenDialog(location);
+                              }}
+                              className="cursor-pointer"
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => deleteLocation(location.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteLocation(location.id);
+                              }}
+                              className="cursor-pointer text-destructive hover:text-destructive"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -161,12 +207,14 @@ export function LocationsManagement() {
             </div>
           }
           mobileView={
-            locations.length === 0 ? (
+            filteredLocations.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                Aucun lieu trouvé
+                {locations.length === 0 
+                  ? "Aucun lieu trouvé. Cliquez sur 'Ajouter un lieu' pour commencer."
+                  : "Aucun lieu ne correspond à votre recherche"}
               </div>
             ) : (
-              locations.map((location) => (
+              filteredLocations.map((location) => (
                 <MobileCard
                   key={location.id}
                   onClick={() => handleOpenDialog(location)}
@@ -199,8 +247,8 @@ export function LocationsManagement() {
                   <MobileCardActions>
                     <Button
                       size="sm"
-                      variant="ghost"
-                      className="flex-1 min-h-[44px]"
+                      variant="outline"
+                      className="flex-1 min-h-[44px] cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleOpenDialog(location);
@@ -211,14 +259,15 @@ export function LocationsManagement() {
                     </Button>
                     <Button
                       size="sm"
-                      variant="ghost"
-                      className="min-h-[44px] min-w-[44px]"
+                      variant="outline"
+                      className="flex-1 min-h-[44px] cursor-pointer text-destructive hover:text-destructive"
                       onClick={(e) => {
                         e.stopPropagation();
                         deleteLocation(location.id);
                       }}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Supprimer
                     </Button>
                   </MobileCardActions>
                 </MobileCard>

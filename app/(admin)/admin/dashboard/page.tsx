@@ -7,7 +7,7 @@ import { AdminLayout } from "../components/admin-layout";
 import { DashboardStats } from "../components/dashboard-stats";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, FileText, ArrowRight } from "lucide-react";
+import { Calendar, FileText, MapPin, Users, Tag, Plus, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 function DashboardContent() {
@@ -83,46 +83,108 @@ function DashboardContent() {
       <div className="space-y-6">
         <DashboardStats />
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="cursor-pointer transition-shadow hover:shadow-md">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Actions rapides
-              </CardTitle>
-              <CardDescription>Accédez rapidement aux fonctionnalités principales</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full justify-start" asChild>
-                <Link href="/admin/events">
-                  Gérer les événements
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button variant="outline" className="w-full justify-start" asChild>
-                <Link href="/admin/requests">
-                  Examiner les demandes
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Plus className="h-4 w-4" />
+              Actions rapides
+            </CardTitle>
+            <CardDescription className="text-xs">Accédez rapidement aux fonctionnalités principales</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Link 
+                href="/admin/events"
+                className="group relative flex items-center gap-3 rounded-lg border border-border/30 bg-card/50 backdrop-blur-sm p-3 transition-all hover:border-primary/50 hover:bg-accent/50 hover:shadow-md cursor-pointer"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500 group-hover:bg-blue-500/20 transition-colors">
+                  <Calendar className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-sm group-hover:text-primary transition-colors">
+                    Événements
+                  </h3>
+                  <p className="text-xs text-muted-foreground line-clamp-1">
+                    Gérer tous les événements
+                  </p>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
+              </Link>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Informations
-              </CardTitle>
-              <CardDescription>Informations sur le système</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Bienvenue dans le panneau d'administration. Utilisez la barre latérale pour naviguer entre les différentes sections.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+              <Link 
+                href="/admin/requests"
+                className="group relative flex items-center gap-3 rounded-lg border border-border/30 bg-card/50 backdrop-blur-sm p-3 transition-all hover:border-primary/50 hover:bg-accent/50 hover:shadow-md cursor-pointer"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-500/10 text-orange-500 group-hover:bg-orange-500/20 transition-colors">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-sm group-hover:text-primary transition-colors">
+                    Demandes
+                  </h3>
+                  <p className="text-xs text-muted-foreground line-clamp-1">
+                    Examiner et valider les demandes
+                  </p>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
+              </Link>
+
+              <Link 
+                href="/admin/locations"
+                className="group relative flex items-center gap-3 rounded-lg border border-border/30 bg-card/50 backdrop-blur-sm p-3 transition-all hover:border-primary/50 hover:bg-accent/50 hover:shadow-md cursor-pointer"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-green-500/10 text-green-500 group-hover:bg-green-500/20 transition-colors">
+                  <MapPin className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-sm group-hover:text-primary transition-colors">
+                    Lieux
+                  </h3>
+                  <p className="text-xs text-muted-foreground line-clamp-1">
+                    Gérer les lieux
+                  </p>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
+              </Link>
+
+              <Link 
+                href="/admin/organizers"
+                className="group relative flex items-center gap-3 rounded-lg border border-border/30 bg-card/50 backdrop-blur-sm p-3 transition-all hover:border-primary/50 hover:bg-accent/50 hover:shadow-md cursor-pointer"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-500/10 text-purple-500 group-hover:bg-purple-500/20 transition-colors">
+                  <Users className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-sm group-hover:text-primary transition-colors">
+                    Organisateurs
+                  </h3>
+                  <p className="text-xs text-muted-foreground line-clamp-1">
+                    Gérer les organisateurs
+                  </p>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
+              </Link>
+
+              <Link 
+                href="/admin/categories"
+                className="group relative flex items-center gap-3 rounded-lg border border-border/30 bg-card/50 backdrop-blur-sm p-3 transition-all hover:border-primary/50 hover:bg-accent/50 hover:shadow-md cursor-pointer"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-pink-500/10 text-pink-500 group-hover:bg-pink-500/20 transition-colors">
+                  <Tag className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-sm group-hover:text-primary transition-colors">
+                    Catégories
+                  </h3>
+                  <p className="text-xs text-muted-foreground line-clamp-1">
+                    Organiser les catégories
+                  </p>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </AdminLayout>
   );

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, MapPin, Users, Tag, FileText, Clock } from "lucide-react";
+import { Calendar, MapPin, Users, Tag, FileText, CheckCircle2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface Stats {
@@ -19,6 +20,7 @@ interface Stats {
 }
 
 export function DashboardStats() {
+  const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -87,31 +89,36 @@ export function DashboardStats() {
       value: stats.events.total,
       icon: Calendar,
       change: `${stats.events.approved} approuvés`,
+      href: "/admin/events",
     },
     {
-      title: "En attente",
-      description: "Événements en attente",
-      value: stats.events.pending,
-      icon: Clock,
-      change: "En cours de validation",
+      title: "Événements approuvés",
+      description: "Événements validés",
+      value: stats.events.approved,
+      icon: CheckCircle2,
+      change: `${stats.events.total > 0 ? Math.round((stats.events.approved / stats.events.total) * 100) : 0}% du total`,
+      href: "/admin/events",
     },
     {
       title: "Lieux",
       description: "Lieux enregistrés",
       value: stats.locations,
       icon: MapPin,
+      href: "/admin/locations",
     },
     {
       title: "Organisateurs",
       description: "Organisateurs actifs",
       value: stats.organizers,
       icon: Users,
+      href: "/admin/organizers",
     },
     {
       title: "Catégories",
       description: "Catégories actives",
       value: stats.categories,
       icon: Tag,
+      href: "/admin/categories",
     },
     {
       title: "Demandes",
@@ -119,6 +126,7 @@ export function DashboardStats() {
       value: stats.pendingRequests,
       icon: FileText,
       change: stats.pendingRequests > 0 ? "Nécessite une action" : "Tout est à jour",
+      href: "/admin/requests",
     },
   ];
 
@@ -127,17 +135,21 @@ export function DashboardStats() {
       {statCards.map((stat) => {
         const Icon = stat.icon;
         return (
-          <Card key={stat.title} className="cursor-pointer transition-shadow hover:shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Card 
+            key={stat.title} 
+            className="cursor-pointer transition-shadow hover:shadow-md"
+            onClick={() => router.push(stat.href)}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-4 px-4">
               <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
               <Icon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <CardDescription className="mt-1">
+            <CardContent className="px-4 pb-4 pt-0">
+              <div className="text-xl font-bold">{stat.value}</div>
+              <CardDescription className="mt-0.5 text-xs">
                 {stat.description}
                 {stat.change && (
-                  <span className="block mt-1 text-xs text-muted-foreground">{stat.change}</span>
+                  <span className="block mt-0.5 text-xs text-muted-foreground">{stat.change}</span>
                 )}
               </CardDescription>
             </CardContent>

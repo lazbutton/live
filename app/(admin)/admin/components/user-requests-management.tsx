@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Check, X, Eye } from "lucide-react";
+import { Check, X, Eye, Search, Filter, XCircle } from "lucide-react";
 import { formatDateWithoutTimezone } from "@/lib/date-utils";
 import { useRouter } from "next/navigation";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
@@ -66,9 +66,15 @@ interface UserRequest {
 export function UserRequestsManagement() {
   const router = useRouter();
   const [requests, setRequests] = useState<UserRequest[]>([]);
+  const [filteredRequests, setFilteredRequests] = useState<UserRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<UserRequest | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  // États des filtres
+  const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved" | "rejected">("pending");
+  const [filterType, setFilterType] = useState<"all" | "user_account" | "event_creation">("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   useEffect(() => {
     loadRequests();
@@ -122,6 +128,7 @@ export function UserRequestsManagement() {
 
       console.log("Demandes chargées avec succès:", data?.length || 0);
       setRequests(data || []);
+      setFilteredRequests(data || []);
     } catch (error: any) {
       // Erreur générale
       console.error("Erreur générale:", error);
@@ -134,10 +141,40 @@ export function UserRequestsManagement() {
       }
       
       setRequests([]);
+      setFilteredRequests([]);
     } finally {
       setLoading(false);
     }
   }
+
+  // Appliquer les filtres
+  useEffect(() => {
+    let filtered = [...requests];
+
+    // Filtre par statut
+    if (filterStatus !== "all") {
+      filtered = filtered.filter((r) => r.status === filterStatus);
+    }
+
+    // Filtre par type
+    if (filterType !== "all") {
+      filtered = filtered.filter((r) => r.request_type === filterType);
+    }
+
+    // Filtre par recherche textuelle
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((r) => {
+        const nameMatch = r.name?.toLowerCase().includes(query);
+        const emailMatch = r.email?.toLowerCase().includes(query);
+        const eventTitleMatch = r.event_data?.title?.toLowerCase().includes(query);
+        const eventDescriptionMatch = r.event_data?.description?.toLowerCase().includes(query);
+        return nameMatch || emailMatch || eventTitleMatch || eventDescriptionMatch;
+      });
+    }
+
+    setFilteredRequests(filtered);
+  }, [requests, filterStatus, filterType, searchQuery]);
 
   async function updateRequestStatus(
     requestId: string,
@@ -195,7 +232,7 @@ export function UserRequestsManagement() {
     return <div className="text-center py-8">Chargement des demandes...</div>;
   }
 
-  const pendingRequests = requests.filter((r) => r.status === "pending");
+  const pendingRequests = filteredRequests.filter((r) => r.status === "pending");
 
   return (
     <Card>
@@ -206,6 +243,74 @@ export function UserRequestsManagement() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Filtres */}
+        <div className="mb-6 space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Recherche textuelle */}
+            <div className="flex-1">
+              <Input
+                placeholder="Rechercher par nom, email, titre d'événement..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="min-h-[44px] text-base"
+              />
+            </div>
+            
+            {/* Filtre par statut */}
+            <div className="w-full sm:w-[180px]">
+              <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
+                <SelectTrigger className="min-h-[44px] text-base">
+                  <SelectValue placeholder="Tous les statuts" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  <SelectItem value="pending">En attente</SelectItem>
+                  <SelectItem value="approved">Approuvées</SelectItem>
+                  <SelectItem value="rejected">Rejetées</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Filtre par type */}
+            <div className="w-full sm:w-[200px]">
+              <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
+                <SelectTrigger className="min-h-[44px] text-base">
+                  <SelectValue placeholder="Tous les types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les types</SelectItem>
+                  <SelectItem value="user_account">Comptes utilisateur</SelectItem>
+                  <SelectItem value="event_creation">Événements</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          {/* Statistiques */}
+          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+            <span>
+              Total: <span className="font-medium text-foreground">{filteredRequests.length}</span>
+            </span>
+            <span>
+              En attente: <span className="font-medium text-foreground">{pendingRequests.length}</span>
+            </span>
+            {(filterStatus !== "all" || filterType !== "all" || searchQuery) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setFilterStatus("all");
+                  setFilterType("all");
+                  setSearchQuery("");
+                }}
+                className="h-auto py-1 px-2 text-xs cursor-pointer"
+              >
+                Réinitialiser les filtres
+              </Button>
+            )}
+          </div>
+        </div>
+
         {pendingRequests.length > 0 && (
           <div className="mb-4 p-4 bg-muted rounded-lg">
             <p className="text-sm font-medium">
@@ -242,14 +347,16 @@ export function UserRequestsManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {requests.length === 0 ? (
+                  {filteredRequests.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center text-muted-foreground">
-                        Aucune demande trouvée
+                        {requests.length === 0 
+                          ? "Aucune demande trouvée" 
+                          : "Aucune demande ne correspond aux filtres"}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    requests.map((request) => {
+                    filteredRequests.map((request) => {
                       const isEventRequest = request.request_type === "event_creation";
                       return (
                         <TableRow key={request.id}>
@@ -327,12 +434,14 @@ export function UserRequestsManagement() {
             </div>
           }
           mobileView={
-            requests.length === 0 ? (
+            filteredRequests.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                Aucune demande trouvée
+                {requests.length === 0 
+                  ? "Aucune demande trouvée" 
+                  : "Aucune demande ne correspond aux filtres"}
               </div>
             ) : (
-              requests.map((request) => {
+              filteredRequests.map((request) => {
                 const isEventRequest = request.request_type === "event_creation";
                 return (
                   <MobileCard

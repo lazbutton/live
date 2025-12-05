@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SelectSearchable } from "@/components/ui/select-searchable";
 import { Check, X, Edit, Trash2 } from "lucide-react";
 import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -65,19 +66,36 @@ interface Event {
 
 export function EventsManagement() {
   const [events, setEvents] = useState<Event[]>([]);
+  const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
   const [organizers, setOrganizers] = useState<{ id: string; name: string }[]>([]);
   const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  
+  // États des filtres
+  const [filterDate, setFilterDate] = useState<"upcoming" | "all">("upcoming");
+  const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [filterLocation, setFilterLocation] = useState<string>("all");
+  const [filterOrganizer, setFilterOrganizer] = useState<string>("all");
+  const [filterTag, setFilterTag] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   useEffect(() => {
     loadEvents();
     loadLocations();
     loadOrganizers();
     loadTags();
+    loadCategories();
   }, []);
+
+  async function loadCategories() {
+    const { data } = await supabase.from("categories").select("id, name").eq("is_active", true).order("name");
+    if (data) setCategories(data);
+  }
 
   async function loadOrganizers() {
     const { data } = await supabase.from("organizers").select("id, name").order("name");
@@ -100,16 +118,78 @@ export function EventsManagement() {
             organizer:organizers(id, name)
           )
         `)
-        .order("created_at", { ascending: false });
+        .order("date", { ascending: true });
 
       if (error) throw error;
       setEvents(data || []);
+      setFilteredEvents(data || []);
     } catch (error) {
       console.error("Erreur lors du chargement des événements:", error);
     } finally {
       setLoading(false);
     }
   }
+
+  // Appliquer les filtres
+  useEffect(() => {
+    let filtered = [...events];
+
+    // Filtre par date (événements à venir par défaut)
+    if (filterDate === "upcoming") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      filtered = filtered.filter((event) => {
+        const eventDate = new Date(event.date);
+        eventDate.setHours(0, 0, 0, 0);
+        return eventDate >= today;
+      });
+    }
+
+    // Filtre par statut
+    if (filterStatus !== "all") {
+      filtered = filtered.filter((event) => event.status === filterStatus);
+    }
+
+    // Filtre par lieu
+    if (filterLocation !== "all") {
+      filtered = filtered.filter((event) => event.location_id === filterLocation);
+    }
+
+    // Filtre par organisateur
+    if (filterOrganizer !== "all") {
+      filtered = filtered.filter((event) => 
+        event.event_organizers?.some((eo) => eo.organizer.id === filterOrganizer)
+      );
+    }
+
+    // Filtre par tag
+    if (filterTag !== "all") {
+      filtered = filtered.filter((event) => 
+        event.tag_ids?.includes(filterTag)
+      );
+    }
+
+    // Filtre par catégorie
+    if (filterCategory !== "all") {
+      filtered = filtered.filter((event) => 
+        event.category === filterCategory
+      );
+    }
+
+    // Filtre par recherche textuelle
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((event) => {
+        const titleMatch = event.title?.toLowerCase().includes(query);
+        const descriptionMatch = event.description?.toLowerCase().includes(query);
+        const categoryMatch = event.category?.toLowerCase().includes(query);
+        const locationMatch = event.location?.name?.toLowerCase().includes(query);
+        return titleMatch || descriptionMatch || categoryMatch || locationMatch;
+      });
+    }
+
+    setFilteredEvents(filtered);
+  }, [events, filterDate, filterStatus, filterLocation, filterOrganizer, filterTag, filterCategory, searchQuery]);
 
   async function loadLocations() {
     const { data } = await supabase.from("locations").select("id, name");
@@ -223,6 +303,151 @@ export function EventsManagement() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Filtres */}
+        <div className="mb-6 space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Recherche textuelle */}
+            <div className="flex-1">
+              <Input
+                placeholder="Rechercher par titre, description, catégorie..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="min-h-[44px] text-base"
+              />
+            </div>
+            
+            {/* Filtre par date */}
+            <div className="w-full sm:w-[180px]">
+              <Select value={filterDate} onValueChange={(value: any) => setFilterDate(value)}>
+                <SelectTrigger className="min-h-[44px] text-base">
+                  <SelectValue placeholder="Période" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="upcoming">À venir</SelectItem>
+                  <SelectItem value="all">Tous</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Filtre par statut */}
+            <div className="w-full sm:w-[180px]">
+              <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
+                <SelectTrigger className="min-h-[44px] text-base">
+                  <SelectValue placeholder="Statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  <SelectItem value="pending">En attente</SelectItem>
+                  <SelectItem value="approved">Approuvés</SelectItem>
+                  <SelectItem value="rejected">Rejetés</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Filtre par catégorie */}
+            <div className="w-full sm:w-[200px]">
+              <SelectSearchable
+                value={filterCategory}
+                onValueChange={(value) => setFilterCategory(value)}
+                placeholder="Toutes les catégories"
+                searchPlaceholder="Rechercher une catégorie..."
+                options={[
+                  { value: "all", label: "Toutes les catégories" },
+                  ...categories.map((cat) => ({
+                    value: cat.name,
+                    label: cat.name,
+                  })),
+                ]}
+              />
+            </div>
+            
+            {/* Filtre par lieu */}
+            <div className="w-full sm:w-[200px]">
+              <SelectSearchable
+                value={filterLocation}
+                onValueChange={(value) => setFilterLocation(value)}
+                placeholder="Tous les lieux"
+                searchPlaceholder="Rechercher un lieu..."
+                options={[
+                  { value: "all", label: "Tous les lieux" },
+                  ...locations.map((location) => ({
+                    value: location.id,
+                    label: location.name,
+                  })),
+                ]}
+              />
+            </div>
+            
+            {/* Filtre par organisateur */}
+            <div className="w-full sm:w-[200px]">
+              <SelectSearchable
+                value={filterOrganizer}
+                onValueChange={(value) => setFilterOrganizer(value)}
+                placeholder="Tous les organisateurs"
+                searchPlaceholder="Rechercher un organisateur..."
+                options={[
+                  { value: "all", label: "Tous les organisateurs" },
+                  ...organizers.map((organizer) => ({
+                    value: organizer.id,
+                    label: organizer.name,
+                  })),
+                ]}
+              />
+            </div>
+            
+            {/* Filtre par tag */}
+            <div className="w-full sm:w-[200px]">
+              <SelectSearchable
+                value={filterTag}
+                onValueChange={(value) => setFilterTag(value)}
+                placeholder="Tous les tags"
+                searchPlaceholder="Rechercher un tag..."
+                options={[
+                  { value: "all", label: "Tous les tags" },
+                  ...tags.map((tag) => ({
+                    value: tag.id,
+                    label: tag.name,
+                  })),
+                ]}
+              />
+            </div>
+            
+            {/* Bouton réinitialiser */}
+            {(filterDate !== "upcoming" || filterStatus !== "all" || filterLocation !== "all" || filterOrganizer !== "all" || filterTag !== "all" || filterCategory !== "all" || searchQuery) && (
+              <div className="flex items-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setFilterDate("upcoming");
+                    setFilterStatus("all");
+                    setFilterLocation("all");
+                    setFilterOrganizer("all");
+                    setFilterTag("all");
+                    setFilterCategory("all");
+                    setSearchQuery("");
+                  }}
+                  className="h-[44px] cursor-pointer"
+                >
+                  Réinitialiser
+                </Button>
+              </div>
+            )}
+          </div>
+          
+          {/* Statistiques */}
+          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+            <span>
+              Résultats: <span className="font-medium text-foreground">{filteredEvents.length}</span>
+            </span>
+            <span>
+              Total: <span className="font-medium text-foreground">{events.length}</span>
+            </span>
+          </div>
+        </div>
+
         <MobileTableView>
           {/* Desktop Table View */}
           <div className="hidden md:block rounded-md border">
@@ -240,14 +465,16 @@ export function EventsManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {events.length === 0 ? (
+                {filteredEvents.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center text-muted-foreground">
-                      Aucun événement trouvé
+                      {events.length === 0 
+                        ? "Aucun événement trouvé" 
+                        : "Aucun événement ne correspond aux filtres"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  events.map((event) => (
+                  filteredEvents.map((event) => (
                     <TableRow key={event.id}>
                       <TableCell className="font-medium">{event.title}</TableCell>
                       <TableCell>
@@ -347,12 +574,14 @@ export function EventsManagement() {
           </div>
 
           {/* Mobile Card View */}
-          {events.length === 0 ? (
+          {filteredEvents.length === 0 ? (
             <div className="block md:hidden text-center py-8 text-muted-foreground">
-              Aucun événement trouvé
+              {events.length === 0 
+                ? "Aucun événement trouvé" 
+                : "Aucun événement ne correspond aux filtres"}
             </div>
           ) : (
-            events.map((event) => (
+            filteredEvents.map((event) => (
               <MobileCard
                 key={event.id}
                 onClick={() => {
