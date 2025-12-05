@@ -3,6 +3,8 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 
+// Add Special Gothic Expanded One font via link in head
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
