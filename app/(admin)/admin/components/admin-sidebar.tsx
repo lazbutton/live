@@ -64,11 +64,52 @@ const menuItems = [
 export function AdminSidebar() {
   const router = useRouter();
   const pathname = usePathname();
+  const menuItemsRefs = React.useRef<(HTMLAnchorElement | null)[]>([]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
     router.push("/admin/login");
   }
+
+  // Navigation au clavier avec les flèches haut/bas
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Vérifier si on est dans la sidebar (ou si aucun input n'est focus)
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement?.tagName === 'INPUT' || 
+                             activeElement?.tagName === 'TEXTAREA' || 
+                             activeElement?.getAttribute('contenteditable') === 'true';
+      
+      if (isInputFocused) return; // Ne pas interférer si on est dans un input
+
+      const currentIndex = menuItemsRefs.current.findIndex(
+        (ref) => ref === activeElement || ref?.contains(activeElement as Node)
+      );
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const nextIndex = currentIndex < menuItemsRefs.current.length - 1 
+          ? currentIndex + 1 
+          : 0;
+        const nextItem = menuItemsRefs.current[nextIndex];
+        if (nextItem) {
+          nextItem.focus();
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prevIndex = currentIndex > 0 
+          ? currentIndex - 1 
+          : menuItemsRefs.current.length - 1;
+        const prevItem = menuItemsRefs.current[prevIndex];
+        if (prevItem) {
+          prevItem.focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     <Sidebar collapsible="icon" variant="floating" className="h-screen">
@@ -78,13 +119,20 @@ export function AdminSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {menuItems.map((item, index) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
                     isActive={pathname === item.url || (item.url !== "/admin/dashboard" && pathname?.startsWith(item.url))}
                   >
-                    <Link href={item.url} className="cursor-pointer">
+                    <Link 
+                      href={item.url} 
+                      className="cursor-pointer focus:outline-none"
+                      ref={(el) => {
+                        menuItemsRefs.current[index] = el;
+                      }}
+                      tabIndex={0}
+                    >
                       <item.icon className="size-4" />
                       <span className="flex-1">{item.title}</span>
                     </Link>

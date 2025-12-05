@@ -24,9 +24,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Check, X, Eye } from "lucide-react";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
+import { formatDateWithoutTimezone } from "@/lib/date-utils";
 import { useRouter } from "next/navigation";
+import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
 import {
   Select,
   SelectContent,
@@ -227,102 +227,212 @@ export function UserRequestsManagement() {
           </div>
         )}
 
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Type</TableHead>
-                <TableHead>Email / Titre</TableHead>
-                <TableHead>Nom / Catégorie</TableHead>
-                <TableHead>Date de demande</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {requests.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    Aucune demande trouvée
-                  </TableCell>
-                </TableRow>
-              ) : (
-                requests.map((request) => {
-                  const isEventRequest = request.request_type === "event_creation";
-                  return (
-                    <TableRow key={request.id}>
-                      <TableCell>
-                        <Badge variant={isEventRequest ? "default" : "secondary"}>
-                          {isEventRequest ? "Événement" : "Compte"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {isEventRequest
-                          ? request.event_data?.title || "-"
-                          : request.email || "-"}
-                      </TableCell>
-                      <TableCell>
-                        {isEventRequest
-                          ? request.event_data?.category || "-"
-                          : request.name || "-"}
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(request.requested_at), "PPp", { locale: fr })}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(request.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setSelectedRequest(request);
-                              setIsDialogOpen(true);
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {request.status === "pending" && (
-                            <>
-                              {isEventRequest ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openEventCreatePage(request)}
-                                  title="Créer un événement"
-                                  className="cursor-pointer"
-                                >
-                                  Créer événement
-                                </Button>
-                              ) : (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => updateRequestStatus(request.id, "approved")}
-                                  >
-                                    <Check className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => updateRequestStatus(request.id, "rejected")}
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
-                            </>
-                          )}
-                        </div>
+        <MobileTableView
+          desktopView={
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Email / Titre</TableHead>
+                    <TableHead>Nom / Catégorie</TableHead>
+                    <TableHead>Date de demande</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {requests.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        Aucune demande trouvée
                       </TableCell>
                     </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                  ) : (
+                    requests.map((request) => {
+                      const isEventRequest = request.request_type === "event_creation";
+                      return (
+                        <TableRow key={request.id}>
+                          <TableCell>
+                            <Badge variant={isEventRequest ? "default" : "secondary"}>
+                              {isEventRequest ? "Événement" : "Compte"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {isEventRequest
+                              ? request.event_data?.title || "-"
+                              : request.email || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {isEventRequest
+                              ? request.event_data?.category || "-"
+                              : request.name || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {formatDateWithoutTimezone(request.requested_at, "PPp")}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(request.status)}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setSelectedRequest(request);
+                                  setIsDialogOpen(true);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {request.status === "pending" && (
+                                <>
+                                  {isEventRequest ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => openEventCreatePage(request)}
+                                      title="Créer un événement"
+                                      className="cursor-pointer"
+                                    >
+                                      Créer événement
+                                    </Button>
+                                  ) : (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => updateRequestStatus(request.id, "approved")}
+                                      >
+                                        <Check className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => updateRequestStatus(request.id, "rejected")}
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          }
+          mobileView={
+            requests.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Aucune demande trouvée
+              </div>
+            ) : (
+              requests.map((request) => {
+                const isEventRequest = request.request_type === "event_creation";
+                return (
+                  <MobileCard
+                    key={request.id}
+                    onClick={() => {
+                      setSelectedRequest(request);
+                      setIsDialogOpen(true);
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <Badge variant={isEventRequest ? "default" : "secondary"}>
+                        {isEventRequest ? "Événement" : "Compte"}
+                      </Badge>
+                      {getStatusBadge(request.status)}
+                    </div>
+                    <MobileCardRow
+                      label={isEventRequest ? "Titre" : "Email"}
+                      value={
+                        isEventRequest
+                          ? request.event_data?.title || "-"
+                          : request.email || "-"
+                      }
+                    />
+                    <MobileCardRow
+                      label={isEventRequest ? "Catégorie" : "Nom"}
+                      value={
+                        isEventRequest
+                          ? request.event_data?.category || "-"
+                          : request.name || "-"
+                      }
+                    />
+                    <MobileCardRow
+                      label="Date de demande"
+                      value={formatDateWithoutTimezone(request.requested_at, "PPp")}
+                    />
+                    <MobileCardActions>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="flex-1 min-h-[44px]"
+                        onClick={(e: React.MouseEvent) => {
+                          e.stopPropagation();
+                          setSelectedRequest(request);
+                          setIsDialogOpen(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Détails
+                      </Button>
+                      {request.status === "pending" && (
+                        <>
+                          {isEventRequest ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 min-h-[44px]"
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                openEventCreatePage(request);
+                              }}
+                            >
+                              Créer événement
+                            </Button>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 min-h-[44px]"
+                                onClick={(e: React.MouseEvent) => {
+                                  e.stopPropagation();
+                                  updateRequestStatus(request.id, "approved");
+                                }}
+                              >
+                                <Check className="h-4 w-4 mr-2" />
+                                Approuver
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 min-h-[44px]"
+                                onClick={(e: React.MouseEvent) => {
+                                  e.stopPropagation();
+                                  updateRequestStatus(request.id, "rejected");
+                                }}
+                              >
+                                <X className="h-4 w-4 mr-2" />
+                                Rejeter
+                              </Button>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </MobileCardActions>
+                  </MobileCard>
+                );
+              })
+            )
+          }
+        />
 
         <RequestDetailDialog
           request={selectedRequest}
@@ -417,7 +527,7 @@ function RequestDetailDialog({
                   <div>
                     <Label>Date</Label>
                     <p className="text-sm">
-                      {format(new Date(request.event_data.date), "PPp", { locale: fr })}
+                      {formatDateWithoutTimezone(request.event_data?.date, "PPp")}
                     </p>
                   </div>
                 )}
@@ -457,7 +567,7 @@ function RequestDetailDialog({
           <div>
             <Label>Date de demande</Label>
             <p className="text-sm">
-              {format(new Date(request.requested_at), "PPp", { locale: fr })}
+              {formatDateWithoutTimezone(request.requested_at, "PPp")}
             </p>
           </div>
 
@@ -465,7 +575,7 @@ function RequestDetailDialog({
             <div>
               <Label>Revisé le</Label>
               <p className="text-sm">
-                {format(new Date(request.reviewed_at), "PPp", { locale: fr })}
+                {formatDateWithoutTimezone(request.reviewed_at, "PPp")}
               </p>
             </div>
           )}

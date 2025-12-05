@@ -7,7 +7,10 @@ import { AdminLayout } from "@/app/(admin)/admin/components/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AddressInput } from "@/components/ui/address-input";
 import { Textarea } from "@/components/ui/textarea";
+import { MultiSelect } from "@/components/ui/multi-select";
+import { MultiSelectCreatable } from "@/components/ui/multi-select-creatable";
 import {
   Select,
   SelectContent,
@@ -32,8 +35,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ArrowLeft, Calendar, MapPin, Tag, Euro, Users, Clock, Link as LinkIcon, Image as ImageIcon, Upload, X, Save, Maximize2, Minimize2, RotateCw, LayoutGrid } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
+import { compressImage } from "@/lib/image-compression";
+import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
 // Import toast from sonner - using alert for now
 
 interface UserRequest {
@@ -50,7 +56,8 @@ interface UserRequest {
     end_date?: string;
     category?: string;
     location_id?: string;
-    organizer_id?: string;
+    location_name?: string;
+    organizer_names?: string[];
     price?: number;
     address?: string;
     capacity?: number;
@@ -71,7 +78,11 @@ function CreateEventContent() {
   const [saving, setSaving] = useState(false);
   const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
   const [organizers, setOrganizers] = useState<{ id: string; name: string }[]>([]);
+  const [selectedOrganizerIds, setSelectedOrganizerIds] = useState<string[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const isMobile = useIsMobile();
 
   // Image states
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -94,7 +105,6 @@ function CreateEventContent() {
     address: "",
     capacity: "",
     location_id: "",
-    organizer_id: "",
     door_opening_time: "",
     external_url: "",
     image_url: "",
@@ -122,47 +132,24 @@ function CreateEventContent() {
 
       setRequest(requestData);
 
-      // Load locations, organizers, categories
-      const [locationsResult, organizersResult, categoriesResult] = await Promise.all([
+      // Load locations, organizers, categories, tags
+      const [locationsResult, organizersResult, categoriesResult, tagsResult] = await Promise.all([
         supabase.from("locations").select("id, name").order("name"),
         supabase.from("organizers").select("id, name").order("name"),
         supabase.from("categories").select("id, name").eq("is_active", true).order("display_order"),
+        supabase.from("tags").select("id, name").order("name"),
       ]);
 
       if (locationsResult.data) setLocations(locationsResult.data);
       if (organizersResult.data) setOrganizers(organizersResult.data);
       if (categoriesResult.data) setCategories(categoriesResult.data);
+      if (tagsResult.data) setTags(tagsResult.data);
 
       // Populate form from request data
       if (requestData.event_data) {
         const ed = requestData.event_data;
-        let formattedDate = "";
-        if (ed.date) {
-          try {
-            const dateObj = new Date(ed.date);
-            if (!isNaN(dateObj.getTime())) {
-              const offset = dateObj.getTimezoneOffset();
-              const localDate = new Date(dateObj.getTime() - offset * 60 * 1000);
-              formattedDate = localDate.toISOString().slice(0, 16);
-            }
-          } catch (e) {
-            console.warn("Erreur de formatage de date:", e);
-          }
-        }
-
-        let formattedEndDate = "";
-        if (ed.end_date) {
-          try {
-            const dateObj = new Date(ed.end_date);
-            if (!isNaN(dateObj.getTime())) {
-              const offset = dateObj.getTimezoneOffset();
-              const localDate = new Date(dateObj.getTime() - offset * 60 * 1000);
-              formattedEndDate = localDate.toISOString().slice(0, 16);
-            }
-          } catch (e) {
-            console.warn("Erreur de formatage de date de fin:", e);
-          }
-        }
+        const formattedDate = ed.date ? toDatetimeLocal(ed.date) : "";
+        const formattedEndDate = ed.end_date ? toDatetimeLocal(ed.end_date) : "";
 
         setFormData({
           title: ed.title || "",
@@ -174,7 +161,6 @@ function CreateEventContent() {
           address: ed.address || "",
           capacity: ed.capacity != null ? ed.capacity.toString() : "",
           location_id: ed.location_id || "",
-          organizer_id: ed.organizer_id || "",
           door_opening_time: ed.door_opening_time || "",
           external_url: ed.external_url || "",
           image_url: ed.image_url || "",
@@ -183,6 +169,11 @@ function CreateEventContent() {
         if (ed.image_url) {
           setImagePreview(ed.image_url);
           setOriginalImageSrc(ed.image_url); // Conserver l'URL originale
+        }
+
+        // Charger les organisateurs si un organizer_id est présent
+        if (ed.organizer_id) {
+          setSelectedOrganizerIds([ed.organizer_id]);
         }
       }
     } catch (error) {
@@ -299,26 +290,40 @@ function CreateEventContent() {
     if (!imageFile) return null;
 
     try {
-      const fileExt = imageFile.name.split(".").pop();
+      // Compresser l'image avant l'upload pour qu'elle fasse moins de 10 Mo
+      const compressedFile = await compressImage(imageFile, 10);
+      
+      const fileExt = compressedFile.name.split(".").pop() || "jpg";
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
       const { data, error } = await supabase.storage
         .from("event-images")
-        .upload(fileName, imageFile, {
+        .upload(fileName, compressedFile, {
           cacheControl: "3600",
           upsert: false,
         });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes("Bucket not found") || (error as any).statusCode === 404) {
+          alert("Le bucket 'event-images' n'existe pas. Veuillez le créer dans Supabase Storage.");
+        } else {
+          throw error;
+        }
+        return null;
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from("event-images")
         .getPublicUrl(data.path);
 
       return publicUrl;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erreur upload:", error);
-      alert("Erreur lors de l'upload de l'image");
+      if (error.message?.includes("Bucket not found") || error.statusCode === 404) {
+        alert("Le bucket 'event-images' n'existe pas. Veuillez le créer dans Supabase Storage.");
+      } else {
+        alert("Erreur lors de l'upload de l'image: " + (error.message || "Erreur inconnue"));
+      }
       return null;
     }
   }
@@ -345,57 +350,123 @@ function CreateEventContent() {
       } = await supabase.auth.getUser();
 
       // Create event
+      const eventData: any = {
+        title: formData.title,
+        description: formData.description || null,
+        date: fromDatetimeLocal(formData.date) || formData.date,
+        end_date: formData.end_date ? fromDatetimeLocal(formData.end_date) : null,
+        category: formData.category,
+        price: formData.price ? parseFloat(formData.price) : null,
+        address: formData.address || null,
+        capacity: formData.capacity ? parseInt(formData.capacity) : null,
+        location_id: formData.location_id === "none" ? null : formData.location_id || null,
+        door_opening_time: formData.door_opening_time || null,
+        external_url: formData.external_url || null,
+        image_url: finalImageUrl || null,
+        created_by: request?.requested_by || user?.id || null,
+        status: "approved",
+      };
+
+      // Ajouter les tags si sélectionnés
+      if (selectedTagIds.length > 0) {
+        eventData.tag_ids = selectedTagIds;
+      }
+
       const { data: newEvent, error: eventError } = await supabase
         .from("events")
-        .insert([
-          {
-            title: formData.title,
-            description: formData.description || null,
-            date: formData.date,
-            end_date: formData.end_date || null,
-            category: formData.category,
-            price: formData.price ? parseFloat(formData.price) : null,
-            address: formData.address || null,
-            capacity: formData.capacity ? parseInt(formData.capacity) : null,
-            location_id: formData.location_id === "none" ? null : formData.location_id || null,
-            door_opening_time: formData.door_opening_time || null,
-            external_url: formData.external_url || null,
-            image_url: finalImageUrl || null,
-            created_by: request?.requested_by || user?.id || null,
-            status: "approved",
-          },
-        ])
+        .insert([eventData])
         .select()
         .single();
 
-      if (eventError) throw eventError;
+      if (eventError) {
+        console.error("Erreur détaillée lors de la création de l'événement:", {
+          message: eventError.message,
+          details: eventError.details,
+          hint: eventError.hint,
+          code: eventError.code,
+          eventData,
+        });
+        throw eventError;
+      }
 
       // Link organizer if present
-      if (formData.organizer_id && formData.organizer_id !== "none") {
-        await supabase.from("event_organizers").insert({
-          event_id: newEvent.id,
-          organizer_id: formData.organizer_id,
-        });
+      // Ajouter les organisateurs sélectionnés
+      if (selectedOrganizerIds.length > 0) {
+        const { error: orgError } = await supabase
+          .from("event_organizers")
+          .insert(
+            selectedOrganizerIds.map((orgId) => ({
+              event_id: newEvent.id,
+              organizer_id: orgId,
+            }))
+          );
+
+        if (orgError) throw orgError;
       }
 
       // Update request
+      // Note: On ne met à jour que les champs nécessaires pour éviter les conflits RLS
       const { error: updateError } = await supabase
         .from("user_requests")
         .update({
-          status: "approved",
+          status: "approved" as const,
           reviewed_by: user?.id || null,
           reviewed_at: new Date().toISOString(),
           notes: `Converti en événement ID: ${newEvent.id}`,
         })
-        .eq("id", requestId);
+        .eq("id", requestId)
+        .select(); // Ajouter select() pour forcer l'exécution et vérifier les permissions
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error("Erreur détaillée lors de la mise à jour de la demande:", {
+          message: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint,
+          code: updateError.code,
+          requestId,
+          user: user?.id,
+        });
+        throw updateError;
+      }
 
       alert("Événement créé avec succès !");
       router.push("/admin/requests");
-    } catch (error) {
-      console.error("Erreur lors de la création:", error);
-      alert("Erreur lors de la création de l'événement");
+    } catch (error: any) {
+      console.error("Erreur lors de la création:", {
+        error,
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code,
+        statusCode: error?.statusCode,
+        stack: error?.stack,
+      });
+      
+      // Messages d'erreur plus explicites
+      let errorMessage = "Erreur lors de la création de l'événement";
+      
+      if (error?.message?.includes("Bucket not found") || error?.code === "404") {
+        errorMessage = `Bucket manquant: ${error.message}. Veuillez créer les buckets dans Supabase Storage (event-images, locations-images, organizers-images).`;
+      } else if (error?.code === "42501" || error?.message?.includes("permission denied") || error?.message?.includes("new row violates")) {
+        if (error?.message?.includes("storage") || error?.message?.includes("bucket")) {
+          errorMessage = "Erreur de permission sur le bucket de stockage. Vérifiez que les politiques RLS pour les buckets sont configurées (migration 020).";
+        } else if (error?.message?.includes("user_requests") || error?.hint?.includes("user_requests")) {
+          errorMessage = "Vous n'avez pas la permission de mettre à jour cette demande. Vérifiez vos droits d'administration et exécutez la migration 019.";
+        } else if (error?.message?.includes("events")) {
+          errorMessage = "Vous n'avez pas la permission de créer un événement. Vérifiez vos droits d'administration.";
+        } else {
+          errorMessage = "Vous n'avez pas la permission d'effectuer cette action. Vérifiez vos droits d'administration.";
+        }
+      } else if (error?.message) {
+        errorMessage = `Erreur: ${error.message}`;
+        if (error?.hint) {
+          errorMessage += ` (Indice: ${error.hint})`;
+        }
+      } else if (error?.details) {
+        errorMessage = `Erreur: ${error.details}`;
+      }
+      
+      alert(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -464,19 +535,19 @@ function CreateEventContent() {
                   <CardDescription>Détails de l'événement</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="title">Titre *</Label>
-                      <Input
-                        id="title"
-                        value={formData.title}
-                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                        required
-                        placeholder="Nom de l'événement"
-                        className="cursor-pointer"
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Titre *</Label>
+                    <Input
+                      id="title"
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      required
+                      placeholder="Nom de l'événement"
+                      className="cursor-pointer"
+                    />
+                  </div>
 
+                  <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
                     <div className="space-y-2">
                       <Label htmlFor="category" className="flex items-center gap-2">
                         <Tag className="h-4 w-4" />
@@ -498,6 +569,65 @@ function CreateEventContent() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Tag className="h-4 w-4" />
+                        Tags
+                      </Label>
+                      <MultiSelectCreatable
+                        options={tags.map((tag) => ({
+                          label: tag.name,
+                          value: tag.id,
+                        }))}
+                        selected={selectedTagIds}
+                        onChange={setSelectedTagIds}
+                        onCreate={async (name: string) => {
+                          try {
+                            const { data, error } = await supabase
+                              .from("tags")
+                              .insert([{ name: name.trim() }])
+                              .select("id")
+                              .single();
+
+                            if (error) {
+                              console.error("Erreur détaillée lors de la création du tag:", {
+                                message: error.message,
+                                details: error.details,
+                                hint: error.hint,
+                                code: error.code,
+                              });
+                              
+                              // Messages d'erreur plus explicites
+                              if (error.code === "23505") {
+                                alert(`Un tag avec le nom "${name}" existe déjà.`);
+                              } else if (error.message?.includes("permission denied") || error.code === "42501") {
+                                alert("Vous n'avez pas la permission de créer un tag. Vérifiez vos droits d'administration.");
+                              } else if (error.message?.includes("relation") && error.message?.includes("does not exist")) {
+                                alert("La table 'tags' n'existe pas. Veuillez exécuter la migration 014_add_tags_to_events.sql");
+                              } else {
+                                alert(`Erreur lors de la création du tag: ${error.message || "Erreur inconnue"}`);
+                              }
+                              throw error;
+                            }
+                            
+                            // Recharger la liste des tags
+                            const { data: tagsData } = await supabase
+                              .from("tags")
+                              .select("id, name")
+                              .order("name");
+                            if (tagsData) setTags(tagsData);
+                            
+                            return data?.id || null;
+                          } catch (error) {
+                            console.error("Erreur lors de la création du tag:", error);
+                            return null;
+                          }
+                        }}
+                        placeholder="Sélectionner ou créer des tags..."
+                        createPlaceholder="Ajouter un nouveau tag..."
+                      />
                     </div>
                   </div>
 
@@ -581,30 +711,20 @@ function CreateEventContent() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="organizer_id" className="flex items-center gap-2">
+                      <Label className="flex items-center gap-2">
                         <Users className="h-4 w-4" />
-                        Organisateur
+                        Organisateurs
                       </Label>
-                      <Select
-                        value={formData.organizer_id || "none"}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, organizer_id: value === "none" ? "" : value })
-                        }
-                      >
-                        <SelectTrigger className="cursor-pointer">
-                          <SelectValue placeholder="Sélectionner un organisateur" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none" className="cursor-pointer">
-                            Aucun organisateur
-                          </SelectItem>
-                          {organizers.map((org) => (
-                            <SelectItem key={org.id} value={org.id} className="cursor-pointer">
-                              {org.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <MultiSelect
+                        options={organizers.map((org) => ({
+                          label: org.name,
+                          value: org.id,
+                        }))}
+                        selected={selectedOrganizerIds}
+                        onChange={setSelectedOrganizerIds}
+                        placeholder="Sélectionner des organisateurs..."
+                        disabled={organizers.length === 0}
+                      />
                     </div>
                   </div>
 
@@ -613,11 +733,11 @@ function CreateEventContent() {
                       <MapPin className="h-4 w-4" />
                       Adresse
                     </Label>
-                    <Input
+                    <AddressInput
                       id="address"
                       value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      placeholder="Adresse complète de l'événement"
+                      onChange={(address) => setFormData({ ...formData, address })}
+                      placeholder="Commencez à taper une adresse..."
                       className="cursor-pointer"
                     />
                   </div>
@@ -728,10 +848,7 @@ function CreateEventContent() {
                           <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
                           <span className="font-medium text-muted-foreground min-w-[80px]">Début:</span>
                           <span className="break-words">
-                            {new Date(request.event_data.date).toLocaleString("fr-FR", {
-                              dateStyle: "long",
-                              timeStyle: "short",
-                            })}
+                            {formatDateWithoutTimezone(request.event_data.date, "PPpp")}
                           </span>
                         </div>
                       )}
@@ -740,10 +857,7 @@ function CreateEventContent() {
                           <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
                           <span className="font-medium text-muted-foreground min-w-[80px]">Fin:</span>
                           <span className="break-words">
-                            {new Date(request.event_data.end_date).toLocaleString("fr-FR", {
-                              dateStyle: "long",
-                              timeStyle: "short",
-                            })}
+                            {formatDateWithoutTimezone(request.event_data.end_date, "PPpp")}
                           </span>
                         </div>
                       )}
@@ -759,6 +873,20 @@ function CreateEventContent() {
                           <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
                           <span className="font-medium text-muted-foreground min-w-[80px]">Adresse:</span>
                           <span className="break-words">{request.event_data.address}</span>
+                        </div>
+                      )}
+                      {request.event_data.location_name && (
+                        <div className="flex items-start gap-2">
+                          <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                          <span className="font-medium text-muted-foreground min-w-[80px]">Lieu:</span>
+                          <span className="break-words">{request.event_data.location_name}</span>
+                        </div>
+                      )}
+                      {request.event_data.organizer_names && request.event_data.organizer_names.length > 0 && (
+                        <div className="flex items-start gap-2">
+                          <Users className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                          <span className="font-medium text-muted-foreground min-w-[80px]">Organisateurs:</span>
+                          <span className="break-words">{request.event_data.organizer_names.join(", ")}</span>
                         </div>
                       )}
                       {request.email && (

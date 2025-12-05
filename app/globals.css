@@ -316,6 +316,126 @@
   }
 }
 
+/* Mobile optimizations - Best practices 2025 */
+@layer base {
+  /* Safe area support for iOS devices */
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  /* Touch target optimization - minimum 44x44px */
+  @media (max-width: 767px) {
+    button,
+    a,
+    input[type="checkbox"],
+    input[type="radio"],
+    select,
+    [role="button"],
+    [role="link"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    /* Larger text inputs on mobile for better UX */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="search"],
+    input[type="date"],
+    input[type="datetime-local"],
+    textarea,
+    select {
+      font-size: 16px !important; /* Prevents zoom on iOS */
+      min-height: 44px;
+    }
+
+    /* Better spacing for mobile */
+    .space-y-4 > * + * {
+      margin-top: 1rem;
+    }
+
+    /* Optimize tables for mobile - scrollable with padding */
+    .table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: 0 -1rem;
+      padding: 0 1rem;
+    }
+
+    table {
+      font-size: 14px;
+      min-width: 600px;
+    }
+
+    /* Better scrollbar on mobile */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    /* Prevent text selection on buttons for better mobile UX */
+    button,
+    [role="button"] {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    /* Better focus states for mobile */
+    :focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+    }
+
+    /* Improve tap targets */
+    [class*="Button"],
+    [class*="button"] {
+      touch-action: manipulation;
+    }
+
+    /* Force z-index élevé pour les suggestions d'adresse dans les modales */
+    [data-address-suggestions] {
+      z-index: 9999999 !important;
+      position: fixed !important;
+      pointer-events: auto !important;
+      isolation: isolate !important;
+    }
+    
+    /* S'assurer que les éléments enfants du popover d'adresse sont cliquables */
+    [data-address-suggestions] > * {
+      pointer-events: auto !important;
+    }
+
+    /* Optimize dialogs for mobile */
+    [role="dialog"] {
+      max-height: 100vh;
+      max-height: 100dvh; /* Dynamic viewport height */
+    }
+  }
+
+  /* Bottom navigation spacing */
+  @media (max-width: 767px) {
+    body {
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+  }
+}
+
 /* react-easy-crop styles */
 .react-easy-crop-container {
   position: absolute;

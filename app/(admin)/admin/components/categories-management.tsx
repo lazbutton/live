@@ -40,8 +40,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Edit, Trash2, GripVertical } from "lucide-react";
 import { SortableCategoryRow } from "./sortable-category-row";
+import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Category {
   id: string;
@@ -153,63 +156,94 @@ export function CategoriesManagement() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <CardTitle>Gestion des catégories</CardTitle>
             <CardDescription>
               Gérez les catégories d'événements disponibles. Faites glisser pour réorganiser l'ordre.
             </CardDescription>
           </div>
-          <Button onClick={() => handleOpenDialog()}>
+          <Button onClick={() => handleOpenDialog()} className="min-h-[44px] md:min-h-0">
             <Plus className="mr-2 h-4 w-4" />
             Ajouter une catégorie
           </Button>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="rounded-md border">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10"></TableHead>
-                  <TableHead>Nom</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Ordre</TableHead>
-                  <TableHead>Active</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {categories.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">
-                      Aucune catégorie trouvée
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  <SortableContext
-                    items={categories.map((cat) => cat.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {categories.map((category) => (
-                      <SortableCategoryRow
-                        key={category.id}
-                        category={category}
-                        onEdit={() => handleOpenDialog(category)}
-                        onDelete={() => deleteCategory(category.id)}
-                      />
-                    ))}
-                  </SortableContext>
-                )}
-              </TableBody>
-            </Table>
-          </DndContext>
-        </div>
+        <MobileTableView
+          desktopView={
+            <div className="rounded-md border">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10"></TableHead>
+                      <TableHead>Nom</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Ordre</TableHead>
+                      <TableHead>Active</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {categories.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground">
+                          Aucune catégorie trouvée
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      <SortableContext
+                        items={categories.map((cat) => cat.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {categories.map((category) => (
+                          <SortableCategoryRow
+                            key={category.id}
+                            category={category}
+                            onEdit={() => handleOpenDialog(category)}
+                            onDelete={() => deleteCategory(category.id)}
+                          />
+                        ))}
+                      </SortableContext>
+                    )}
+                  </TableBody>
+                </Table>
+              </DndContext>
+            </div>
+          }
+          mobileView={
+            categories.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Aucune catégorie trouvée
+              </div>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={categories.map((cat) => cat.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {categories.map((category) => (
+                    <SortableCategoryCard
+                      key={category.id}
+                      category={category}
+                      onEdit={() => handleOpenDialog(category)}
+                      onDelete={() => deleteCategory(category.id)}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            )
+          }
+        />
 
         <CategoryDialog
           category={editingCategory}
@@ -393,6 +427,80 @@ function CategoryDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Composant de carte sortable pour mobile
+function SortableCategoryCard({
+  category,
+  onEdit,
+  onDelete,
+}: {
+  category: Category;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: category.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <MobileCard>
+        <div className="flex items-start gap-3">
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-2 hover:bg-muted/50 rounded-lg mt-1 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+            type="button"
+          >
+            <GripVertical className="h-5 w-5 text-muted-foreground" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <h3 className="font-semibold text-base flex-1">{category.name}</h3>
+              <Badge variant={category.is_active ? "default" : "secondary"}>
+                {category.is_active ? "Active" : "Inactive"}
+              </Badge>
+            </div>
+            {category.description && (
+              <MobileCardRow label="Description" value={category.description} />
+            )}
+            <MobileCardRow label="Ordre d'affichage" value={category.display_order} />
+            <MobileCardActions>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="flex-1 min-h-[44px]"
+                onClick={onEdit}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Modifier
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="min-h-[44px] min-w-[44px]"
+                onClick={onDelete}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </MobileCardActions>
+          </div>
+        </div>
+      </MobileCard>
+    </div>
   );
 }
 
