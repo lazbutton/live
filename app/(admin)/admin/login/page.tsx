@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import { Button } from "@/base_components/ui/button";
-import { Input } from "@/base_components/ui/input";
-import { Label } from "@/base_components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/base_components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, AlertCircle } from "lucide-react";
-import { Alert, AlertDescription } from "@/base_components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");

@@ -125,58 +125,59 @@
 }
 
 .dark {
-  --background: oklch(0.2178 0 0);
-  --foreground: oklch(0.8853 0 0);
-  --card: oklch(0.2435 0 0);
-  --card-foreground: oklch(0.8853 0 0);
-  --popover: oklch(0.2435 0 0);
-  --popover-foreground: oklch(0.8853 0 0);
-  --primary: oklch(0.7058 0 0);
-  --primary-foreground: oklch(0.2178 0 0);
-  --secondary: oklch(0.3092 0 0);
-  --secondary-foreground: oklch(0.8853 0 0);
-  --muted: oklch(0.2850 0 0);
-  --muted-foreground: oklch(0.5999 0 0);
-  --accent: oklch(0.3715 0 0);
-  --accent-foreground: oklch(0.8853 0 0);
-  --destructive: oklch(0.6591 0.1530 22.1703);
-  --border: oklch(0.3290 0 0);
-  --input: oklch(0.3092 0 0);
-  --ring: oklch(0.7058 0 0);
-  --chart-1: oklch(0.7058 0 0);
-  --chart-2: oklch(0.6714 0.0339 206.3482);
-  --chart-3: oklch(0.5452 0 0);
-  --chart-4: oklch(0.4604 0 0);
-  --chart-5: oklch(0.3715 0 0);
-  --sidebar: oklch(0.2393 0 0);
-  --sidebar-foreground: oklch(0.8853 0 0);
-  --sidebar-primary: oklch(0.7058 0 0);
-  --sidebar-primary-foreground: oklch(0.2178 0 0);
-  --sidebar-accent: oklch(0.3715 0 0);
-  --sidebar-accent-foreground: oklch(0.8853 0 0);
-  --sidebar-border: oklch(0.3290 0 0);
-  --sidebar-ring: oklch(0.7058 0 0);
-  --destructive-foreground: oklch(1.0000 0 0);
-  --radius: 0.35rem;
-  --font-sans: Inter, sans-serif;
+  /* macOS Sequoia style - Ultra refined, minimal, with transparency and blur effects */
+  --background: #1a1a1a;
+  --foreground: #f5f5f7;
+  --card: rgba(28, 28, 30, 0.6);
+  --card-foreground: #f5f5f7;
+  --popover: rgba(28, 28, 30, 0.95);
+  --popover-foreground: #f5f5f7;
+  --primary: #a0a0a0; /* macOS Sequoia blue - slightly brighter */
+  --primary-foreground: #1a1a1a;
+  --secondary: rgba(44, 44, 46, 0.8);
+  --secondary-foreground: #f5f5f7;
+  --muted: rgba(44, 44, 46, 0.6);
+  --muted-foreground: #98989d;
+  --accent: #a0a0a0; /* macOS Sequoia blue */
+  --accent-foreground: #1a1a1a;
+  --destructive: #ff453a;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(44, 44, 46, 0.8);
+  --ring: #a0a0a0;
+  --chart-1: #a0a0a0;
+  --chart-2: #5e5ce6;
+  --chart-3: #bf5af2;
+  --chart-4: #ff375f;
+  --chart-5: #ff9f0a;
+  --sidebar: rgba(28, 28, 30, 0.7); /* More transparent for glassmorphism */
+  --sidebar-foreground: #f5f5f7;
+  --sidebar-primary: #a0a0a0;
+  --sidebar-primary-foreground: #1a1a1a;
+  --sidebar-accent: #a0a0a0;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #a0a0a0;
+  --destructive-foreground: #ffffff;
+  --radius: 0.5rem; /* More rounded like macOS Sequoia */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-serif: Georgia, serif;
-  --font-mono: Fira Code, monospace;
-  --shadow-color: hsl(0 0% 20% / 0.1);
+  --font-mono: "SF Mono", "Monaco", "Menlo", "Courier New", monospace;
+  --shadow-color: rgba(0, 0, 0, 0.3);
   --shadow-opacity: 0.15;
-  --shadow-blur: 0px;
+  --shadow-blur: 20px;
   --shadow-spread: 0px;
   --shadow-offset-x: 0px;
-  --shadow-offset-y: 2px;
-  --letter-spacing: 0em;
+  --shadow-offset-y: 4px;
+  --letter-spacing: -0.022em; /* Even tighter like SF Pro */
   --spacing: 0.25rem;
-  --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
-  --shadow-xs: 0px 2px 0px 0px hsl(0 0% 20% / 0.07);
-  --shadow-sm: 0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15);
-  --shadow: 0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 1px 2px -1px hsl(0 0% 20% / 0.15);
-  --shadow-md: 0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 2px 4px -1px hsl(0 0% 20% / 0.15);
-  --shadow-lg: 0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 4px 6px -1px hsl(0 0% 20% / 0.15);
-  --shadow-xl: 0px 2px 0px 0px hsl(0 0% 20% / 0.15), 0px 8px 10px -1px hsl(0 0% 20% / 0.15);
-  --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 20% / 0.38);
+  --shadow-2xs: 0 1px 2px rgba(0, 0, 0, 0.1);
+  --shadow-xs: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.12);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.18);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.2);
+  --shadow-xl: 0 12px 40px rgba(0, 0, 0, 0.25);
+  --shadow-2xl: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 @layer base {
@@ -185,6 +186,235 @@
   }
   body {
     @apply bg-background text-foreground;
-    letter-spacing: var(--tracking-normal);
+    letter-spacing: var(--letter-spacing);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   }
+  
+  /* macOS Sequoia ultra-refined styling */
+  .dark {
+    background: linear-gradient(135deg, #1c1c1e 0%, #1a1a1c 100%);
+    background-attachment: fixed;
+  }
+  
+  /* Ultra-subtle borders - almost invisible */
+  .dark .border {
+    border-color: var(--border);
+    border-width: 0.5px;
+  }
+  
+  /* Table styles refined */
+  .dark table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  
+  /* Glassmorphism effects */
+  .dark [data-sidebar="sidebar"] {
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    background: #171718 !important;
+    border-top-right-radius: 1.60rem !important;
+    border-bottom-right-radius: 1.60rem !important;
+    border-right: 0.5px solid rgba(255, 255, 255, 0.08) !important;
+  }
+  
+  /* Padding en haut pour la sidebar */
+  .dark [data-sidebar="content"] {
+    padding-top: 35px !important;
+  }
+  
+  /* Variant floating avec toutes les bordures */
+  .dark [data-variant="floating"] [data-sidebar="sidebar"],
+  .dark [data-variant="inset"] [data-sidebar="sidebar"] {
+    border-left: 0.5px solid rgba(255, 255, 255, 0.08) !important;
+    border-top: 0.5px solid rgba(255, 255, 255, 0.08) !important;
+    border-bottom: 0.5px solid rgba(255, 255, 255, 0.08) !important;
+    border-top-right-radius: 1.30rem !important;
+    border-bottom-right-radius: 1.30rem !important;
+    border-top-left-radius: 1.10rem !important;
+    border-bottom-left-radius: 1.10rem !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), 0 0 0 0.5px rgba(255, 255, 255, 0.05) !important;
+  }
+  
+  .dark .bg-card {
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+  }
+  
+  /* Ultra-smooth transitions - macOS Sequoia style */
+  * {
+    transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition-duration: 0.2s;
+  }
+  
+  /* Refined macOS-style scrollbars */
+  .dark ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+  
+  .dark ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .dark ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.12);
+    background-clip: padding-box;
+  }
+  
+  .dark ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  
+  /* Refined focus rings */
+  .dark *:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 6px;
+    outline-width: 2.5px;
+  }
+  
+  /* Sidebar active state with glow */
+  .dark [data-sidebar="menu-button"][data-active="true"] {
+    background-color: var(--sidebar-accent);
+    color: var(--sidebar-accent-foreground);
+    box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.2);
+  }
+  
+  /* Smooth hover effects */
+  .dark button,
+  .dark [role="button"] {
+    transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  
+  /* Text rendering refinements */
+  .dark {
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* Subtle glow effects on interactive elements */
+  .dark button:not(:disabled):hover,
+  .dark [role="button"]:not(:disabled):hover {
+    transform: translateY(-0.5px);
+  }
+  
+  .dark button:not(:disabled):active,
+  .dark [role="button"]:not(:disabled):active {
+    transform: translateY(0px);
+  }
+}
+
+/* react-easy-crop styles */
+.react-easy-crop-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.react-easy-crop-image,
+.react-easy-crop-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: top left;
+}
+
+.react-easy-crop-backdrop {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.react-easy-crop-cropper {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-sizing: border-box;
+  box-shadow: 0 0 0 9999em rgba(0, 0, 0, 0.5);
+  touch-action: none;
+}
+
+.react-easy-crop-cropper.rnac-square {
+  border-radius: 0;
+}
+
+.react-easy-crop-cropper.rnac-circle {
+  border-radius: 50%;
+}
+
+/* Custom slider styles for zoom control */
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 2px solid var(--background);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 2px solid var(--background);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Désactiver toutes les animations sur les Select */
+[data-radix-select-content],
+[data-radix-select-viewport],
+[data-radix-popper-content-wrapper] {
+  animation: none !important;
+  transition: none !important;
+}
+
+[data-radix-select-content][data-state="open"],
+[data-radix-select-content][data-state="closed"],
+[data-radix-popper-content-wrapper][data-state="open"],
+[data-radix-popper-content-wrapper][data-state="closed"] {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* Désactiver les animations sur tous les éléments enfants du Select */
+[data-radix-select-content] *,
+[data-radix-select-viewport] * {
+  animation: none !important;
+  transition: none !important;
 }

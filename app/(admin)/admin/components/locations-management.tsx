@@ -9,18 +9,18 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/base_components/ui/table";
-import { Button } from "@/base_components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/base_components/ui/card";
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/base_components/ui/dialog";
-import { Input } from "@/base_components/ui/input";
-import { Label } from "@/base_components/ui/label";
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Plus, Edit, Trash2 } from "lucide-react";
 
 interface Location {

@@ -9,27 +9,27 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/base_components/ui/table";
-import { Button } from "@/base_components/ui/button";
-import { Badge } from "@/base_components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/base_components/ui/card";
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/base_components/ui/dialog";
-import { Input } from "@/base_components/ui/input";
-import { Label } from "@/base_components/ui/label";
-import { Textarea } from "@/base_components/ui/textarea";
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/base_components/ui/select";
+} from "@/components/ui/select";
 import { Check, X, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -384,14 +384,14 @@ function EventEditDialog({
           <div className="space-y-2">
             <Label htmlFor="location_id">Lieu</Label>
             <Select
-              value={formData.location_id}
-              onValueChange={(value) => setFormData({ ...formData, location_id: value })}
+              value={formData.location_id || "none"}
+              onValueChange={(value) => setFormData({ ...formData, location_id: value === "none" ? "" : value })}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Sélectionner un lieu" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Aucun lieu</SelectItem>
+                <SelectItem value="none">Aucun lieu</SelectItem>
                 {locations.map((loc) => (
                   <SelectItem key={loc.id} value={loc.id}>
                     {loc.name}

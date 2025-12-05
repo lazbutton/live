@@ -9,23 +9,31 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/base_components/ui/table";
-import { Button } from "@/base_components/ui/button";
-import { Badge } from "@/base_components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/base_components/ui/card";
-import { Input } from "@/base_components/ui/input";
-import { Label } from "@/base_components/ui/label";
-import { Textarea } from "@/base_components/ui/textarea";
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/base_components/ui/dialog";
+} from "@/components/ui/dialog";
 import { Check, X, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { useRouter } from "next/navigation";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface UserRequest {
   id: string;
@@ -48,11 +56,15 @@ interface UserRequest {
     address?: string;
     capacity?: number;
     image_url?: string;
+    door_opening_time?: string;
+    external_url?: string;
+    [key: string]: any; // Pour les champs supplémentaires
   };
   requested_by?: string | null;
 }
 
 export function UserRequestsManagement() {
+  const router = useRouter();
   const [requests, setRequests] = useState<UserRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<UserRequest | null>(null);
@@ -157,28 +169,8 @@ export function UserRequestsManagement() {
     }
   }
 
-  async function convertEventRequestToEvent(requestId: string) {
-    if (!confirm("Voulez-vous créer un événement à partir de cette demande ?")) return;
-
-    try {
-      const { data, error } = await supabase.rpc("convert_event_request_to_event", {
-        request_id: requestId,
-      });
-
-      if (error) {
-        console.error("Erreur lors de la conversion:", error);
-        alert(`Erreur lors de la conversion: ${error.message}`);
-        return;
-      }
-
-      alert(`Événement créé avec succès ! ID: ${data}`);
-      await loadRequests();
-      setIsDialogOpen(false);
-      setSelectedRequest(null);
-    } catch (error) {
-      console.error("Erreur lors de la conversion:", error);
-      alert("Erreur lors de la conversion de la demande en événement");
-    }
+  function openEventCreatePage(request: UserRequest) {
+    router.push(`/admin/requests/${request.id}/create-event`);
   }
 
   const getStatusBadge = (status: string) => {
@@ -296,8 +288,9 @@ export function UserRequestsManagement() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => convertEventRequestToEvent(request.id)}
+                                  onClick={() => openEventCreatePage(request)}
                                   title="Créer un événement"
+                                  className="cursor-pointer"
                                 >
                                   Créer événement
                                 </Button>
@@ -347,7 +340,7 @@ export function UserRequestsManagement() {
           }}
           onConvert={() => {
             if (selectedRequest) {
-              convertEventRequestToEvent(selectedRequest.id);
+              openEventCreatePage(selectedRequest);
             }
           }}
         />
@@ -355,6 +348,9 @@ export function UserRequestsManagement() {
     </Card>
   );
 }
+
+// EventCreateDialog moved to separate page: /admin/requests/[id]/create-event
+// This component is no longer used - code removed
 
 function RequestDetailDialog({
   request,
@@ -544,4 +540,3 @@ function RequestDetailDialog({
     </Dialog>
   );
 }
-

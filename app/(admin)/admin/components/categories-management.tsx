@@ -3,27 +3,45 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from "@/base_components/ui/table";
-import { Button } from "@/base_components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/base_components/ui/card";
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/base_components/ui/dialog";
-import { Input } from "@/base_components/ui/input";
-import { Label } from "@/base_components/ui/label";
-import { Textarea } from "@/base_components/ui/textarea";
-import { Switch } from "@/base_components/ui/switch";
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Plus, Edit, Trash2 } from "lucide-react";
+import { SortableCategoryRow } from "./sortable-category-row";
 
 interface Category {
   id: string;
@@ -81,6 +99,53 @@ export function CategoriesManagement() {
     setIsDialogOpen(true);
   }
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = categories.findIndex((cat) => cat.id === active.id);
+      const newIndex = categories.findIndex((cat) => cat.id === over.id);
+
+      // Créer le nouvel ordre avec display_order mis à jour
+      const newCategories = arrayMove(categories, oldIndex, newIndex).map((cat, index) => ({
+        ...cat,
+        display_order: index,
+      }));
+      
+      // Mettre à jour l'état immédiatement avec les nouveaux display_order
+      setCategories(newCategories);
+
+      // Mettre à jour l'ordre dans la base de données
+      try {
+        const updates = newCategories.map((cat) => ({
+          id: cat.id,
+          display_order: cat.display_order,
+        }));
+
+        for (const update of updates) {
+          const { error } = await supabase
+            .from("categories")
+            .update({ display_order: update.display_order })
+            .eq("id", update.id);
+
+          if (error) throw error;
+        }
+      } catch (error) {
+        console.error("Erreur lors de la mise à jour de l'ordre:", error);
+        alert("Erreur lors de la mise à jour de l'ordre des catégories");
+        // Recharger les catégories en cas d'erreur
+        await loadCategories();
+      }
+    }
+  }
+
   if (loading) {
     return <div className="text-center py-8">Chargement des catégories...</div>;
   }
@@ -92,7 +157,7 @@ export function CategoriesManagement() {
           <div>
             <CardTitle>Gestion des catégories</CardTitle>
             <CardDescription>
-              Gérez les catégories d'événements disponibles
+              Gérez les catégories d'événements disponibles. Faites glisser pour réorganiser l'ordre.
             </CardDescription>
           </div>
           <Button onClick={() => handleOpenDialog()}>
@@ -103,59 +168,47 @@ export function CategoriesManagement() {
       </CardHeader>
       <CardContent>
         <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nom</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Ordre</TableHead>
-                <TableHead>Active</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {categories.length === 0 ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    Aucune catégorie trouvée
-                  </TableCell>
+                  <TableHead className="w-10"></TableHead>
+                  <TableHead>Nom</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Ordre</TableHead>
+                  <TableHead>Active</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ) : (
-                categories.map((category) => (
-                  <TableRow key={category.id}>
-                    <TableCell className="font-medium">{category.name}</TableCell>
-                    <TableCell>{category.description || "-"}</TableCell>
-                    <TableCell>{category.display_order}</TableCell>
-                    <TableCell>
-                      {category.is_active ? (
-                        <span className="text-green-600">Oui</span>
-                      ) : (
-                        <span className="text-gray-400">Non</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleOpenDialog(category)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deleteCategory(category.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {categories.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      Aucune catégorie trouvée
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  <SortableContext
+                    items={categories.map((cat) => cat.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {categories.map((category) => (
+                      <SortableCategoryRow
+                        key={category.id}
+                        category={category}
+                        onEdit={() => handleOpenDialog(category)}
+                        onDelete={() => deleteCategory(category.id)}
+                      />
+                    ))}
+                  </SortableContext>
+                )}
+              </TableBody>
+            </Table>
+          </DndContext>
         </div>
 
         <CategoryDialog
@@ -163,6 +216,7 @@ export function CategoriesManagement() {
           open={isDialogOpen}
           onOpenChange={setIsDialogOpen}
           onSuccess={loadCategories}
+          categories={categories}
         />
       </CardContent>
     </Card>
@@ -174,11 +228,13 @@ function CategoryDialog({
   open,
   onOpenChange,
   onSuccess,
+  categories,
 }: {
   category: Category | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  categories: Category[];
 }) {
   const [formData, setFormData] = useState({
     name: "",
@@ -219,19 +275,17 @@ function CategoryDialog({
         // Mise à jour
         const { error } = await supabase
           .from("categories")
-          .update({
-            ...formData,
-            name: formData.name.toUpperCase(), // Les noms de catégories sont en majuscules
-          })
+          .update(formData)
           .eq("id", category.id);
 
         if (error) throw error;
       } else {
-        // Création
+        // Création - définir display_order au maximum actuel + 1
+        const maxOrder = Math.max(...categories.map((c) => c.display_order), -1);
         const { error } = await supabase.from("categories").insert([
           {
             ...formData,
-            name: formData.name.toUpperCase(), // Les noms de catégories sont en majuscules
+            display_order: maxOrder + 1,
           },
         ]);
         if (error) throw error;
@@ -260,15 +314,13 @@ function CategoryDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Nom * (en majuscules)</Label>
+            <Label htmlFor="name">Nom *</Label>
             <Input
               id="name"
               value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value.toUpperCase() })
-              }
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
-              placeholder="CONCERT"
+              placeholder="Concert"
             />
           </div>
 
