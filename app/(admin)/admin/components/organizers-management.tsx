@@ -39,6 +39,8 @@ interface Organizer {
   id: string;
   name: string;
   logo_url: string | null;
+  instagram_url: string | null;
+  facebook_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -270,6 +272,8 @@ function OrganizerDialog({
   const [formData, setFormData] = useState({
     name: "",
     logo_url: "",
+    instagram_url: "",
+    facebook_url: "",
   });
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -289,6 +293,8 @@ function OrganizerDialog({
       setFormData({
         name: organizer.name || "",
         logo_url: organizer.logo_url || "",
+        instagram_url: organizer.instagram_url || "",
+        facebook_url: organizer.facebook_url || "",
       });
       setLogoPreview(organizer.logo_url || null);
       setOriginalImageSrc(organizer.logo_url || null);
@@ -297,6 +303,8 @@ function OrganizerDialog({
       setFormData({
         name: "",
         logo_url: "",
+        instagram_url: "",
+        facebook_url: "",
       });
       setLogoPreview(null);
       setOriginalImageSrc(null);
@@ -585,6 +593,31 @@ function OrganizerDialog({
             </div>
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="instagram_url">Instagram</Label>
+              <Input
+                id="instagram_url"
+                type="url"
+                value={formData.instagram_url}
+                onChange={(e) => setFormData({ ...formData, instagram_url: e.target.value })}
+                placeholder="https://instagram.com/..."
+                className="cursor-pointer"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="facebook_url">Facebook</Label>
+              <Input
+                id="facebook_url"
+                type="url"
+                value={formData.facebook_url}
+                onChange={(e) => setFormData({ ...formData, facebook_url: e.target.value })}
+                placeholder="https://facebook.com/..."
+                className="cursor-pointer"
+              />
+            </div>
+          </div>
 
           <div className={`flex gap-2 ${isMobile ? "flex-col" : "justify-end"}`}>
             <Button
@@ -722,5 +755,7 @@ function OrganizerDialog({
     </Dialog>
   );
 }
+
+
 
 

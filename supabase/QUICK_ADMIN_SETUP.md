@@ -56,3 +56,5 @@ SELECT make_user_admin('admin@example.com');
 Cela créera l'utilisateur ET le promouvra en admin en une seule commande (mais vous devrez définir le mot de passe séparément).
 
 
+
+

@@ -34,10 +34,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SelectSearchable } from "@/components/ui/select-searchable";
-import { Check, X, Edit, Trash2 } from "lucide-react";
+import { Check, X, Edit, Trash2, Plus, Search } from "lucide-react";
 import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
+import Link from "next/link";
 
 interface Event {
   id: string;
@@ -45,14 +46,20 @@ interface Event {
   description: string | null;
   date: string;
   end_date: string | null;
+  end_time: string | null;
   status: "pending" | "approved" | "rejected";
   category: string;
   price: number | null;
   address: string | null;
+  latitude: number | null;
+  longitude: number | null;
   capacity: number | null;
   location_id: string | null;
   door_opening_time: string | null;
   external_url: string | null;
+  external_url_label: string | null;
+  instagram_url: string | null;
+  facebook_url: string | null;
   image_url: string | null;
   tag_ids?: string[];
   location?: { name: string };
@@ -70,8 +77,8 @@ export function EventsManagement() {
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
-  const [organizers, setOrganizers] = useState<{ id: string; name: string }[]>([]);
+  const [locations, setLocations] = useState<{ id: string; name: string; address: string | null; capacity: number | null; latitude: number | null; longitude: number | null }[]>([]);
+  const [organizers, setOrganizers] = useState<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null }[]>([]);
   const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   
@@ -98,7 +105,7 @@ export function EventsManagement() {
   }
 
   async function loadOrganizers() {
-    const { data } = await supabase.from("organizers").select("id, name").order("name");
+    const { data } = await supabase.from("organizers").select("id, name, instagram_url, facebook_url").order("name");
     if (data) setOrganizers(data);
   }
 
@@ -192,7 +199,7 @@ export function EventsManagement() {
   }, [events, filterDate, filterStatus, filterLocation, filterOrganizer, filterTag, filterCategory, searchQuery]);
 
   async function loadLocations() {
-    const { data } = await supabase.from("locations").select("id, name");
+    const { data } = await supabase.from("locations").select("id, name, address, capacity, latitude, longitude");
     if (data) setLocations(data);
   }
 
@@ -226,13 +233,11 @@ export function EventsManagement() {
     if (!selectedEvent) return;
 
     try {
-      // Préparer les données à mettre à jour
       const updateData: any = { ...eventData };
       if (tagIds !== undefined) {
         updateData.tag_ids = tagIds;
       }
 
-      // Mettre à jour l'événement
       const { error: eventError } = await supabase
         .from("events")
         .update(updateData)
@@ -242,13 +247,11 @@ export function EventsManagement() {
 
       // Gérer les organisateurs si fournis
       if (organizerIds !== undefined) {
-        // Supprimer les associations existantes
         await supabase
           .from("event_organizers")
           .delete()
           .eq("event_id", selectedEvent.id);
 
-        // Ajouter les nouvelles associations
         if (organizerIds.length > 0) {
           const { error: orgError } = await supabase
             .from("event_organizers")
@@ -263,6 +266,16 @@ export function EventsManagement() {
         }
       }
 
+      // Gérer les tags
+      if (tagIds !== undefined) {
+        const { error: tagError } = await supabase
+          .from("events")
+          .update({ tag_ids: tagIds })
+          .eq("id", selectedEvent.id);
+
+        if (tagError) throw tagError;
+      }
+
       setIsDialogOpen(false);
       setSelectedEvent(null);
       await loadEvents();
@@ -270,6 +283,11 @@ export function EventsManagement() {
       console.error("Erreur lors de la mise à jour:", error);
       alert("Erreur lors de la mise à jour de l'événement");
     }
+  }
+
+  function handleOpenDialog(event: Event) {
+    setSelectedEvent(event);
+    setIsDialogOpen(true);
   }
 
   const getStatusBadge = (status: string) => {
@@ -303,18 +321,31 @@ export function EventsManagement() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {/* Filtres */}
+        {/* Barre de recherche et bouton d'ajout */}
         <div className="mb-6 space-y-4">
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Recherche textuelle */}
-            <div className="flex-1">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Rechercher par titre, description, catégorie..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="min-h-[44px] text-base"
+                className="pl-9 min-h-[44px] text-base"
               />
             </div>
+            <Button
+              asChild
+              className="min-h-[44px] cursor-pointer"
+            >
+              <Link href="/admin/events/create">
+                <Plus className="h-4 w-4 mr-2" />
+                Ajouter un événement
+              </Link>
+            </Button>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-4">
             
             {/* Filtre par date */}
             <div className="w-full sm:w-[180px]">
@@ -550,10 +581,7 @@ export function EventsManagement() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => {
-                              setSelectedEvent(event);
-                              setIsDialogOpen(true);
-                            }}
+                            onClick={() => handleOpenDialog(event)}
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -584,10 +612,7 @@ export function EventsManagement() {
             filteredEvents.map((event) => (
               <MobileCard
                 key={event.id}
-                onClick={() => {
-                  setSelectedEvent(event);
-                  setIsDialogOpen(true);
-                }}
+                onClick={() => handleOpenDialog(event)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
@@ -662,8 +687,7 @@ export function EventsManagement() {
                     className="flex-1 min-h-[44px]"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelectedEvent(event);
-                      setIsDialogOpen(true);
+                      handleOpenDialog(event);
                     }}
                   >
                     <Edit className="h-4 w-4 mr-2" />
@@ -686,16 +710,18 @@ export function EventsManagement() {
           )}
         </MobileTableView>
 
-        <EventEditDialog
-          event={selectedEvent}
-          open={isDialogOpen}
-          onOpenChange={setIsDialogOpen}
-          locations={locations}
-          organizers={organizers}
-          tags={tags}
-          onSave={updateEvent}
-          onTagCreated={loadTags}
-        />
+        {selectedEvent && (
+          <EventEditDialog
+            event={selectedEvent}
+            open={isDialogOpen}
+            onOpenChange={setIsDialogOpen}
+            locations={locations}
+            organizers={organizers}
+            tags={tags}
+            onSave={updateEvent}
+            onTagCreated={loadTags}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -711,11 +737,11 @@ function EventEditDialog({
   onSave,
   onTagCreated,
 }: {
-  event: Event | null;
+  event: Event;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  locations: { id: string; name: string }[];
-  organizers: { id: string; name: string }[];
+  locations: { id: string; name: string; address: string | null; capacity: number | null }[];
+  organizers: { id: string; name: string; instagram_url: string | null; facebook_url: string | null }[];
   tags: { id: string; name: string }[];
   onSave: (data: Partial<Event>, organizerIds?: string[], tagIds?: string[]) => void;
   onTagCreated?: () => void;
@@ -725,30 +751,61 @@ function EventEditDialog({
     description: string;
     date: string;
     end_date: string;
+    end_time: string;
     category: string;
     price: string;
     address: string;
+    latitude: string;
+    longitude: string;
     capacity: string;
     location_id: string;
     door_opening_time: string;
     external_url: string;
+    external_url_label: string;
+    instagram_url: string;
+    facebook_url: string;
     status: "pending" | "approved" | "rejected";
   }>({
     title: "",
     description: "",
     date: "",
     end_date: "",
+    end_time: "",
     category: "",
     price: "",
     address: "",
+    latitude: "",
+    longitude: "",
     capacity: "",
     location_id: "",
     door_opening_time: "",
     external_url: "",
+    external_url_label: "",
+    instagram_url: "",
+    facebook_url: "",
     status: "pending",
   });
   const [selectedOrganizerIds, setSelectedOrganizerIds] = useState<string[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+
+  // Fonction pour mettre à jour les réseaux sociaux quand un organisateur est sélectionné
+  const handleOrganizerChange = (newOrganizerIds: string[]) => {
+    setSelectedOrganizerIds(newOrganizerIds);
+    
+    // Si un organisateur est sélectionné, mettre à jour les réseaux sociaux avec ceux du premier organisateur
+    if (newOrganizerIds.length > 0) {
+      const firstOrganizerId = newOrganizerIds[0];
+      const selectedOrganizer = organizers.find((org) => org.id === firstOrganizerId);
+      
+      if (selectedOrganizer) {
+        setFormData({
+          ...formData,
+          instagram_url: selectedOrganizer.instagram_url || formData.instagram_url,
+          facebook_url: selectedOrganizer.facebook_url || formData.facebook_url,
+        });
+      }
+    }
+  };
 
   useEffect(() => {
     if (event) {
@@ -757,13 +814,19 @@ function EventEditDialog({
         description: event.description || "",
         date: toDatetimeLocal(event.date),
         end_date: toDatetimeLocal(event.end_date),
+        end_time: event.end_time || "",
         category: event.category || "",
         price: event.price?.toString() || "",
         address: event.address || "",
+        latitude: event.latitude?.toString() || "",
+        longitude: event.longitude?.toString() || "",
         capacity: event.capacity?.toString() || "",
         location_id: event.location_id || "",
         door_opening_time: event.door_opening_time || "",
         external_url: event.external_url || "",
+        external_url_label: event.external_url_label || "",
+        instagram_url: event.instagram_url || "",
+        facebook_url: event.facebook_url || "",
         status: event.status,
       });
 
@@ -776,11 +839,8 @@ function EventEditDialog({
       } else {
         setSelectedTagIds([]);
       }
-    } else {
-      setSelectedOrganizerIds([]);
-      setSelectedTagIds([]);
     }
-  }, [event]);
+  }, [event, open]);
 
   async function loadEventOrganizers(eventId: string) {
     try {
@@ -844,10 +904,16 @@ function EventEditDialog({
         ...formData,
         date: fromDatetimeLocal(formData.date) || formData.date,
         end_date: formData.end_date ? fromDatetimeLocal(formData.end_date) : null,
+        end_time: formData.end_time || null,
         price: formData.price ? parseFloat(formData.price) : null,
+        latitude: formData.latitude ? parseFloat(formData.latitude) : null,
+        longitude: formData.longitude ? parseFloat(formData.longitude) : null,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         door_opening_time: formData.door_opening_time || null,
         external_url: formData.external_url || null,
+        external_url_label: formData.external_url_label || null,
+        instagram_url: formData.instagram_url || null,
+        facebook_url: formData.facebook_url || null,
       },
       selectedOrganizerIds,
       selectedTagIds
@@ -879,7 +945,7 @@ function EventEditDialog({
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              value={formData.description}
+              value={formData.description || ""}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="min-h-[100px] text-base"
             />
@@ -914,7 +980,7 @@ function EventEditDialog({
               <Input
                 id="end_date"
                 type="datetime-local"
-                value={formData.end_date}
+                value={formData.end_date || ""}
                 onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
                 className="min-h-[44px] text-base"
               />
@@ -928,7 +994,7 @@ function EventEditDialog({
                 id="price"
                 type="number"
                 step="0.01"
-                value={formData.price}
+                value={formData.price || ""}
                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                 className="min-h-[44px] text-base"
               />
@@ -939,7 +1005,7 @@ function EventEditDialog({
               <Input
                 id="capacity"
                 type="number"
-                value={formData.capacity}
+                value={formData.capacity || ""}
                 onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
                 className="min-h-[44px] text-base"
               />
@@ -950,7 +1016,25 @@ function EventEditDialog({
             <Label htmlFor="location_id">Lieu</Label>
             <Select
               value={formData.location_id || "none"}
-              onValueChange={(value) => setFormData({ ...formData, location_id: value === "none" ? "" : value })}
+              onValueChange={(value) => {
+                const locationId = value === "none" ? "" : value;
+                // Mettre à jour l'adresse et la capacité automatiquement si un lieu est sélectionné
+                if (locationId) {
+                  const selectedLocation = locations.find((loc) => loc.id === locationId);
+                  if (selectedLocation) {
+                    setFormData({ 
+                      ...formData, 
+                      location_id: locationId,
+                      address: selectedLocation.address || formData.address || "",
+                      latitude: selectedLocation.latitude?.toString() || formData.latitude || "",
+                      longitude: selectedLocation.longitude?.toString() || formData.longitude || "",
+                      capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : formData.capacity || ""
+                    });
+                    return;
+                  }
+                }
+                setFormData({ ...formData, location_id: locationId });
+              }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Sélectionner un lieu" />
@@ -970,11 +1054,46 @@ function EventEditDialog({
             <Label htmlFor="address">Adresse</Label>
             <AddressInput
               id="address"
-              value={formData.address}
+              value={formData.address || ""}
               onChange={(address) => setFormData({ ...formData, address })}
+              onAddressSelect={(address, coordinates) => {
+                setFormData({
+                  ...formData,
+                  address: address || "",
+                  latitude: coordinates?.latitude?.toString() || "",
+                  longitude: coordinates?.longitude?.toString() || "",
+                });
+              }}
               placeholder="Commencez à taper une adresse..."
               className="cursor-pointer"
             />
+          </div>
+
+          <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
+            <div className="space-y-2">
+              <Label htmlFor="latitude">Latitude</Label>
+              <Input
+                id="latitude"
+                type="number"
+                step="any"
+                value={formData.latitude || ""}
+                onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                placeholder="48.8566"
+                className="cursor-pointer min-h-[44px] text-base"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="longitude">Longitude</Label>
+              <Input
+                id="longitude"
+                type="number"
+                step="any"
+                value={formData.longitude || ""}
+                onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                placeholder="2.3522"
+                className="cursor-pointer min-h-[44px] text-base"
+              />
+            </div>
           </div>
 
           <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
@@ -983,7 +1102,7 @@ function EventEditDialog({
               <Input
                 id="door_opening_time"
                 type="time"
-                value={formData.door_opening_time}
+                value={formData.door_opening_time || ""}
                 onChange={(e) => setFormData({ ...formData, door_opening_time: e.target.value })}
                 placeholder="HH:MM"
                 className="min-h-[44px] text-base"
@@ -991,13 +1110,64 @@ function EventEditDialog({
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="end_time">Heure de fin</Label>
+              <Input
+                id="end_time"
+                type="time"
+                value={formData.end_time || ""}
+                onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                className="min-h-[44px] text-base"
+              />
+            </div>
+          </div>
+
+          <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
+            <div className="space-y-2">
               <Label htmlFor="external_url">URL externe</Label>
               <Input
                 id="external_url"
                 type="url"
-                value={formData.external_url}
+                value={formData.external_url || ""}
                 onChange={(e) => setFormData({ ...formData, external_url: e.target.value })}
                 placeholder="https://example.com"
+                className="min-h-[44px] text-base"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="external_url_label">Label du lien externe</Label>
+              <Input
+                id="external_url_label"
+                type="text"
+                value={formData.external_url_label || ""}
+                onChange={(e) => setFormData({ ...formData, external_url_label: e.target.value })}
+                placeholder="Réserver des billets"
+                className="min-h-[44px] text-base"
+              />
+            </div>
+          </div>
+
+          <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
+            <div className="space-y-2">
+              <Label htmlFor="instagram_url">Instagram</Label>
+              <Input
+                id="instagram_url"
+                type="url"
+                value={formData.instagram_url || ""}
+                onChange={(e) => setFormData({ ...formData, instagram_url: e.target.value })}
+                placeholder="https://instagram.com/..."
+                className="min-h-[44px] text-base"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="facebook_url">Facebook</Label>
+              <Input
+                id="facebook_url"
+                type="url"
+                value={formData.facebook_url || ""}
+                onChange={(e) => setFormData({ ...formData, facebook_url: e.target.value })}
+                placeholder="https://facebook.com/..."
                 className="min-h-[44px] text-base"
               />
             </div>
@@ -1011,7 +1181,7 @@ function EventEditDialog({
                 value: org.id,
               }))}
               selected={selectedOrganizerIds}
-              onChange={setSelectedOrganizerIds}
+              onChange={handleOrganizerChange}
               placeholder="Sélectionner des organisateurs..."
               disabled={organizers.length === 0}
             />

@@ -49,6 +49,8 @@ interface UserRequest {
     title?: string;
     description?: string;
     date?: string;
+    end_date?: string;
+    end_time?: string;
     category?: string;
     location_id?: string;
     organizer_id?: string;
@@ -58,6 +60,7 @@ interface UserRequest {
     image_url?: string;
     door_opening_time?: string;
     external_url?: string;
+    external_url_label?: string;
     [key: string]: any; // Pour les champs supplémentaires
   };
   requested_by?: string | null;
@@ -209,6 +212,7 @@ export function UserRequestsManagement() {
   function openEventCreatePage(request: UserRequest) {
     router.push(`/admin/requests/${request.id}/create-event`);
   }
+
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive"> = {
@@ -394,15 +398,17 @@ export function UserRequestsManagement() {
                               {request.status === "pending" && (
                                 <>
                                   {isEventRequest ? (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => openEventCreatePage(request)}
-                                      title="Créer un événement"
-                                      className="cursor-pointer"
-                                    >
-                                      Créer événement
-                                    </Button>
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => openEventCreatePage(request)}
+                                        title="Créer un événement avec modification"
+                                        className="cursor-pointer"
+                                      >
+                                        Éditer
+                                      </Button>
+                                    </>
                                   ) : (
                                     <>
                                       <Button
@@ -494,17 +500,19 @@ export function UserRequestsManagement() {
                       {request.status === "pending" && (
                         <>
                           {isEventRequest ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="flex-1 min-h-[44px]"
-                              onClick={(e: React.MouseEvent) => {
-                                e.stopPropagation();
-                                openEventCreatePage(request);
-                              }}
-                            >
-                              Créer événement
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 min-h-[44px]"
+                                onClick={(e: React.MouseEvent) => {
+                                  e.stopPropagation();
+                                  openEventCreatePage(request);
+                                }}
+                              >
+                                Éditer
+                              </Button>
+                            </>
                           ) : (
                             <>
                               <Button
@@ -634,23 +642,59 @@ function RequestDetailDialog({
                 </div>
                 {request.event_data?.date && (
                   <div>
-                    <Label>Date</Label>
+                    <Label>Date de début</Label>
                     <p className="text-sm">
                       {formatDateWithoutTimezone(request.event_data?.date, "PPp")}
                     </p>
                   </div>
                 )}
+                {request.event_data?.end_date && (
+                  <div>
+                    <Label>Date de fin</Label>
+                    <p className="text-sm">
+                      {formatDateWithoutTimezone(request.event_data?.end_date, "PPp")}
+                    </p>
+                  </div>
+                )}
               </div>
-              {request.event_data?.price !== undefined && (
+              {request.event_data?.end_time && (
+                <div>
+                  <Label>Heure de fin</Label>
+                  <p className="text-sm">{request.event_data.end_time}</p>
+                </div>
+              )}
+              {request.event_data?.door_opening_time && (
+                <div>
+                  <Label>Heure d'ouverture des portes</Label>
+                  <p className="text-sm">{request.event_data.door_opening_time}</p>
+                </div>
+              )}
+              {request.event_data?.price !== undefined && request.event_data?.price !== null && (
                 <div>
                   <Label>Prix</Label>
                   <p className="text-sm">{request.event_data.price}€</p>
+                </div>
+              )}
+              {request.event_data?.capacity && (
+                <div>
+                  <Label>Capacité</Label>
+                  <p className="text-sm">{request.event_data.capacity} personnes</p>
                 </div>
               )}
               {request.event_data?.address && (
                 <div>
                   <Label>Adresse</Label>
                   <p className="text-sm">{request.event_data.address}</p>
+                </div>
+              )}
+              {request.event_data?.external_url && (
+                <div>
+                  <Label>{request.event_data?.external_url_label || "Lien externe"}</Label>
+                  <p className="text-sm">
+                    <a href={request.event_data.external_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      {request.event_data.external_url}
+                    </a>
+                  </p>
                 </div>
               )}
               {request.email && (
@@ -720,12 +764,12 @@ function RequestDetailDialog({
                   {onConvert && (
                     <Button
                       type="button"
+                      variant="outline"
                       onClick={() => {
                         onConvert();
                       }}
                     >
-                      <Check className="mr-2 h-4 w-4" />
-                      Créer l'événement
+                      Éditer puis créer
                     </Button>
                   )}
                 </>

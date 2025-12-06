@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { AdminLayout } from "@/app/(admin)/admin/components/admin-layout";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -40,42 +39,10 @@ import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
 import { compressImage } from "@/lib/image-compression";
 import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
-// Import toast from sonner - using alert for now
-
-interface UserRequest {
-  id: string;
-  email: string | null;
-  name: string | null;
-  requested_at: string;
-  status: "pending" | "approved" | "rejected";
-  request_type?: "user_account" | "event_creation";
-  event_data?: {
-    title?: string;
-    description?: string;
-    date?: string;
-    end_date?: string;
-    category?: string;
-    location_id?: string;
-    location_name?: string;
-    organizer_names?: string[];
-    price?: number;
-    address?: string;
-    capacity?: number;
-    image_url?: string;
-    door_opening_time?: string;
-    external_url?: string;
-    instagram_url?: string;
-    facebook_url?: string;
-  };
-  requested_by?: string | null;
-}
 
 function CreateEventContent() {
   const router = useRouter();
-  const params = useParams();
-  const requestId = params?.id as string;
 
-  const [request, setRequest] = useState<UserRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [locations, setLocations] = useState<{ id: string; name: string; address: string | null; capacity: number | null; latitude: number | null; longitude: number | null }[]>([]);
@@ -108,7 +75,7 @@ function CreateEventContent() {
   // Image states
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null); // URL ou data URL de l'image originale
+  const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
   const [showCropper, setShowCropper] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -121,6 +88,7 @@ function CreateEventContent() {
     description: "",
     date: "",
     end_date: "",
+    end_time: "",
     category: "",
     price: "",
     address: "",
@@ -130,6 +98,7 @@ function CreateEventContent() {
     location_id: "",
     door_opening_time: "",
     external_url: "",
+    external_url_label: "",
     instagram_url: "",
     facebook_url: "",
     image_url: "",
@@ -137,26 +106,10 @@ function CreateEventContent() {
 
   useEffect(() => {
     loadData();
-  }, [requestId]);
+  }, []);
 
   async function loadData() {
     try {
-      // Load request
-      const { data: requestData, error: requestError } = await supabase
-        .from("user_requests")
-        .select("*")
-        .eq("id", requestId)
-        .single();
-
-      if (requestError) throw requestError;
-      if (!requestData || requestData.request_type !== "event_creation") {
-        alert("Demande invalide ou non trouvée");
-        router.push("/admin/requests");
-        return;
-      }
-
-      setRequest(requestData);
-
       // Load locations, organizers, categories, tags
       const [locationsResult, organizersResult, categoriesResult, tagsResult] = await Promise.all([
         supabase.from("locations").select("id, name, address, capacity, latitude, longitude").order("name"),
@@ -169,44 +122,10 @@ function CreateEventContent() {
       if (organizersResult.data) setOrganizers(organizersResult.data);
       if (categoriesResult.data) setCategories(categoriesResult.data);
       if (tagsResult.data) setTags(tagsResult.data);
-
-      // Populate form from request data
-      if (requestData.event_data) {
-        const ed = requestData.event_data;
-        const formattedDate = ed.date ? toDatetimeLocal(ed.date) : "";
-        const formattedEndDate = ed.end_date ? toDatetimeLocal(ed.end_date) : "";
-
-        setFormData({
-          title: ed.title || "",
-          description: ed.description || "",
-          date: formattedDate,
-          end_date: formattedEndDate,
-          category: ed.category || "",
-          price: ed.price != null ? ed.price.toString() : "",
-          address: ed.address || "",
-          capacity: ed.capacity != null ? ed.capacity.toString() : "",
-          location_id: ed.location_id || "",
-          door_opening_time: ed.door_opening_time || "",
-          external_url: ed.external_url || "",
-          instagram_url: ed.instagram_url || "",
-          facebook_url: ed.facebook_url || "",
-          image_url: ed.image_url || "",
-        });
-
-        if (ed.image_url) {
-          setImagePreview(ed.image_url);
-          setOriginalImageSrc(ed.image_url); // Conserver l'URL originale
-        }
-
-        // Charger les organisateurs si un organizer_id est présent
-        if (ed.organizer_id) {
-          setSelectedOrganizerIds([ed.organizer_id]);
-        }
-      }
     } catch (error) {
       console.error("Erreur lors du chargement:", error);
       alert("Erreur lors du chargement des données");
-      router.push("/admin/requests");
+      router.push("/admin/events");
     } finally {
       setLoading(false);
     }
@@ -227,7 +146,7 @@ function CreateEventContent() {
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUrl = reader.result as string;
-        setOriginalImageSrc(dataUrl); // Conserver l'image originale
+        setOriginalImageSrc(dataUrl);
         setCropImageSrc(dataUrl);
         setShowCropper(true);
       };
@@ -299,14 +218,12 @@ function CreateEventContent() {
 
       setImageFile(croppedImageFile);
       setImagePreview(URL.createObjectURL(croppedImageBlob));
-      // Ne pas effacer originalImageSrc pour pouvoir rogner à nouveau
       setShowCropper(false);
       setCropImageSrc(null);
       setCrop({ x: 0, y: 0 });
       setZoom(1);
       setCroppedAreaPixels(null);
-      setAspectRatio(3 / 2); // Reset to default
-      // Image rognée avec succès
+      setAspectRatio(3 / 2);
     } catch (error) {
       console.error("Erreur lors du cropping:", error);
       alert("Erreur lors du rognage de l'image");
@@ -317,7 +234,6 @@ function CreateEventContent() {
     if (!imageFile) return null;
 
     try {
-      // Compresser l'image avant l'upload pour qu'elle fasse moins de 10 Mo
       const compressedFile = await compressImage(imageFile, 10);
       
       const fileExt = compressedFile.name.split(".").pop() || "jpg";
@@ -382,6 +298,7 @@ function CreateEventContent() {
         description: formData.description || null,
         date: fromDatetimeLocal(formData.date) || formData.date,
         end_date: formData.end_date ? fromDatetimeLocal(formData.end_date) : null,
+        end_time: formData.end_time || null,
         category: formData.category,
         price: formData.price ? parseFloat(formData.price) : null,
         address: formData.address || null,
@@ -391,10 +308,11 @@ function CreateEventContent() {
         location_id: formData.location_id === "none" ? null : formData.location_id || null,
         door_opening_time: formData.door_opening_time || null,
         external_url: formData.external_url || null,
+        external_url_label: formData.external_url_label || null,
         instagram_url: formData.instagram_url || null,
         facebook_url: formData.facebook_url || null,
         image_url: finalImageUrl || null,
-        created_by: request?.requested_by || user?.id || null,
+        created_by: user?.id || null,
         status: "approved",
       };
 
@@ -420,7 +338,6 @@ function CreateEventContent() {
         throw eventError;
       }
 
-      // Link organizer if present
       // Ajouter les organisateurs sélectionnés
       if (selectedOrganizerIds.length > 0) {
         const { error: orgError } = await supabase
@@ -435,66 +352,22 @@ function CreateEventContent() {
         if (orgError) throw orgError;
       }
 
-      // Update request
-      // Note: On ne met à jour que les champs nécessaires pour éviter les conflits RLS
-      const { error: updateError } = await supabase
-        .from("user_requests")
-        .update({
-          status: "approved" as const,
-          reviewed_by: user?.id || null,
-          reviewed_at: new Date().toISOString(),
-          notes: `Converti en événement ID: ${newEvent.id}`,
-        })
-        .eq("id", requestId)
-        .select(); // Ajouter select() pour forcer l'exécution et vérifier les permissions
-
-      if (updateError) {
-        console.error("Erreur détaillée lors de la mise à jour de la demande:", {
-          message: updateError.message,
-          details: updateError.details,
-          hint: updateError.hint,
-          code: updateError.code,
-          requestId,
-          user: user?.id,
-        });
-        throw updateError;
-      }
-
       alert("Événement créé avec succès !");
-      router.push("/admin/requests");
+      router.push("/admin/events");
     } catch (error: any) {
-      console.error("Erreur lors de la création:", {
-        error,
-        message: error?.message,
-        details: error?.details,
-        hint: error?.hint,
-        code: error?.code,
-        statusCode: error?.statusCode,
-        stack: error?.stack,
-      });
+      console.error("Erreur lors de la création:", error);
       
-      // Messages d'erreur plus explicites
       let errorMessage = "Erreur lors de la création de l'événement";
       
       if (error?.message?.includes("Bucket not found") || error?.code === "404") {
         errorMessage = `Bucket manquant: ${error.message}. Veuillez créer les buckets dans Supabase Storage (event-images, locations-images, organizers-images).`;
-      } else if (error?.code === "42501" || error?.message?.includes("permission denied") || error?.message?.includes("new row violates")) {
-        if (error?.message?.includes("storage") || error?.message?.includes("bucket")) {
-          errorMessage = "Erreur de permission sur le bucket de stockage. Vérifiez que les politiques RLS pour les buckets sont configurées (migration 020).";
-        } else if (error?.message?.includes("user_requests") || error?.hint?.includes("user_requests")) {
-          errorMessage = "Vous n'avez pas la permission de mettre à jour cette demande. Vérifiez vos droits d'administration et exécutez la migration 019.";
-        } else if (error?.message?.includes("events")) {
-          errorMessage = "Vous n'avez pas la permission de créer un événement. Vérifiez vos droits d'administration.";
-        } else {
-          errorMessage = "Vous n'avez pas la permission d'effectuer cette action. Vérifiez vos droits d'administration.";
-        }
+      } else if (error?.code === "42501" || error?.message?.includes("permission denied")) {
+        errorMessage = "Vous n'avez pas la permission de créer un événement. Vérifiez vos droits d'administration.";
       } else if (error?.message) {
         errorMessage = `Erreur: ${error.message}`;
         if (error?.hint) {
           errorMessage += ` (Indice: ${error.hint})`;
         }
-      } else if (error?.details) {
-        errorMessage = `Erreur: ${error.details}`;
       }
       
       alert(errorMessage);
@@ -505,7 +378,7 @@ function CreateEventContent() {
 
   if (loading) {
     return (
-      <AdminLayout title="Créer un événement" breadcrumbItems={[{ label: "Demandes", href: "/admin/requests" }, { label: "Créer événement" }]}>
+      <AdminLayout title="Créer un événement" breadcrumbItems={[{ label: "Événements", href: "/admin/events" }, { label: "Créer un événement" }]}>
         <div className="flex min-h-[400px] items-center justify-center">
           <div className="text-center">
             <p className="text-muted-foreground">Chargement...</p>
@@ -515,42 +388,21 @@ function CreateEventContent() {
     );
   }
 
-  if (!request) {
-    return (
-      <AdminLayout title="Erreur" breadcrumbItems={[{ label: "Demandes", href: "/admin/requests" }]}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Demande non trouvée</CardTitle>
-            <CardDescription>La demande sélectionnée n'existe pas ou n'est pas valide.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild>
-              <Link href="/admin/requests">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Retour aux demandes
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </AdminLayout>
-    );
-  }
-
   return (
     <AdminLayout
       title="Créer un événement"
       breadcrumbItems={[
-        { label: "Demandes", href: "/admin/requests" },
-        { label: "Créer événement" },
+        { label: "Événements", href: "/admin/events" },
+        { label: "Créer un événement" },
       ]}
     >
       <div className="space-y-6">
         {/* Header with back button */}
         <div className="flex items-center justify-between">
           <Button variant="ghost" asChild className="cursor-pointer">
-            <Link href="/admin/requests">
+            <Link href="/admin/events">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Retour aux demandes
+              Retour aux événements
             </Link>
           </Button>
         </div>
@@ -623,20 +475,10 @@ function CreateEventContent() {
                               .single();
 
                             if (error) {
-                              console.error("Erreur détaillée lors de la création du tag:", {
-                                message: error.message,
-                                details: error.details,
-                                hint: error.hint,
-                                code: error.code,
-                              });
-                              
-                              // Messages d'erreur plus explicites
                               if (error.code === "23505") {
                                 alert(`Un tag avec le nom "${name}" existe déjà.`);
                               } else if (error.message?.includes("permission denied") || error.code === "42501") {
                                 alert("Vous n'avez pas la permission de créer un tag. Vérifiez vos droits d'administration.");
-                              } else if (error.message?.includes("relation") && error.message?.includes("does not exist")) {
-                                alert("La table 'tags' n'existe pas. Veuillez exécuter la migration 014_add_tags_to_events.sql");
                               } else {
                                 alert(`Erreur lors de la création du tag: ${error.message || "Erreur inconnue"}`);
                               }
@@ -881,6 +723,22 @@ function CreateEventContent() {
                     </div>
 
                     <div className="space-y-2">
+                      <Label htmlFor="end_time" className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Heure de fin
+                      </Label>
+                      <Input
+                        id="end_time"
+                        type="time"
+                        value={formData.end_time}
+                        onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
                       <Label htmlFor="external_url" className="flex items-center gap-2">
                         <LinkIcon className="h-4 w-4" />
                         URL externe
@@ -891,6 +749,17 @@ function CreateEventContent() {
                         value={formData.external_url}
                         onChange={(e) => setFormData({ ...formData, external_url: e.target.value })}
                         placeholder="https://..."
+                        className="cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="external_url_label">Libellé de l'URL externe</Label>
+                      <Input
+                        id="external_url_label"
+                        value={formData.external_url_label}
+                        onChange={(e) => setFormData({ ...formData, external_url_label: e.target.value })}
+                        placeholder="Billetterie, Réserver, etc."
                         className="cursor-pointer"
                       />
                     </div>
@@ -933,88 +802,6 @@ function CreateEventContent() {
 
             {/* Right column - Sticky sidebar */}
             <div className="space-y-6 lg:sticky lg:top-4 lg:self-start">
-              {/* Request info card */}
-              {request.event_data && (
-                <Card className="border-primary/20 bg-primary/5">
-                  <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Badge variant="default">Données de la demande</Badge>
-                    </CardTitle>
-                    <CardDescription>Informations pré-remplies depuis la demande</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3 text-sm">
-                      {request.event_data.title && (
-                        <div className="flex items-start gap-2">
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Titre:</span>
-                          <span className="break-words">{request.event_data.title}</span>
-                        </div>
-                      )}
-                      {request.event_data.category && (
-                        <div className="flex items-start gap-2">
-                          <Tag className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Catégorie:</span>
-                          <span>{request.event_data.category}</span>
-                        </div>
-                      )}
-                      {request.event_data.date && (
-                        <div className="flex items-start gap-2">
-                          <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Début:</span>
-                          <span className="break-words">
-                            {formatDateWithoutTimezone(request.event_data.date, "PPpp")}
-                          </span>
-                        </div>
-                      )}
-                      {request.event_data.end_date && (
-                        <div className="flex items-start gap-2">
-                          <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Fin:</span>
-                          <span className="break-words">
-                            {formatDateWithoutTimezone(request.event_data.end_date, "PPpp")}
-                          </span>
-                        </div>
-                      )}
-                      {request.event_data.price != null && (
-                        <div className="flex items-start gap-2">
-                          <Euro className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Prix:</span>
-                          <span>{request.event_data.price}€</span>
-                        </div>
-                      )}
-                      {request.event_data.address && (
-                        <div className="flex items-start gap-2">
-                          <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Adresse:</span>
-                          <span className="break-words">{request.event_data.address}</span>
-                        </div>
-                      )}
-                      {request.event_data.location_name && (
-                        <div className="flex items-start gap-2">
-                          <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Lieu:</span>
-                          <span className="break-words">{request.event_data.location_name}</span>
-                        </div>
-                      )}
-                      {request.event_data.organizer_names && request.event_data.organizer_names.length > 0 && (
-                        <div className="flex items-start gap-2">
-                          <Users className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Organisateurs:</span>
-                          <span className="break-words">{request.event_data.organizer_names.join(", ")}</span>
-                        </div>
-                      )}
-                      {request.email && (
-                        <div className="flex items-start gap-2">
-                          <Users className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Demandeur:</span>
-                          <span className="break-words">{request.email}</span>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1031,23 +818,20 @@ function CreateEventContent() {
                         alt="Aperçu"
                         className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                         onClick={() => {
-                          // Utiliser l'image originale si disponible, sinon utiliser le preview
                           if (originalImageSrc) {
                             setCropImageSrc(originalImageSrc);
                             setShowCropper(true);
                           } else if (imageFile) {
-                            // Fallback: relire le fichier si pas d'originale conservée
                             const reader = new FileReader();
                             reader.onloadend = () => {
                               const dataUrl = reader.result as string;
-                              setOriginalImageSrc(dataUrl); // Conserver pour la prochaine fois
+                              setOriginalImageSrc(dataUrl);
                               setCropImageSrc(dataUrl);
                               setShowCropper(true);
                             };
                             reader.readAsDataURL(imageFile);
                           } else if (imagePreview) {
-                            // Si c'est une URL, on l'utilise directement
-                            setOriginalImageSrc(imagePreview); // Conserver l'URL
+                            setOriginalImageSrc(imagePreview);
                             setCropImageSrc(imagePreview);
                             setShowCropper(true);
                           }
@@ -1062,7 +846,7 @@ function CreateEventContent() {
                           e.stopPropagation();
                           setImagePreview(null);
                           setImageFile(null);
-                          setOriginalImageSrc(null); // Réinitialiser aussi l'originale
+                          setOriginalImageSrc(null);
                           setFormData({ ...formData, image_url: "" });
                           const fileInput = document.getElementById("image-upload") as HTMLInputElement;
                           if (fileInput) fileInput.value = "";
@@ -1106,7 +890,7 @@ function CreateEventContent() {
                           setFormData({ ...formData, image_url: e.target.value });
                           if (e.target.value) {
                             setImagePreview(e.target.value);
-                            setOriginalImageSrc(e.target.value); // Conserver l'URL originale
+                            setOriginalImageSrc(e.target.value);
                             setImageFile(null);
                           }
                         }}
@@ -1138,7 +922,7 @@ function CreateEventContent() {
                   asChild
                   className="w-full cursor-pointer"
                 >
-                  <Link href="/admin/requests">
+                  <Link href="/admin/events">
                     Annuler
                   </Link>
                 </Button>
@@ -1282,7 +1066,7 @@ function CreateEventContent() {
                       setCropImageSrc(null);
                       setCrop({ x: 0, y: 0 });
                       setZoom(1);
-                      setAspectRatio(3 / 2); // Reset to default
+                      setAspectRatio(3 / 2);
                       const fileInput = document.getElementById("image-upload") as HTMLInputElement;
                       if (fileInput) fileInput.value = "";
                     }}

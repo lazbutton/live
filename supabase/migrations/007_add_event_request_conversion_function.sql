@@ -91,3 +91,5 @@ $$;
 COMMENT ON FUNCTION convert_event_request_to_event(UUID) IS 
 'Convertit une demande d''événement en événement réel. Seuls les administrateurs peuvent utiliser cette fonction.';
 
+
+

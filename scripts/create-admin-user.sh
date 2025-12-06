@@ -46,3 +46,5 @@ fi
 node scripts/create-admin-user.js "$ADMIN_EMAIL" "$ADMIN_PASSWORD"
 
 
+
+

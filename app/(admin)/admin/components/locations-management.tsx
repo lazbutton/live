@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AddressInput } from "@/components/ui/address-input";
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Search } from "lucide-react";
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
 import { compressImage } from "@/lib/image-compression";
@@ -36,6 +36,10 @@ interface Location {
   short_description: string | null;
   capacity: number | null;
   directions: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  instagram_url: string | null;
+  facebook_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -306,6 +310,10 @@ function LocationDialog({
     short_description: "",
     capacity: "",
     directions: "",
+    latitude: "",
+    longitude: "",
+    instagram_url: "",
+    facebook_url: "",
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -320,6 +328,10 @@ function LocationDialog({
         short_description: location.short_description || "",
         capacity: location.capacity?.toString() || "",
         directions: location.directions || "",
+        latitude: location.latitude?.toString() || "",
+        longitude: location.longitude?.toString() || "",
+        instagram_url: location.instagram_url || "",
+        facebook_url: location.facebook_url || "",
       });
       setImagePreview(location.image_url || null);
       setImageFile(null);
@@ -331,6 +343,10 @@ function LocationDialog({
         short_description: "",
         capacity: "",
         directions: "",
+        latitude: "",
+        longitude: "",
+        instagram_url: "",
+        facebook_url: "",
       });
       setImagePreview(null);
       setImageFile(null);
@@ -435,6 +451,10 @@ function LocationDialog({
         short_description: formData.short_description || null,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         directions: formData.directions || null,
+        latitude: formData.latitude ? parseFloat(formData.latitude) : null,
+        longitude: formData.longitude ? parseFloat(formData.longitude) : null,
+        instagram_url: formData.instagram_url || null,
+        facebook_url: formData.facebook_url || null,
       };
 
       if (location) {
@@ -489,10 +509,45 @@ function LocationDialog({
               id="address"
               value={formData.address}
               onChange={(address) => setFormData({ ...formData, address })}
+              onAddressSelect={(address, coordinates) => {
+                setFormData({
+                  ...formData,
+                  address,
+                  latitude: coordinates?.latitude?.toString() || "",
+                  longitude: coordinates?.longitude?.toString() || "",
+                });
+              }}
               placeholder="Commencez à taper une adresse..."
               className="cursor-pointer"
               required
             />
+          </div>
+
+          <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
+            <div className="space-y-2">
+              <Label htmlFor="latitude">Latitude</Label>
+              <Input
+                id="latitude"
+                type="number"
+                step="any"
+                value={formData.latitude}
+                onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                placeholder="48.8566"
+                className="cursor-pointer min-h-[44px] text-base"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="longitude">Longitude</Label>
+              <Input
+                id="longitude"
+                type="number"
+                step="any"
+                value={formData.longitude}
+                onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                placeholder="2.3522"
+                className="cursor-pointer min-h-[44px] text-base"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -531,6 +586,37 @@ function LocationDialog({
               rows={4}
               className="cursor-pointer resize-none min-h-[80px] text-base"
             />
+          </div>
+
+          <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
+            <div className="space-y-2">
+              <Label htmlFor="instagram_url" className="flex items-center gap-2">
+                <LinkIcon className="h-4 w-4" />
+                Instagram
+              </Label>
+              <Input
+                id="instagram_url"
+                type="url"
+                value={formData.instagram_url}
+                onChange={(e) => setFormData({ ...formData, instagram_url: e.target.value })}
+                placeholder="https://instagram.com/..."
+                className="cursor-pointer min-h-[44px] text-base"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="facebook_url" className="flex items-center gap-2">
+                <LinkIcon className="h-4 w-4" />
+                Facebook
+              </Label>
+              <Input
+                id="facebook_url"
+                type="url"
+                value={formData.facebook_url}
+                onChange={(e) => setFormData({ ...formData, facebook_url: e.target.value })}
+                placeholder="https://facebook.com/..."
+                className="cursor-pointer min-h-[44px] text-base"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

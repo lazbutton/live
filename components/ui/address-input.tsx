@@ -9,12 +9,16 @@ import { MapPin, Loader2 } from "lucide-react";
 interface AddressSuggestion {
   label: string;
   value: string;
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+  };
 }
 
 interface AddressInputProps extends Omit<React.ComponentProps<"input">, "onChange" | "value"> {
   value: string;
   onChange: (address: string) => void;
-  onAddressSelect?: (address: string) => void;
+  onAddressSelect?: (address: string, coordinates?: { latitude: number; longitude: number }) => void;
   className?: string;
 }
 
@@ -79,10 +83,20 @@ export function AddressInput({
       const data = await response.json();
 
       if (data.features && Array.isArray(data.features)) {
-        const addressSuggestions: AddressSuggestion[] = data.features.map((feature: any) => ({
-          label: feature.properties.label,
-          value: feature.properties.label,
-        }));
+        const addressSuggestions: AddressSuggestion[] = data.features.map((feature: any) => {
+          const coordinates = feature.geometry?.coordinates
+            ? {
+                longitude: feature.geometry.coordinates[0],
+                latitude: feature.geometry.coordinates[1],
+              }
+            : undefined;
+          
+          return {
+            label: feature.properties.label,
+            value: feature.properties.label,
+            coordinates,
+          };
+        });
         setSuggestions(addressSuggestions);
         setShowSuggestions(addressSuggestions.length > 0);
         setSelectedIndex(-1);
@@ -136,9 +150,9 @@ export function AddressInput({
     // Cela déclenchera un re-render et la prop value sera mise à jour
     onChange(addressValue);
     
-    // Callback optionnel
+    // Callback optionnel avec coordonnées
     if (onAddressSelect) {
-      onAddressSelect(addressValue);
+      onAddressSelect(addressValue, suggestion.coordinates);
     }
     
     // Réinitialiser le flag après que React ait re-rendu
@@ -233,6 +247,10 @@ export function AddressInput({
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           className={cn("pr-10", className)}
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck="false"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
           {isLoading ? (
