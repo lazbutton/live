@@ -184,6 +184,8 @@ function CreateEventContent() {
           category: ed.category || "",
           price: ed.price != null ? ed.price.toString() : "",
           address: ed.address || "",
+          latitude: ed.latitude != null ? ed.latitude.toString() : "",
+          longitude: ed.longitude != null ? ed.longitude.toString() : "",
           capacity: ed.capacity != null ? ed.capacity.toString() : "",
           location_id: ed.location_id || "",
           door_opening_time: ed.door_opening_time || "",

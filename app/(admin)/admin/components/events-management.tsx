@@ -71,13 +71,22 @@ interface Event {
   }>;
 }
 
+type LocationData = {
+  id: string;
+  name: string;
+  address: string | null;
+  capacity: number | null;
+  latitude: number | null;
+  longitude: number | null;
+};
+
 export function EventsManagement() {
   const [events, setEvents] = useState<Event[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [locations, setLocations] = useState<{ id: string; name: string; address: string | null; capacity: number | null; latitude: number | null; longitude: number | null }[]>([]);
+  const [locations, setLocations] = useState<LocationData[]>([]);
   const [organizers, setOrganizers] = useState<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null }[]>([]);
   const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
@@ -200,7 +209,7 @@ export function EventsManagement() {
 
   async function loadLocations() {
     const { data } = await supabase.from("locations").select("id, name, address, capacity, latitude, longitude");
-    if (data) setLocations(data);
+    if (data) setLocations(data as LocationData[]);
   }
 
   async function updateEventStatus(eventId: string, status: "approved" | "rejected") {
@@ -1020,7 +1029,7 @@ function EventEditDialog({
                 const locationId = value === "none" ? "" : value;
                 // Mettre à jour l'adresse et la capacité automatiquement si un lieu est sélectionné
                 if (locationId) {
-                  const selectedLocation = locations.find((loc) => loc.id === locationId);
+                  const selectedLocation = locations.find((loc) => loc.id === locationId) as LocationData | undefined;
                   if (selectedLocation) {
                     setFormData({ 
                       ...formData, 
