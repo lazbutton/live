@@ -89,7 +89,6 @@ function CreateEventContent() {
     description: "",
     date: "",
     end_date: "",
-    end_time: "",
     category: "",
     price: "",
     address: "",
@@ -339,7 +338,6 @@ function CreateEventContent() {
         description: formData.description || null,
         date: fromDatetimeLocal(formData.date) || formData.date,
         end_date: formData.end_date ? fromDatetimeLocal(formData.end_date) : null,
-        end_time: formData.end_time || null,
         category: formData.category,
         price: formData.price ? parseFloat(formData.price) : null,
         address: formData.address || null,
@@ -569,17 +567,50 @@ function CreateEventContent() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="date" className="flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
-                        Date et heure de début *
+                        Début *
                       </Label>
                       <Input
                         id="date"
                         type="datetime-local"
                         value={formData.date}
-                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                        onChange={(e) => {
+                          const newStartDate = e.target.value;
+                          let newEndDate = formData.end_date;
+                          
+                          // Si la date de fin n'est pas remplie, la définir à début + 1 heure
+                          if (!formData.end_date && newStartDate) {
+                            const startDate = new Date(newStartDate);
+                            startDate.setHours(startDate.getHours() + 1);
+                            // Convertir en format datetime-local (YYYY-MM-DDTHH:mm)
+                            const year = startDate.getFullYear();
+                            const month = String(startDate.getMonth() + 1).padStart(2, '0');
+                            const day = String(startDate.getDate()).padStart(2, '0');
+                            const hours = String(startDate.getHours()).padStart(2, '0');
+                            const minutes = String(startDate.getMinutes()).padStart(2, '0');
+                            newEndDate = `${year}-${month}-${day}T${hours}:${minutes}`;
+                          }
+                          
+                          // Si la date de fin est antérieure à la nouvelle date de début, la corriger
+                          if (newEndDate && newStartDate) {
+                            const startDate = new Date(newStartDate);
+                            const endDate = new Date(newEndDate);
+                            if (endDate < startDate) {
+                              startDate.setHours(startDate.getHours() + 1);
+                              const year = startDate.getFullYear();
+                              const month = String(startDate.getMonth() + 1).padStart(2, '0');
+                              const day = String(startDate.getDate()).padStart(2, '0');
+                              const hours = String(startDate.getHours()).padStart(2, '0');
+                              const minutes = String(startDate.getMinutes()).padStart(2, '0');
+                              newEndDate = `${year}-${month}-${day}T${hours}:${minutes}`;
+                            }
+                          }
+                          
+                          setFormData({ ...formData, date: newStartDate, end_date: newEndDate });
+                        }}
                         required
                         className="cursor-pointer"
                       />
@@ -588,13 +619,40 @@ function CreateEventContent() {
                     <div className="space-y-2">
                       <Label htmlFor="end_date" className="flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
-                        Date et heure de fin
+                        Fin
                       </Label>
                       <Input
                         id="end_date"
                         type="datetime-local"
                         value={formData.end_date}
-                        onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                        min={formData.date || undefined}
+                        onChange={(e) => {
+                          const newEndDate = e.target.value;
+                          // Validation : la date de fin ne peut pas être antérieure à la date de début
+                          if (newEndDate && formData.date) {
+                            const startDate = new Date(formData.date);
+                            const endDate = new Date(newEndDate);
+                            if (endDate < startDate) {
+                              alert("La date et heure de fin ne peut pas être antérieure à la date et heure de début");
+                              return;
+                            }
+                          }
+                          setFormData({ ...formData, end_date: newEndDate });
+                        }}
+                        className="cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="door_opening_time" className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Ouverture des portes
+                      </Label>
+                      <Input
+                        id="door_opening_time"
+                        value={formData.door_opening_time}
+                        onChange={(e) => setFormData({ ...formData, door_opening_time: e.target.value })}
+                        placeholder="20:00"
                         className="cursor-pointer"
                       />
                     </div>
@@ -657,21 +715,50 @@ function CreateEventContent() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Organisateurs
+                      <Label htmlFor="room_id" className="flex items-center gap-2">
+                        <LayoutGrid className="h-4 w-4" />
+                        Salle
                       </Label>
-                      <MultiSelect
-                        options={organizers.map((org) => ({
-                          label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
-                          value: org.id,
-                        }))}
-                        selected={selectedOrganizerIds}
-                        onChange={handleOrganizerChange}
-                        placeholder="Sélectionner des organisateurs ou des lieux..."
-                        disabled={organizers.length === 0}
-                      />
+                      <Select
+                        value={formData.room_id || "none"}
+                        onValueChange={(value) => {
+                          const roomId = value === "none" ? "" : value;
+                          setFormData({ ...formData, room_id: roomId });
+                        }}
+                        disabled={!formData.location_id || rooms.length === 0}
+                      >
+                        <SelectTrigger className={!formData.location_id || rooms.length === 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer"}>
+                          <SelectValue placeholder={rooms.length === 0 ? "Aucune salle disponible" : "Sélectionner une salle (optionnel)"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none" className="cursor-pointer">
+                            Aucune salle spécifique
+                          </SelectItem>
+                          {rooms.map((room) => (
+                            <SelectItem key={room.id} value={room.id} className="cursor-pointer">
+                              {room.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Organisateurs
+                    </Label>
+                    <MultiSelect
+                      options={organizers.map((org) => ({
+                        label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
+                        value: org.id,
+                      }))}
+                      selected={selectedOrganizerIds}
+                      onChange={handleOrganizerChange}
+                      placeholder="Sélectionner des organisateurs ou des lieux..."
+                      disabled={organizers.length === 0}
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -759,36 +846,6 @@ function CreateEventContent() {
                         value={formData.capacity}
                         onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
                         placeholder="Nombre de places"
-                        className="cursor-pointer"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="door_opening_time" className="flex items-center gap-2">
-                        <Clock className="h-4 w-4" />
-                        Heure d'ouverture des portes
-                      </Label>
-                      <Input
-                        id="door_opening_time"
-                        value={formData.door_opening_time}
-                        onChange={(e) => setFormData({ ...formData, door_opening_time: e.target.value })}
-                        placeholder="20:00"
-                        className="cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="end_time" className="flex items-center gap-2">
-                        <Clock className="h-4 w-4" />
-                        Heure de fin
-                      </Label>
-                      <Input
-                        id="end_time"
-                        type="time"
-                        value={formData.end_time}
-                        onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
                         className="cursor-pointer"
                       />
                     </div>

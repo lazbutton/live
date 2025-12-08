@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Calendar, MapPin, Users, Tag, FileText } from "lucide-react";
+import { LayoutDashboard, Calendar, MapPin, Users, Tag, FileText, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -38,6 +38,11 @@ const menuItems = [
     icon: FileText,
     url: "/admin/requests",
   },
+  {
+    title: "Feedback",
+    icon: MessageSquare,
+    url: "/admin/feedback",
+  },
 ];
 
 export function MobileBottomNav() {
@@ -57,7 +62,7 @@ export function MobileBottomNav() {
               key={item.url}
               href={item.url}
               className={cn(
-                "flex min-w-[44px] flex-col items-center justify-center gap-1 rounded-lg px-3 py-2 transition-all duration-200",
+                "flex min-w-[44px] flex-col items-center justify-center gap-1 rounded-lg px-3 py-2 transition-all duration-200 cursor-pointer",
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground active:scale-95"

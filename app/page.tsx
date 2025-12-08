@@ -176,7 +176,7 @@ export default function Home() {
                   Les applications mobile arrivent bientôt !
                 </p>
                 <p className="text-[10px] sm:text-xs text-white/40 max-w-md mx-auto px-4">
-                  Revenez bientôt pour télécharger Live - Orléans sur iOS et Android.
+                  Revenez vite pour télécharger Live - Orléans sur iOS et Android.
                 </p>
               </div>
             </div>

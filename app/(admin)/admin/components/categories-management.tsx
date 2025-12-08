@@ -45,6 +45,12 @@ import { Plus, Edit, Trash2, GripVertical, Search } from "lucide-react";
 import { SortableCategoryRow } from "./sortable-category-row";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
 import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Category {
   id: string;
@@ -219,8 +225,8 @@ export function CategoriesManagement() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-10"></TableHead>
+                      <TableHead>Icône</TableHead>
                       <TableHead>Nom</TableHead>
-                      <TableHead>Description</TableHead>
                       <TableHead>Ordre</TableHead>
                       <TableHead>Active</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -520,23 +526,39 @@ function SortableCategoryCard({
             )}
             <MobileCardRow label="Ordre d'affichage" value={category.display_order} />
             <MobileCardActions>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="flex-1 min-h-[44px]"
-                onClick={onEdit}
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Modifier
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="min-h-[44px] min-w-[44px]"
-                onClick={onDelete}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="flex-1 min-h-[44px]"
+                      onClick={onEdit}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Modifier
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Modifier la catégorie</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="min-h-[44px] min-w-[44px]"
+                      onClick={onDelete}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Supprimer la catégorie</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </MobileCardActions>
           </div>
         </div>

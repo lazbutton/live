@@ -25,6 +25,12 @@ import {
 } from "@/components/ui/dialog";
 import { Check, X, Eye, Search, Filter, XCircle } from "lucide-react";
 import { formatDateWithoutTimezone } from "@/lib/date-utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useRouter } from "next/navigation";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
 import {
@@ -337,52 +343,81 @@ export function UserRequestsManagement() {
                           </TableCell>
                           <TableCell>{getStatusBadge(request.status)}</TableCell>
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                  setSelectedRequest(request);
-                                  setIsDialogOpen(true);
-                                }}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              {request.status === "pending" && (
-                                <>
-                                  {isEventRequest ? (
-                                    <>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => openEventCreatePage(request)}
-                                        title="Créer un événement avec modification"
-                                        className="cursor-pointer"
-                                      >
-                                        Éditer
-                                      </Button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => updateRequestStatus(request.id, "approved")}
-                                      >
-                                        <Check className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => updateRequestStatus(request.id, "rejected")}
-                                      >
-                                        <X className="h-4 w-4" />
-                                      </Button>
-                                    </>
-                                  )}
-                                </>
-                              )}
-                            </div>
+                            <TooltipProvider delayDuration={300}>
+                              <div className="flex items-center justify-end gap-2">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        setSelectedRequest(request);
+                                        setIsDialogOpen(true);
+                                      }}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Voir les détails</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                {request.status === "pending" && (
+                                  <>
+                                    {isEventRequest ? (
+                                      <>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => openEventCreatePage(request)}
+                                              className="cursor-pointer"
+                                            >
+                                              Éditer
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>Créer un événement avec modification</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => updateRequestStatus(request.id, "approved")}
+                                            >
+                                              <Check className="h-4 w-4" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>Approuver la demande</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => updateRequestStatus(request.id, "rejected")}
+                                            >
+                                              <X className="h-4 w-4" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>Rejeter la demande</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </TooltipProvider>
                           </TableCell>
                         </TableRow>
                       );
@@ -437,65 +472,95 @@ export function UserRequestsManagement() {
                       value={formatDateWithoutTimezone(request.requested_at, "PPp")}
                     />
                     <MobileCardActions>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="flex-1 min-h-[44px]"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          setSelectedRequest(request);
-                          setIsDialogOpen(true);
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        Détails
-                      </Button>
-                      {request.status === "pending" && (
-                        <>
-                          {isEventRequest ? (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="flex-1 min-h-[44px]"
-                                onClick={(e: React.MouseEvent) => {
-                                  e.stopPropagation();
-                                  openEventCreatePage(request);
-                                }}
-                              >
-                                Éditer
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="flex-1 min-h-[44px]"
-                                onClick={(e: React.MouseEvent) => {
-                                  e.stopPropagation();
-                                  updateRequestStatus(request.id, "approved");
-                                }}
-                              >
-                                <Check className="h-4 w-4 mr-2" />
-                                Approuver
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="flex-1 min-h-[44px]"
-                                onClick={(e: React.MouseEvent) => {
-                                  e.stopPropagation();
-                                  updateRequestStatus(request.id, "rejected");
-                                }}
-                              >
-                                <X className="h-4 w-4 mr-2" />
-                                Rejeter
-                              </Button>
-                            </>
-                          )}
-                        </>
-                      )}
+                      <TooltipProvider delayDuration={300}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="flex-1 min-h-[44px]"
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                setSelectedRequest(request);
+                                setIsDialogOpen(true);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Détails
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Voir les détails</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        {request.status === "pending" && (
+                          <>
+                            {isEventRequest ? (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="flex-1 min-h-[44px]"
+                                      onClick={(e: React.MouseEvent) => {
+                                        e.stopPropagation();
+                                        openEventCreatePage(request);
+                                      }}
+                                    >
+                                      Éditer
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Créer un événement avec modification</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </>
+                            ) : (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="flex-1 min-h-[44px]"
+                                      onClick={(e: React.MouseEvent) => {
+                                        e.stopPropagation();
+                                        updateRequestStatus(request.id, "approved");
+                                      }}
+                                    >
+                                      <Check className="h-4 w-4 mr-2" />
+                                      Approuver
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Approuver la demande</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="flex-1 min-h-[44px]"
+                                      onClick={(e: React.MouseEvent) => {
+                                        e.stopPropagation();
+                                        updateRequestStatus(request.id, "rejected");
+                                      }}
+                                    >
+                                      <X className="h-4 w-4 mr-2" />
+                                      Rejeter
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Rejeter la demande</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </TooltipProvider>
                     </MobileCardActions>
                   </MobileCard>
                 );

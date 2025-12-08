@@ -8,6 +8,12 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2, GripVertical } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Category {
   id: string;
@@ -59,8 +65,25 @@ export function SortableCategoryRow({
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </button>
       </TableCell>
+      <TableCell>
+        <div className="flex items-center justify-center w-10 h-10">
+          {category.icon_svg ? (
+            <div
+              className="w-6 h-6 flex items-center justify-center"
+              dangerouslySetInnerHTML={{ __html: category.icon_svg }}
+            />
+          ) : category.icon_url ? (
+            <img
+              src={category.icon_url}
+              alt={category.name}
+              className="w-6 h-6 object-contain"
+            />
+          ) : (
+            <span className="text-muted-foreground text-xs">-</span>
+          )}
+        </div>
+      </TableCell>
       <TableCell className="font-medium">{category.name}</TableCell>
-      <TableCell>{category.description || "-"}</TableCell>
       <TableCell>{category.display_order}</TableCell>
       <TableCell>
         {category.is_active ? (
@@ -70,14 +93,30 @@ export function SortableCategoryRow({
         )}
       </TableCell>
       <TableCell>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={onEdit}>
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={onDelete}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
+        <TooltipProvider delayDuration={300}>
+          <div className="flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="ghost" onClick={onEdit}>
+                  <Edit className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Modifier la catégorie</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="ghost" onClick={onDelete}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Supprimer la catégorie</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
       </TableCell>
     </TableRow>
   );

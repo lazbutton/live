@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -36,6 +37,12 @@ import { FacebookEventsImporter } from "./facebook-events-importer";
 import { compressImage } from "@/lib/image-compression";
 import Cropper, { Area } from "react-easy-crop";
 import { useCallback } from "react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Organizer {
   id: string;
@@ -47,6 +54,7 @@ interface Organizer {
   facebook_page_id: string | null;
   created_at: string;
   updated_at: string;
+  type?: "organizer" | "location"; // Pour différencier organisateur vs lieu
 }
 
 export function OrganizersManagement() {
@@ -64,14 +72,42 @@ export function OrganizersManagement() {
 
   async function loadOrganizers() {
     try {
-      const { data, error } = await supabase
+      // Charger les organisateurs
+      const { data: organizersData, error: organizersError } = await supabase
         .from("organizers")
         .select("*")
         .order("name", { ascending: true });
 
-      if (error) throw error;
-      setOrganizers(data || []);
-      setFilteredOrganizers(data || []);
+      if (organizersError) throw organizersError;
+
+      // Charger les lieux qui sont aussi organisateurs
+      const { data: locationsData, error: locationsError } = await supabase
+        .from("locations")
+        .select("*")
+        .eq("is_organizer", true)
+        .order("name", { ascending: true });
+
+      if (locationsError) throw locationsError;
+
+      // Combiner les deux listes
+      const allOrganizers: Organizer[] = [
+        ...(organizersData || []).map((org) => ({ ...org, type: "organizer" as const })),
+        ...(locationsData || []).map((loc) => ({
+          id: loc.id,
+          name: loc.name,
+          logo_url: loc.image_url, // Les lieux utilisent image_url au lieu de logo_url
+          short_description: null,
+          instagram_url: loc.instagram_url,
+          facebook_url: loc.facebook_url,
+          facebook_page_id: loc.facebook_page_id,
+          created_at: loc.created_at,
+          updated_at: loc.updated_at,
+          type: "location" as const,
+        })),
+      ].sort((a, b) => a.name.localeCompare(b.name));
+
+      setOrganizers(allOrganizers);
+      setFilteredOrganizers(allOrganizers);
     } catch (error) {
       console.error("Erreur lors du chargement des organisateurs:", error);
     } finally {
@@ -94,9 +130,16 @@ export function OrganizersManagement() {
   }, [organizers, searchQuery]);
 
   async function deleteOrganizer(id: string) {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer cet organisateur ?")) return;
+    const organizer = organizers.find((o) => o.id === id);
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer ${organizer?.type === "location" ? "ce lieu-organisateur" : "cet organisateur"} ?`)) return;
 
     try {
+      // Si c'est un lieu, on ne peut pas le supprimer depuis ici (il faut aller dans la gestion des lieux)
+      if (organizer?.type === "location") {
+        alert("Pour supprimer un lieu-organisateur, veuillez utiliser la gestion des lieux.");
+        return;
+      }
+
       const { error } = await supabase.from("organizers").delete().eq("id", id);
       if (error) throw error;
       await loadOrganizers();
@@ -181,7 +224,14 @@ export function OrganizersManagement() {
                       <TableRow key={organizer.id} className="cursor-pointer">
                         <TableCell className="font-medium">
                           <div className="space-y-1">
-                            <div>{organizer.name}</div>
+                            <div className="flex items-center gap-2">
+                              {organizer.name}
+                              {organizer.type === "location" && (
+                                <Badge variant="outline" className="text-xs">
+                                  Lieu
+                                </Badge>
+                              )}
+                            </div>
                             {organizer.short_description && (
                               <div className="text-xs text-muted-foreground line-clamp-1">
                                 {organizer.short_description}
@@ -191,28 +241,42 @@ export function OrganizersManagement() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenDialog(organizer);
-                              }}
-                              className="cursor-pointer"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteOrganizer(organizer.id);
-                              }}
-                              className="cursor-pointer text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenDialog(organizer);
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Modifier</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteOrganizer(organizer.id);
+                                  }}
+                                  className="cursor-pointer text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Supprimer</p>
+                              </TooltipContent>
+                            </Tooltip>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -237,7 +301,14 @@ export function OrganizersManagement() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-base">{organizer.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-base">{organizer.name}</h3>
+                        {organizer.type === "location" && (
+                          <Badge variant="outline" className="text-xs">
+                            Lieu
+                          </Badge>
+                        )}
+                      </div>
                       {organizer.short_description && (
                         <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                           {organizer.short_description}

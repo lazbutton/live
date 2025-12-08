@@ -66,6 +66,7 @@ interface UserRequest {
     external_url?: string;
     instagram_url?: string;
     facebook_url?: string;
+    room_id?: string;
   };
   requested_by?: string | null;
 }
@@ -79,6 +80,7 @@ function CreateEventContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [locations, setLocations] = useState<{ id: string; name: string; address: string | null; capacity: number | null; latitude: number | null; longitude: number | null }[]>([]);
+  const [rooms, setRooms] = useState<Array<{ id: string; name: string; location_id: string }>>([]);
   const [organizers, setOrganizers] = useState<Array<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null; type: "organizer" | "location" }>>([]);
   const [selectedOrganizerIds, setSelectedOrganizerIds] = useState<string[]>([]);
 
@@ -128,12 +130,45 @@ function CreateEventContent() {
     longitude: "",
     capacity: "",
     location_id: "",
+    room_id: "",
     door_opening_time: "",
     external_url: "",
     instagram_url: "",
     facebook_url: "",
     image_url: "",
   });
+
+  // Fonction pour charger les salles d'un lieu
+  async function loadRoomsForLocation(locationId: string) {
+    if (!locationId) {
+      setRooms([]);
+      return;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from("rooms")
+        .select("id, name, location_id")
+        .eq("location_id", locationId)
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+      setRooms(data || []);
+    } catch (error) {
+      console.error("Erreur lors du chargement des salles:", error);
+      setRooms([]);
+    }
+  }
+
+  // Charger les salles quand le lieu change
+  useEffect(() => {
+    if (formData.location_id) {
+      loadRoomsForLocation(formData.location_id);
+    } else {
+      setRooms([]);
+      setFormData((prev) => ({ ...prev, room_id: "" }));
+    }
+  }, [formData.location_id]);
 
   useEffect(() => {
     loadData();
@@ -195,6 +230,7 @@ function CreateEventContent() {
           longitude: ed.longitude != null ? ed.longitude.toString() : "",
           capacity: ed.capacity != null ? ed.capacity.toString() : "",
           location_id: ed.location_id || "",
+          room_id: ed.room_id || "",
           door_opening_time: ed.door_opening_time || "",
           external_url: ed.external_url || "",
           instagram_url: ed.instagram_url || "",
@@ -210,6 +246,11 @@ function CreateEventContent() {
         // Charger les organisateurs si un organizer_id est présent
         if (ed.organizer_id) {
           setSelectedOrganizerIds([ed.organizer_id]);
+        }
+
+        // Charger les salles si un lieu est déjà sélectionné
+        if (ed.location_id) {
+          loadRoomsForLocation(ed.location_id);
         }
       }
     } catch (error) {
@@ -398,6 +439,7 @@ function CreateEventContent() {
         longitude: formData.longitude ? parseFloat(formData.longitude) : null,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         location_id: formData.location_id === "none" ? null : formData.location_id || null,
+        room_id: formData.room_id === "none" || formData.room_id === "" ? null : formData.room_id || null,
         door_opening_time: formData.door_opening_time || null,
         external_url: formData.external_url || null,
         instagram_url: formData.instagram_url || null,
@@ -695,7 +737,7 @@ function CreateEventContent() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="date" className="flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
@@ -705,7 +747,40 @@ function CreateEventContent() {
                         id="date"
                         type="datetime-local"
                         value={formData.date}
-                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                        onChange={(e) => {
+                          const newStartDate = e.target.value;
+                          let newEndDate = formData.end_date;
+                          
+                          // Si la date de fin n'est pas remplie, la définir à début + 1 heure
+                          if (!formData.end_date && newStartDate) {
+                            const startDate = new Date(newStartDate);
+                            startDate.setHours(startDate.getHours() + 1);
+                            // Convertir en format datetime-local (YYYY-MM-DDTHH:mm)
+                            const year = startDate.getFullYear();
+                            const month = String(startDate.getMonth() + 1).padStart(2, '0');
+                            const day = String(startDate.getDate()).padStart(2, '0');
+                            const hours = String(startDate.getHours()).padStart(2, '0');
+                            const minutes = String(startDate.getMinutes()).padStart(2, '0');
+                            newEndDate = `${year}-${month}-${day}T${hours}:${minutes}`;
+                          }
+                          
+                          // Si la date de fin est antérieure à la nouvelle date de début, la corriger
+                          if (newEndDate && newStartDate) {
+                            const startDate = new Date(newStartDate);
+                            const endDate = new Date(newEndDate);
+                            if (endDate < startDate) {
+                              startDate.setHours(startDate.getHours() + 1);
+                              const year = startDate.getFullYear();
+                              const month = String(startDate.getMonth() + 1).padStart(2, '0');
+                              const day = String(startDate.getDate()).padStart(2, '0');
+                              const hours = String(startDate.getHours()).padStart(2, '0');
+                              const minutes = String(startDate.getMinutes()).padStart(2, '0');
+                              newEndDate = `${year}-${month}-${day}T${hours}:${minutes}`;
+                            }
+                          }
+                          
+                          setFormData({ ...formData, date: newStartDate, end_date: newEndDate });
+                        }}
                         required
                         className="cursor-pointer"
                       />
@@ -720,7 +795,34 @@ function CreateEventContent() {
                         id="end_date"
                         type="datetime-local"
                         value={formData.end_date}
-                        onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                        min={formData.date || undefined}
+                        onChange={(e) => {
+                          const newEndDate = e.target.value;
+                          // Validation : la date de fin ne peut pas être antérieure à la date de début
+                          if (newEndDate && formData.date) {
+                            const startDate = new Date(formData.date);
+                            const endDate = new Date(newEndDate);
+                            if (endDate < startDate) {
+                              alert("La date et heure de fin ne peut pas être antérieure à la date et heure de début");
+                              return;
+                            }
+                          }
+                          setFormData({ ...formData, end_date: newEndDate });
+                        }}
+                        className="cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="door_opening_time" className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Heure d'ouverture des portes
+                      </Label>
+                      <Input
+                        id="door_opening_time"
+                        value={formData.door_opening_time}
+                        onChange={(e) => setFormData({ ...formData, door_opening_time: e.target.value })}
+                        placeholder="20:00"
                         className="cursor-pointer"
                       />
                     </div>
@@ -751,15 +853,23 @@ function CreateEventContent() {
                               setFormData({ 
                                 ...formData, 
                                 location_id: locationId,
+                                room_id: "", // Réinitialiser la salle quand le lieu change
                                 address: selectedLocation.address || formData.address || "",
                                 latitude: selectedLocation.latitude?.toString() || formData.latitude || "",
                                 longitude: selectedLocation.longitude?.toString() || formData.longitude || "",
                                 capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : formData.capacity || ""
                               });
+                              // Charger les salles du lieu sélectionné
+                              loadRoomsForLocation(locationId);
                               return;
                             }
                           }
-                          setFormData({ ...formData, location_id: locationId });
+                          setFormData({ 
+                            ...formData, 
+                            location_id: locationId,
+                            room_id: "" // Réinitialiser la salle quand le lieu change
+                          });
+                          setRooms([]);
                         }}
                       >
                         <SelectTrigger className="cursor-pointer">
@@ -779,21 +889,50 @@ function CreateEventContent() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Organisateurs
+                      <Label htmlFor="room_id" className="flex items-center gap-2">
+                        <LayoutGrid className="h-4 w-4" />
+                        Salle
                       </Label>
-                      <MultiSelect
-                        options={organizers.map((org) => ({
-                          label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
-                          value: org.id,
-                        }))}
-                        selected={selectedOrganizerIds}
-                        onChange={handleOrganizerChange}
-                        placeholder="Sélectionner des organisateurs ou des lieux..."
-                        disabled={organizers.length === 0}
-                      />
+                      <Select
+                        value={formData.room_id || "none"}
+                        onValueChange={(value) => {
+                          const roomId = value === "none" ? "" : value;
+                          setFormData({ ...formData, room_id: roomId });
+                        }}
+                        disabled={!formData.location_id || rooms.length === 0}
+                      >
+                        <SelectTrigger className={!formData.location_id || rooms.length === 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer"}>
+                          <SelectValue placeholder={rooms.length === 0 ? "Aucune salle disponible" : "Sélectionner une salle (optionnel)"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none" className="cursor-pointer">
+                            Aucune salle spécifique
+                          </SelectItem>
+                          {rooms.map((room) => (
+                            <SelectItem key={room.id} value={room.id} className="cursor-pointer">
+                              {room.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Organisateurs
+                    </Label>
+                    <MultiSelect
+                      options={organizers.map((org) => ({
+                        label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
+                        value: org.id,
+                      }))}
+                      selected={selectedOrganizerIds}
+                      onChange={handleOrganizerChange}
+                      placeholder="Sélectionner des organisateurs ou des lieux..."
+                      disabled={organizers.length === 0}
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -887,20 +1026,6 @@ function CreateEventContent() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="door_opening_time" className="flex items-center gap-2">
-                        <Clock className="h-4 w-4" />
-                        Heure d'ouverture des portes
-                      </Label>
-                      <Input
-                        id="door_opening_time"
-                        value={formData.door_opening_time}
-                        onChange={(e) => setFormData({ ...formData, door_opening_time: e.target.value })}
-                        placeholder="20:00"
-                        className="cursor-pointer"
-                      />
-                    </div>
-
                     <div className="space-y-2">
                       <Label htmlFor="external_url" className="flex items-center gap-2">
                         <LinkIcon className="h-4 w-4" />

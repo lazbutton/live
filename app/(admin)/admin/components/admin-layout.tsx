@@ -14,6 +14,7 @@ import {
 import { AdminSidebar } from "./admin-sidebar";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -25,8 +26,9 @@ export function AdminLayout({ children, title, breadcrumbItems = [] }: AdminLayo
   const isMobile = useIsMobile();
 
   return (
-    <SidebarProvider defaultOpen={!isMobile} className="flex h-screen">
-      <AdminSidebar />
+    <TooltipProvider>
+      <SidebarProvider defaultOpen={!isMobile} className="flex h-screen">
+        <AdminSidebar />
       <SidebarInset className="flex-1 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
         <header className="sticky top-0 z-10 flex h-14 md:h-16 shrink-0 items-center gap-2 md:gap-4 border-b border-border/20 px-3 md:px-6 bg-background">
           <SidebarTrigger className="cursor-pointer hover:bg-accent/20 rounded-lg transition-all duration-200 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0" />
@@ -62,6 +64,7 @@ export function AdminLayout({ children, title, breadcrumbItems = [] }: AdminLayo
       </SidebarInset>
       <MobileBottomNav />
     </SidebarProvider>
+    </TooltipProvider>
   );
 }
 

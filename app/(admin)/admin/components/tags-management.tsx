@@ -25,6 +25,12 @@ import { Plus, Edit, Trash2, Search } from "lucide-react";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { formatDateWithoutTimezone } from "@/lib/date-utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Tag {
   id: string;
@@ -219,30 +225,46 @@ export function TagsManagement() {
                           {formatDateWithoutTimezone(tag.updated_at, "PP")}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenDialog(tag);
-                              }}
-                              className="cursor-pointer"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteTag(tag.id);
-                              }}
-                              className="cursor-pointer text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          <TooltipProvider delayDuration={300}>
+                            <div className="flex items-center justify-end gap-2">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenDialog(tag);
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Modifier le tag</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteTag(tag.id);
+                                    }}
+                                    className="cursor-pointer text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Supprimer le tag</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TooltipProvider>
                         </TableCell>
                       </TableRow>
                     ))
@@ -271,24 +293,40 @@ export function TagsManagement() {
                     value={formatDateWithoutTimezone(tag.updated_at, "PP")}
                   />
                   <MobileCardActions>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 min-h-[44px] cursor-pointer"
-                      onClick={() => handleOpenDialog(tag)}
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Modifier
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 min-h-[44px] cursor-pointer text-destructive hover:text-destructive"
-                      onClick={() => deleteTag(tag.id)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Supprimer
-                    </Button>
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 min-h-[44px] cursor-pointer"
+                            onClick={() => handleOpenDialog(tag)}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Modifier
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Modifier le tag</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 min-h-[44px] cursor-pointer text-destructive hover:text-destructive"
+                            onClick={() => deleteTag(tag.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Supprimer
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Supprimer le tag</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </MobileCardActions>
                 </MobileCard>
               ))

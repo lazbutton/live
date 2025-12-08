@@ -15,7 +15,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { Shield, Calendar, MapPin, Users, Tag, Hash, FileText, LayoutDashboard, LogOut } from "lucide-react";
+import { Shield, Calendar, MapPin, Users, Tag, Hash, FileText, LayoutDashboard, LogOut, MessageSquare } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
@@ -63,6 +63,11 @@ const menuItems = [
     title: "Demandes",
     icon: FileText,
     url: "/admin/requests",
+  },
+  {
+    title: "Feedback",
+    icon: MessageSquare,
+    url: "/admin/feedback",
   },
 ];
 

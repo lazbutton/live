@@ -4,8 +4,8 @@
 
 ### Accès à l'Application
 
-**URL de l'application :** [À compléter avec l'URL de votre application déployée]
-**Exemple :** `https://admin.live-orleans.fr` ou `https://live-admin.vercel.app`
+**URL de l'application :** `https://www.live-orleans.fr/admin/login`
+
 
 **Note :** L'application doit être accessible publiquement pour la review. Si elle est en développement local uniquement, vous devrez la déployer temporairement (Vercel, Netlify, etc.).
 
@@ -16,24 +16,22 @@
 ### 1. Connexion à l'interface d'administration
 
 **Étape 1 : Accéder à la page de connexion**
-- Ouvrez votre navigateur et allez à : `[URL]/admin/login`
+- Ouvrez votre navigateur et allez à : `https://www.live-orleans.fr/admin/login`
 - Vous verrez la page de connexion de l'interface d'administration
 
 **Étape 2 : Se connecter**
 - Utilisez un compte administrateur avec les identifiants suivants :
-  - **Email :** [À fournir - email de test admin]
-  - **Mot de passe :** [À fournir - mot de passe de test]
+  - **Email :** test@admin.com
+  - **Mot de passe :** y.pX8Jj4PVaS*.@
 - Cliquez sur "Se connecter"
 - Vous serez redirigé vers le tableau de bord administratif
-
-**Note :** Si nécessaire, je peux créer un compte de test spécifique pour la review.
 
 ---
 
 ### 2. Accéder à la fonctionnalité d'importation Facebook
 
 **Étape 3 : Navigation vers la gestion des organisateurs**
-- Dans le menu latéral (ou la navigation mobile), cliquez sur **"Organisateurs"** ou **"Gestion des organisateurs"**
+- Dans le menu latéral (ou la navigation mobile), cliquez sur **"Organisateurs"**
 - Vous verrez la liste des organisateurs enregistrés dans le système
 
 **Étape 4 : Ouvrir l'importateur Facebook**
@@ -123,8 +121,8 @@
 
 Pour faciliter la review, un compte de test peut être créé avec les informations suivantes :
 
-**Email de test :** `review@live-orleans.test` (ou autre email que vous souhaitez)
-**Mot de passe :** [À définir - sera fourni]
+**Email de test :** `test@admin.com` (ou autre email que vous souhaitez)
+**Mot de passe :** y.pX8Jj4PVaS*.@
 
 **Instructions pour créer le compte :**
 1. L'administrateur principal peut créer ce compte via l'interface

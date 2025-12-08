@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -34,9 +35,22 @@ import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Sa
 import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { RoomsManagement } from "./rooms-management";
 import { compressImage } from "@/lib/image-compression";
 import Cropper, { Area } from "react-easy-crop";
+
+interface Room {
+  id: string;
+  name: string;
+  location_id: string;
+  capacity: number | null;
+}
 
 interface Location {
   id: string;
@@ -54,6 +68,7 @@ interface Location {
   is_organizer: boolean | null;
   created_at: string;
   updated_at: string;
+  rooms?: Room[];
 }
 
 export function LocationsManagement() {
@@ -72,14 +87,30 @@ export function LocationsManagement() {
 
   async function loadLocations() {
     try {
-      const { data, error } = await supabase
+      // Charger les lieux
+      const { data: locationsData, error: locationsError } = await supabase
         .from("locations")
         .select("*")
         .order("name", { ascending: true });
 
-      if (error) throw error;
-      setLocations(data || []);
-      setFilteredLocations(data || []);
+      if (locationsError) throw locationsError;
+
+      // Charger toutes les salles
+      const { data: roomsData, error: roomsError } = await supabase
+        .from("rooms")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (roomsError) throw roomsError;
+
+      // Associer les salles aux lieux
+      const locationsWithRooms = (locationsData || []).map((location) => ({
+        ...location,
+        rooms: (roomsData || []).filter((room) => room.location_id === location.id),
+      }));
+
+      setLocations(locationsWithRooms);
+      setFilteredLocations(locationsWithRooms);
     } catch (error) {
       console.error("Erreur lors du chargement des lieux:", error);
     } finally {
@@ -124,8 +155,12 @@ export function LocationsManagement() {
     return <div className="text-center py-8">Chargement des lieux...</div>;
   }
 
+  // Vérifier si au moins un lieu a des salles
+  const hasAnyRooms = locations.some((loc) => loc.rooms && loc.rooms.length > 0);
+
   return (
-    <Card>
+    <TooltipProvider delayDuration={300}>
+      <Card>
       <CardHeader>
         <CardTitle>Gestion des lieux</CardTitle>
         <CardDescription>Gérez les lieux disponibles pour les événements</CardDescription>
@@ -165,13 +200,14 @@ export function LocationsManagement() {
                   <TableRow>
                     <TableHead>Nom</TableHead>
                     <TableHead>Adresse</TableHead>
+                    {hasAnyRooms && <TableHead>Salles</TableHead>}
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredLocations.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground">
+                      <TableCell colSpan={hasAnyRooms ? 4 : 3} className="text-center text-muted-foreground">
                         {locations.length === 0 
                           ? "Aucun lieu trouvé. Cliquez sur 'Ajouter un lieu' pour commencer."
                           : "Aucun lieu ne correspond à votre recherche"}
@@ -191,43 +227,79 @@ export function LocationsManagement() {
                           )}
                         </div>
                       </TableCell>
+                      {hasAnyRooms && (
+                        <TableCell>
+                          {location.rooms && location.rooms.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {location.rooms.map((room) => (
+                                <Badge key={room.id} variant="outline" className="text-xs">
+                                  {room.name}
+                                  {room.capacity && ` (${room.capacity})`}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedLocationForRooms(location);
-                                setIsRoomsDialogOpen(true);
-                              }}
-                              className="cursor-pointer"
-                              title="Gérer les salles"
-                            >
-                              <Building2 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenDialog(location);
-                              }}
-                              className="cursor-pointer"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteLocation(location.id);
-                              }}
-                              className="cursor-pointer text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedLocationForRooms(location);
+                                    setIsRoomsDialogOpen(true);
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <Building2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Gérer les salles</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenDialog(location);
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Modifier le lieu</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteLocation(location.id);
+                                  }}
+                                  className="cursor-pointer text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Supprimer le lieu</p>
+                              </TooltipContent>
+                            </Tooltip>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -267,6 +339,21 @@ export function LocationsManagement() {
                     <MobileCardRow
                       label="Capacité"
                       value={`${location.capacity} places`}
+                    />
+                  )}
+                  {location.rooms && location.rooms.length > 0 && (
+                    <MobileCardRow
+                      label="Salles"
+                      value={
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {location.rooms.map((room) => (
+                            <Badge key={room.id} variant="outline" className="text-xs">
+                              {room.name}
+                              {room.capacity && ` (${room.capacity})`}
+                            </Badge>
+                          ))}
+                        </div>
+                      }
                     />
                   )}
                   {location.directions && (
@@ -340,6 +427,7 @@ export function LocationsManagement() {
         )}
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
 }
 

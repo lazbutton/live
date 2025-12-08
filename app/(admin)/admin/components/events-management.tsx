@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { SelectSearchable } from "@/components/ui/select-searchable";
 import { Check, X, Edit, Trash2, Plus, Search } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
@@ -361,7 +362,8 @@ export function EventsManagement() {
   }
 
   return (
-    <Card>
+    <TooltipProvider delayDuration={300}>
+      <Card>
       <CardHeader>
         <CardTitle>Gestion des événements</CardTitle>
         <CardDescription>
@@ -614,36 +616,64 @@ export function EventsManagement() {
                         <div className="flex items-center justify-end gap-2">
                           {event.status === "pending" && (
                             <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => updateEventStatus(event.id, "approved")}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => updateEventStatus(event.id, "rejected")}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => updateEventStatus(event.id, "approved")}
+                                  >
+                                    <Check className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Approuver l'événement</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => updateEventStatus(event.id, "rejected")}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Rejeter l'événement</p>
+                                </TooltipContent>
+                              </Tooltip>
                             </>
                           )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleOpenDialog(event)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deleteEvent(event.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleOpenDialog(event)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Modifier l'événement</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => deleteEvent(event.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Supprimer l'événement</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -779,6 +809,7 @@ export function EventsManagement() {
         )}
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
 }
 
