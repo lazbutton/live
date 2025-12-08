@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import Script from "next/script";
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
 // Add Special Gothic Expanded One font via link in head
@@ -54,6 +55,7 @@ export default function RootLayout({
           }}
         />
         {children}
+        <Analytics />
       </body>
     </html>
   );

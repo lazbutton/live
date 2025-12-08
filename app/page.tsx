@@ -101,28 +101,19 @@ export default function Home() {
                 }}
               >
                 <button
-                  className="group relative px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl cursor-pointer transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto min-h-[56px] touch-manipulation font-medium"
+                  className="group relative px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl cursor-not-allowed transition-all duration-300 w-full sm:w-auto min-h-[56px] touch-manipulation font-medium opacity-60"
                   style={{ 
                     backgroundColor: '#FFFFFF', 
                     color: '#111111',
                     boxShadow: '0 4px 20px rgba(255, 255, 255, 0.1)'
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
-                    e.currentTarget.style.boxShadow = '0 8px 30px rgba(255, 255, 255, 0.2)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#FFFFFF';
-                    e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 255, 255, 0.1)';
-                  }}
-                  onClick={() => {
-                    window.open("https://apps.apple.com/app/live-orleans", "_blank");
-                  }}
+                  disabled
+                  aria-label="Application iOS bientôt disponible"
                 >
                   <div className="flex items-center justify-center sm:justify-start gap-3">
                     {/* App Store Icon */}
                     <svg 
-                      className="w-7 h-7 flex-shrink-0 transition-transform duration-300 group-hover:scale-110" 
+                      className="w-7 h-7 flex-shrink-0" 
                       viewBox="0 0 24 24" 
                       fill="currentColor"
                       aria-hidden="true"
@@ -131,7 +122,7 @@ export default function Home() {
                     </svg>
                     <div className="text-left">
                       <div className="text-[10px] uppercase tracking-wider opacity-70 leading-tight">
-                        Télécharger sur
+                        Bientôt disponible sur
                       </div>
                       <div className="text-sm sm:text-base font-semibold leading-tight -mt-0.5" style={{ fontFamily: 'var(--font-inter), Inter, sans-serif' }}>
                         App Store
@@ -141,30 +132,19 @@ export default function Home() {
                 </button>
 
                 <button
-                  className="group relative border px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl cursor-pointer transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto min-h-[56px] touch-manipulation text-white font-medium"
+                  className="group relative border px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl cursor-not-allowed transition-all duration-300 w-full sm:w-auto min-h-[56px] touch-manipulation text-white font-medium opacity-60"
                   style={{ 
                     backgroundColor: '#111111', 
                     borderColor: 'rgba(255, 255, 255, 0.25)',
                     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.4)';
-                    e.currentTarget.style.boxShadow = '0 8px 30px rgba(255, 255, 255, 0.15)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#111111';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)';
-                    e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
-                  }}
-                  onClick={() => {
-                    window.open("https://play.google.com/store/apps/details?id=com.live.orleans", "_blank");
-                  }}
+                  disabled
+                  aria-label="Application Android bientôt disponible"
                 >
                   <div className="flex items-center justify-center sm:justify-start gap-3">
                     {/* Google Play Icon */}
                     <svg 
-                      className="w-7 h-7 flex-shrink-0 transition-transform duration-300 group-hover:scale-110" 
+                      className="w-7 h-7 flex-shrink-0" 
                       viewBox="0 0 24 24" 
                       fill="currentColor"
                       aria-hidden="true"
@@ -173,7 +153,7 @@ export default function Home() {
                     </svg>
                     <div className="text-left">
                       <div className="text-[10px] uppercase tracking-wider opacity-70 leading-tight">
-                        Disponible sur
+                        Bientôt disponible sur
                       </div>
                       <div className="text-sm sm:text-base font-semibold leading-tight -mt-0.5" style={{ fontFamily: 'var(--font-inter), Inter, sans-serif' }}>
                         Google Play
@@ -181,6 +161,23 @@ export default function Home() {
                     </div>
                   </div>
                 </button>
+              </div>
+
+              {/* Coming Soon Message */}
+              <div 
+                className="mt-4 sm:mt-5 transition-all duration-700 ease-out"
+                style={{
+                  opacity: mounted ? 1 : 0,
+                  transform: mounted ? 'translateY(0)' : 'translateY(20px)',
+                  transitionDelay: '1200ms'
+                }}
+              >
+                <p className="text-xs sm:text-sm text-white/70 font-medium mb-1">
+                  Les applications mobile arrivent bientôt !
+                </p>
+                <p className="text-[10px] sm:text-xs text-white/40 max-w-md mx-auto px-4">
+                  Revenez bientôt pour télécharger Live - Orléans sur iOS et Android.
+                </p>
               </div>
             </div>
           </div>
