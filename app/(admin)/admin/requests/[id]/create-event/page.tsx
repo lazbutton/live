@@ -7,7 +7,6 @@ import { AdminLayout } from "@/app/(admin)/admin/components/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AddressInput } from "@/components/ui/address-input";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { MultiSelectCreatable } from "@/components/ui/multi-select-creatable";
@@ -94,10 +93,21 @@ function CreateEventContent() {
       const selectedOrganizer = organizers.find((org) => org.id === firstOrganizerId);
       
       if (selectedOrganizer) {
-        setFormData({
-          ...formData,
+        const updates: any = {
           instagram_url: selectedOrganizer.instagram_url || formData.instagram_url,
           facebook_url: selectedOrganizer.facebook_url || formData.facebook_url,
+        };
+        
+        // Si l'organisateur est aussi un lieu, remplir automatiquement le lieu
+        if (selectedOrganizer.type === "location") {
+          updates.location_id = firstOrganizerId;
+          // Charger les salles du lieu-organisateur
+          loadRoomsForLocation(firstOrganizerId);
+        }
+        
+        setFormData({
+          ...formData,
+          ...updates,
         });
       }
     }
@@ -125,9 +135,6 @@ function CreateEventContent() {
     end_date: "",
     category: "",
     price: "",
-    address: "",
-    latitude: "",
-    longitude: "",
     capacity: "",
     location_id: "",
     room_id: "",
@@ -225,9 +232,6 @@ function CreateEventContent() {
           end_date: formattedEndDate,
           category: ed.category || "",
           price: ed.price != null ? ed.price.toString() : "",
-          address: ed.address || "",
-          latitude: ed.latitude != null ? ed.latitude.toString() : "",
-          longitude: ed.longitude != null ? ed.longitude.toString() : "",
           capacity: ed.capacity != null ? ed.capacity.toString() : "",
           location_id: ed.location_id || "",
           room_id: ed.room_id || "",
@@ -426,6 +430,11 @@ function CreateEventContent() {
         data: { user },
       } = await supabase.auth.getUser();
 
+      // Récupérer l'adresse et les coordonnées du lieu sélectionné si un lieu est sélectionné
+      const selectedLocation = formData.location_id && formData.location_id !== "none" 
+        ? locations.find((loc) => loc.id === formData.location_id)
+        : null;
+
       // Create event
       const eventData: any = {
         title: formData.title,
@@ -434,9 +443,9 @@ function CreateEventContent() {
         end_date: formData.end_date ? fromDatetimeLocal(formData.end_date) : null,
         category: formData.category,
         price: formData.price ? parseFloat(formData.price) : null,
-        address: formData.address || null,
-        latitude: formData.latitude ? parseFloat(formData.latitude) : null,
-        longitude: formData.longitude ? parseFloat(formData.longitude) : null,
+        address: selectedLocation?.address || null,
+        latitude: selectedLocation?.latitude || null,
+        longitude: selectedLocation?.longitude || null,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         location_id: formData.location_id === "none" ? null : formData.location_id || null,
         room_id: formData.room_id === "none" || formData.room_id === "" ? null : formData.room_id || null,
@@ -836,6 +845,23 @@ function CreateEventContent() {
                   <CardDescription>Associer un lieu et/ou un organisateur</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Organisateurs
+                    </Label>
+                    <MultiSelect
+                      options={organizers.map((org) => ({
+                        label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
+                        value: org.id,
+                      }))}
+                      selected={selectedOrganizerIds}
+                      onChange={handleOrganizerChange}
+                      placeholder="Sélectionner des organisateurs ou des lieux..."
+                      disabled={organizers.length === 0}
+                    />
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="location_id" className="flex items-center gap-2">
@@ -854,9 +880,6 @@ function CreateEventContent() {
                                 ...formData, 
                                 location_id: locationId,
                                 room_id: "", // Réinitialiser la salle quand le lieu change
-                                address: selectedLocation.address || formData.address || "",
-                                latitude: selectedLocation.latitude?.toString() || formData.latitude || "",
-                                longitude: selectedLocation.longitude?.toString() || formData.longitude || "",
                                 capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : formData.capacity || ""
                               });
                               // Charger les salles du lieu sélectionné
@@ -918,71 +941,6 @@ function CreateEventContent() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      Organisateurs
-                    </Label>
-                    <MultiSelect
-                      options={organizers.map((org) => ({
-                        label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
-                        value: org.id,
-                      }))}
-                      selected={selectedOrganizerIds}
-                      onChange={handleOrganizerChange}
-                      placeholder="Sélectionner des organisateurs ou des lieux..."
-                      disabled={organizers.length === 0}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="address" className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      Adresse
-                    </Label>
-                    <AddressInput
-                      id="address"
-                      value={formData.address}
-                      onChange={(address) => setFormData({ ...formData, address })}
-                      onAddressSelect={(address, coordinates) => {
-                        setFormData({
-                          ...formData,
-                          address,
-                          latitude: coordinates?.latitude?.toString() || "",
-                          longitude: coordinates?.longitude?.toString() || "",
-                        });
-                      }}
-                      placeholder="Commencez à taper une adresse..."
-                      className="cursor-pointer"
-                    />
-                  </div>
-
-                  <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
-                    <div className="space-y-2">
-                      <Label htmlFor="latitude">Latitude</Label>
-                      <Input
-                        id="latitude"
-                        type="number"
-                        step="any"
-                        value={formData.latitude || ""}
-                        onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
-                        placeholder="48.8566"
-                        className="cursor-pointer min-h-[44px] text-base"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="longitude">Longitude</Label>
-                      <Input
-                        id="longitude"
-                        type="number"
-                        step="any"
-                        value={formData.longitude || ""}
-                        onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
-                        placeholder="2.3522"
-                        className="cursor-pointer min-h-[44px] text-base"
-                      />
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
 

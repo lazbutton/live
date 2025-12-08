@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase/client";
 import {
   Table,
@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AddressInput } from "@/components/ui/address-input";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { MultiSelectCreatable } from "@/components/ui/multi-select-creatable";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,11 +33,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SelectSearchable } from "@/components/ui/select-searchable";
-import { Check, X, Edit, Trash2, Plus, Search } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Check, X, Edit, Trash2, Plus, Search, Image as ImageIcon, Upload, Save, Maximize2, Minimize2, RotateCw, LayoutGrid } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
+import { compressImage } from "@/lib/image-compression";
+import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
 
 interface Event {
@@ -837,12 +839,8 @@ function EventEditDialog({
     description: string;
     date: string;
     end_date: string;
-    end_time: string;
     category: string;
     price: string;
-    address: string;
-    latitude: string;
-    longitude: string;
     capacity: string;
     location_id: string;
     room_id: string;
@@ -851,18 +849,15 @@ function EventEditDialog({
     external_url_label: string;
     instagram_url: string;
     facebook_url: string;
+    image_url: string;
     status: "pending" | "approved" | "rejected";
   }>({
     title: "",
     description: "",
     date: "",
     end_date: "",
-    end_time: "",
     category: "",
     price: "",
-    address: "",
-    latitude: "",
-    longitude: "",
     capacity: "",
     location_id: "",
     room_id: "",
@@ -871,11 +866,23 @@ function EventEditDialog({
     external_url_label: "",
     instagram_url: "",
     facebook_url: "",
+    image_url: "",
     status: "pending",
   });
   const [selectedOrganizerIds, setSelectedOrganizerIds] = useState<string[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [rooms, setRooms] = useState<Array<{ id: string; name: string; location_id: string }>>([]);
+  
+  // Image states
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [aspectRatio, setAspectRatio] = useState<number | undefined>(3 / 2);
 
   // Fonction pour mettre à jour les réseaux sociaux quand un organisateur est sélectionné
   const handleOrganizerChange = (newOrganizerIds: string[]) => {
@@ -887,10 +894,21 @@ function EventEditDialog({
       const selectedOrganizer = organizers.find((org) => org.id === firstOrganizerId);
       
       if (selectedOrganizer) {
-        setFormData({
-          ...formData,
+        const updates: any = {
           instagram_url: selectedOrganizer.instagram_url || formData.instagram_url,
           facebook_url: selectedOrganizer.facebook_url || formData.facebook_url,
+        };
+        
+        // Si l'organisateur est aussi un lieu, remplir automatiquement le lieu
+        if (selectedOrganizer.type === "location") {
+          updates.location_id = firstOrganizerId;
+          // Charger les salles du lieu-organisateur
+          loadRoomsForLocation(firstOrganizerId);
+        }
+        
+        setFormData({
+          ...formData,
+          ...updates,
         });
       }
     }
@@ -935,12 +953,8 @@ function EventEditDialog({
         description: event.description || "",
         date: toDatetimeLocal(event.date),
         end_date: toDatetimeLocal(event.end_date),
-        end_time: event.end_time || "",
         category: event.category || "",
         price: event.price?.toString() || "",
-        address: event.address || "",
-        latitude: event.latitude?.toString() || "",
-        longitude: event.longitude?.toString() || "",
         capacity: event.capacity?.toString() || "",
         location_id: event.location_id || "",
         room_id: event.room_id || "",
@@ -949,6 +963,7 @@ function EventEditDialog({
         external_url_label: event.external_url_label || "",
         instagram_url: event.instagram_url || "",
         facebook_url: event.facebook_url || "",
+        image_url: event.image_url || "",
         status: event.status,
       });
 
@@ -961,6 +976,16 @@ function EventEditDialog({
       } else {
         setSelectedTagIds([]);
       }
+      
+      // Initialiser l'image preview avec l'image existante
+      if (event.image_url) {
+        setImagePreview(event.image_url);
+        setOriginalImageSrc(event.image_url);
+      } else {
+        setImagePreview(null);
+        setOriginalImageSrc(null);
+      }
+      setImageFile(null);
     }
   }, [event, open]);
 
@@ -979,6 +1004,146 @@ function EventEditDialog({
       setSelectedOrganizerIds(ids);
     } catch (error) {
       console.error("Erreur lors du chargement des organisateurs:", error);
+    }
+  }
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        alert("Veuillez sélectionner un fichier image");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert("L'image ne doit pas dépasser 5MB");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        setOriginalImageSrc(dataUrl);
+        setCropImageSrc(dataUrl);
+        setShowCropper(true);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  const onCropComplete = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  async function createCroppedImage(imageSrc: string, pixelCrop: Area): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.src = imageSrc;
+
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          reject(new Error("Impossible de créer le contexte canvas"));
+          return;
+        }
+
+        canvas.width = pixelCrop.width;
+        canvas.height = pixelCrop.height;
+
+        ctx.drawImage(
+          image,
+          pixelCrop.x,
+          pixelCrop.y,
+          pixelCrop.width,
+          pixelCrop.height,
+          0,
+          0,
+          pixelCrop.width,
+          pixelCrop.height
+        );
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("Erreur lors de la création du blob"));
+              return;
+            }
+            resolve(blob);
+          },
+          "image/jpeg",
+          0.9
+        );
+      };
+
+      image.onerror = () => {
+        reject(new Error("Erreur lors du chargement de l'image"));
+      };
+    });
+  }
+
+  async function handleCropComplete() {
+    if (!cropImageSrc || !croppedAreaPixels) return;
+
+    try {
+      const croppedImageBlob = await createCroppedImage(cropImageSrc, croppedAreaPixels);
+      const croppedImageFile = new File([croppedImageBlob], `cropped-${Date.now()}.jpg`, {
+        type: "image/jpeg",
+      });
+
+      setImageFile(croppedImageFile);
+      setImagePreview(URL.createObjectURL(croppedImageBlob));
+      setShowCropper(false);
+      setCropImageSrc(null);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setCroppedAreaPixels(null);
+      setAspectRatio(3 / 2);
+    } catch (error) {
+      console.error("Erreur lors du cropping:", error);
+      alert("Erreur lors du rognage de l'image");
+    }
+  }
+
+  async function handleImageUpload(): Promise<string | null> {
+    if (!imageFile) return null;
+
+    try {
+      const compressedFile = await compressImage(imageFile, 10);
+      
+      const fileExt = compressedFile.name.split(".").pop() || "jpg";
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+      const { data, error } = await supabase.storage
+        .from("event-images")
+        .upload(fileName, compressedFile, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (error) {
+        if (error.message?.includes("Bucket not found") || (error as any).statusCode === 404) {
+          alert("Le bucket 'event-images' n'existe pas. Veuillez le créer dans Supabase Storage.");
+        } else {
+          throw error;
+        }
+        return null;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("event-images")
+        .getPublicUrl(data.path);
+
+      return publicUrl;
+    } catch (error: any) {
+      console.error("Erreur upload:", error);
+      if (error.message?.includes("Bucket not found") || error.statusCode === 404) {
+        alert("Le bucket 'event-images' n'existe pas. Veuillez le créer dans Supabase Storage.");
+      } else {
+        alert("Erreur lors de l'upload de l'image: " + (error.message || "Erreur inconnue"));
+      }
+      return null;
     }
   }
 
@@ -1023,24 +1188,50 @@ function EventEditDialog({
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    
+    let finalImageUrl = event?.image_url || null;
+
+    // Si une nouvelle image a été téléchargée, l'uploader
+    if (imageFile) {
+      const uploadedUrl = await handleImageUpload();
+      if (uploadedUrl) {
+        finalImageUrl = uploadedUrl;
+      } else {
+        // Si l'upload échoue, on ne continue pas
+        return;
+      }
+    } else if (formData.image_url) {
+      // Si une URL d'image a été saisie, utiliser cette URL
+      finalImageUrl = formData.image_url;
+    } else if (!imagePreview && event?.image_url) {
+      // Si l'image a été supprimée, définir à null
+      finalImageUrl = null;
+    }
+
+    // Récupérer l'adresse et les coordonnées du lieu sélectionné si un lieu est sélectionné
+    const selectedLocation = formData.location_id && formData.location_id !== "none" 
+      ? locations.find((loc) => loc.id === formData.location_id)
+      : null;
+
     onSave(
       {
         ...formData,
         date: fromDatetimeLocal(formData.date) || formData.date,
-        end_date: formData.end_date ? fromDatetimeLocal(formData.end_date) : null,
-        end_time: formData.end_time || null,
+        end_date: formData.end_date ? (fromDatetimeLocal(formData.end_date) || null) : null,
         price: formData.price ? parseFloat(formData.price) : null,
-        latitude: formData.latitude ? parseFloat(formData.latitude) : null,
-        longitude: formData.longitude ? parseFloat(formData.longitude) : null,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         door_opening_time: formData.door_opening_time || null,
         external_url: formData.external_url || null,
         external_url_label: formData.external_url_label || null,
         instagram_url: formData.instagram_url || null,
         facebook_url: formData.facebook_url || null,
-      },
+        image_url: finalImageUrl,
+        address: selectedLocation?.address || null,
+        latitude: selectedLocation?.latitude || null,
+        longitude: selectedLocation?.longitude || null,
+      } as any,
       selectedOrganizerIds,
       selectedTagIds
     );
@@ -1139,48 +1330,59 @@ function EventEditDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="location_id">Lieu</Label>
-            <Select
-              value={formData.location_id || "none"}
-              onValueChange={(value) => {
-                const locationId = value === "none" ? "" : value;
-                // Mettre à jour l'adresse et la capacité automatiquement si un lieu est sélectionné
-                if (locationId) {
-                  const selectedLocation = locations.find((loc) => loc.id === locationId) as LocationData | undefined;
-                  if (selectedLocation) {
-                    setFormData({ 
-                      ...formData, 
-                      location_id: locationId,
-                      room_id: "", // Réinitialiser la salle quand le lieu change
-                      address: selectedLocation.address || formData.address || "",
-                      latitude: selectedLocation.latitude?.toString() || formData.latitude || "",
-                      longitude: selectedLocation.longitude?.toString() || formData.longitude || "",
-                      capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : formData.capacity || ""
-                    });
-                    // Charger les salles du lieu sélectionné
-                    loadRoomsForLocation(locationId);
-                    return;
-                  }
-                }
-                setFormData({ ...formData, location_id: locationId, room_id: "" });
-                setRooms([]);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un lieu" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Aucun lieu</SelectItem>
-                {locations.map((loc) => (
-                  <SelectItem key={loc.id} value={loc.id}>
-                    {loc.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Organisateurs</Label>
+            <MultiSelect
+              options={organizers.map((org) => ({
+                label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
+                value: org.id,
+              }))}
+              selected={selectedOrganizerIds}
+              onChange={handleOrganizerChange}
+              placeholder="Sélectionner des organisateurs ou des lieux..."
+              disabled={organizers.length === 0}
+            />
           </div>
 
-          {formData.location_id && rooms.length > 0 && (
+          <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
+            <div className="space-y-2">
+              <Label htmlFor="location_id">Lieu</Label>
+              <Select
+                value={formData.location_id || "none"}
+                onValueChange={(value) => {
+                  const locationId = value === "none" ? "" : value;
+                  // Mettre à jour l'adresse et la capacité automatiquement si un lieu est sélectionné
+                  if (locationId) {
+                    const selectedLocation = locations.find((loc) => loc.id === locationId) as LocationData | undefined;
+                    if (selectedLocation) {
+                      setFormData({ 
+                        ...formData, 
+                        location_id: locationId,
+                        room_id: "", // Réinitialiser la salle quand le lieu change
+                        capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : formData.capacity || ""
+                      });
+                      // Charger les salles du lieu sélectionné
+                      loadRoomsForLocation(locationId);
+                      return;
+                    }
+                  }
+                  setFormData({ ...formData, location_id: locationId, room_id: "" });
+                  setRooms([]);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un lieu" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucun lieu</SelectItem>
+                  {locations.map((loc) => (
+                    <SelectItem key={loc.id} value={loc.id}>
+                      {loc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="room_id">Salle</Label>
               <Select
@@ -1189,9 +1391,10 @@ function EventEditDialog({
                   const roomId = value === "none" ? "" : value;
                   setFormData({ ...formData, room_id: roomId });
                 }}
+                disabled={!formData.location_id || rooms.length === 0}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une salle" />
+                  <SelectValue placeholder={rooms.length === 0 ? "Aucune salle disponible" : "Sélectionner une salle"} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Aucune salle</SelectItem>
@@ -1203,77 +1406,19 @@ function EventEditDialog({
                 </SelectContent>
               </Select>
             </div>
-          )}
+          </div>
+
 
           <div className="space-y-2">
-            <Label htmlFor="address">Adresse</Label>
-            <AddressInput
-              id="address"
-              value={formData.address || ""}
-              onChange={(address) => setFormData({ ...formData, address })}
-              onAddressSelect={(address, coordinates) => {
-                setFormData({
-                  ...formData,
-                  address: address || "",
-                  latitude: coordinates?.latitude?.toString() || "",
-                  longitude: coordinates?.longitude?.toString() || "",
-                });
-              }}
-              placeholder="Commencez à taper une adresse..."
-              className="cursor-pointer"
+            <Label htmlFor="door_opening_time">Heure d'ouverture des portes</Label>
+            <Input
+              id="door_opening_time"
+              type="time"
+              value={formData.door_opening_time || ""}
+              onChange={(e) => setFormData({ ...formData, door_opening_time: e.target.value })}
+              placeholder="HH:MM"
+              className="min-h-[44px] text-base"
             />
-          </div>
-
-          <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
-            <div className="space-y-2">
-              <Label htmlFor="latitude">Latitude</Label>
-              <Input
-                id="latitude"
-                type="number"
-                step="any"
-                value={formData.latitude || ""}
-                onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
-                placeholder="48.8566"
-                className="cursor-pointer min-h-[44px] text-base"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="longitude">Longitude</Label>
-              <Input
-                id="longitude"
-                type="number"
-                step="any"
-                value={formData.longitude || ""}
-                onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
-                placeholder="2.3522"
-                className="cursor-pointer min-h-[44px] text-base"
-              />
-            </div>
-          </div>
-
-          <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
-            <div className="space-y-2">
-              <Label htmlFor="door_opening_time">Heure d'ouverture des portes</Label>
-              <Input
-                id="door_opening_time"
-                type="time"
-                value={formData.door_opening_time || ""}
-                onChange={(e) => setFormData({ ...formData, door_opening_time: e.target.value })}
-                placeholder="HH:MM"
-                className="min-h-[44px] text-base"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="end_time">Heure de fin</Label>
-              <Input
-                id="end_time"
-                type="time"
-                value={formData.end_time || ""}
-                onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                className="min-h-[44px] text-base"
-              />
-            </div>
           </div>
 
           <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
@@ -1329,20 +1474,6 @@ function EventEditDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Organisateurs</Label>
-            <MultiSelect
-              options={organizers.map((org) => ({
-                label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
-                value: org.id,
-              }))}
-              selected={selectedOrganizerIds}
-              onChange={handleOrganizerChange}
-              placeholder="Sélectionner des organisateurs ou des lieux..."
-              disabled={organizers.length === 0}
-            />
-          </div>
-
-          <div className="space-y-2">
             <Label>Tags</Label>
             <MultiSelectCreatable
               options={tags.map((tag) => ({
@@ -1376,6 +1507,107 @@ function EventEditDialog({
             </Select>
           </div>
 
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <ImageIcon className="h-4 w-4" />
+              Image de l'événement
+            </Label>
+            {imagePreview && !showCropper && (
+              <div className="relative w-full aspect-video rounded-lg overflow-hidden border">
+                <img
+                  src={imagePreview}
+                  alt="Aperçu"
+                  className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => {
+                    if (originalImageSrc) {
+                      setCropImageSrc(originalImageSrc);
+                      setShowCropper(true);
+                    } else if (imageFile) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        const dataUrl = reader.result as string;
+                        setOriginalImageSrc(dataUrl);
+                        setCropImageSrc(dataUrl);
+                        setShowCropper(true);
+                      };
+                      reader.readAsDataURL(imageFile);
+                    } else if (imagePreview) {
+                      setOriginalImageSrc(imagePreview);
+                      setCropImageSrc(imagePreview);
+                      setShowCropper(true);
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="absolute top-2 right-2 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setImagePreview(null);
+                    setImageFile(null);
+                    setOriginalImageSrc(null);
+                    setFormData({ ...formData, image_url: "" });
+                    const fileInput = document.getElementById("edit-image-upload") as HTMLInputElement;
+                    if (fileInput) fileInput.value = "";
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity cursor-pointer pointer-events-none">
+                  <div className="text-white text-sm font-medium flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4" />
+                    Cliquer pour rogner
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div className="relative">
+                <Input
+                  id="edit-image-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="cursor-pointer"
+                />
+                <Label
+                  htmlFor="edit-image-upload"
+                  className="absolute inset-0 flex items-center justify-center cursor-pointer opacity-0"
+                />
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label htmlFor="edit_image_url">Ou entrez une URL d'image</Label>
+                <Input
+                  id="edit_image_url"
+                  type="url"
+                  value={formData.image_url || ""}
+                  onChange={(e) => {
+                    setFormData({ ...formData, image_url: e.target.value });
+                    if (e.target.value) {
+                      setImagePreview(e.target.value);
+                      setOriginalImageSrc(e.target.value);
+                      setImageFile(null);
+                    } else {
+                      if (!imageFile) {
+                        setImagePreview(event?.image_url || null);
+                        setOriginalImageSrc(event?.image_url || null);
+                      }
+                    }
+                  }}
+                  placeholder="https://..."
+                  disabled={!!imageFile}
+                  className="cursor-pointer"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className={`flex gap-2 ${isMobile ? "flex-col" : "justify-end"}`}>
             <Button
               type="button"
@@ -1390,6 +1622,119 @@ function EventEditDialog({
             </Button>
           </div>
         </form>
+        
+        {/* Cropper Dialog */}
+        <Dialog open={showCropper} onOpenChange={setShowCropper}>
+          <DialogContent className="max-w-5xl p-0 gap-0">
+            <div className="flex flex-col h-[90vh] max-h-[800px]">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-border/20">
+                <DialogHeader className="text-left">
+                  <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5" />
+                    Rogner l'image
+                  </DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground mt-1">
+                    Ajustez la zone de sélection en la déplaçant, changez le zoom et le format selon vos besoins
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+
+              {/* Cropper Area */}
+              <div className="flex-1 relative bg-gradient-to-br from-gray-900 via-black to-gray-900 rounded-none overflow-hidden min-h-[400px]">
+                {cropImageSrc && (
+                  <div className="absolute inset-0">
+                    <Cropper
+                      image={cropImageSrc}
+                      crop={crop}
+                      zoom={zoom}
+                      aspect={aspectRatio}
+                      onCropChange={setCrop}
+                      onZoomChange={setZoom}
+                      onCropComplete={onCropComplete}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Controls Section */}
+              <div className="px-6 py-4 border-t border-border/20 bg-background/50 backdrop-blur-sm">
+                <div className="space-y-4">
+                  {/* Format Selection */}
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-aspect-ratio" className="text-sm font-medium flex items-center gap-2">
+                      <LayoutGrid className="h-4 w-4" />
+                      Format de sélection
+                    </Label>
+                    <Select
+                      value={aspectRatio === undefined ? "libre" : aspectRatio.toString()}
+                      onValueChange={(value) => {
+                        if (value === "libre") {
+                          setAspectRatio(undefined);
+                        } else {
+                          const ratio = parseFloat(value);
+                          setAspectRatio(ratio);
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="libre">Libre</SelectItem>
+                        <SelectItem value="1">Carré (1:1)</SelectItem>
+                        <SelectItem value="1.5">Paysage (3:2)</SelectItem>
+                        <SelectItem value="1.7777777777777777">Vidéo (16:9)</SelectItem>
+                        <SelectItem value="0.6666666666666666">Portrait (2:3)</SelectItem>
+                        <SelectItem value="0.75">Portrait (3:4)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Zoom Control */}
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-zoom" className="text-sm font-medium flex items-center gap-2">
+                      <Maximize2 className="h-4 w-4" />
+                      Zoom: {Math.round(zoom * 100)}%
+                    </Label>
+                    <input
+                      id="edit-zoom"
+                      type="range"
+                      min="1"
+                      max="3"
+                      step="0.1"
+                      value={zoom}
+                      onChange={(e) => setZoom(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setShowCropper(false);
+                        setCropImageSrc(null);
+                        setCrop({ x: 0, y: 0 });
+                        setZoom(1);
+                        setCroppedAreaPixels(null);
+                        setAspectRatio(3 / 2);
+                      }}
+                    >
+                      Annuler
+                    </Button>
+                    <Button type="button" onClick={handleCropComplete}>
+                      <Save className="mr-2 h-4 w-4" />
+                      Appliquer le rognage
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );
