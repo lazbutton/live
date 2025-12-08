@@ -34,3 +34,4 @@ END $$;
 -- ALTER TABLE event_organizers DROP CONSTRAINT IF EXISTS event_organizers_exactly_one_organizer;
 -- ALTER TABLE event_organizers ALTER COLUMN organizer_id SET NOT NULL;
 
+

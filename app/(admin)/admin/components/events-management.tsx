@@ -1212,7 +1212,7 @@ function EventEditDialog({
 
     // Récupérer l'adresse et les coordonnées du lieu sélectionné si un lieu est sélectionné
     const selectedLocation = formData.location_id && formData.location_id !== "none" 
-      ? locations.find((loc) => loc.id === formData.location_id)
+      ? (locations.find((loc) => loc.id === formData.location_id) as LocationData | undefined)
       : null;
 
     onSave(
