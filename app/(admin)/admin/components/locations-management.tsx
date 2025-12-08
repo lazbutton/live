@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase/client";
 import {
   Table,
@@ -23,10 +23,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AddressInput } from "@/components/ui/address-input";
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
+import { RoomsManagement } from "./rooms-management";
 import { compressImage } from "@/lib/image-compression";
+import Cropper, { Area } from "react-easy-crop";
 
 interface Location {
   id: string;
@@ -40,6 +50,8 @@ interface Location {
   longitude: number | null;
   instagram_url: string | null;
   facebook_url: string | null;
+  facebook_page_id: string | null;
+  is_organizer: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -51,6 +63,8 @@ export function LocationsManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isRoomsDialogOpen, setIsRoomsDialogOpen] = useState(false);
+  const [selectedLocationForRooms, setSelectedLocationForRooms] = useState<Location | null>(null);
 
   useEffect(() => {
     loadLocations();
@@ -184,6 +198,19 @@ export function LocationsManagement() {
                               variant="ghost"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setSelectedLocationForRooms(location);
+                                setIsRoomsDialogOpen(true);
+                              }}
+                              className="cursor-pointer"
+                              title="Gérer les salles"
+                            >
+                              <Building2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 handleOpenDialog(location);
                               }}
                               className="cursor-pointer"
@@ -255,6 +282,19 @@ export function LocationsManagement() {
                       className="flex-1 min-h-[44px] cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
+                        setSelectedLocationForRooms(location);
+                        setIsRoomsDialogOpen(true);
+                      }}
+                    >
+                      <Building2 className="h-4 w-4 mr-2" />
+                      Salles
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 min-h-[44px] cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
                         handleOpenDialog(location);
                       }}
                     >
@@ -286,6 +326,18 @@ export function LocationsManagement() {
           onOpenChange={setIsDialogOpen}
           onSuccess={loadLocations}
         />
+
+        {selectedLocationForRooms && (
+          <RoomsManagement
+            locationId={selectedLocationForRooms.id}
+            locationName={selectedLocationForRooms.name}
+            open={isRoomsDialogOpen}
+            onOpenChange={(open) => {
+              setIsRoomsDialogOpen(open);
+              if (!open) setSelectedLocationForRooms(null);
+            }}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -314,10 +366,21 @@ function LocationDialog({
     longitude: "",
     instagram_url: "",
     facebook_url: "",
+    facebook_page_id: "",
+    is_organizer: false,
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  
+  // Image cropping states
+  const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [aspectRatio, setAspectRatio] = useState<number | undefined>(3 / 2);
 
   useEffect(() => {
     if (location) {
@@ -332,8 +395,11 @@ function LocationDialog({
         longitude: location.longitude?.toString() || "",
         instagram_url: location.instagram_url || "",
         facebook_url: location.facebook_url || "",
+        facebook_page_id: location.facebook_page_id || "",
+        is_organizer: location.is_organizer || false,
       });
       setImagePreview(location.image_url || null);
+      setOriginalImageSrc(location.image_url || null);
       setImageFile(null);
     } else {
       setFormData({
@@ -347,13 +413,16 @@ function LocationDialog({
         longitude: "",
         instagram_url: "",
         facebook_url: "",
+        facebook_page_id: "",
+        is_organizer: false,
       });
       setImagePreview(null);
+      setOriginalImageSrc(null);
       setImageFile(null);
     }
   }, [location, open]);
 
-  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith("image/")) {
@@ -361,23 +430,97 @@ function LocationDialog({
         return;
       }
 
-      try {
-        // Compresser l'image avant l'affichage et l'upload
-        setUploading(true);
-        const compressedFile = await compressImage(file, 10);
-        setImageFile(compressedFile);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        setOriginalImageSrc(dataUrl);
+        setCropImageSrc(dataUrl);
+        setShowCropper(true);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setImagePreview(reader.result as string);
-        };
-        reader.readAsDataURL(compressedFile);
-      } catch (error) {
-        console.error("Erreur lors de la compression:", error);
-        alert("Erreur lors du traitement de l'image");
-      } finally {
-        setUploading(false);
-      }
+  const onCropComplete = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  async function createCroppedImage(imageSrc: string, pixelCrop: Area): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.src = imageSrc;
+
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          reject(new Error("Impossible de créer le contexte canvas"));
+          return;
+        }
+
+        canvas.width = pixelCrop.width;
+        canvas.height = pixelCrop.height;
+
+        ctx.drawImage(
+          image,
+          pixelCrop.x,
+          pixelCrop.y,
+          pixelCrop.width,
+          pixelCrop.height,
+          0,
+          0,
+          pixelCrop.width,
+          pixelCrop.height
+        );
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("Erreur lors de la création du blob"));
+              return;
+            }
+            resolve(blob);
+          },
+          "image/jpeg",
+          0.9
+        );
+      };
+
+      image.onerror = () => {
+        reject(new Error("Erreur lors du chargement de l'image"));
+      };
+    });
+  }
+
+  async function handleCropComplete() {
+    if (!cropImageSrc || !croppedAreaPixels) return;
+
+    try {
+      const croppedImageBlob = await createCroppedImage(cropImageSrc, croppedAreaPixels);
+      const croppedImageFile = new File([croppedImageBlob], `cropped-${Date.now()}.jpg`, {
+        type: "image/jpeg",
+      });
+
+      setImageFile(croppedImageFile);
+      setImagePreview(URL.createObjectURL(croppedImageBlob));
+      setShowCropper(false);
+      setCropImageSrc(null);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setCroppedAreaPixels(null);
+      setAspectRatio(3 / 2);
+    } catch (error) {
+      console.error("Erreur lors du cropping:", error);
+      alert("Erreur lors du rognage de l'image");
+    }
+  }
+
+  function handleImageClick() {
+    if (originalImageSrc) {
+      setCropImageSrc(originalImageSrc);
+      setShowCropper(true);
     }
   }
 
@@ -455,6 +598,8 @@ function LocationDialog({
         longitude: formData.longitude ? parseFloat(formData.longitude) : null,
         instagram_url: formData.instagram_url || null,
         facebook_url: formData.facebook_url || null,
+        facebook_page_id: formData.facebook_page_id || null,
+        is_organizer: formData.is_organizer || false,
       };
 
       if (location) {
@@ -619,26 +764,64 @@ function LocationDialog({
             </div>
           </div>
 
+          <div className="flex items-center space-x-2 p-4 border rounded-lg">
+            <Switch
+              id="is_organizer"
+              checked={formData.is_organizer}
+              onCheckedChange={(checked) => setFormData({ ...formData, is_organizer: checked })}
+            />
+            <Label htmlFor="is_organizer" className="cursor-pointer">
+              Ce lieu peut aussi être utilisé comme organisateur
+            </Label>
+          </div>
+
+          {formData.is_organizer && (
+            <div className="space-y-2">
+              <Label htmlFor="facebook_page_id" className="flex items-center gap-2">
+                <LinkIcon className="h-4 w-4" />
+                ID de page Facebook
+              </Label>
+              <Input
+                id="facebook_page_id"
+                type="text"
+                value={formData.facebook_page_id}
+                onChange={(e) => setFormData({ ...formData, facebook_page_id: e.target.value })}
+                placeholder="123456789"
+                className="cursor-pointer min-h-[44px] text-base"
+              />
+              <p className="text-xs text-muted-foreground">
+                ID numérique de la page Facebook (nécessaire pour importer les événements depuis Facebook)
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="image" className="flex items-center gap-2">
               <ImageIcon className="h-4 w-4" />
               Image du lieu
             </Label>
-            {imagePreview && (
-              <div className="relative w-full aspect-video rounded-lg overflow-hidden border">
+            {imagePreview && !showCropper && (
+              <div className="relative w-full aspect-video max-w-xs rounded-lg overflow-hidden border group cursor-pointer" onClick={handleImageClick}>
                 <img
                   src={imagePreview}
                   alt="Aperçu"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain bg-muted/20"
                 />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity text-white text-sm font-medium">
+                    Cliquer pour rogner
+                  </div>
+                </div>
                 <Button
                   type="button"
                   variant="destructive"
                   size="sm"
                   className="absolute top-2 right-2 cursor-pointer"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setImagePreview(null);
                     setImageFile(null);
+                    setOriginalImageSrc(null);
                     setFormData({ ...formData, image_url: "" });
                     const fileInput = document.getElementById("location-image-upload") as HTMLInputElement;
                     if (fileInput) fileInput.value = "";
@@ -670,6 +853,7 @@ function LocationDialog({
                   setFormData({ ...formData, image_url: e.target.value });
                   if (e.target.value) {
                     setImagePreview(e.target.value);
+                    setOriginalImageSrc(e.target.value);
                     setImageFile(null);
                   }
                 }}
@@ -699,6 +883,119 @@ function LocationDialog({
             </Button>
           </div>
         </form>
+
+        {/* Cropper Dialog */}
+        <Dialog open={showCropper} onOpenChange={setShowCropper}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
+              <DialogTitle>Rogner l'image</DialogTitle>
+              <DialogDescription>
+                Ajustez la zone de l'image à utiliser
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="px-6 pb-4 space-y-4">
+              {/* Aspect Ratio Selector */}
+              <div className="flex items-center gap-4">
+                <Label htmlFor="aspect-ratio" className="text-sm font-medium">
+                  Format:
+                </Label>
+                <Select
+                  value={aspectRatio?.toString() || "none"}
+                  onValueChange={(value) => {
+                    if (value === "none") {
+                      setAspectRatio(undefined);
+                    } else {
+                      setAspectRatio(parseFloat(value));
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Format" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Libre</SelectItem>
+                    <SelectItem value="1">1:1 (Carré)</SelectItem>
+                    <SelectItem value="1.3333333333333333">4:3</SelectItem>
+                    <SelectItem value="1.5">3:2</SelectItem>
+                    <SelectItem value="1.7777777777777777">16:9</SelectItem>
+                    <SelectItem value="0.75">3:4 (Portrait)</SelectItem>
+                    <SelectItem value="0.5625">9:16 (Portrait)</SelectItem>
+                    <SelectItem value="0.6666666666666666">2:3 (Portrait)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Cropper Area */}
+              <div className="relative w-full h-[400px] bg-black rounded-lg overflow-hidden">
+                {cropImageSrc && (
+                  <Cropper
+                    image={cropImageSrc}
+                    crop={crop}
+                    zoom={zoom}
+                    aspect={aspectRatio}
+                    onCropChange={setCrop}
+                    onZoomChange={setZoom}
+                    onCropComplete={onCropComplete}
+                    style={{
+                      containerStyle: {
+                        width: "100%",
+                        height: "100%",
+                        position: "relative",
+                      },
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Zoom Control */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Zoom</Label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min="1"
+                    max="3"
+                    step="0.1"
+                    value={zoom}
+                    onChange={(e) => setZoom(parseFloat(e.target.value))}
+                    className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                  />
+                  <span className="text-sm text-muted-foreground w-12 text-right">
+                    {Math.round(zoom * 100)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowCropper(false);
+                    setCropImageSrc(null);
+                    setCrop({ x: 0, y: 0 });
+                    setZoom(1);
+                    setCroppedAreaPixels(null);
+                    setAspectRatio(3 / 2);
+                  }}
+                  className="cursor-pointer"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleCropComplete}
+                  className="cursor-pointer"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Enregistrer
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );

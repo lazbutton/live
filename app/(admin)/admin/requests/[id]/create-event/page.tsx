@@ -79,7 +79,7 @@ function CreateEventContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [locations, setLocations] = useState<{ id: string; name: string; address: string | null; capacity: number | null; latitude: number | null; longitude: number | null }[]>([]);
-  const [organizers, setOrganizers] = useState<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null }[]>([]);
+  const [organizers, setOrganizers] = useState<Array<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null; type: "organizer" | "location" }>>([]);
   const [selectedOrganizerIds, setSelectedOrganizerIds] = useState<string[]>([]);
 
   // Fonction pour mettre à jour les réseaux sociaux quand un organisateur est sélectionné
@@ -158,15 +158,22 @@ function CreateEventContent() {
       setRequest(requestData);
 
       // Load locations, organizers, categories, tags
-      const [locationsResult, organizersResult, categoriesResult, tagsResult] = await Promise.all([
+      const [locationsResult, organizersResult, locationsOrganizersResult, categoriesResult, tagsResult] = await Promise.all([
         supabase.from("locations").select("id, name, address, capacity, latitude, longitude").order("name"),
         supabase.from("organizers").select("id, name, instagram_url, facebook_url").order("name"),
+        supabase.from("locations").select("id, name, instagram_url, facebook_url").eq("is_organizer", true).order("name"),
         supabase.from("categories").select("id, name").eq("is_active", true).order("display_order"),
         supabase.from("tags").select("id, name").order("name"),
       ]);
 
       if (locationsResult.data) setLocations(locationsResult.data);
-      if (organizersResult.data) setOrganizers(organizersResult.data);
+      
+      // Combiner les organisateurs classiques et les lieux-organisateurs
+      const allOrganizers = [
+        ...(organizersResult.data || []).map((org) => ({ ...org, type: "organizer" as const })),
+        ...(locationsOrganizersResult.data || []).map((loc) => ({ ...loc, type: "location" as const })),
+      ];
+      setOrganizers(allOrganizers);
       if (categoriesResult.data) setCategories(categoriesResult.data);
       if (tagsResult.data) setTags(tagsResult.data);
 
@@ -423,16 +430,28 @@ function CreateEventContent() {
       }
 
       // Link organizer if present
-      // Ajouter les organisateurs sélectionnés
+      // Ajouter les organisateurs sélectionnés (organisateurs classiques et lieux-organisateurs)
       if (selectedOrganizerIds.length > 0) {
+        const organizerEntries = selectedOrganizerIds.map((id) => {
+          const organizer = organizers.find((o) => o.id === id);
+          if (organizer?.type === "location") {
+            return {
+              event_id: newEvent.id,
+              location_id: id,
+              organizer_id: null,
+            };
+          } else {
+            return {
+              event_id: newEvent.id,
+              organizer_id: id,
+              location_id: null,
+            };
+          }
+        });
+        
         const { error: orgError } = await supabase
           .from("event_organizers")
-          .insert(
-            selectedOrganizerIds.map((orgId) => ({
-              event_id: newEvent.id,
-              organizer_id: orgId,
-            }))
-          );
+          .insert(organizerEntries);
 
         if (orgError) throw orgError;
       }
@@ -766,12 +785,12 @@ function CreateEventContent() {
                       </Label>
                       <MultiSelect
                         options={organizers.map((org) => ({
-                          label: org.name,
+                          label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
                           value: org.id,
                         }))}
                         selected={selectedOrganizerIds}
                         onChange={handleOrganizerChange}
-                        placeholder="Sélectionner des organisateurs..."
+                        placeholder="Sélectionner des organisateurs ou des lieux..."
                         disabled={organizers.length === 0}
                       />
                     </div>

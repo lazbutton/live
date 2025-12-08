@@ -76,7 +76,6 @@ export function UserRequestsManagement() {
   
   // États des filtres
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved" | "rejected">("pending");
-  const [filterType, setFilterType] = useState<"all" | "user_account" | "event_creation">("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   useEffect(() => {
@@ -107,24 +106,7 @@ export function UserRequestsManagement() {
         .order("request_type", { ascending: true });
 
       if (error) {
-        // Afficher toutes les propriétés de l'erreur
-        console.error("Erreur Supabase complète:", JSON.stringify(error, null, 2));
-        console.error("Erreur Supabase détails:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-          // Afficher toutes les propriétés
-          allKeys: Object.keys(error)
-        });
-        
-        // Vérifier si c'est une erreur de table inexistante
-        if (error.code === "42P01" || error.message?.includes("does not exist")) {
-          alert("La table 'user_requests' n'existe pas. Veuillez appliquer la migration 003.");
-        } else if (error.code === "42501" || error.message?.includes("permission denied")) {
-          alert("Permission refusée. Vérifiez que vous êtes admin et que la migration 005 a été appliquée.");
-        }
-        
+        console.error("Erreur Supabase:", error);
         setRequests([]);
         return;
       }
@@ -154,14 +136,12 @@ export function UserRequestsManagement() {
   useEffect(() => {
     let filtered = [...requests];
 
+    // Filtrer uniquement les demandes d'événements
+    filtered = filtered.filter((r) => r.request_type === "event_creation");
+
     // Filtre par statut
     if (filterStatus !== "all") {
       filtered = filtered.filter((r) => r.status === filterStatus);
-    }
-
-    // Filtre par type
-    if (filterType !== "all") {
-      filtered = filtered.filter((r) => r.request_type === filterType);
     }
 
     // Filtre par recherche textuelle
@@ -177,7 +157,7 @@ export function UserRequestsManagement() {
     }
 
     setFilteredRequests(filtered);
-  }, [requests, filterStatus, filterType, searchQuery]);
+  }, [requests, filterStatus, searchQuery]);
 
   async function updateRequestStatus(
     requestId: string,
@@ -243,7 +223,7 @@ export function UserRequestsManagement() {
       <CardHeader>
         <CardTitle>Gestion des demandes</CardTitle>
         <CardDescription>
-          Validez les demandes de création de comptes utilisateurs et les demandes d'événements
+          Validez les demandes de création d'événements
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -274,20 +254,6 @@ export function UserRequestsManagement() {
                 </SelectContent>
               </Select>
             </div>
-            
-            {/* Filtre par type */}
-            <div className="w-full sm:w-[200px]">
-              <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
-                <SelectTrigger className="min-h-[44px] text-base">
-                  <SelectValue placeholder="Tous les types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les types</SelectItem>
-                  <SelectItem value="user_account">Comptes utilisateur</SelectItem>
-                  <SelectItem value="event_creation">Événements</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
           
           {/* Statistiques */}
@@ -298,13 +264,12 @@ export function UserRequestsManagement() {
             <span>
               En attente: <span className="font-medium text-foreground">{pendingRequests.length}</span>
             </span>
-            {(filterStatus !== "all" || filterType !== "all" || searchQuery) && (
+            {(filterStatus !== "all" || searchQuery) && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
                   setFilterStatus("all");
-                  setFilterType("all");
                   setSearchQuery("");
                 }}
                 className="h-auto py-1 px-2 text-xs cursor-pointer"
@@ -323,18 +288,6 @@ export function UserRequestsManagement() {
           </div>
         )}
 
-        {!loading && requests.length === 0 && (
-          <div className="mb-4 p-4 bg-muted rounded-lg">
-            <p className="text-sm text-muted-foreground">
-              Aucune demande trouvée. Si vous voyez une erreur dans la console, vérifiez :
-            </p>
-            <ul className="mt-2 text-sm text-muted-foreground list-disc list-inside">
-              <li>La migration 003 (user_requests) a été appliquée</li>
-              <li>La migration 005 (fix_user_requests_rls) a été appliquée</li>
-              <li>Vous êtes bien connecté avec un compte admin</li>
-            </ul>
-          </div>
-        )}
 
         <MobileTableView
           desktopView={

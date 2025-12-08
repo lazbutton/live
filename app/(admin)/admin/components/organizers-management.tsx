@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -28,9 +29,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Save, RotateCw, LayoutGrid } from "lucide-react";
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Save, RotateCw, LayoutGrid, Facebook } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileTableView, MobileCard, MobileCardActions } from "./mobile-table-view";
+import { FacebookEventsImporter } from "./facebook-events-importer";
 import { compressImage } from "@/lib/image-compression";
 import Cropper, { Area } from "react-easy-crop";
 import { useCallback } from "react";
@@ -39,8 +41,10 @@ interface Organizer {
   id: string;
   name: string;
   logo_url: string | null;
+  short_description: string | null;
   instagram_url: string | null;
   facebook_url: string | null;
+  facebook_page_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -52,6 +56,7 @@ export function OrganizersManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingOrganizer, setEditingOrganizer] = useState<Organizer | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isImporterOpen, setIsImporterOpen] = useState(false);
 
   useEffect(() => {
     loadOrganizers();
@@ -128,13 +133,23 @@ export function OrganizersManagement() {
               className="pl-9 min-h-[44px] text-base"
             />
           </div>
-          <Button
-            onClick={() => handleOpenDialog()}
-            className="min-h-[44px] cursor-pointer"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Ajouter un organisateur
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setIsImporterOpen(true)}
+              variant="outline"
+              className="min-h-[44px] cursor-pointer"
+            >
+              <Facebook className="h-4 w-4 mr-2" />
+              Importer depuis Facebook
+            </Button>
+            <Button
+              onClick={() => handleOpenDialog()}
+              className="min-h-[44px] cursor-pointer"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter un organisateur
+            </Button>
+          </div>
         </div>
 
         {/* Statistiques */}
@@ -164,7 +179,16 @@ export function OrganizersManagement() {
                   ) : (
                     filteredOrganizers.map((organizer) => (
                       <TableRow key={organizer.id} className="cursor-pointer">
-                        <TableCell className="font-medium">{organizer.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="space-y-1">
+                            <div>{organizer.name}</div>
+                            {organizer.short_description && (
+                              <div className="text-xs text-muted-foreground line-clamp-1">
+                                {organizer.short_description}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <Button
@@ -212,7 +236,14 @@ export function OrganizersManagement() {
                   onClick={() => handleOpenDialog(organizer)}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-semibold text-base flex-1">{organizer.name}</h3>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-base">{organizer.name}</h3>
+                      {organizer.short_description && (
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                          {organizer.short_description}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <MobileCardActions>
                     <Button
@@ -252,6 +283,12 @@ export function OrganizersManagement() {
           onOpenChange={setIsDialogOpen}
           onSuccess={loadOrganizers}
         />
+
+        <FacebookEventsImporter
+          open={isImporterOpen}
+          onOpenChange={setIsImporterOpen}
+          onSuccess={loadOrganizers}
+        />
       </CardContent>
     </Card>
   );
@@ -272,8 +309,10 @@ function OrganizerDialog({
   const [formData, setFormData] = useState({
     name: "",
     logo_url: "",
+    short_description: "",
     instagram_url: "",
     facebook_url: "",
+    facebook_page_id: "",
   });
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -293,8 +332,10 @@ function OrganizerDialog({
       setFormData({
         name: organizer.name || "",
         logo_url: organizer.logo_url || "",
+        short_description: organizer.short_description || "",
         instagram_url: organizer.instagram_url || "",
         facebook_url: organizer.facebook_url || "",
+        facebook_page_id: organizer.facebook_page_id || "",
       });
       setLogoPreview(organizer.logo_url || null);
       setOriginalImageSrc(organizer.logo_url || null);
@@ -303,8 +344,10 @@ function OrganizerDialog({
       setFormData({
         name: "",
         logo_url: "",
+        short_description: "",
         instagram_url: "",
         facebook_url: "",
+        facebook_page_id: "",
       });
       setLogoPreview(null);
       setOriginalImageSrc(null);
@@ -474,6 +517,8 @@ function OrganizerDialog({
       const submitData = {
         ...formData,
         logo_url: finalLogoUrl || null,
+        short_description: formData.short_description || null,
+        facebook_page_id: formData.facebook_page_id || null,
       };
 
       if (organizer) {
@@ -521,6 +566,18 @@ function OrganizerDialog({
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="short_description">Courte description</Label>
+            <Textarea
+              id="short_description"
+              value={formData.short_description}
+              onChange={(e) => setFormData({ ...formData, short_description: e.target.value })}
+              placeholder="Description courte de l'organisateur..."
+              rows={3}
+              className="cursor-pointer resize-none min-h-[60px] text-base"
             />
           </div>
 
@@ -617,6 +674,22 @@ function OrganizerDialog({
                 className="cursor-pointer"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="facebook_page_id">ID de page Facebook</Label>
+            <Input
+              id="facebook_page_id"
+              type="text"
+              value={formData.facebook_page_id}
+              onChange={(e) => setFormData({ ...formData, facebook_page_id: e.target.value })}
+              placeholder="123456789 (ID numérique de la page)"
+              className="cursor-pointer"
+            />
+            <p className="text-xs text-muted-foreground">
+              L'ID numérique de la page Facebook (nécessaire pour récupérer les événements). 
+              Trouvez-le dans les paramètres de la page Facebook ou dans l'URL.
+            </p>
           </div>
 
           <div className={`flex gap-2 ${isMobile ? "flex-col" : "justify-end"}`}>

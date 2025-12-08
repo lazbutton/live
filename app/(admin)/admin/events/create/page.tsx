@@ -46,7 +46,8 @@ function CreateEventContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [locations, setLocations] = useState<{ id: string; name: string; address: string | null; capacity: number | null; latitude: number | null; longitude: number | null }[]>([]);
-  const [organizers, setOrganizers] = useState<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null }[]>([]);
+  const [rooms, setRooms] = useState<Array<{ id: string; name: string; location_id: string }>>([]);
+  const [organizers, setOrganizers] = useState<Array<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null; type: "organizer" | "location" }>>([]);
   const [selectedOrganizerIds, setSelectedOrganizerIds] = useState<string[]>([]);
 
   // Fonction pour mettre à jour les réseaux sociaux quand un organisateur est sélectionné
@@ -96,6 +97,7 @@ function CreateEventContent() {
     longitude: "",
     capacity: "",
     location_id: "",
+    room_id: "",
     door_opening_time: "",
     external_url: "",
     external_url_label: "",
@@ -111,15 +113,22 @@ function CreateEventContent() {
   async function loadData() {
     try {
       // Load locations, organizers, categories, tags
-      const [locationsResult, organizersResult, categoriesResult, tagsResult] = await Promise.all([
+      const [locationsResult, organizersResult, locationsOrganizersResult, categoriesResult, tagsResult] = await Promise.all([
         supabase.from("locations").select("id, name, address, capacity, latitude, longitude").order("name"),
         supabase.from("organizers").select("id, name, instagram_url, facebook_url").order("name"),
+        supabase.from("locations").select("id, name, instagram_url, facebook_url").eq("is_organizer", true).order("name"),
         supabase.from("categories").select("id, name").eq("is_active", true).order("display_order"),
         supabase.from("tags").select("id, name").order("name"),
       ]);
 
       if (locationsResult.data) setLocations(locationsResult.data);
-      if (organizersResult.data) setOrganizers(organizersResult.data);
+      
+      // Combiner les organisateurs classiques et les lieux-organisateurs
+      const allOrganizers = [
+        ...(organizersResult.data || []).map((org) => ({ ...org, type: "organizer" as const })),
+        ...(locationsOrganizersResult.data || []).map((loc) => ({ ...loc, type: "location" as const })),
+      ];
+      setOrganizers(allOrganizers);
       if (categoriesResult.data) setCategories(categoriesResult.data);
       if (tagsResult.data) setTags(tagsResult.data);
     } catch (error) {
@@ -130,6 +139,38 @@ function CreateEventContent() {
       setLoading(false);
     }
   }
+
+  // Fonction pour charger les salles d'un lieu
+  async function loadRoomsForLocation(locationId: string) {
+    if (!locationId) {
+      setRooms([]);
+      return;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from("rooms")
+        .select("id, name, location_id")
+        .eq("location_id", locationId)
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+      setRooms(data || []);
+    } catch (error) {
+      console.error("Erreur lors du chargement des salles:", error);
+      setRooms([]);
+    }
+  }
+
+  // Charger les salles quand le lieu change
+  useEffect(() => {
+    if (formData.location_id) {
+      loadRoomsForLocation(formData.location_id);
+    } else {
+      setRooms([]);
+      setFormData((prev) => ({ ...prev, room_id: "" }));
+    }
+  }, [formData.location_id]);
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -338,16 +379,28 @@ function CreateEventContent() {
         throw eventError;
       }
 
-      // Ajouter les organisateurs sélectionnés
+      // Ajouter les organisateurs sélectionnés (organisateurs classiques et lieux-organisateurs)
       if (selectedOrganizerIds.length > 0) {
+        const organizerEntries = selectedOrganizerIds.map((id) => {
+          const organizer = organizers.find((o) => o.id === id);
+          if (organizer?.type === "location") {
+            return {
+              event_id: newEvent.id,
+              location_id: id,
+              organizer_id: null,
+            };
+          } else {
+            return {
+              event_id: newEvent.id,
+              organizer_id: id,
+              location_id: null,
+            };
+          }
+        });
+        
         const { error: orgError } = await supabase
           .from("event_organizers")
-          .insert(
-            selectedOrganizerIds.map((orgId) => ({
-              event_id: newEvent.id,
-              organizer_id: orgId,
-            }))
-          );
+          .insert(organizerEntries);
 
         if (orgError) throw orgError;
       }
@@ -572,15 +625,19 @@ function CreateEventContent() {
                               setFormData({ 
                                 ...formData, 
                                 location_id: locationId,
+                                room_id: "", // Réinitialiser la salle quand le lieu change
                                 address: selectedLocation.address || formData.address || "",
                                 latitude: selectedLocation.latitude?.toString() || formData.latitude || "",
                                 longitude: selectedLocation.longitude?.toString() || formData.longitude || "",
                                 capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : formData.capacity || ""
                               });
+                              // Charger les salles du lieu sélectionné
+                              loadRoomsForLocation(locationId);
                               return;
                             }
                           }
-                          setFormData({ ...formData, location_id: locationId });
+                          setFormData({ ...formData, location_id: locationId, room_id: "" });
+                          setRooms([]);
                         }}
                       >
                         <SelectTrigger className="cursor-pointer">
@@ -606,12 +663,12 @@ function CreateEventContent() {
                       </Label>
                       <MultiSelect
                         options={organizers.map((org) => ({
-                          label: org.name,
+                          label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
                           value: org.id,
                         }))}
                         selected={selectedOrganizerIds}
                         onChange={handleOrganizerChange}
-                        placeholder="Sélectionner des organisateurs..."
+                        placeholder="Sélectionner des organisateurs ou des lieux..."
                         disabled={organizers.length === 0}
                       />
                     </div>

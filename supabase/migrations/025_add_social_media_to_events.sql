@@ -28,3 +28,5 @@ COMMENT ON COLUMN events.facebook_url IS 'URL du profil Facebook de l''événeme
 -- ALTER TABLE events DROP COLUMN IF EXISTS facebook_url;
 
 
+
+

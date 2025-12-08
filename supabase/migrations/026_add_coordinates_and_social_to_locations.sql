@@ -14,3 +14,5 @@ ADD COLUMN IF NOT EXISTS facebook_url TEXT;
 CREATE INDEX IF NOT EXISTS idx_locations_coordinates ON locations(latitude, longitude) WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 
 
+
+

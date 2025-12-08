@@ -55,6 +55,7 @@ interface Event {
   longitude: number | null;
   capacity: number | null;
   location_id: string | null;
+  room_id: string | null;
   door_opening_time: string | null;
   external_url: string | null;
   external_url_label: string | null;
@@ -64,10 +65,14 @@ interface Event {
   tag_ids?: string[];
   location?: { name: string };
   event_organizers?: Array<{
-    organizer: {
+    organizer?: {
       id: string;
       name: string;
-    };
+    } | null;
+    location?: {
+      id: string;
+      name: string;
+    } | null;
   }>;
 }
 
@@ -87,7 +92,7 @@ export function EventsManagement() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [locations, setLocations] = useState<LocationData[]>([]);
-  const [organizers, setOrganizers] = useState<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null }[]>([]);
+  const [organizers, setOrganizers] = useState<Array<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null; type: "organizer" | "location" }>>([]);
   const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   
@@ -114,8 +119,26 @@ export function EventsManagement() {
   }
 
   async function loadOrganizers() {
-    const { data } = await supabase.from("organizers").select("id, name, instagram_url, facebook_url").order("name");
-    if (data) setOrganizers(data);
+    // Charger les organisateurs classiques
+    const { data: organizersData } = await supabase
+      .from("organizers")
+      .select("id, name, instagram_url, facebook_url")
+      .order("name");
+    
+    // Charger les lieux qui sont aussi organisateurs
+    const { data: locationsData } = await supabase
+      .from("locations")
+      .select("id, name, instagram_url, facebook_url")
+      .eq("is_organizer", true)
+      .order("name");
+    
+    // Combiner les deux listes avec un indicateur de type
+    const allOrganizers = [
+      ...(organizersData || []).map((org) => ({ ...org, type: "organizer" as const })),
+      ...(locationsData || []).map((loc) => ({ ...loc, type: "location" as const })),
+    ];
+    
+    setOrganizers(allOrganizers);
   }
 
   async function loadTags() {
@@ -131,7 +154,8 @@ export function EventsManagement() {
           *,
           location:locations(id, name),
           event_organizers:event_organizers(
-            organizer:organizers(id, name)
+            organizer:organizers(id, name),
+            location:locations(id, name)
           )
         `)
         .order("date", { ascending: true });
@@ -174,7 +198,9 @@ export function EventsManagement() {
     // Filtre par organisateur
     if (filterOrganizer !== "all") {
       filtered = filtered.filter((event) => 
-        event.event_organizers?.some((eo) => eo.organizer.id === filterOrganizer)
+        event.event_organizers?.some((eo) => 
+          (eo.organizer?.id === filterOrganizer) || (eo.location?.id === filterOrganizer)
+        )
       );
     }
 
@@ -262,14 +288,27 @@ export function EventsManagement() {
           .eq("event_id", selectedEvent.id);
 
         if (organizerIds.length > 0) {
+          // Séparer les IDs en organisateurs classiques et lieux-organisateurs
+          const organizerEntries = organizerIds.map((id) => {
+            const organizer = organizers.find((o) => o.id === id);
+            if (organizer?.type === "location") {
+              return {
+                event_id: selectedEvent.id,
+                location_id: id,
+                organizer_id: null,
+              };
+            } else {
+              return {
+                event_id: selectedEvent.id,
+                organizer_id: id,
+                location_id: null,
+              };
+            }
+          });
+          
           const { error: orgError } = await supabase
             .from("event_organizers")
-            .insert(
-              organizerIds.map((orgId) => ({
-                event_id: selectedEvent.id,
-                organizer_id: orgId,
-              }))
-            );
+            .insert(organizerEntries);
 
           if (orgError) throw orgError;
         }
@@ -540,11 +579,15 @@ export function EventsManagement() {
                       <TableCell>
                         {event.event_organizers && event.event_organizers.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
-                            {event.event_organizers.map((eo, idx) => (
-                              <Badge key={eo.organizer.id} variant="outline" className="text-xs">
-                                {eo.organizer.name}
-                              </Badge>
-                            ))}
+                            {event.event_organizers.map((eo, idx) => {
+                              const organizer = eo.organizer || eo.location;
+                              if (!organizer) return null;
+                              return (
+                                <Badge key={organizer.id} variant="outline" className="text-xs">
+                                  {organizer.name}
+                                </Badge>
+                              );
+                            })}
                           </div>
                         ) : (
                           "-"
@@ -649,7 +692,10 @@ export function EventsManagement() {
                 {event.event_organizers && event.event_organizers.length > 0 && (
                   <MobileCardRow
                     label="Organisateurs"
-                    value={event.event_organizers.map((eo) => eo.organizer.name).join(", ")}
+                    value={event.event_organizers
+                      .map((eo) => (eo.organizer || eo.location)?.name)
+                      .filter((name): name is string => name != null)
+                      .join(", ")}
                   />
                 )}
                 {event.tag_ids && event.tag_ids.length > 0 && (
@@ -750,7 +796,7 @@ function EventEditDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   locations: { id: string; name: string; address: string | null; capacity: number | null }[];
-  organizers: { id: string; name: string; instagram_url: string | null; facebook_url: string | null }[];
+  organizers: Array<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null; type: "organizer" | "location" }>;
   tags: { id: string; name: string }[];
   onSave: (data: Partial<Event>, organizerIds?: string[], tagIds?: string[]) => void;
   onTagCreated?: () => void;
@@ -768,6 +814,7 @@ function EventEditDialog({
     longitude: string;
     capacity: string;
     location_id: string;
+    room_id: string;
     door_opening_time: string;
     external_url: string;
     external_url_label: string;
@@ -787,6 +834,7 @@ function EventEditDialog({
     longitude: "",
     capacity: "",
     location_id: "",
+    room_id: "",
     door_opening_time: "",
     external_url: "",
     external_url_label: "",
@@ -796,6 +844,7 @@ function EventEditDialog({
   });
   const [selectedOrganizerIds, setSelectedOrganizerIds] = useState<string[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [rooms, setRooms] = useState<Array<{ id: string; name: string; location_id: string }>>([]);
 
   // Fonction pour mettre à jour les réseaux sociaux quand un organisateur est sélectionné
   const handleOrganizerChange = (newOrganizerIds: string[]) => {
@@ -816,6 +865,38 @@ function EventEditDialog({
     }
   };
 
+  // Fonction pour charger les salles d'un lieu
+  async function loadRoomsForLocation(locationId: string) {
+    if (!locationId) {
+      setRooms([]);
+      return;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from("rooms")
+        .select("id, name, location_id")
+        .eq("location_id", locationId)
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+      setRooms(data || []);
+    } catch (error) {
+      console.error("Erreur lors du chargement des salles:", error);
+      setRooms([]);
+    }
+  }
+
+  // Charger les salles quand le lieu change
+  useEffect(() => {
+    if (formData.location_id) {
+      loadRoomsForLocation(formData.location_id);
+    } else {
+      setRooms([]);
+      setFormData((prev) => ({ ...prev, room_id: "" }));
+    }
+  }, [formData.location_id]);
+
   useEffect(() => {
     if (event) {
       setFormData({
@@ -831,6 +912,7 @@ function EventEditDialog({
         longitude: event.longitude?.toString() || "",
         capacity: event.capacity?.toString() || "",
         location_id: event.location_id || "",
+        room_id: event.room_id || "",
         door_opening_time: event.door_opening_time || "",
         external_url: event.external_url || "",
         external_url_label: event.external_url_label || "",
@@ -855,11 +937,15 @@ function EventEditDialog({
     try {
       const { data, error } = await supabase
         .from("event_organizers")
-        .select("organizer_id")
+        .select("organizer_id, location_id")
         .eq("event_id", eventId);
 
       if (error) throw error;
-      setSelectedOrganizerIds(data?.map((eo) => eo.organizer_id) || []);
+      // Combiner organizer_id et location_id dans une seule liste
+      const ids = (data || [])
+        .map((eo) => eo.organizer_id || eo.location_id)
+        .filter((id): id is string => id != null);
+      setSelectedOrganizerIds(ids);
     } catch (error) {
       console.error("Erreur lors du chargement des organisateurs:", error);
     }
@@ -1034,15 +1120,19 @@ function EventEditDialog({
                     setFormData({ 
                       ...formData, 
                       location_id: locationId,
+                      room_id: "", // Réinitialiser la salle quand le lieu change
                       address: selectedLocation.address || formData.address || "",
                       latitude: selectedLocation.latitude?.toString() || formData.latitude || "",
                       longitude: selectedLocation.longitude?.toString() || formData.longitude || "",
                       capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : formData.capacity || ""
                     });
+                    // Charger les salles du lieu sélectionné
+                    loadRoomsForLocation(locationId);
                     return;
                   }
                 }
-                setFormData({ ...formData, location_id: locationId });
+                setFormData({ ...formData, location_id: locationId, room_id: "" });
+                setRooms([]);
               }}
             >
               <SelectTrigger>
@@ -1058,6 +1148,31 @@ function EventEditDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {formData.location_id && rooms.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="room_id">Salle</Label>
+              <Select
+                value={formData.room_id || "none"}
+                onValueChange={(value) => {
+                  const roomId = value === "none" ? "" : value;
+                  setFormData({ ...formData, room_id: roomId });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une salle" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucune salle</SelectItem>
+                  {rooms.map((room) => (
+                    <SelectItem key={room.id} value={room.id}>
+                      {room.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="address">Adresse</Label>
@@ -1186,12 +1301,12 @@ function EventEditDialog({
             <Label>Organisateurs</Label>
             <MultiSelect
               options={organizers.map((org) => ({
-                label: org.name,
+                label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
                 value: org.id,
               }))}
               selected={selectedOrganizerIds}
               onChange={handleOrganizerChange}
-              placeholder="Sélectionner des organisateurs..."
+              placeholder="Sélectionner des organisateurs ou des lieux..."
               disabled={organizers.length === 0}
             />
           </div>
