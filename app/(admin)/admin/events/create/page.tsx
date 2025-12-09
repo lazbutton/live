@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { AdminLayout } from "@/app/(admin)/admin/components/admin-layout";
@@ -32,7 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Calendar, MapPin, Tag, Euro, Users, Clock, Link as LinkIcon, Image as ImageIcon, Upload, X, Save, Maximize2, Minimize2, RotateCw, LayoutGrid, Plus } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Tag, Euro, Users, Clock, Link as LinkIcon, Image as ImageIcon, Upload, X, Save, Maximize2, Minimize2, RotateCw, LayoutGrid, Plus, Globe, Loader2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
@@ -46,10 +46,22 @@ function CreateEventContent() {
   const [saving, setSaving] = useState(false);
   const [locations, setLocations] = useState<{ id: string; name: string; address: string | null; capacity: number | null; latitude: number | null; longitude: number | null }[]>([]);
   const [rooms, setRooms] = useState<Array<{ id: string; name: string; location_id: string }>>([]);
-  const [organizers, setOrganizers] = useState<Array<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null; type: "organizer" | "location" }>>([]);
+  const [organizers, setOrganizers] = useState<Array<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null; website_url: string | null; scraping_example_url: string | null; type: "organizer" | "location" }>>([]);
   const [selectedOrganizerIds, setSelectedOrganizerIds] = useState<string[]>([]);
   const [isLocationDialogOpen, setIsLocationDialogOpen] = useState(false);
   const [isOrganizerDialogOpen, setIsOrganizerDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [importOrganizerId, setImportOrganizerId] = useState<string>("none");
+  const [formKey, setFormKey] = useState(Date.now()); // Clé pour forcer le re-render du formulaire (utiliser timestamp pour garantir l'unicité)
+  
+  // Refs pour forcer la mise à jour des inputs
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const descriptionTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const endDateInputRef = useRef<HTMLInputElement>(null);
+  const priceInputRef = useRef<HTMLInputElement>(null);
 
   // Fonction pour mettre à jour les réseaux sociaux quand un organisateur est sélectionné
   const handleOrganizerChange = (newOrganizerIds: string[]) => {
@@ -61,21 +73,24 @@ function CreateEventContent() {
       const selectedOrganizer = organizers.find((org) => org.id === firstOrganizerId);
       
       if (selectedOrganizer) {
-        const updates: any = {
-          instagram_url: selectedOrganizer.instagram_url || formData.instagram_url,
-          facebook_url: selectedOrganizer.facebook_url || formData.facebook_url,
-        };
-        
-        // Si l'organisateur est aussi un lieu, remplir automatiquement le lieu
-        if (selectedOrganizer.type === "location") {
-          updates.location_id = firstOrganizerId;
-          // Charger les salles du lieu-organisateur
-          loadRoomsForLocation(firstOrganizerId);
-        }
-        
-        setFormData({
-          ...formData,
-          ...updates,
+        // Utiliser la forme fonctionnelle pour éviter les problèmes de closure
+        setFormData((prev) => {
+          const updates: any = {
+            instagram_url: selectedOrganizer.instagram_url || prev.instagram_url,
+            facebook_url: selectedOrganizer.facebook_url || prev.facebook_url,
+          };
+          
+          // Si l'organisateur est aussi un lieu, remplir automatiquement le lieu
+          if (selectedOrganizer.type === "location") {
+            updates.location_id = firstOrganizerId;
+            // Charger les salles du lieu-organisateur
+            loadRoomsForLocation(firstOrganizerId);
+          }
+          
+          return {
+            ...prev,
+            ...updates,
+          };
         });
       }
     }
@@ -118,13 +133,27 @@ function CreateEventContent() {
     loadData();
   }, []);
 
+  // Debug: log des changements de formData pour diagnostiquer
+  useEffect(() => {
+    console.log("🔄 formData a changé:", {
+      title: formData.title,
+      description: formData.description?.substring(0, 30),
+      date: formData.date,
+      end_date: formData.end_date,
+      price: formData.price,
+      category: formData.category,
+      image_url: formData.image_url?.substring(0, 30),
+      location_id: formData.location_id
+    });
+  }, [formData]);
+
   async function loadData() {
     try {
       // Load locations, organizers, categories, tags
       const [locationsResult, organizersResult, locationsOrganizersResult, categoriesResult, tagsResult] = await Promise.all([
         supabase.from("locations").select("id, name, address, capacity, latitude, longitude").order("name"),
-        supabase.from("organizers").select("id, name, instagram_url, facebook_url").order("name"),
-        supabase.from("locations").select("id, name, instagram_url, facebook_url").eq("is_organizer", true).order("name"),
+        supabase.from("organizers").select("id, name, instagram_url, facebook_url, website_url, scraping_example_url").order("name"),
+        supabase.from("locations").select("id, name, instagram_url, facebook_url, website_url, scraping_example_url").eq("is_organizer", true).order("name"),
         supabase.from("categories").select("id, name").eq("is_active", true).order("display_order"),
         supabase.from("tags").select("id, name").order("name"),
       ]);
@@ -133,8 +162,8 @@ function CreateEventContent() {
       
       // Combiner les organisateurs classiques et les lieux-organisateurs
       const allOrganizers = [
-        ...(organizersResult.data || []).map((org) => ({ ...org, type: "organizer" as const })),
-        ...(locationsOrganizersResult.data || []).map((loc) => ({ ...loc, type: "location" as const })),
+        ...(organizersResult.data || []).map((org) => ({ ...org, scraping_example_url: (org as any).scraping_example_url || null, type: "organizer" as const })),
+        ...(locationsOrganizersResult.data || []).map((loc) => ({ ...loc, website_url: loc.website_url || null, scraping_example_url: loc.scraping_example_url || null, type: "location" as const })),
       ];
       setOrganizers(allOrganizers);
       if (categoriesResult.data) setCategories(categoriesResult.data);
@@ -320,6 +349,398 @@ function CreateEventContent() {
     }
   }
 
+  async function handleImportFromUrl() {
+    if (!importUrl.trim()) {
+      alert("Veuillez saisir une URL");
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const response = await fetch("/api/events/scrape", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          url: importUrl,
+          organizer_id: importOrganizerId && importOrganizerId !== "none" ? (() => {
+            const selectedOrg = organizers.find((org) => org.id === importOrganizerId);
+            return selectedOrg?.type === "organizer" ? importOrganizerId : undefined;
+          })() : undefined,
+          location_id: importOrganizerId && importOrganizerId !== "none" ? (() => {
+            const selectedOrg = organizers.find((org) => org.id === importOrganizerId);
+            return selectedOrg?.type === "location" ? importOrganizerId : undefined;
+          })() : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Erreur lors de l'import");
+      }
+
+      const result = await response.json();
+      const data = result.data;
+
+      if (!data) {
+        throw new Error("Aucune donnée extraite");
+      }
+
+      console.log("📥 Données reçues de l'API:", data);
+
+      // Pré-remplir le formulaire avec les données extraites (CSS en priorité, puis IA)
+      const updates: Partial<typeof formData> = {};
+
+      // Titre - CSS prioritaire puis IA
+      if (data.title) {
+        updates.title = data.title;
+        console.log("✅ Titre pré-rempli:", data.title);
+      }
+
+      // Description - CSS prioritaire puis IA
+      if (data.description) {
+        updates.description = data.description;
+        console.log("✅ Description pré-remplie:", data.description.substring(0, 50) + "...");
+      }
+
+      // URL externe
+      if (data.external_url) {
+        updates.external_url = data.external_url;
+        console.log("✅ URL externe pré-remplie:", data.external_url);
+      }
+
+      // Prix - CSS prioritaire puis IA
+      if (data.price !== undefined && data.price !== null && data.price !== "") {
+        updates.price = String(data.price);
+        console.log("✅ Prix pré-rempli:", updates.price);
+      } else {
+        console.log("ℹ️ Pas de prix fourni dans les données");
+      }
+
+      // Convertir les dates ISO en format datetime-local
+      // Gestion correcte des timestamps et fuseaux horaires
+      if (data.date) {
+        try {
+          // Si c'est déjà au format datetime-local, l'utiliser directement
+          if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(data.date)) {
+            updates.date = data.date;
+            console.log("✅ Date pré-remplie (format datetime-local):", updates.date);
+          } else {
+            // Sinon, convertir depuis ISO en préservant la date/heure locale
+            const dateObj = new Date(data.date);
+            if (!isNaN(dateObj.getTime())) {
+              // Utiliser les méthodes UTC pour éviter les conversions de fuseau horaire
+              // ou utiliser les méthodes locales si on veut garder le fuseau horaire local
+              const year = dateObj.getFullYear();
+              const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+              const day = String(dateObj.getDate()).padStart(2, "0");
+              const hours = String(dateObj.getHours()).padStart(2, "0");
+              const minutes = String(dateObj.getMinutes()).padStart(2, "0");
+              updates.date = `${year}-${month}-${day}T${hours}:${minutes}`;
+              console.log("✅ Date pré-remplie (convertie):", updates.date);
+            } else {
+              console.warn("⚠️ Date invalide:", data.date);
+            }
+          }
+        } catch (e) {
+          console.error("Erreur lors de la conversion de la date:", e, data.date);
+        }
+      }
+
+      if (data.end_date) {
+        try {
+          // Si c'est déjà au format datetime-local, l'utiliser directement
+          if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(data.end_date)) {
+            updates.end_date = data.end_date;
+            console.log("✅ Date de fin pré-remplie (format datetime-local):", updates.end_date);
+          } else {
+            // Sinon, convertir depuis ISO en préservant la date/heure locale
+            const dateObj = new Date(data.end_date);
+            if (!isNaN(dateObj.getTime())) {
+              const year = dateObj.getFullYear();
+              const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+              const day = String(dateObj.getDate()).padStart(2, "0");
+              const hours = String(dateObj.getHours()).padStart(2, "0");
+              const minutes = String(dateObj.getMinutes()).padStart(2, "0");
+              updates.end_date = `${year}-${month}-${day}T${hours}:${minutes}`;
+              console.log("✅ Date de fin pré-remplie (convertie):", updates.end_date);
+            } else {
+              console.warn("⚠️ Date de fin invalide:", data.end_date);
+            }
+          }
+        } catch (e) {
+          console.error("Erreur lors de la conversion de la date de fin:", e, data.end_date);
+        }
+      }
+
+      if (data.price !== undefined && data.price !== null) {
+        updates.price = String(data.price);
+        console.log("✅ Prix pré-rempli:", updates.price);
+      }
+
+      if (data.capacity) {
+        updates.capacity = String(data.capacity);
+        console.log("✅ Capacité pré-remplie:", updates.capacity);
+      }
+      if (data.door_opening_time) {
+        updates.door_opening_time = data.door_opening_time;
+        console.log("✅ Heure d'ouverture pré-remplie:", updates.door_opening_time);
+      }
+      if (data.image_url) {
+        updates.image_url = data.image_url;
+        console.log("✅ Image URL pré-remplie:", updates.image_url);
+        // Mettre à jour aussi l'aperçu de l'image
+        setImagePreview(data.image_url);
+        setOriginalImageSrc(data.image_url);
+      }
+
+      // Essayer de trouver et sélectionner le lieu si un nom de lieu est fourni
+      let locationIdToSet = "";
+      if (data.location) {
+        console.log("🔍 Recherche de lieu:", data.location);
+        const matchingLocation = locations.find(
+          (loc) => loc.name.toLowerCase().includes(data.location.toLowerCase()) ||
+                   data.location.toLowerCase().includes(loc.name.toLowerCase())
+        );
+        if (matchingLocation) {
+          console.log("✅ Lieu trouvé:", matchingLocation.name);
+          locationIdToSet = matchingLocation.id;
+          loadRoomsForLocation(matchingLocation.id);
+        } else {
+          console.warn("⚠️ Aucun lieu correspondant trouvé pour:", data.location);
+        }
+      }
+
+      // Essayer de trouver et sélectionner l'organisateur si un nom est fourni
+      let organizerIdToSet = "";
+      if (data.organizer) {
+        console.log("🔍 Recherche d'organisateur:", data.organizer);
+        const matchingOrganizer = organizers.find(
+          (org) => org.name.toLowerCase().includes(data.organizer.toLowerCase()) ||
+                   data.organizer.toLowerCase().includes(org.name.toLowerCase())
+        );
+        if (matchingOrganizer) {
+          console.log("✅ Organisateur trouvé:", matchingOrganizer.name);
+          organizerIdToSet = matchingOrganizer.id;
+        } else {
+          console.warn("⚠️ Aucun organisateur correspondant trouvé pour:", data.organizer);
+        }
+      }
+
+      // Essayer de trouver et sélectionner la catégorie si fournie
+      let categoryIdToSet = "";
+      if (data.category) {
+        console.log("🔍 Recherche de catégorie:", data.category);
+        console.log("📋 Catégories disponibles:", categories.map(c => ({ id: c.id, name: c.name })));
+        
+        // Vérifier d'abord si data.category est déjà un ID (UUID format)
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.category);
+        
+        if (isUUID) {
+          // C'est un ID, vérifier s'il existe dans les catégories
+          const categoryById = categories.find(cat => cat.id === data.category);
+          if (categoryById) {
+            categoryIdToSet = categoryById.id;
+            console.log("✅ Catégorie trouvée par ID:", categoryById.name, "->", categoryIdToSet);
+          } else {
+            console.warn("⚠️ ID de catégorie non trouvé:", data.category);
+          }
+        } else {
+          // C'est un nom, chercher par nom
+          const categoryLower = data.category.toLowerCase().trim();
+          // Essayer d'abord une correspondance exacte
+          let matchingCategory = categories.find(
+            (cat) => cat.name.toLowerCase().trim() === categoryLower
+          );
+          // Sinon, essayer une correspondance partielle (contient ou est contenu)
+          if (!matchingCategory) {
+            matchingCategory = categories.find(
+              (cat) => {
+                const catNameLower = cat.name.toLowerCase().trim();
+                return catNameLower.includes(categoryLower) || categoryLower.includes(catNameLower);
+              }
+            );
+          }
+          // Dernière tentative : recherche plus flexible (mots-clés communs)
+          if (!matchingCategory) {
+            const categoryWords = categoryLower.split(/\s+/);
+            matchingCategory = categories.find(
+              (cat) => {
+                const catNameLower = cat.name.toLowerCase().trim();
+                return categoryWords.some((word: string) => catNameLower.includes(word)) || 
+                       catNameLower.split(/\s+/).some((word: string) => categoryLower.includes(word));
+              }
+            );
+          }
+          if (matchingCategory) {
+            console.log("✅ Catégorie trouvée par nom:", matchingCategory.name, "->", matchingCategory.id);
+            categoryIdToSet = matchingCategory.id;
+          } else {
+            console.warn("⚠️ Aucune catégorie correspondante trouvée pour:", data.category);
+            console.warn("📋 Catégories disponibles:", categories.map(c => c.name));
+          }
+        }
+      } else {
+        console.log("ℹ️ Pas de catégorie fournie dans les données");
+      }
+
+      // Regrouper toutes les mises à jour en une seule
+      if (locationIdToSet) updates.location_id = locationIdToSet;
+      if (categoryIdToSet) updates.category = categoryIdToSet;
+
+      console.log("📝 Mise à jour complète du formulaire avec:", updates);
+      console.log("📋 État actuel du formulaire AVANT mise à jour:", formData);
+      
+      // Forcer un nouveau timestamp pour la clé AVANT la mise à jour
+      const newFormKey = Date.now();
+      setFormKey(newFormKey);
+      
+      // Attendre un peu pour que la clé soit appliquée
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      // Forcer la mise à jour en utilisant une fonction callback pour garantir que React détecte le changement
+      setFormData((prev) => {
+        const newData = { 
+          ...prev, 
+          ...updates
+        };
+        console.log("📋 Nouveau formulaire après mise à jour:", newData);
+        console.log("🔍 Différences détectées:", Object.keys(updates).map(key => ({
+          key,
+          old: prev[key as keyof typeof prev],
+          new: newData[key as keyof typeof newData],
+          changed: prev[key as keyof typeof prev] !== newData[key as keyof typeof newData]
+        })));
+        return newData;
+      });
+      
+      // Attendre que React applique les changements
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Forcer la mise à jour des inputs via les refs pour s'assurer que les valeurs sont visibles
+      setTimeout(() => {
+        if (titleInputRef.current && updates.title) {
+          titleInputRef.current.value = updates.title;
+          titleInputRef.current.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (descriptionTextareaRef.current && updates.description) {
+          descriptionTextareaRef.current.value = updates.description;
+          descriptionTextareaRef.current.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (dateInputRef.current && updates.date) {
+          dateInputRef.current.value = updates.date;
+          dateInputRef.current.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (endDateInputRef.current && updates.end_date) {
+          endDateInputRef.current.value = updates.end_date;
+          endDateInputRef.current.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (priceInputRef.current && updates.price) {
+          priceInputRef.current.value = updates.price;
+          priceInputRef.current.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }, 100);
+      
+      // Fermer la modale APRÈS la mise à jour pour que l'utilisateur voie les changements
+      setIsImportDialogOpen(false);
+
+      // Gérer l'organisateur séparément (il a sa propre logique)
+      // ATTENTION: Ne pas appeler handleOrganizerChange ici car elle utilise ...formData (ancienne closure)
+      // et peut écraser les données récemment importées. Mettre à jour manuellement.
+      if (organizerIdToSet) {
+        setSelectedOrganizerIds([organizerIdToSet]);
+        // Attendre un peu avant de mettre à jour les réseaux sociaux pour ne pas écraser les données importées
+        setTimeout(() => {
+          const selectedOrganizer = organizers.find((org) => org.id === organizerIdToSet);
+          if (selectedOrganizer) {
+            setFormData((prev) => ({
+              ...prev,
+              instagram_url: selectedOrganizer.instagram_url || prev.instagram_url,
+              facebook_url: selectedOrganizer.facebook_url || prev.facebook_url,
+            }));
+            
+            // Si l'organisateur est aussi un lieu, remplir automatiquement le lieu (seulement si pas déjà défini)
+            if (selectedOrganizer.type === "location") {
+              setFormData((prev2) => ({
+                ...prev2,
+                location_id: prev2.location_id || organizerIdToSet,
+              }));
+              loadRoomsForLocation(organizerIdToSet);
+            }
+          }
+        }, 300);
+      }
+
+      // Essayer de trouver et créer les tags si fournis
+      if (data.tags && Array.isArray(data.tags) && data.tags.length > 0) {
+        console.log("🔍 Recherche/création de tags:", data.tags);
+        const matchedTagIds: string[] = [];
+        
+        for (const tagName of data.tags) {
+          if (!tagName || !tagName.trim()) continue;
+          
+          const normalizedTagName = tagName.trim();
+          
+          // Essayer de trouver un tag existant qui correspond
+          let matchingTag = tags.find(
+            (tag) => tag.name.toLowerCase() === normalizedTagName.toLowerCase()
+          );
+          
+          // Si pas trouvé, créer le tag
+          if (!matchingTag) {
+            try {
+              console.log("➕ Création du tag:", normalizedTagName);
+              const { data: newTag, error: tagError } = await supabase
+                .from("tags")
+                .insert([{ name: normalizedTagName }])
+                .select()
+                .single();
+              
+              if (!tagError && newTag) {
+                matchingTag = { id: newTag.id, name: newTag.name };
+                // Ajouter le nouveau tag à la liste locale
+                setTags((prev) => [...prev, matchingTag!]);
+                console.log("✅ Tag créé:", normalizedTagName, "->", newTag.id);
+              } else {
+                console.error("❌ Erreur lors de la création du tag:", tagError);
+              }
+            } catch (err) {
+              console.error("❌ Erreur lors de la création du tag:", err);
+            }
+          }
+          
+          if (matchingTag) {
+            matchedTagIds.push(matchingTag.id);
+            console.log("✅ Tag sélectionné:", normalizedTagName, "->", matchingTag.name);
+          }
+        }
+        
+        if (matchedTagIds.length > 0) {
+          console.log("✅ Tags sélectionnés:", matchedTagIds);
+          setSelectedTagIds(matchedTagIds);
+        } else {
+          console.warn("⚠️ Aucun tag créé ou trouvé");
+        }
+      }
+
+      // Ne pas fermer le dialog immédiatement, laisser les données s'appliquer d'abord
+      console.log("✅ Import terminé, formulaire mis à jour");
+      
+      // Fermer le dialog après un court délai pour permettre à React de mettre à jour l'état
+      setTimeout(() => {
+        setIsImportDialogOpen(false);
+        setImportUrl("");
+        setImportOrganizerId("none");
+      }, 100);
+    } catch (error: any) {
+      console.error("Erreur lors de l'import:", error);
+      alert(`Erreur lors de l'import: ${error.message || "Erreur inconnue"}`);
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -470,10 +891,19 @@ function CreateEventContent() {
               Retour aux événements
             </Link>
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsImportDialogOpen(true)}
+            className="cursor-pointer"
+          >
+            <Globe className="mr-2 h-4 w-4" />
+            Importer depuis une URL
+          </Button>
         </div>
 
         {/* Main form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form key={`form-${formKey}`} onSubmit={handleSubmit} className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Left column - Main info */}
             <div className="lg:col-span-2 space-y-6">
@@ -487,7 +917,9 @@ function CreateEventContent() {
                     <Label htmlFor="title">Titre *</Label>
                     <Input
                       id="title"
-                      value={formData.title}
+                      ref={titleInputRef}
+                      key={`input-title-${formKey}-${formData.title}`}
+                      value={formData.title || ""}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       required
                       placeholder="Nom de l'événement"
@@ -502,7 +934,8 @@ function CreateEventContent() {
                         Catégorie *
                       </Label>
                       <Select
-                        value={formData.category}
+                        key={`select-category-${formKey}-${formData.category || ''}`}
+                        value={formData.category || ""}
                         onValueChange={(value) => setFormData({ ...formData, category: value })}
                         required
                       >
@@ -511,7 +944,7 @@ function CreateEventContent() {
                         </SelectTrigger>
                         <SelectContent>
                           {categories.map((cat) => (
-                            <SelectItem key={cat.id} value={cat.name} className="cursor-pointer">
+                            <SelectItem key={cat.id} value={cat.id} className="cursor-pointer">
                               {cat.name}
                             </SelectItem>
                           ))}
@@ -573,7 +1006,9 @@ function CreateEventContent() {
                     <Label htmlFor="description">Description</Label>
                     <Textarea
                       id="description"
-                      value={formData.description}
+                      ref={descriptionTextareaRef}
+                      key={`textarea-description-${formKey}-${formData.description?.substring(0, 20) || ''}`}
+                      value={formData.description || ""}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={6}
                       placeholder="Description détaillée de l'événement"
@@ -589,8 +1024,10 @@ function CreateEventContent() {
                       </Label>
                       <Input
                         id="date"
+                        ref={dateInputRef}
                         type="datetime-local"
-                        value={formData.date}
+                        key={`input-date-${formKey}-${formData.date || ''}`}
+                        value={formData.date || ""}
                         onChange={(e) => {
                           const newStartDate = e.target.value;
                           let newEndDate = formData.end_date;
@@ -637,8 +1074,10 @@ function CreateEventContent() {
                       </Label>
                       <Input
                         id="end_date"
+                        ref={endDateInputRef}
                         type="datetime-local"
-                        value={formData.end_date}
+                        key={`input-end_date-${formKey}-${formData.end_date || ''}`}
+                        value={formData.end_date || ""}
                         min={formData.date || undefined}
                         onChange={(e) => {
                           const newEndDate = e.target.value;
@@ -688,9 +1127,11 @@ function CreateEventContent() {
                       </Label>
                       <Input
                         id="price"
+                        ref={priceInputRef}
                         type="number"
                         step="0.01"
-                        value={formData.price}
+                        key={`input-price-${formKey}-${formData.price || ''}`}
+                        value={formData.price || ""}
                         onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                         placeholder="0.00"
                         className="cursor-pointer"
@@ -861,7 +1302,8 @@ function CreateEventContent() {
                       <Input
                         id="image_url"
                         type="url"
-                        value={formData.image_url}
+                        key={`input-image_url-${formKey}-${formData.image_url?.substring(0, 30) || ''}`}
+                        value={formData.image_url || ""}
                         onChange={(e) => {
                           setFormData({ ...formData, image_url: e.target.value });
                           if (e.target.value) {
@@ -1189,6 +1631,134 @@ function CreateEventContent() {
         </DialogContent>
       </Dialog>
 
+      {/* Modal pour importer depuis une URL */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Globe className="h-5 w-5" />
+              Importer depuis une URL
+            </DialogTitle>
+            <DialogDescription>
+              Saisissez l'URL d'une page web contenant des informations sur un événement. L'IA analysera le contenu et pré-remplira automatiquement le formulaire.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="import-organizer">Organisateur</Label>
+              <Select
+                value={importOrganizerId}
+                onValueChange={setImportOrganizerId}
+                disabled={isImporting}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un organisateur" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucun organisateur</SelectItem>
+                  {organizers
+                    .filter((org) => org.scraping_example_url && org.website_url) // Afficher seulement les organisateurs avec un exemple de page
+                    .map((organizer) => (
+                      <SelectItem key={organizer.id} value={organizer.id}>
+                        {organizer.name}
+                        {organizer.type === "location" && (
+                          <span className="text-xs text-muted-foreground ml-2">(Lieu)</span>
+                        )}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              {importOrganizerId && importOrganizerId !== "none" && (() => {
+                const selectedOrg = organizers.find((org) => org.id === importOrganizerId);
+                return selectedOrg?.scraping_example_url ? (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">
+                      📄 Exemple de page configurée :
+                    </p>
+                    <a
+                      href={selectedOrg.scraping_example_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 dark:text-blue-400 underline break-all"
+                    >
+                      {selectedOrg.scraping_example_url}
+                    </a>
+                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+                      ✅ Les sélecteurs CSS configurés seront utilisés pour scraper cette page et les nouvelles pages ajoutées.
+                    </p>
+                  </div>
+                ) : null;
+              })()}
+              {(!importOrganizerId || importOrganizerId === "none") && (
+                <p className="text-xs text-muted-foreground">
+                  💡 Sélectionnez un organisateur ayant un exemple de page configuré pour utiliser ses sélecteurs CSS.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="import-url">URL de la page web</Label>
+              <Input
+                id="import-url"
+                type="url"
+                placeholder="https://example.com/evenement"
+                value={importUrl}
+                onChange={(e) => setImportUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleImportFromUrl();
+                  }
+                }}
+                disabled={isImporting}
+                className="cursor-pointer"
+              />
+            </div>
+            {isImporting && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Analyse de la page en cours...</span>
+              </div>
+            )}
+            <div className="text-sm text-muted-foreground">
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsImportDialogOpen(false);
+                setImportUrl("");
+                setImportOrganizerId("none");
+              }}
+              disabled={isImporting}
+              className="cursor-pointer"
+            >
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              onClick={handleImportFromUrl}
+              disabled={isImporting || !importUrl.trim()}
+              className="cursor-pointer"
+            >
+              {isImporting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Import en cours...
+                </>
+              ) : (
+                <>
+                  <Globe className="mr-2 h-4 w-4" />
+                  Importer
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal pour créer un lieu */}
       <Dialog open={isLocationDialogOpen} onOpenChange={setIsLocationDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
@@ -1232,12 +1802,12 @@ function CreateEventContent() {
               setIsOrganizerDialogOpen(false);
               // Recharger les organisateurs
               const [organizersResult, locationsOrganizersResult] = await Promise.all([
-                supabase.from("organizers").select("id, name, instagram_url, facebook_url").order("name"),
-                supabase.from("locations").select("id, name, instagram_url, facebook_url").eq("is_organizer", true).order("name"),
+                supabase.from("organizers").select("id, name, instagram_url, facebook_url, website_url, scraping_example_url").order("name"),
+                supabase.from("locations").select("id, name, instagram_url, facebook_url, website_url, scraping_example_url").eq("is_organizer", true).order("name"),
               ]);
               const allOrganizers = [
                 ...(organizersResult.data || []).map((org) => ({ ...org, type: "organizer" as const })),
-                ...(locationsOrganizersResult.data || []).map((loc) => ({ ...loc, type: "location" as const })),
+                ...(locationsOrganizersResult.data || []).map((loc) => ({ ...loc, website_url: loc.website_url || null, scraping_example_url: loc.scraping_example_url || null, type: "location" as const })),
               ];
               setOrganizers(allOrganizers);
               // Sélectionner automatiquement le nouvel organisateur

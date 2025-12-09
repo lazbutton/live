@@ -137,6 +137,13 @@ export function EventsManagement() {
     if (data) setCategories(data);
   }
 
+  // Helper function pour obtenir le nom de la catégorie à partir de l'ID
+  function getCategoryName(categoryId: string | null | undefined): string {
+    if (!categoryId) return "-";
+    const category = categories.find((cat) => cat.id === categoryId);
+    return category?.name || categoryId;
+  }
+
   async function loadOrganizers() {
     // Charger les organisateurs classiques
     const { data: organizersData } = await supabase
@@ -477,10 +484,12 @@ export function EventsManagement() {
                 searchPlaceholder="Rechercher une catégorie..."
                 options={[
                   { value: "all", label: "Toutes les catégories" },
-                  ...categories.map((cat) => ({
-                    value: cat.name,
-                    label: cat.name,
-                  })),
+                  ...categories
+                    .filter((cat) => cat.name && cat.name.trim() !== "")
+                    .map((cat) => ({
+                      value: cat.name,
+                      label: cat.name,
+                    })),
                 ]}
               />
             </div>
@@ -494,10 +503,12 @@ export function EventsManagement() {
                 searchPlaceholder="Rechercher un lieu..."
                 options={[
                   { value: "all", label: "Tous les lieux" },
-                  ...locations.map((location) => ({
-                    value: location.id,
-                    label: location.name,
-                  })),
+                  ...locations
+                    .filter((location) => location.id && location.name && location.name.trim() !== "")
+                    .map((location) => ({
+                      value: location.id,
+                      label: location.name,
+                    })),
                 ]}
               />
             </div>
@@ -511,10 +522,12 @@ export function EventsManagement() {
                 searchPlaceholder="Rechercher un organisateur..."
                 options={[
                   { value: "all", label: "Tous les organisateurs" },
-                  ...organizers.map((organizer) => ({
-                    value: organizer.id,
-                    label: organizer.name,
-                  })),
+                  ...organizers
+                    .filter((organizer) => organizer.id && organizer.name && organizer.name.trim() !== "")
+                    .map((organizer) => ({
+                      value: organizer.id,
+                      label: organizer.name,
+                    })),
                 ]}
               />
             </div>
@@ -528,10 +541,12 @@ export function EventsManagement() {
                 searchPlaceholder="Rechercher un tag..."
                 options={[
                   { value: "all", label: "Tous les tags" },
-                  ...tags.map((tag) => ({
-                    value: tag.id,
-                    label: tag.name,
-                  })),
+                  ...tags
+                    .filter((tag) => tag.id && tag.name && tag.name.trim() !== "")
+                    .map((tag) => ({
+                      value: tag.id,
+                      label: tag.name,
+                    })),
                 ]}
               />
             </div>
@@ -615,7 +630,7 @@ export function EventsManagement() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{event.category}</TableCell>
+                      <TableCell>{getCategoryName(event.category)}</TableCell>
                       <TableCell>
                         {event.location ? (event.location as any).name : "-"}
                       </TableCell>
@@ -753,7 +768,7 @@ export function EventsManagement() {
                     value={formatDateWithoutTimezone(event.end_date)}
                   />
                 )}
-                <MobileCardRow label="Catégorie" value={event.category} />
+                <MobileCardRow label="Catégorie" value={getCategoryName(event.category)} />
                 {event.location && (
                   <MobileCardRow
                     label="Lieu"
@@ -844,6 +859,7 @@ export function EventsManagement() {
             locations={locations}
             organizers={organizers}
             tags={tags}
+            categories={categories}
             onSave={updateEvent}
             onTagCreated={loadTags}
           />
@@ -861,6 +877,7 @@ function EventEditDialog({
   locations,
   organizers,
   tags,
+  categories,
   onSave,
   onTagCreated,
 }: {
@@ -870,6 +887,7 @@ function EventEditDialog({
   locations: { id: string; name: string; address: string | null; capacity: number | null }[];
   organizers: Array<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null; type: "organizer" | "location" }>;
   tags: { id: string; name: string }[];
+  categories: { id: string; name: string }[];
   onSave: (data: Partial<Event>, organizerIds?: string[], tagIds?: string[]) => void;
   onTagCreated?: () => void;
 }) {
@@ -1309,13 +1327,22 @@ function EventEditDialog({
 
           <div className="space-y-2">
             <Label htmlFor="category">Catégorie *</Label>
-            <Input
-              id="category"
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            <Select
+              value={formData.category || ""}
+              onValueChange={(value) => setFormData({ ...formData, category: value })}
               required
-              className="min-h-[44px] text-base"
-            />
+            >
+              <SelectTrigger className="min-h-[44px] text-base cursor-pointer">
+                <SelectValue placeholder="Sélectionner une catégorie" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id} className="cursor-pointer">
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
@@ -1413,11 +1440,13 @@ function EventEditDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Aucun lieu</SelectItem>
-                  {locations.map((loc) => (
-                    <SelectItem key={loc.id} value={loc.id}>
-                      {loc.name}
-                    </SelectItem>
-                  ))}
+                  {locations
+                    .filter((loc) => loc.id && loc.name && loc.name.trim() !== "")
+                    .map((loc) => (
+                      <SelectItem key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1437,11 +1466,13 @@ function EventEditDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Aucune salle</SelectItem>
-                  {rooms.map((room) => (
-                    <SelectItem key={room.id} value={room.id}>
-                      {room.name}
-                    </SelectItem>
-                  ))}
+                  {rooms
+                    .filter((room) => room.id && room.name && room.name.trim() !== "")
+                    .map((room) => (
+                      <SelectItem key={room.id} value={room.id}>
+                        {room.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1515,10 +1546,12 @@ function EventEditDialog({
           <div className="space-y-2">
             <Label>Tags</Label>
             <MultiSelectCreatable
-              options={tags.map((tag) => ({
-                label: tag.name,
-                value: tag.id,
-              }))}
+              options={tags
+                .filter((tag) => tag.id && tag.name && tag.name.trim() !== "")
+                .map((tag) => ({
+                  label: tag.name,
+                  value: tag.id,
+                }))}
               selected={selectedTagIds}
               onChange={setSelectedTagIds}
               onCreate={handleCreateTag}

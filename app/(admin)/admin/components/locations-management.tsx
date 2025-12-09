@@ -31,7 +31,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2, ExternalLink } from "lucide-react";
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2, ExternalLink, Code } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
@@ -66,6 +67,8 @@ interface Location {
   instagram_url: string | null;
   facebook_url: string | null;
   facebook_page_id: string | null;
+  website_url: string | null;
+  scraping_example_url: string | null;
   is_organizer: boolean | null;
   created_at: string;
   updated_at: string;
@@ -73,6 +76,7 @@ interface Location {
 }
 
 export function LocationsManagement() {
+  const router = useRouter();
   const [locations, setLocations] = useState<Location[]>([]);
   const [filteredLocations, setFilteredLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
@@ -284,6 +288,26 @@ export function LocationsManagement() {
                                 <p>Gérer les salles</p>
                               </TooltipContent>
                             </Tooltip>
+                            {location.is_organizer && location.website_url && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      router.push(`/admin/scraping/${location.id}`);
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <Code className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Configurer le scraping</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
@@ -462,6 +486,7 @@ export function LocationsManagement() {
             }}
           />
         )}
+        
       </CardContent>
     </Card>
     </TooltipProvider>
@@ -492,6 +517,7 @@ function LocationDialog({
     instagram_url: "",
     facebook_url: "",
     facebook_page_id: "",
+    website_url: "",
     is_organizer: false,
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -521,6 +547,7 @@ function LocationDialog({
         instagram_url: location.instagram_url || "",
         facebook_url: location.facebook_url || "",
         facebook_page_id: location.facebook_page_id || "",
+        website_url: location.website_url || "",
         is_organizer: location.is_organizer || false,
       });
       setImagePreview(location.image_url || null);
@@ -539,6 +566,7 @@ function LocationDialog({
         instagram_url: "",
         facebook_url: "",
         facebook_page_id: "",
+        website_url: "",
         is_organizer: false,
       });
       setImagePreview(null);
@@ -724,6 +752,7 @@ function LocationDialog({
         instagram_url: formData.instagram_url || null,
         facebook_url: formData.facebook_url || null,
         facebook_page_id: formData.facebook_page_id || null,
+        website_url: formData.website_url || null,
         is_organizer: formData.is_organizer || false,
       };
 
@@ -918,6 +947,29 @@ function LocationDialog({
                 ID numérique de la page Facebook (nécessaire pour importer les événements depuis Facebook)
               </p>
             </div>
+          )}
+
+          {formData.is_organizer && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="website_url" className="flex items-center gap-2">
+                  <LinkIcon className="h-4 w-4" />
+                  Site web
+                </Label>
+                <Input
+                  id="website_url"
+                  type="url"
+                  value={formData.website_url}
+                  onChange={(e) => setFormData({ ...formData, website_url: e.target.value })}
+                  placeholder="https://example.com"
+                  className="cursor-pointer min-h-[44px] text-base"
+                />
+                <p className="text-xs text-muted-foreground">
+                  URL du site web du lieu-organisateur. Utilisée pour le scraping automatique d'événements.
+                </p>
+              </div>
+
+            </>
           )}
 
           <div className="space-y-2">

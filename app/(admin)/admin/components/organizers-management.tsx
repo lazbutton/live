@@ -30,7 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Save, RotateCw, LayoutGrid, Facebook, ExternalLink } from "lucide-react";
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Save, RotateCw, LayoutGrid, Facebook, ExternalLink, Code } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileTableView, MobileCard, MobileCardActions } from "./mobile-table-view";
 import { FacebookEventsImporter } from "./facebook-events-importer";
@@ -53,12 +54,15 @@ interface Organizer {
   instagram_url: string | null;
   facebook_url: string | null;
   facebook_page_id: string | null;
+  website_url: string | null;
+  scraping_example_url: string | null;
   created_at: string;
   updated_at: string;
   type?: "organizer" | "location"; // Pour différencier organisateur vs lieu
 }
 
 export function OrganizersManagement() {
+  const router = useRouter();
   const [organizers, setOrganizers] = useState<Organizer[]>([]);
   const [filteredOrganizers, setFilteredOrganizers] = useState<Organizer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,7 +88,7 @@ export function OrganizersManagement() {
       // Charger les lieux qui sont aussi organisateurs
       const { data: locationsData, error: locationsError } = await supabase
         .from("locations")
-        .select("*")
+        .select("id, name, image_url, instagram_url, facebook_url, facebook_page_id, website_url, scraping_example_url, created_at, updated_at")
         .eq("is_organizer", true)
         .order("name", { ascending: true });
 
@@ -101,6 +105,8 @@ export function OrganizersManagement() {
           instagram_url: loc.instagram_url,
           facebook_url: loc.facebook_url,
           facebook_page_id: loc.facebook_page_id,
+          website_url: loc.website_url || null,
+          scraping_example_url: loc.scraping_example_url || null,
           created_at: loc.created_at,
           updated_at: loc.updated_at,
           type: "location" as const,
@@ -257,6 +263,26 @@ export function OrganizersManagement() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {organizer.website_url && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      router.push(`/admin/scraping/${organizer.id}`);
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <Code className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Configurer le scraping</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
@@ -391,6 +417,7 @@ export function OrganizersManagement() {
           onOpenChange={setIsImporterOpen}
           onSuccess={loadOrganizers}
         />
+        
       </CardContent>
     </Card>
   );
@@ -415,6 +442,7 @@ function OrganizerDialog({
     instagram_url: "",
     facebook_url: "",
     facebook_page_id: "",
+    website_url: "",
   });
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -438,6 +466,7 @@ function OrganizerDialog({
         instagram_url: organizer.instagram_url || "",
         facebook_url: organizer.facebook_url || "",
         facebook_page_id: organizer.facebook_page_id || "",
+        website_url: organizer.website_url || "",
       });
       setLogoPreview(organizer.logo_url || null);
       setOriginalImageSrc(organizer.logo_url || null);
@@ -450,6 +479,7 @@ function OrganizerDialog({
         instagram_url: "",
         facebook_url: "",
         facebook_page_id: "",
+        website_url: "",
       });
       setLogoPreview(null);
       setOriginalImageSrc(null);
@@ -621,6 +651,7 @@ function OrganizerDialog({
         logo_url: finalLogoUrl || null,
         short_description: formData.short_description || null,
         facebook_page_id: formData.facebook_page_id || null,
+        website_url: formData.website_url || null,
       };
 
       if (organizer) {
@@ -776,6 +807,21 @@ function OrganizerDialog({
                 className="cursor-pointer"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="website_url">Site web</Label>
+            <Input
+              id="website_url"
+              type="url"
+              value={formData.website_url}
+              onChange={(e) => setFormData({ ...formData, website_url: e.target.value })}
+              placeholder="https://example.com"
+              className="cursor-pointer"
+            />
+            <p className="text-xs text-muted-foreground">
+              URL du site web de l'organisateur. Utilisée pour le scraping automatique d'événements.
+            </p>
           </div>
 
           <div className="space-y-2">
