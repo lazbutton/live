@@ -48,3 +48,5 @@ CREATE INDEX IF NOT EXISTS idx_organizer_scraping_configs_location ON organizer_
 -- Commentaire
 COMMENT ON COLUMN organizer_scraping_configs.location_id IS 'ID du lieu-organisateur (mutuellement exclusif avec organizer_id)';
 
+
+

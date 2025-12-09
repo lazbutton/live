@@ -43,3 +43,5 @@ CREATE POLICY "Authenticated admins can manage scraping configs"
 -- On peut la garder ou la modifier selon les besoins
 -- Pour l'instant, on la garde comme elle est
 
+
+

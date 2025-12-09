@@ -11,3 +11,5 @@ ALTER COLUMN organizer_id DROP NOT NULL;
 -- Commentaire
 COMMENT ON COLUMN organizer_scraping_configs.organizer_id IS 'ID de l''organisateur (mutuellement exclusif avec location_id, peut être NULL pour les lieux-organisateurs)';
 
+
+

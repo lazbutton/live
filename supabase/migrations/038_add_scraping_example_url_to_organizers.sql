@@ -14,3 +14,5 @@ CREATE INDEX IF NOT EXISTS idx_organizers_scraping_example_url ON organizers(scr
 -- Commentaire
 COMMENT ON COLUMN organizers.scraping_example_url IS 'URL d''exemple de page web à scraper pour cet organisateur. Les sélecteurs CSS configurés seront utilisés pour scraper cette page et les autres pages similaires.';
 
+
+

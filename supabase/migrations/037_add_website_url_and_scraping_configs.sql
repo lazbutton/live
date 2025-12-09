@@ -70,3 +70,5 @@ COMMENT ON COLUMN organizer_scraping_configs.css_selector IS 'Sélecteur CSS pou
 COMMENT ON COLUMN organizer_scraping_configs.attribute IS 'Attribut HTML à extraire (textContent par défaut, peut être href, src, data-*, etc.)';
 COMMENT ON COLUMN organizer_scraping_configs.transform_function IS 'Fonction de transformation optionnelle (date, price, url, etc.)';
 
+
+

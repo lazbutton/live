@@ -14,3 +14,5 @@ CREATE INDEX IF NOT EXISTS idx_organizer_scraping_configs_text_prefix ON organiz
 -- Commentaire
 COMMENT ON COLUMN organizer_scraping_configs.text_prefix IS 'Texte à rechercher avant la valeur à extraire (ex: "prix :", "date :"). Si défini, la valeur sera extraite après ce texte dans le contenu de l''élément sélectionné.';
 
+
+
