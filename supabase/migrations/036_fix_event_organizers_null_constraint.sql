@@ -35,3 +35,4 @@ END $$;
 -- ALTER TABLE event_organizers ALTER COLUMN organizer_id SET NOT NULL;
 
 
+

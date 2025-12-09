@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Calendar, MapPin, Users, Tag, FileText, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Calendar, MapPin, Users, Tag, FileText, MessageSquare, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -42,6 +42,11 @@ const menuItems = [
     title: "Feedback",
     icon: MessageSquare,
     url: "/admin/feedback",
+  },
+  {
+    title: "Partage",
+    icon: Share2,
+    url: "/admin/share",
   },
 ];
 

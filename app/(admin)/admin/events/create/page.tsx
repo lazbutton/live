@@ -32,7 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Calendar, MapPin, Tag, Euro, Users, Clock, Link as LinkIcon, Image as ImageIcon, Upload, X, Save, Maximize2, Minimize2, RotateCw, LayoutGrid } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Tag, Euro, Users, Clock, Link as LinkIcon, Image as ImageIcon, Upload, X, Save, Maximize2, Minimize2, RotateCw, LayoutGrid, Plus } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
@@ -48,6 +48,8 @@ function CreateEventContent() {
   const [rooms, setRooms] = useState<Array<{ id: string; name: string; location_id: string }>>([]);
   const [organizers, setOrganizers] = useState<Array<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null; type: "organizer" | "location" }>>([]);
   const [selectedOrganizerIds, setSelectedOrganizerIds] = useState<string[]>([]);
+  const [isLocationDialogOpen, setIsLocationDialogOpen] = useState(false);
+  const [isOrganizerDialogOpen, setIsOrganizerDialogOpen] = useState(false);
 
   // Fonction pour mettre à jour les réseaux sociaux quand un organisateur est sélectionné
   const handleOrganizerChange = (newOrganizerIds: string[]) => {
@@ -674,107 +676,6 @@ function CreateEventContent() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Lieu et organisateur</CardTitle>
-                  <CardDescription>Associer un lieu et/ou un organisateur</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      Organisateurs
-                    </Label>
-                    <MultiSelect
-                      options={organizers.map((org) => ({
-                        label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
-                        value: org.id,
-                      }))}
-                      selected={selectedOrganizerIds}
-                      onChange={handleOrganizerChange}
-                      placeholder="Sélectionner des organisateurs ou des lieux..."
-                      disabled={organizers.length === 0}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="location_id" className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4" />
-                        Lieu
-                      </Label>
-                      <Select
-                        value={formData.location_id || "none"}
-                        onValueChange={(value) => {
-                          const locationId = value === "none" ? "" : value;
-                          // Mettre à jour l'adresse et la capacité automatiquement si un lieu est sélectionné
-                          if (locationId) {
-                            const selectedLocation = locations.find((loc) => loc.id === locationId);
-                            if (selectedLocation) {
-                              setFormData({ 
-                                ...formData, 
-                                location_id: locationId,
-                                room_id: "", // Réinitialiser la salle quand le lieu change
-                                capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : formData.capacity || ""
-                              });
-                              // Charger les salles du lieu sélectionné
-                              loadRoomsForLocation(locationId);
-                              return;
-                            }
-                          }
-                          setFormData({ ...formData, location_id: locationId, room_id: "" });
-                          setRooms([]);
-                        }}
-                      >
-                        <SelectTrigger className="cursor-pointer">
-                          <SelectValue placeholder="Sélectionner un lieu" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none" className="cursor-pointer">
-                            Aucun lieu
-                          </SelectItem>
-                          {locations.map((loc) => (
-                            <SelectItem key={loc.id} value={loc.id} className="cursor-pointer">
-                              {loc.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="room_id" className="flex items-center gap-2">
-                        <LayoutGrid className="h-4 w-4" />
-                        Salle
-                      </Label>
-                      <Select
-                        value={formData.room_id || "none"}
-                        onValueChange={(value) => {
-                          const roomId = value === "none" ? "" : value;
-                          setFormData({ ...formData, room_id: roomId });
-                        }}
-                        disabled={!formData.location_id || rooms.length === 0}
-                      >
-                        <SelectTrigger className={!formData.location_id || rooms.length === 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer"}>
-                          <SelectValue placeholder={rooms.length === 0 ? "Aucune salle disponible" : "Sélectionner une salle (optionnel)"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none" className="cursor-pointer">
-                            Aucune salle spécifique
-                          </SelectItem>
-                          {rooms.map((room) => (
-                            <SelectItem key={room.id} value={room.id} className="cursor-pointer">
-                              {room.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
                   <CardTitle>Détails supplémentaires</CardTitle>
                   <CardDescription>Prix, capacité et autres informations</CardDescription>
                 </CardHeader>
@@ -876,7 +777,7 @@ function CreateEventContent() {
             </div>
 
             {/* Right column - Sticky sidebar */}
-            <div className="space-y-6 lg:sticky lg:top-4 lg:self-start">
+            <div className="lg:col-span-1 space-y-6 lg:sticky lg:top-4 lg:self-start">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1002,6 +903,130 @@ function CreateEventContent() {
                   </Link>
                 </Button>
               </div>
+
+              {/* Lieu et organisateur */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Lieu et organisateur</CardTitle>
+                  <CardDescription>Associer un lieu et/ou un organisateur</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Organisateurs
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsOrganizerDialogOpen(true)}
+                        className="h-8"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Ajouter
+                      </Button>
+                    </div>
+                    <MultiSelect
+                      options={organizers.map((org) => ({
+                        label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
+                        value: org.id,
+                      }))}
+                      selected={selectedOrganizerIds}
+                      onChange={handleOrganizerChange}
+                      placeholder="Sélectionner des organisateurs ou des lieux..."
+                      disabled={organizers.length === 0}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="location_id" className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        Lieu
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsLocationDialogOpen(true)}
+                        className="h-8"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Ajouter
+                      </Button>
+                    </div>
+                    <Select
+                      value={formData.location_id || "none"}
+                      onValueChange={(value) => {
+                        const locationId = value === "none" ? "" : value;
+                        // Mettre à jour l'adresse et la capacité automatiquement si un lieu est sélectionné
+                        if (locationId) {
+                          const selectedLocation = locations.find((loc) => loc.id === locationId);
+                          if (selectedLocation) {
+                            setFormData({ 
+                              ...formData, 
+                              location_id: locationId,
+                              room_id: "", // Réinitialiser la salle quand le lieu change
+                              capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : formData.capacity || ""
+                            });
+                            // Charger les salles du lieu sélectionné
+                            loadRoomsForLocation(locationId);
+                            return;
+                          }
+                        }
+                        setFormData({ ...formData, location_id: locationId, room_id: "" });
+                        setRooms([]);
+                      }}
+                    >
+                      <SelectTrigger className="cursor-pointer">
+                        <SelectValue placeholder="Sélectionner un lieu" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none" className="cursor-pointer">
+                          Aucun lieu
+                        </SelectItem>
+                        {locations.map((loc) => (
+                          <SelectItem key={loc.id} value={loc.id} className="cursor-pointer">
+                            {loc.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="room_id" className="flex items-center gap-2">
+                      <LayoutGrid className="h-4 w-4" />
+                      Salle
+                    </Label>
+                    <Select
+                      value={formData.room_id || "none"}
+                      onValueChange={(value) => {
+                        const roomId = value === "none" ? "" : value;
+                        setFormData({ ...formData, room_id: roomId });
+                      }}
+                      disabled={!formData.location_id || rooms.length === 0}
+                    >
+                      <SelectTrigger className={!formData.location_id || rooms.length === 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer"}>
+                        <SelectValue placeholder={rooms.length === 0 ? "Aucune salle disponible" : "Sélectionner une salle (optionnel)"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none" className="cursor-pointer">
+                          Aucune salle spécifique
+                        </SelectItem>
+                        {rooms.map((room) => (
+                          <SelectItem key={room.id} value={room.id} className="cursor-pointer">
+                            {room.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                </CardContent>
+              </Card>
             </div>
           </div>
         </form>
@@ -1163,7 +1188,193 @@ function CreateEventContent() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modal pour créer un lieu */}
+      <Dialog open={isLocationDialogOpen} onOpenChange={setIsLocationDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Ajouter un lieu</DialogTitle>
+            <DialogDescription>
+              Créez un nouveau lieu pour l'utiliser dans cet événement
+            </DialogDescription>
+          </DialogHeader>
+          <CreateLocationModal
+            onSuccess={async (locationId: string) => {
+              setIsLocationDialogOpen(false);
+              // Recharger les lieux
+              const { data } = await supabase
+                .from("locations")
+                .select("id, name, address, capacity, latitude, longitude")
+                .order("name");
+              if (data) {
+                setLocations(data);
+                // Sélectionner automatiquement le nouveau lieu
+                setFormData({ ...formData, location_id: locationId });
+                loadRoomsForLocation(locationId);
+              }
+            }}
+            onCancel={() => setIsLocationDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal pour créer un organisateur */}
+      <Dialog open={isOrganizerDialogOpen} onOpenChange={setIsOrganizerDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Ajouter un organisateur</DialogTitle>
+            <DialogDescription>
+              Créez un nouvel organisateur pour l'utiliser dans cet événement
+            </DialogDescription>
+          </DialogHeader>
+          <CreateOrganizerModal
+            onSuccess={async (organizerId: string) => {
+              setIsOrganizerDialogOpen(false);
+              // Recharger les organisateurs
+              const [organizersResult, locationsOrganizersResult] = await Promise.all([
+                supabase.from("organizers").select("id, name, instagram_url, facebook_url").order("name"),
+                supabase.from("locations").select("id, name, instagram_url, facebook_url").eq("is_organizer", true).order("name"),
+              ]);
+              const allOrganizers = [
+                ...(organizersResult.data || []).map((org) => ({ ...org, type: "organizer" as const })),
+                ...(locationsOrganizersResult.data || []).map((loc) => ({ ...loc, type: "location" as const })),
+              ];
+              setOrganizers(allOrganizers);
+              // Sélectionner automatiquement le nouvel organisateur
+              setSelectedOrganizerIds([...selectedOrganizerIds, organizerId]);
+              handleOrganizerChange([...selectedOrganizerIds, organizerId]);
+            }}
+            onCancel={() => setIsOrganizerDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
+  );
+}
+
+// Composant modal pour créer un lieu (version simplifiée)
+function CreateLocationModal({
+  onSuccess,
+  onCancel,
+}: {
+  onSuccess: (locationId: string) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) {
+      alert("Le nom du lieu est obligatoire");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const { data, error } = await supabase
+        .from("locations")
+        .insert([{ name: name.trim() }])
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        onSuccess(data.id);
+      }
+    } catch (error: any) {
+      console.error("Erreur lors de la création:", error);
+      alert("Erreur lors de la création du lieu: " + (error.message || "Erreur inconnue"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="location-name">Nom du lieu *</Label>
+        <Input
+          id="location-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Ex: Salle des fêtes"
+          className="cursor-pointer"
+          autoFocus
+        />
+      </div>
+      <div className="flex justify-end gap-2 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={saving} className="cursor-pointer">
+          Annuler
+        </Button>
+        <Button type="submit" disabled={saving || !name.trim()} className="cursor-pointer">
+          {saving ? "Création..." : "Créer"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// Composant modal pour créer un organisateur (version simplifiée)
+function CreateOrganizerModal({
+  onSuccess,
+  onCancel,
+}: {
+  onSuccess: (organizerId: string) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) {
+      alert("Le nom de l'organisateur est obligatoire");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const { data, error } = await supabase
+        .from("organizers")
+        .insert([{ name: name.trim() }])
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        onSuccess(data.id);
+      }
+    } catch (error: any) {
+      console.error("Erreur lors de la création:", error);
+      alert("Erreur lors de la création de l'organisateur: " + (error.message || "Erreur inconnue"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="organizer-name">Nom de l'organisateur *</Label>
+        <Input
+          id="organizer-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Ex: Association Culturelle"
+          className="cursor-pointer"
+          autoFocus
+        />
+      </div>
+      <div className="flex justify-end gap-2 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={saving} className="cursor-pointer">
+          Annuler
+        </Button>
+        <Button type="submit" disabled={saving || !name.trim()} className="cursor-pointer">
+          {saving ? "Création..." : "Créer"}
+        </Button>
+      </div>
+    </form>
   );
 }
 

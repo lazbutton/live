@@ -30,13 +30,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Save, RotateCw, LayoutGrid, Facebook } from "lucide-react";
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Save, RotateCw, LayoutGrid, Facebook, ExternalLink } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileTableView, MobileCard, MobileCardActions } from "./mobile-table-view";
 import { FacebookEventsImporter } from "./facebook-events-importer";
 import { compressImage } from "@/lib/image-compression";
 import Cropper, { Area } from "react-easy-crop";
 import { useCallback } from "react";
+import Link from "next/link";
 import {
   Tooltip,
   TooltipContent,
@@ -231,6 +232,21 @@ export function OrganizersManagement() {
                                   Lieu
                                 </Badge>
                               )}
+                              <Link
+                                href={`/admin/events?organizer=${organizer.id}`}
+                                target="_blank"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-primary hover:text-primary/80 transition-colors"
+                              >
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <ExternalLink className="h-4 w-4" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Voir les événements</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </Link>
                             </div>
                             {organizer.short_description && (
                               <div className="text-xs text-muted-foreground line-clamp-1">
@@ -308,6 +324,21 @@ export function OrganizersManagement() {
                             Lieu
                           </Badge>
                         )}
+                        <Link
+                          href={`/admin/events?organizer=${organizer.id}`}
+                          target="_blank"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-primary hover:text-primary/80 transition-colors"
+                        >
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <ExternalLink className="h-4 w-4" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Voir les événements</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </Link>
                       </div>
                       {organizer.short_description && (
                         <p className="text-sm text-muted-foreground mt-1 line-clamp-2">

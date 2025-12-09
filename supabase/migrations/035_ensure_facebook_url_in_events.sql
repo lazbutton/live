@@ -45,3 +45,4 @@ CREATE INDEX IF NOT EXISTS idx_events_facebook ON events(facebook_url) WHERE fac
 -- ALTER TABLE events DROP COLUMN IF EXISTS facebook_url;
 
 
+

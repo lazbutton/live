@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
   Table,
@@ -89,6 +90,7 @@ type LocationData = {
 };
 
 export function EventsManagement() {
+  const searchParams = useSearchParams();
   const [events, setEvents] = useState<Event[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +109,20 @@ export function EventsManagement() {
   const [filterTag, setFilterTag] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Initialiser les filtres depuis les paramètres d'URL
+  useEffect(() => {
+    if (searchParams) {
+      const locationParam = searchParams.get("location");
+      const organizerParam = searchParams.get("organizer");
+      if (locationParam) {
+        setFilterLocation(locationParam);
+      }
+      if (organizerParam) {
+        setFilterOrganizer(organizerParam);
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     loadEvents();
@@ -272,23 +288,50 @@ export function EventsManagement() {
 
     try {
       const updateData: any = { ...eventData };
+      
+      // Convertir les chaînes vides en null pour les champs UUID
+      const uuidFields = ['location_id', 'room_id'];
+      uuidFields.forEach(field => {
+        if (updateData[field] === "" || updateData[field] === "none") {
+          updateData[field] = null;
+        }
+      });
+      
+      // Nettoyer les autres champs qui peuvent être des chaînes vides
+      const nullableFields = ['external_url', 'external_url_label', 'instagram_url', 'facebook_url', 'door_opening_time'];
+      nullableFields.forEach(field => {
+        if (updateData[field] === "") {
+          updateData[field] = null;
+        }
+      });
+      
       if (tagIds !== undefined) {
         updateData.tag_ids = tagIds;
       }
+
+      console.log("Données de mise à jour:", updateData);
 
       const { error: eventError } = await supabase
         .from("events")
         .update(updateData)
         .eq("id", selectedEvent.id);
 
-      if (eventError) throw eventError;
+      if (eventError) {
+        console.error("Erreur Supabase (update event):", JSON.stringify(eventError, null, 2));
+        throw eventError;
+      }
 
       // Gérer les organisateurs si fournis
       if (organizerIds !== undefined) {
-        await supabase
+        const { error: deleteError } = await supabase
           .from("event_organizers")
           .delete()
           .eq("event_id", selectedEvent.id);
+
+        if (deleteError) {
+          console.error("Erreur Supabase (delete organizers):", JSON.stringify(deleteError, null, 2));
+          throw deleteError;
+        }
 
         if (organizerIds.length > 0) {
           // Séparer les IDs en organisateurs classiques et lieux-organisateurs
@@ -309,30 +352,26 @@ export function EventsManagement() {
             }
           });
           
+          console.log("Insertion des organisateurs:", organizerEntries);
+          
           const { error: orgError } = await supabase
             .from("event_organizers")
             .insert(organizerEntries);
 
-          if (orgError) throw orgError;
+          if (orgError) {
+            console.error("Erreur Supabase (insert organizers):", JSON.stringify(orgError, null, 2));
+            throw orgError;
+          }
         }
-      }
-
-      // Gérer les tags
-      if (tagIds !== undefined) {
-        const { error: tagError } = await supabase
-          .from("events")
-          .update({ tag_ids: tagIds })
-          .eq("id", selectedEvent.id);
-
-        if (tagError) throw tagError;
       }
 
       setIsDialogOpen(false);
       setSelectedEvent(null);
       await loadEvents();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erreur lors de la mise à jour:", error);
-      alert("Erreur lors de la mise à jour de l'événement");
+      console.error("Détails de l'erreur:", JSON.stringify(error, null, 2));
+      alert(`Erreur lors de la mise à jour de l'événement: ${error?.message || JSON.stringify(error)}`);
     }
   }
 

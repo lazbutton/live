@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2 } from "lucide-react";
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2, ExternalLink } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
@@ -44,6 +44,7 @@ import {
 import { RoomsManagement } from "./rooms-management";
 import { compressImage } from "@/lib/image-compression";
 import Cropper, { Area } from "react-easy-crop";
+import Link from "next/link";
 
 interface Room {
   id: string;
@@ -216,7 +217,26 @@ export function LocationsManagement() {
                   ) : (
                     filteredLocations.map((location) => (
                     <TableRow key={location.id} className="cursor-pointer">
-                      <TableCell className="font-medium">{location.name}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {location.name}
+                          <Link
+                            href={`/admin/events?location=${location.id}`}
+                            target="_blank"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-primary hover:text-primary/80 transition-colors"
+                          >
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <ExternalLink className="h-4 w-4" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Voir les événements</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </Link>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="space-y-1">
                           <div>{location.address || "-"}</div>
@@ -323,7 +343,24 @@ export function LocationsManagement() {
                   onClick={() => handleOpenDialog(location)}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-semibold text-base flex-1">{location.name}</h3>
+                    <div className="flex items-center gap-2 flex-1">
+                      <h3 className="font-semibold text-base flex-1">{location.name}</h3>
+                      <Link
+                        href={`/admin/events?location=${location.id}`}
+                        target="_blank"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-primary hover:text-primary/80 transition-colors"
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <ExternalLink className="h-4 w-4" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Voir les événements</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </Link>
+                    </div>
                   </div>
                   {location.short_description && (
                     <MobileCardRow
