@@ -13,3 +13,4 @@ COMMENT ON COLUMN organizer_scraping_configs.organizer_id IS 'ID de l''organisat
 
 
 
+

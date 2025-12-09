@@ -7,3 +7,4 @@ COMMENT ON COLUMN organizer_ai_fields.ai_hint IS 'Indications spécifiques à do
 
 
 
+

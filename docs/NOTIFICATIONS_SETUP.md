@@ -268,3 +268,4 @@ Toutes les notifications envoyées avec succès sont automatiquement loggées da
 - **iOS** : Voir `docs/ios-apns-setup.md` pour la configuration complète APNs
 - **Base de données** : Voir les migrations `047_create_notification_logs.sql` et `048_create_push_tokens_table.sql`
 
+

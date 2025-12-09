@@ -16,3 +16,4 @@ COMMENT ON COLUMN organizer_scraping_configs.text_prefix IS 'Texte à rechercher
 
 
 
+

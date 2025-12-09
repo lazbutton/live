@@ -72,3 +72,4 @@ COMMENT ON COLUMN organizer_scraping_configs.transform_function IS 'Fonction de 
 
 
 
+

@@ -78,3 +78,4 @@ console.log("SUPABASE_SERVICE_ROLE_KEY exists:", !!process.env.SUPABASE_SERVICE_
 - ⚠️ `SUPABASE_SERVICE_ROLE_KEY` donne un accès complet à votre base de données - gardez-la secrète
 - ⚠️ En production (Vercel, etc.), utilisez les "Environment Variables" du dashboard au lieu de `.env.local`
 
+

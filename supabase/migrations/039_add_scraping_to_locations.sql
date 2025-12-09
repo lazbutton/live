@@ -50,3 +50,4 @@ COMMENT ON COLUMN organizer_scraping_configs.location_id IS 'ID du lieu-organisa
 
 
 
+

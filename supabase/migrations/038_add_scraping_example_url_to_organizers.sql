@@ -16,3 +16,4 @@ COMMENT ON COLUMN organizers.scraping_example_url IS 'URL d''exemple de page web
 
 
 
+

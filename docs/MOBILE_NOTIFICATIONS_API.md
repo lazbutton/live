@@ -289,3 +289,4 @@ try {
 
 ⚠️ Pour le développement local, vous devrez peut-être configurer votre appareil/émulateur pour qu'il puisse accéder à `localhost`. Utilisez l'IP locale de votre machine au lieu de `localhost`.
 
+
