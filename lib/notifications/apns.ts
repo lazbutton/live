@@ -98,13 +98,12 @@ export async function sendAPNsNotification(
     };
   }
 
-  // Valider que title et body sont définis
-  if (!title && !body) {
-    return {
-      success: false,
-      error: "Title et body ne peuvent pas être tous les deux vides pour une notification APNs",
-    };
-  }
+  // Utiliser des valeurs par défaut si title ou body sont vides
+  const defaultTitle = "Notification";
+  const defaultBody = "Vous avez une nouvelle notification";
+  
+  const finalTitle = (title && title.trim()) || defaultTitle;
+  const finalBody = (body && body.trim()) || defaultBody;
 
   // Nettoyer le token (enlever les espaces, retours à la ligne, etc.)
   deviceToken = deviceToken.trim().replace(/\s+/g, "");
@@ -162,22 +161,11 @@ export async function sendAPNsNotification(
     // Le topic doit être le bundle ID de l'app iOS
     notification.topic = bundleId;
     
-    // Configuration de l'alert - REQUIS pour les notifications visibles
-    // Pour iOS, on peut utiliser un objet avec title et body, ou juste une string
-    // On garantit qu'au moins title ou body est défini grâce à la validation ci-dessus
-    if (title && body) {
-      notification.alert = {
-        title: title || "Notification",
-        body: body || "Nouveau message",
-      };
-    } else if (title) {
-      notification.alert = title;
-    } else if (body) {
-      notification.alert = body;
-    } else {
-      // Fallback (ne devrait jamais arriver grâce à la validation)
-      notification.alert = "Notification";
-    }
+    // Configuration de l'alert - toujours défini avec les valeurs finales (par défaut si nécessaire)
+    notification.alert = {
+      title: finalTitle,
+      body: finalBody,
+    };
     
     // Badge et sound - toujours définis pour les notifications visibles
     notification.badge = 1;
@@ -194,8 +182,11 @@ export async function sendAPNsNotification(
     console.log("📱 Configuration notification APNs:", {
       topic: notification.topic,
       bundleId: bundleId,
+      titleOriginal: title || "(vide, valeur par défaut utilisée)",
+      bodyOriginal: body || "(vide, valeur par défaut utilisée)",
+      titleFinal: finalTitle,
+      bodyFinal: finalBody,
       alert: notification.alert,
-      alertType: typeof notification.alert,
       hasAlert: !!notification.alert,
       hasData: !!data,
       badge: notification.badge,
