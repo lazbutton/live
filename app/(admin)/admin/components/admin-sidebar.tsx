@@ -15,7 +15,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { Shield, Calendar, MapPin, Users, Tag, Hash, FileText, LayoutDashboard, LogOut, MessageSquare, Share2, Bell } from "lucide-react";
+import { Shield, Calendar, MapPin, Users, Tag, Hash, FileText, LayoutDashboard, LogOut, MessageSquare, Share2, Bell, Clock } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
@@ -78,6 +78,11 @@ const menuItems = [
     title: "Notifications",
     icon: Bell,
     url: "/admin/notifications",
+  },
+  {
+    title: "Crons",
+    icon: Clock,
+    url: "/admin/crons",
   },
 ];
 
