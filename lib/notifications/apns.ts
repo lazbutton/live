@@ -14,16 +14,18 @@ function getAPNsProvider(): apn.Provider | null {
   }
 
   const keyPath = process.env.APNS_KEY_PATH;
+  const keyContent = process.env.APNS_KEY_CONTENT; // Nouvelle option : contenu direct du fichier
   const keyId = process.env.APNS_KEY_ID;
   const teamId = process.env.APNS_TEAM_ID;
   const bundleId = process.env.APNS_BUNDLE_ID;
 
   // Si la configuration n'est pas complète, retourner null
-  if (!keyPath || !keyId || !teamId || !bundleId) {
+  if ((!keyPath && !keyContent) || !keyId || !teamId || !bundleId) {
     console.warn(
-      "⚠️ Configuration APNs incomplète. Variables requises: APNS_KEY_PATH, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID"
+      "⚠️ Configuration APNs incomplète. Variables requises: (APNS_KEY_PATH ou APNS_KEY_CONTENT), APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID"
     );
     console.warn("   APNS_KEY_PATH:", keyPath ? "✓" : "✗");
+    console.warn("   APNS_KEY_CONTENT:", keyContent ? "✓" : "✗");
     console.warn("   APNS_KEY_ID:", keyId ? "✓" : "✗");
     console.warn("   APNS_TEAM_ID:", teamId ? "✓" : "✗");
     console.warn("   APNS_BUNDLE_ID:", bundleId ? "✓" : "✗");
@@ -31,18 +33,34 @@ function getAPNsProvider(): apn.Provider | null {
   }
 
   try {
-    // Vérifier que le fichier existe
-    const resolvedPath = path.resolve(keyPath);
-    if (!fs.existsSync(resolvedPath)) {
-      console.error(`❌ Fichier APNs key introuvable: ${resolvedPath}`);
-      return null;
+    let key: Buffer | string;
+
+    // Option 1 : Lire depuis une variable d'environnement (pour production/Vercel)
+    if (keyContent) {
+      // Le contenu peut être directement le contenu du fichier ou avec des \n
+      key = keyContent.replace(/\\n/g, "\n");
+      console.log("✅ Clé APNs chargée depuis APNS_KEY_CONTENT");
     }
+    // Option 2 : Lire depuis un fichier (pour développement local)
+    else if (keyPath) {
+      // Vérifier que le fichier existe
+      const resolvedPath = path.resolve(keyPath);
+      if (!fs.existsSync(resolvedPath)) {
+        console.error(`❌ Fichier APNs key introuvable: ${resolvedPath}`);
+        console.error("   💡 Pour la production (Vercel), utilisez APNS_KEY_CONTENT au lieu de APNS_KEY_PATH");
+        return null;
+      }
 
-    // Lire la clé .p8
-    const key = fs.readFileSync(resolvedPath);
+      // Lire la clé .p8
+      key = fs.readFileSync(resolvedPath);
 
-    if (!key || key.length === 0) {
-      console.error("❌ Le fichier APNs key est vide");
+      if (!key || key.length === 0) {
+        console.error("❌ Le fichier APNs key est vide");
+        return null;
+      }
+      console.log("✅ Clé APNs chargée depuis fichier");
+    } else {
+      console.error("❌ Aucune source de clé APNs trouvée (ni APNS_KEY_PATH ni APNS_KEY_CONTENT)");
       return null;
     }
 
@@ -88,15 +106,21 @@ export async function sendAPNsNotification(
     const teamId = process.env.APNS_TEAM_ID;
     const bundleId = process.env.APNS_BUNDLE_ID;
 
+    const keyContent = process.env.APNS_KEY_CONTENT;
+    
     console.error("❌ Provider APNs non initialisé. Configuration actuelle:");
     console.error(`   APNS_KEY_PATH: ${keyPath || "NON DÉFINI"}`);
+    console.error(`   APNS_KEY_CONTENT: ${keyContent ? "✓ DÉFINI" : "✗ NON DÉFINI"}`);
     console.error(`   APNS_KEY_ID: ${keyId || "NON DÉFINI"}`);
     console.error(`   APNS_TEAM_ID: ${teamId || "NON DÉFINI"}`);
     console.error(`   APNS_BUNDLE_ID: ${bundleId || "NON DÉFINI"}`);
+    if (!keyContent && keyPath) {
+      console.error("   💡 Pour la production (Vercel), utilisez APNS_KEY_CONTENT au lieu de APNS_KEY_PATH");
+    }
 
     return {
       success: false,
-      error: "Provider APNs non initialisé. Vérifiez les variables d'environnement APNS_* dans .env.local",
+      error: "Provider APNs non initialisé. Vérifiez les variables d'environnement APNS_* (utilisez APNS_KEY_CONTENT en production)",
     };
   }
 

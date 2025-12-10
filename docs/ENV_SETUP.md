@@ -35,6 +35,8 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 Les variables suivantes sont **obligatoires** pour les notifications iOS :
 
+**Option 1 : Fichier local (Développement local)**
+
 ```env
 # Chemin vers le fichier de clé APNs (.p8)
 # Placez le fichier dans le dossier secrets/ (ex: secrets/AuthKey_XXXXXXXXXX.p8)
@@ -48,7 +50,33 @@ APNS_TEAM_ID=XXXXXXXXXX
 
 # Bundle ID de votre application iOS
 APNS_BUNDLE_ID=com.lazbutton.live
+```
 
+**Option 2 : Variable d'environnement (Production/Vercel) - RECOMMANDÉ**
+
+```env
+# Contenu du fichier .p8 directement dans la variable (pour Vercel/production)
+# Copiez tout le contenu du fichier .p8 (y compris les lignes -----BEGIN PRIVATE KEY----- et -----END PRIVATE KEY-----)
+APNS_KEY_CONTENT="-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg...\n-----END PRIVATE KEY-----"
+
+# Key ID de la clé APNs (trouvable sur Apple Developer Portal)
+APNS_KEY_ID=XXXXXXXXXX
+
+# Team ID Apple (votre Team ID depuis Apple Developer Portal)
+APNS_TEAM_ID=XXXXXXXXXX
+
+# Bundle ID de votre application iOS
+APNS_BUNDLE_ID=com.lazbutton.live
+```
+
+⚠️ **Important pour la production (Vercel)** :
+- Utilisez `APNS_KEY_CONTENT` au lieu de `APNS_KEY_PATH`
+- Les fichiers dans `secrets/` ne sont pas déployés sur Vercel
+- Copiez tout le contenu du fichier `.p8` dans la variable `APNS_KEY_CONTENT`
+- Les `\n` seront automatiquement convertis en sauts de ligne
+
+**Environnement** :
+```env
 # Environnement: 'production' pour production, 'development' pour sandbox
 # Par défaut, Next.js utilise 'production' en build, 'development' en dev
 NODE_ENV=production

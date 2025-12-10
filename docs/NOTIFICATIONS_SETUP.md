@@ -16,16 +16,33 @@ Ajoutez les variables suivantes dans votre fichier `.env.local` :
 
 #### Pour iOS (APNs) - Push Notification Key (.p8) - Recommandé en 2025
 
+**Option 1 : Fichier local (Développement local)**
+
 ```env
-# APNs Configuration
+# APNs Configuration - Fichier local
 APNS_KEY_PATH=./secrets/AuthKey_XXXXXXXXXX.p8
 APNS_KEY_ID=XXXXXXXXXX
 APNS_TEAM_ID=XXXXXXXXXX
 APNS_BUNDLE_ID=com.lazbutton.live
+```
 
-# Environnement
+**Option 2 : Variable d'environnement (Production/Vercel) - RECOMMANDÉ**
+
+```env
+# APNs Configuration - Contenu direct (pour Vercel/production)
+# Copiez tout le contenu du fichier .p8 (avec les lignes BEGIN/END PRIVATE KEY)
+APNS_KEY_CONTENT="-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg...\n-----END PRIVATE KEY-----"
+APNS_KEY_ID=XXXXXXXXXX
+APNS_TEAM_ID=XXXXXXXXXX
+APNS_BUNDLE_ID=com.lazbutton.live
+```
+
+**Environnement** :
+```env
 NODE_ENV=production  # ou 'development' pour sandbox
 ```
+
+⚠️ **Pour la production (Vercel)** : Utilisez `APNS_KEY_CONTENT` car les fichiers locaux ne sont pas déployés.
 
 **Comment obtenir ces valeurs** :
 1. Suivez le guide dans `docs/ios-apns-setup.md`
