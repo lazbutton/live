@@ -156,16 +156,30 @@ export async function sendAPNsNotification(
       title: title,
       body: body,
     };
+    
+    // Le topic doit être le bundle ID de l'app iOS
     notification.topic = bundleId;
+    
     notification.badge = 1;
     notification.sound = "default";
     notification.priority = 10; // 10 = high priority, 5 = low priority
     notification.expiry = Math.floor(Date.now() / 1000) + 3600; // Expire dans 1 heure
+    
+    // Content-available pour permettre la mise à jour en arrière-plan
+    notification.contentAvailable = true;
 
     // Données personnalisées (pour la navigation dans l'app)
     if (data) {
       notification.payload = data;
     }
+
+    console.log("📱 Configuration notification APNs:", {
+      topic: notification.topic,
+      bundleId: bundleId,
+      hasAlert: !!notification.alert,
+      hasData: !!data,
+      expiry: notification.expiry,
+    });
 
     // Envoyer la notification
     const result = await provider.send(notification, deviceToken);
@@ -200,17 +214,43 @@ export async function sendAPNsNotification(
           reason: error.reason,
           message: error.message,
           status: failure.status,
+          response: error.response,
           error: error,
         };
       } else if (failure.status) {
+        // Statut HTTP sans objet error détaillé
         errorMessage = `Erreur HTTP ${failure.status}`;
-        errorDetails = { status: failure.status };
+        errorDetails = { 
+          status: failure.status,
+          device: failure.device,
+        };
+        
+        // Messages d'erreur courants pour HTTP 400
+        if (failure.status === "400") {
+          errorMessage = "Requête invalide (400) - Vérifiez le bundle ID et la configuration APNs";
+          errorDetails.commonCauses = [
+            "Le bundle ID ne correspond pas au certificat APNs",
+            "Le topic (bundle ID) est incorrect",
+            "La clé APNs n'est pas configurée pour ce bundle ID",
+            "Le format de la notification est invalide",
+          ];
+        }
       }
 
       console.error("❌ Échec d'envoi APNs:");
       console.error("   Message:", errorMessage);
+      console.error("   Statut:", failure.status);
       console.error("   Détails:", JSON.stringify(errorDetails, null, 2));
+      console.error("   Bundle ID utilisé:", bundleId);
       console.error("   Token (premiers caractères):", deviceToken.substring(0, 20) + "...");
+      
+      // Si c'est une erreur 400, ajouter des suggestions
+      if (failure.status === "400") {
+        console.error("   💡 Suggestions pour corriger l'erreur 400:");
+        console.error("      - Vérifiez que APNS_BUNDLE_ID correspond au bundle ID de votre app iOS");
+        console.error("      - Vérifiez que la clé APNs est configurée pour ce bundle ID dans Apple Developer Portal");
+        console.error("      - Vérifiez que le certificat APNs est actif et valide");
+      }
 
       // Gérer les erreurs spécifiques
       if (error?.reason === "BadDeviceToken" || error?.reason === "Unregistered") {
