@@ -23,12 +23,28 @@ function getAPNsProvider(): apn.Provider | null {
     console.warn(
       "⚠️ Configuration APNs incomplète. Variables requises: APNS_KEY_PATH, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID"
     );
+    console.warn("   APNS_KEY_PATH:", keyPath ? "✓" : "✗");
+    console.warn("   APNS_KEY_ID:", keyId ? "✓" : "✗");
+    console.warn("   APNS_TEAM_ID:", teamId ? "✓" : "✗");
+    console.warn("   APNS_BUNDLE_ID:", bundleId ? "✓" : "✗");
     return null;
   }
 
   try {
+    // Vérifier que le fichier existe
+    const resolvedPath = path.resolve(keyPath);
+    if (!fs.existsSync(resolvedPath)) {
+      console.error(`❌ Fichier APNs key introuvable: ${resolvedPath}`);
+      return null;
+    }
+
     // Lire la clé .p8
-    const key = fs.readFileSync(path.resolve(keyPath));
+    const key = fs.readFileSync(resolvedPath);
+
+    if (!key || key.length === 0) {
+      console.error("❌ Le fichier APNs key est vide");
+      return null;
+    }
 
     apnProvider = new apn.Provider({
       token: {
@@ -56,12 +72,31 @@ export async function sendAPNsNotification(
   body: string,
   data?: Record<string, any>
 ): Promise<{ success: boolean; error?: string }> {
+  // Vérifier si c'est un token valide (format hexadécimal, ~64 caractères)
+  if (!deviceToken || deviceToken.length < 32 || deviceToken.length > 200) {
+    return {
+      success: false,
+      error: `Token APNs invalide (format/longueur incorrecte): ${deviceToken.substring(0, 20)}...`,
+    };
+  }
+
   const provider = getAPNsProvider();
 
   if (!provider) {
+    const keyPath = process.env.APNS_KEY_PATH;
+    const keyId = process.env.APNS_KEY_ID;
+    const teamId = process.env.APNS_TEAM_ID;
+    const bundleId = process.env.APNS_BUNDLE_ID;
+
+    console.error("❌ Provider APNs non initialisé. Configuration actuelle:");
+    console.error(`   APNS_KEY_PATH: ${keyPath || "NON DÉFINI"}`);
+    console.error(`   APNS_KEY_ID: ${keyId || "NON DÉFINI"}`);
+    console.error(`   APNS_TEAM_ID: ${teamId || "NON DÉFINI"}`);
+    console.error(`   APNS_BUNDLE_ID: ${bundleId || "NON DÉFINI"}`);
+
     return {
       success: false,
-      error: "Provider APNs non initialisé. Vérifiez la configuration.",
+      error: "Provider APNs non initialisé. Vérifiez les variables d'environnement APNS_* dans .env.local",
     };
   }
 

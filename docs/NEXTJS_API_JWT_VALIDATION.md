@@ -1,12 +1,12 @@
 # Configuration API Next.js pour valider les JWT Supabase
 
-## ⚠️ Problème actuel
+## ⚠️ Problèmes courants
 
-L'application mobile essaie d'appeler `/api/notifications/send-test` mais reçoit une erreur **405 (Method Not Allowed)**.
+### Problème 1 : Erreur 405 (Method Not Allowed)
+L'endpoint `/api/notifications/send-test` n'existe pas ou n'accepte pas POST.
 
-Cela signifie que :
-- L'endpoint `/api/notifications/send-test` n'existe pas encore dans votre API Next.js
-- OU l'endpoint existe mais n'accepte pas la méthode POST
+### Problème 2 : Erreur 500 "Provider APNs non initialisé" ✅ ACTUEL
+L'endpoint existe et fonctionne, mais le provider APNs n'est pas configuré dans Firebase Admin ou via node-apn.
 
 ## Solution : Créer l'endpoint `/api/notifications/send-test`
 
@@ -116,9 +116,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Préparer les messages pour chaque token
-    const messages: admin.messaging.Message[] = tokens.map((tokenData) => {
-      const message: admin.messaging.Message = {
+    // Séparer les tokens par plateforme
+    const androidTokens = tokens.filter((t) => t.platform === 'android');
+    const iosTokens = tokens.filter((t) => t.platform === 'ios');
+
+    let totalSent = 0;
+    let totalFailed = 0;
+
+    // Envoyer les notifications Android via Firebase
+    if (androidTokens.length > 0) {
+      const androidMessages: admin.messaging.Message[] = androidTokens.map((tokenData) => ({
         token: tokenData.token,
         notification: {
           title: title,
@@ -133,6 +140,53 @@ export async function POST(request: NextRequest) {
             clickAction: 'FLUTTER_NOTIFICATION_CLICK',
           },
         },
+      }));
+
+      try {
+        const androidResponse = await admin.messaging().sendAll(androidMessages);
+        totalSent += androidResponse.responses.filter((r) => r.success).length;
+        totalFailed += androidResponse.responses.filter((r) => !r.success).length;
+      } catch (error) {
+        console.error('❌ Erreur envoi Android:', error);
+        totalFailed += androidTokens.length;
+      }
+    }
+
+    // Envoyer les notifications iOS via APNs
+    if (iosTokens.length > 0) {
+      // Filtrer les vrais tokens APNs (ignorer les identifiants "ios_user_")
+      const realIosTokens = iosTokens.filter(
+        (t) => !t.token.startsWith('ios_user_')
+      );
+
+      if (realIosTokens.length === 0) {
+        console.warn(
+          '⚠️ Aucun vrai token APNs trouvé. ' +
+          'Les tokens iOS sont au format "ios_user_${userId}" (identifiants, pas de vrais tokens APNs). ' +
+          'Vous devez obtenir les vrais tokens APNs depuis l\'app mobile.'
+        );
+        return NextResponse.json({
+          success: false,
+          error:
+            'Aucun token APNs valide trouvé. ' +
+            'Les tokens iOS enregistrés sont des identifiants, pas de vrais tokens APNs. ' +
+            'Voir la documentation pour obtenir les vrais tokens APNs.',
+          sent: totalSent,
+          failed: iosTokens.length,
+        });
+      }
+
+      // Option 1 : Utiliser Firebase Admin (si APNs est configuré dans Firebase)
+      // Option 2 : Utiliser node-apn directement (recommandé pour iOS)
+      
+      // Pour l'instant, utiliser Firebase Admin avec configuration APNs
+      const iosMessages: admin.messaging.Message[] = realIosTokens.map((tokenData) => ({
+        token: tokenData.token,
+        notification: {
+          title: title,
+          body: messageBody,
+        },
+        data: test ? { test: 'true' } : {},
         apns: {
           payload: {
             aps: {
@@ -149,15 +203,40 @@ export async function POST(request: NextRequest) {
             'apns-priority': '10',
           },
         },
-      };
-      return message;
-    });
+      }));
 
-    // Envoyer les notifications
-    const batchResponse = await admin.messaging().sendAll(messages);
-
-    const totalSent = batchResponse.responses.filter((r) => r.success).length;
-    const totalFailed = batchResponse.responses.filter((r) => !r.success).length;
+      try {
+        const iosResponse = await admin.messaging().sendAll(iosMessages);
+        totalSent += iosResponse.responses.filter((r) => r.success).length;
+        totalFailed += iosResponse.responses.filter((r) => !r.success).length;
+        
+        // Logger les erreurs détaillées
+        iosResponse.responses.forEach((response, index) => {
+          if (!response.success) {
+            console.error(
+              `❌ Échec envoi iOS token ${index}:`,
+              response.error
+            );
+          }
+        });
+      } catch (error: any) {
+        console.error('❌ Erreur envoi iOS:', error);
+        // Si c'est une erreur d'APNs non initialisé, donner un message plus clair
+        if (
+          error.message?.includes('APNs') ||
+          error.message?.includes('apns') ||
+          error.message?.includes('APNS')
+        ) {
+          throw new Error(
+            'Provider APNs non initialisé. ' +
+            'Vérifiez que Firebase Admin est configuré avec les certificats APNs dans Firebase Console, ' +
+            'ou utilisez node-apn directement pour iOS. ' +
+            'Voir la section "Solution" ci-dessus pour plus d\'informations.'
+          );
+        }
+        totalFailed += realIosTokens.length;
+      }
+    }
 
     console.log(`✅ Notifications envoyées: ${totalSent} réussies, ${totalFailed} échouées`);
 
@@ -236,7 +315,105 @@ Assurez-vous d'avoir dans votre `.env.local` Next.js :
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://votre-projet.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=votre-clé-anon
+
+# Firebase Admin (pour Android et optionnellement iOS)
+FIREBASE_PROJECT_ID=votre-project-id
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com
+
+# APNs pour iOS (si vous utilisez node-apn au lieu de Firebase)
+APNS_KEY_PATH=./path/to/AuthKey_XXXXXXXXXX.p8
+APNS_KEY_ID=XXXXXXXXXX
+APNS_TEAM_ID=XXXXXXXXXX
+APNS_BUNDLE_ID=com.lazbutton.live
 ```
+
+## ⚠️ Problème : "Provider APNs non initialisé"
+
+Si vous recevez l'erreur **"Provider APNs non initialisé"**, c'est que Firebase Admin n'a pas les certificats APNs configurés pour iOS.
+
+### Solution 1 : Configurer APNs dans Firebase (Recommandé)
+
+1. Allez dans [Firebase Console](https://console.firebase.google.com/)
+2. Sélectionnez votre projet
+3. Allez dans **Project Settings** > **Cloud Messaging**
+4. Dans la section **Apple app configuration**, téléchargez votre clé APNs (.p8)
+5. Ajoutez votre **Key ID** et **Team ID**
+
+Firebase Admin utilisera automatiquement ces certificats pour envoyer des notifications iOS.
+
+### Solution 2 : Utiliser node-apn directement (Alternative)
+
+Si vous préférez ne pas utiliser Firebase pour iOS, installez `node-apn` :
+
+```bash
+npm install apn
+```
+
+Puis modifiez votre endpoint pour utiliser `node-apn` pour iOS :
+
+```typescript
+import apn from 'apn';
+
+// Initialiser le provider APNs (une seule fois, en dehors de la fonction)
+let apnProvider: apn.Provider | null = null;
+
+function getApnProvider() {
+  if (!apnProvider) {
+    apnProvider = new apn.Provider({
+      token: {
+        key: process.env.APNS_KEY_PATH!,
+        keyId: process.env.APNS_KEY_ID!,
+        teamId: process.env.APNS_TEAM_ID!,
+      },
+      production: process.env.NODE_ENV === 'production',
+    });
+  }
+  return apnProvider;
+}
+
+// Dans votre endpoint, pour les tokens iOS :
+if (iosTokens.length > 0) {
+  const provider = getApnProvider();
+  
+  for (const tokenData of iosTokens) {
+    // Ignorer les tokens qui commencent par "ios_user_" (identifiants, pas de vrais tokens)
+    if (tokenData.token.startsWith('ios_user_')) {
+      console.warn(`⚠️ Token iOS invalide (identifiant): ${tokenData.token}`);
+      continue;
+    }
+    
+    const notification = new apn.Notification();
+    notification.alert = {
+      title: title,
+      body: messageBody,
+    };
+    notification.topic = process.env.APNS_BUNDLE_ID || 'com.lazbutton.live';
+    notification.badge = 1;
+    notification.sound = 'default';
+    
+    try {
+      const result = await provider.send(notification, tokenData.token);
+      if (result.sent.length > 0) {
+        totalSent++;
+      } else {
+        totalFailed++;
+        console.error('❌ Échec envoi iOS:', result.failed);
+      }
+    } catch (error) {
+      console.error('❌ Erreur envoi iOS:', error);
+      totalFailed++;
+    }
+  }
+}
+```
+
+### Solution 3 : Utiliser un service tiers (OneSignal, Pusher, etc.)
+
+Pour simplifier, vous pouvez utiliser un service tiers qui gère APNs automatiquement :
+- **OneSignal** (gratuit jusqu'à 10k notifications/mois)
+- **Pusher Beams**
+- **Expo Push Notifications**
 
 ## Test
 
@@ -260,12 +437,37 @@ L'application essaie d'abord `/api/notifications/send-test`. Si cet endpoint ret
 
 **Recommandation** : Créez l'endpoint `/api/notifications/send-test` pour que les notifications de test fonctionnent depuis l'app mobile.
 
+## ⚠️ Note importante : Format des tokens iOS
+
+L'application mobile enregistre actuellement des tokens iOS au format `ios_user_${userId}` au lieu de vrais tokens APNs. Cela signifie que :
+
+1. **Le token stocké n'est pas un vrai token APNs** - c'est un identifiant utilisateur
+2. **Votre API doit récupérer le vrai token APNs** depuis une autre source, ou
+3. **Vous devez modifier l'app mobile** pour obtenir et enregistrer le vrai token APNs
+
+### Option A : Modifier l'API pour gérer les identifiants iOS
+
+Si vous gardez le format `ios_user_${userId}`, votre API doit :
+- Détecter ce format
+- Extraire l'ID utilisateur
+- Récupérer le vrai token APNs depuis une autre table ou source
+- Envoyer la notification avec le vrai token
+
+### Option B : Obtenir le vrai token APNs dans l'app (Recommandé)
+
+Modifiez l'app mobile pour obtenir le vrai token APNs. Sur iOS, vous pouvez utiliser un package comme `flutter_apns` ou obtenir le token via les notifications locales.
+
 ## Dépannage
 
-Si vous avez toujours l'erreur "Session expirée" :
-
+### Erreur "Session expirée"
 1. **Vérifiez les logs Next.js** pour voir l'erreur exacte
 2. **Vérifiez que le token JWT est bien reçu** dans les logs
 3. **Vérifiez que `NEXT_PUBLIC_SUPABASE_ANON_KEY` est correct**
 4. **Vérifiez que le token n'est pas vraiment expiré** (les tokens Supabase expirent après 1 heure)
+
+### Erreur "Provider APNs non initialisé"
+1. **Vérifiez que Firebase Admin a les certificats APNs configurés** (Solution 1 ci-dessus)
+2. **OU installez et configurez `node-apn`** (Solution 2 ci-dessus)
+3. **OU utilisez un service tiers** comme OneSignal (Solution 3 ci-dessus)
+4. **Vérifiez que les variables d'environnement APNs sont correctes** si vous utilisez node-apn
 

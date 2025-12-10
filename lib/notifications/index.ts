@@ -78,6 +78,42 @@ export async function sendNotificationToUser(
     let result;
 
     if (tokenData.platform === "ios") {
+      // Ignorer les tokens qui commencent par "ios_user_" (identifiants, pas de vrais tokens APNs)
+      if (tokenData.token.startsWith("ios_user_")) {
+        const extractedUserId = tokenData.token.replace("ios_user_", "");
+        console.warn(
+          `⚠️ Token iOS invalide (format identifiant): ${tokenData.token}. L'application mobile doit obtenir et enregistrer le vrai token APNs depuis l'appareil iOS.`
+        );
+        console.warn(
+          `   💡 Pour obtenir le vrai token APNs dans Flutter iOS, utilisez flutter_apns ou UNUserNotificationCenter.`
+        );
+        
+        // Vérifier s'il existe d'autres tokens iOS valides pour cet utilisateur
+        const { data: otherTokens } = await supabase
+          .from("user_push_tokens")
+          .select("token")
+          .eq("user_id", userId)
+          .eq("platform", "ios")
+          .neq("token", tokenData.token)
+          .not("token", "like", "ios_user_%");
+        
+        if (!otherTokens || otherTokens.length === 0) {
+          console.warn(
+            `   ⚠️ Aucun autre token iOS valide trouvé pour l'utilisateur ${userId}.`
+          );
+        } else {
+          console.log(
+            `   ✓ ${otherTokens.length} autre(s) token(s) iOS valide(s) trouvé(s) pour cet utilisateur.`
+          );
+        }
+        
+        results.failed++;
+        results.errors.push(
+          `Token iOS invalide (format identifiant au lieu d'un vrai token APNs): ${tokenData.token}. L'application doit enregistrer le vrai token APNs obtenu depuis l'appareil iOS.`
+        );
+        continue;
+      }
+
       result = await sendAPNsNotification(
         tokenData.token,
         payload.title,

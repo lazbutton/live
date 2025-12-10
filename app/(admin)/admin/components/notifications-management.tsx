@@ -106,8 +106,8 @@ export function NotificationsManagement() {
   const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
   const [testForm, setTestForm] = useState({
     userId: "",
-    title: "Notification de test",
-    body: "Ceci est une notification de test envoyée depuis l'interface d'administration.",
+    title: "",
+    body: "",
     data: "",
   });
 
@@ -153,17 +153,24 @@ export function NotificationsManagement() {
 
   async function sendTestNotification() {
     if (!testForm.userId || !testForm.title || !testForm.body) {
-      alert("Veuillez remplir tous les champs obligatoires");
+      alert("Veuillez remplir tous les champs obligatoires et sélectionner un destinataire");
       return;
     }
 
     setSending(true);
     try {
       const body: any = {
-        userId: testForm.userId,
         title: testForm.title,
         body: testForm.body,
       };
+
+      // Déterminer le type d'envoi
+      if (testForm.userId === "all") {
+        // Envoyer à tous (pas de userId dans le body)
+      } else {
+        // Envoyer à un utilisateur spécifique
+        body.userId = testForm.userId;
+      }
 
       if (testForm.data) {
         try {
@@ -186,12 +193,16 @@ export function NotificationsManagement() {
       const result = await res.json();
 
       if (res.ok) {
-        alert(`Notification envoyée avec succès !\nEnvoyées: ${result.sent}\nÉchecs: ${result.failed}`);
+        const message = testForm.userId === "all"
+          ? `Notification envoyée à tous les utilisateurs !\nEnvoyées: ${result.sent}\nÉchecs: ${result.failed}`
+          : `Notification envoyée avec succès !\nEnvoyées: ${result.sent}\nÉchecs: ${result.failed}`;
+        
+        alert(message);
         setIsTestDialogOpen(false);
         setTestForm({
           userId: "",
-          title: "Notification de test",
-          body: "Ceci est une notification de test envoyée depuis l'interface d'administration.",
+          title: "",
+          body: "",
           data: "",
         });
         loadData(); // Recharger les logs
@@ -326,12 +337,184 @@ export function NotificationsManagement() {
         </CardContent>
       </Card>
 
-      {/* Tabs pour Logs et Utilisateurs */}
-      <Tabs defaultValue="logs" className="space-y-4">
+      {/* Tabs pour Envoyer, Logs et Utilisateurs */}
+      <Tabs defaultValue="send" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="send">Envoyer une notification</TabsTrigger>
           <TabsTrigger value="logs">Logs de notifications</TabsTrigger>
           <TabsTrigger value="users">Utilisateurs</TabsTrigger>
         </TabsList>
+
+        {/* Envoi de notifications */}
+        <TabsContent value="send">
+          <Card>
+            <CardHeader>
+              <CardTitle>Envoyer une notification</CardTitle>
+              <CardDescription>
+                Envoyez une notification push à un utilisateur, plusieurs utilisateurs ou tous les utilisateurs
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="notification-title">Titre *</Label>
+                <Input
+                  id="notification-title"
+                  value={testForm.title}
+                  onChange={(e) =>
+                    setTestForm((prev) => ({ ...prev, title: e.target.value }))
+                  }
+                  placeholder="Titre de la notification"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notification-body">Message *</Label>
+                <Textarea
+                  id="notification-body"
+                  value={testForm.body}
+                  onChange={(e) =>
+                    setTestForm((prev) => ({ ...prev, body: e.target.value }))
+                  }
+                  placeholder="Message de la notification"
+                  rows={4}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notification-data">Données JSON (optionnel)</Label>
+                <Textarea
+                  id="notification-data"
+                  value={testForm.data}
+                  onChange={(e) =>
+                    setTestForm((prev) => ({ ...prev, data: e.target.value }))
+                  }
+                  placeholder='{"event_id": "123", "type": "announcement"}'
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Données personnalisées au format JSON qui seront transmises avec la notification
+                </p>
+              </div>
+              <div className="space-y-4 pt-4 border-t">
+                <Label className="text-base font-semibold">Destinataires</Label>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 p-3 border rounded-lg">
+                    <input
+                      type="radio"
+                      id="send-all"
+                      name="recipient-type"
+                      value="all"
+                      className="mt-1"
+                      onChange={() => setTestForm((prev) => ({ ...prev, userId: "all" }))}
+                      checked={testForm.userId === "all"}
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="send-all" className="font-medium cursor-pointer">
+                        Tous les utilisateurs avec notifications activées
+                      </Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Envoie à tous les utilisateurs qui ont activé les notifications push
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 border rounded-lg">
+                    <input
+                      type="radio"
+                      id="send-user"
+                      name="recipient-type"
+                      value="user"
+                      className="mt-1"
+                      onChange={() => setTestForm((prev) => ({ ...prev, userId: prev.userId === "all" ? "" : prev.userId }))}
+                      checked={testForm.userId !== "" && testForm.userId !== "all"}
+                    />
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="send-user" className="font-medium cursor-pointer">
+                        Utilisateur spécifique
+                      </Label>
+                      {users.length === 0 ? (
+                        <Alert>
+                          <AlertDescription>
+                            Aucun utilisateur n'a activé les notifications push pour le moment.
+                          </AlertDescription>
+                        </Alert>
+                      ) : (
+                        <Select
+                          value={testForm.userId === "all" ? "" : testForm.userId}
+                          onValueChange={(value) =>
+                            setTestForm((prev) => ({ ...prev, userId: value }))
+                          }
+                          disabled={testForm.userId === "all"}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionner un utilisateur" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {users
+                              .filter((user) => user.tokens.length > 0)
+                              .map((user) => {
+                                const platforms = user.tokens.map((t) => t.platform);
+                                const platformLabels = {
+                                  ios: "iOS",
+                                  android: "Android",
+                                  web: "Web",
+                                };
+                                const platformText = platforms
+                                  .map((p) => platformLabels[p as keyof typeof platformLabels] || p)
+                                  .join(", ");
+
+                                return (
+                                  <SelectItem key={user.id} value={user.id}>
+                                    {user.name || user.email || "Utilisateur"} - {user.tokens.length} token(s) ({platformText})
+                                  </SelectItem>
+                                );
+                              })}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTestForm({
+                      userId: "",
+                      title: "",
+                      body: "",
+                      data: "",
+                    });
+                  }}
+                  className="cursor-pointer"
+                >
+                  Réinitialiser
+                </Button>
+                <Button
+                  onClick={sendTestNotification}
+                  disabled={
+                    sending ||
+                    !testForm.title ||
+                    !testForm.body ||
+                    !testForm.userId ||
+                    (testForm.userId !== "all" && users.length === 0)
+                  }
+                  className="cursor-pointer"
+                >
+                  {sending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Envoi en cours...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
+                      Envoyer la notification
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Logs */}
         <TabsContent value="logs">
@@ -473,7 +656,12 @@ export function NotificationsManagement() {
                           size="sm"
                           className="w-full cursor-pointer"
                           onClick={() => {
-                            setTestForm((prev) => ({ ...prev, userId: user.id }));
+                            setTestForm({
+                              userId: user.id,
+                              title: "Notification de test",
+                              body: "Ceci est une notification de test envoyée depuis l'interface d'administration.",
+                              data: "",
+                            });
                             setIsTestDialogOpen(true);
                           }}
                         >
@@ -519,7 +707,12 @@ export function NotificationsManagement() {
                             size="sm"
                             className="cursor-pointer"
                             onClick={() => {
-                              setTestForm((prev) => ({ ...prev, userId: user.id }));
+                              setTestForm({
+                                userId: user.id,
+                                title: "Notification de test",
+                                body: "Ceci est une notification de test envoyée depuis l'interface d'administration.",
+                                data: "",
+                              });
                               setIsTestDialogOpen(true);
                             }}
                           >
