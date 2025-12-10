@@ -41,11 +41,13 @@ export async function sendNotificationToUser(
     };
   }
 
-  // Récupérer tous les tokens de l'utilisateur
+  // Récupérer uniquement le dernier token de l'utilisateur (le plus récent)
   const { data: tokens, error } = await supabase
     .from("user_push_tokens")
     .select("token, platform")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false })
+    .limit(1);
 
   if (error) {
     console.error("❌ Erreur lors de la récupération des tokens:", error);
@@ -73,75 +75,63 @@ export async function sendNotificationToUser(
     errors: [],
   };
 
-  // Envoyer à chaque token selon sa plateforme
-  for (const tokenData of tokens) {
-    let result;
+  // Utiliser uniquement le dernier token (le plus récent)
+  // Si plusieurs tokens existent, on prend le plus récemment mis à jour
+  const tokenData = tokens[0]; // On a limité à 1, donc on prend le premier
+  
+  console.log(`📱 Utilisation du dernier token pour l'utilisateur ${userId}: ${tokenData.platform} (${tokenData.token.substring(0, 20)}...)`);
 
-    if (tokenData.platform === "ios") {
-      // Ignorer les tokens qui commencent par "ios_user_" (identifiants, pas de vrais tokens APNs)
-      if (tokenData.token.startsWith("ios_user_")) {
-        const extractedUserId = tokenData.token.replace("ios_user_", "");
-        console.warn(
-          `⚠️ Token iOS invalide (format identifiant): ${tokenData.token}. L'application mobile doit obtenir et enregistrer le vrai token APNs depuis l'appareil iOS.`
-        );
-        console.warn(
-          `   💡 Pour obtenir le vrai token APNs dans Flutter iOS, utilisez flutter_apns ou UNUserNotificationCenter.`
-        );
-        
-        // Vérifier s'il existe d'autres tokens iOS valides pour cet utilisateur
-        const { data: otherTokens } = await supabase
-          .from("user_push_tokens")
-          .select("token")
-          .eq("user_id", userId)
-          .eq("platform", "ios")
-          .neq("token", tokenData.token)
-          .not("token", "like", "ios_user_%");
-        
-        if (!otherTokens || otherTokens.length === 0) {
-          console.warn(
-            `   ⚠️ Aucun autre token iOS valide trouvé pour l'utilisateur ${userId}.`
-          );
-        } else {
-          console.log(
-            `   ✓ ${otherTokens.length} autre(s) token(s) iOS valide(s) trouvé(s) pour cet utilisateur.`
-          );
-        }
-        
-        results.failed++;
-        results.errors.push(
-          `Token iOS invalide (format identifiant au lieu d'un vrai token APNs): ${tokenData.token}. L'application doit enregistrer le vrai token APNs obtenu depuis l'appareil iOS.`
-        );
-        continue;
-      }
+  // Envoyer la notification au dernier token
+  let result;
 
+  if (tokenData.platform === "ios") {
+    // Ignorer les tokens qui commencent par "ios_user_" (identifiants, pas de vrais tokens APNs)
+    if (tokenData.token.startsWith("ios_user_")) {
+      console.warn(
+        `⚠️ Token iOS invalide (format identifiant): ${tokenData.token}. L'application mobile doit obtenir et enregistrer le vrai token APNs depuis l'appareil iOS.`
+      );
+      console.warn(
+        `   💡 Pour obtenir le vrai token APNs dans Flutter iOS, utilisez flutter_apns ou UNUserNotificationCenter.`
+      );
+      
+      results.failed++;
+      results.errors.push(
+        `Token iOS invalide (format identifiant au lieu d'un vrai token APNs): ${tokenData.token}. L'application doit enregistrer le vrai token APNs obtenu depuis l'appareil iOS.`
+      );
+      results.success = false;
+    } else {
       result = await sendAPNsNotification(
         tokenData.token,
         payload.title,
         payload.body,
         payload.data
       );
-    } else if (tokenData.platform === "android") {
-      result = await sendFCMNotification(
-        tokenData.token,
-        payload.title,
-        payload.body,
-        payload.data
-      );
-    } else {
-      // Web push notifications (à implémenter si nécessaire)
-      console.warn(`⚠️ Plateforme "${tokenData.platform}" non supportée`);
-      results.failed++;
-      results.errors.push(
-        `Plateforme "${tokenData.platform}" non supportée`
-      );
-      continue;
     }
+  } else if (tokenData.platform === "android") {
+    result = await sendFCMNotification(
+      tokenData.token,
+      payload.title,
+      payload.body,
+      payload.data
+    );
+  } else {
+    // Web push notifications (à implémenter si nécessaire)
+    console.warn(`⚠️ Plateforme "${tokenData.platform}" non supportée`);
+    results.failed++;
+    results.errors.push(
+      `Plateforme "${tokenData.platform}" non supportée`
+    );
+    results.success = false;
+  }
 
+  // Traiter le résultat (seulement si on a un résultat)
+  if (result) {
     if (result.success) {
       results.sent++;
     } else {
       results.failed++;
       results.errors.push(result.error || "Erreur inconnue");
+      results.success = false;
 
       // Si le token est invalide, le supprimer de la base
       const shouldDeleteToken =

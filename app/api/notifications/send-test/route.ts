@@ -99,7 +99,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!result.success) {
+    // Si au moins une notification a été envoyée, considérer comme succès
+    // (même si certaines ont échoué)
+    if (result.sent > 0) {
+      console.log(
+        `✅ Notification de test envoyée: ${result.sent} réussie(s), ${result.failed} échouée(s)`
+      );
+      
+      return NextResponse.json({
+        success: true,
+        message: "Notification de test envoyée",
+        sent: result.sent,
+        failed: result.failed,
+        errors: result.failed > 0 ? result.errors : undefined,
+      });
+    }
+
+    // Si aucune notification n'a été envoyée, retourner une erreur
+    if (!result.success || result.sent === 0) {
       console.error("❌ Échec de l'envoi:", result.errors);
       return NextResponse.json(
         {

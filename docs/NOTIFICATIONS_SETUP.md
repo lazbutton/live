@@ -35,12 +35,19 @@ APNS_KEY_CONTENT="-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49A
 APNS_KEY_ID=XXXXXXXXXX
 APNS_TEAM_ID=XXXXXXXXXX
 APNS_BUNDLE_ID=com.lazbutton.live
+
+# Mode APNs: 'true' pour production (App Store), 'false' pour sandbox (Development/Debug)
+# ⚠️ IMPORTANT : Utilisez 'false' pour tester avec des builds Debug/Development
+# Si non défini, utilise NODE_ENV (production = true, development = false)
+APNS_PRODUCTION=false
 ```
 
-**Environnement** :
+**Environnement Next.js** (optionnel, utilisé si APNS_PRODUCTION n'est pas défini) :
 ```env
 NODE_ENV=production  # ou 'development' pour sandbox
 ```
+
+⚠️ **Note importante** : Pour tester avec des builds de développement (Debug), vous **DEVEZ** utiliser `APNS_PRODUCTION=false`. Les tokens générés en mode Debug ne fonctionnent pas avec le serveur de production et vice versa.
 
 ⚠️ **Pour la production (Vercel)** : Utilisez `APNS_KEY_CONTENT` car les fichiers locaux ne sont pas déployés.
 

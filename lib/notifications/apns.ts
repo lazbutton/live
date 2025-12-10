@@ -64,14 +64,22 @@ function getAPNsProvider(): apn.Provider | null {
       return null;
     }
 
+    // Déterminer si on utilise l'environnement production ou sandbox
+    // Peut être forcé via APNS_PRODUCTION=true/false, sinon utilise NODE_ENV
+    const isProduction = process.env.APNS_PRODUCTION !== undefined
+      ? process.env.APNS_PRODUCTION === "true" || process.env.APNS_PRODUCTION === "1"
+      : process.env.NODE_ENV === "production";
+
     apnProvider = new apn.Provider({
       token: {
         key: key,
         keyId: keyId,
         teamId: teamId,
       },
-      production: process.env.NODE_ENV === "production", // true pour production, false pour sandbox
+      production: isProduction, // true pour production (App Store), false pour sandbox (Development/Debug)
     });
+
+    console.log(`✅ Provider APNs initialisé en mode: ${isProduction ? "PRODUCTION" : "SANDBOX (Development)"}`);
 
     console.log("✅ Provider APNs initialisé avec succès");
     return apnProvider;
