@@ -91,11 +91,27 @@ export async function sendAPNsNotification(
   data?: Record<string, any>
 ): Promise<{ success: boolean; error?: string }> {
   // Vérifier si c'est un token valide (format hexadécimal, ~64 caractères)
-  if (!deviceToken || deviceToken.length < 32 || deviceToken.length > 200) {
+  if (!deviceToken) {
     return {
       success: false,
-      error: `Token APNs invalide (format/longueur incorrecte): ${deviceToken.substring(0, 20)}...`,
+      error: "Token APNs vide ou non défini",
     };
+  }
+
+  // Nettoyer le token (enlever les espaces, retours à la ligne, etc.)
+  deviceToken = deviceToken.trim().replace(/\s+/g, "");
+
+  // Vérifier la longueur (les tokens APNs font généralement 64 caractères hexadécimaux)
+  if (deviceToken.length < 32 || deviceToken.length > 200) {
+    console.warn(`⚠️ Token APNs de longueur suspecte: ${deviceToken.length} caractères`);
+    console.warn(`   Token (premiers caractères): ${deviceToken.substring(0, 30)}...`);
+  }
+
+  // Vérifier le format hexadécimal (optionnel, mais utile pour le débogage)
+  const hexPattern = /^[0-9a-fA-F]+$/;
+  if (!hexPattern.test(deviceToken)) {
+    console.warn(`⚠️ Token APNs ne semble pas être en format hexadécimal`);
+    console.warn(`   Token (premiers caractères): ${deviceToken.substring(0, 30)}...`);
   }
 
   const provider = getAPNsProvider();
@@ -154,6 +170,17 @@ export async function sendAPNsNotification(
     // Envoyer la notification
     const result = await provider.send(notification, deviceToken);
 
+    console.log("📤 Résultat APNs:", {
+      sent: result.sent.length,
+      failed: result.failed.length,
+      sentTokens: result.sent.map(s => s.device),
+      failedDetails: result.failed.map(f => ({
+        device: f.device,
+        error: f.error,
+        status: f.status,
+      })),
+    });
+
     if (result.sent.length > 0) {
       console.log("✅ Notification APNs envoyée avec succès");
       return { success: true };
@@ -162,9 +189,28 @@ export async function sendAPNsNotification(
     if (result.failed.length > 0) {
       const failure = result.failed[0];
       const error = failure.error as any;
-      const errorMessage = error?.reason || error?.message || "Erreur inconnue";
+      
+      // Extraire plus d'informations de l'erreur
+      let errorMessage = "Erreur inconnue";
+      let errorDetails: any = {};
 
-      console.error("❌ Échec d'envoi APNs:", errorMessage);
+      if (error) {
+        errorMessage = error.reason || error.message || error.toString() || "Erreur inconnue";
+        errorDetails = {
+          reason: error.reason,
+          message: error.message,
+          status: failure.status,
+          error: error,
+        };
+      } else if (failure.status) {
+        errorMessage = `Erreur HTTP ${failure.status}`;
+        errorDetails = { status: failure.status };
+      }
+
+      console.error("❌ Échec d'envoi APNs:");
+      console.error("   Message:", errorMessage);
+      console.error("   Détails:", JSON.stringify(errorDetails, null, 2));
+      console.error("   Token (premiers caractères):", deviceToken.substring(0, 20) + "...");
 
       // Gérer les erreurs spécifiques
       if (error?.reason === "BadDeviceToken" || error?.reason === "Unregistered") {
@@ -181,7 +227,8 @@ export async function sendAPNsNotification(
       };
     }
 
-    return { success: false, error: "Aucun résultat" };
+    console.warn("⚠️ Aucun résultat APNs (ni succès ni échec)");
+    return { success: false, error: "Aucun résultat de l'envoi APNs" };
   } catch (error: any) {
     console.error("❌ Erreur lors de l'envoi APNs:", error);
     return {
