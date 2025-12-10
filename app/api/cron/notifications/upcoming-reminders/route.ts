@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { sendNotificationToAll } from "@/lib/notifications";
+import { sendNotificationToUser } from "@/lib/notifications";
 
 /**
  * Vérifie que la requête vient bien de Vercel Cron
@@ -90,81 +90,129 @@ export async function GET(request: NextRequest) {
     // Extraire les IDs des événements pour les données de la notification
     const eventIds = events.map(e => e.id);
     
-    // Grouper les événements par catégorie
-    const eventsByCategory: Record<string, typeof events> = {};
-    events.forEach(event => {
-      // Ignorer les événements sans catégorie
-      if (!event.category) {
-        return;
-      }
-      const category = event.category;
-      if (!eventsByCategory[category]) {
-        eventsByCategory[category] = [];
-      }
-      eventsByCategory[category].push(event);
-    });
-
-    // Si aucune catégorie n'a d'événements, ne rien envoyer
-    if (Object.keys(eventsByCategory).length === 0) {
+    // Filtrer les événements avec catégorie
+    const eventsWithCategory = events.filter(e => e.category);
+    
+    if (eventsWithCategory.length === 0) {
       console.log("ℹ️ Aucun événement avec catégorie trouvé demain");
       return NextResponse.json({
         success: true,
         message: "Aucun événement avec catégorie demain",
         eventsCount: 0,
-        categoriesCount: 0,
+        notificationsSent: 0,
       });
     }
 
-    const results: any[] = [];
+    // Récupérer tous les utilisateurs avec leurs préférences de catégories
+    const { data: enabledUsers, error: prefsError } = await supabase
+      .from("user_notification_preferences")
+      .select("user_id, category_ids")
+      .eq("is_enabled", true);
+
+    if (prefsError || !enabledUsers || enabledUsers.length === 0) {
+      console.log("ℹ️ Aucun utilisateur n'a activé les notifications");
+      return NextResponse.json({
+        success: true,
+        message: "Aucun utilisateur avec notifications activées",
+        eventsCount: eventsWithCategory.length,
+        notificationsSent: 0,
+      });
+    }
+
+    // Grouper les événements par utilisateur selon leurs préférences
+    const eventsByUser: Record<string, typeof eventsWithCategory> = {};
+    
+    enabledUsers.forEach((user: any) => {
+      // Si l'utilisateur n'a pas de préférences de catégories, il reçoit tous les événements
+      if (!user.category_ids || user.category_ids.length === 0) {
+        eventsByUser[user.user_id] = eventsWithCategory;
+      } else {
+        // Filtrer les événements selon les catégories préférées
+        const userEvents = eventsWithCategory.filter(e => 
+          e.category && user.category_ids.includes(e.category)
+        );
+        if (userEvents.length > 0) {
+          eventsByUser[user.user_id] = userEvents;
+        }
+      }
+    });
+
+    if (Object.keys(eventsByUser).length === 0) {
+      console.log("ℹ️ Aucun utilisateur éligible pour les événements de demain");
+      return NextResponse.json({
+        success: true,
+        message: "Aucun utilisateur éligible",
+        eventsCount: eventsWithCategory.length,
+        notificationsSent: 0,
+      });
+    }
+
+    console.log(`📱 ${Object.keys(eventsByUser).length} utilisateur(s) éligible(s)`);
+
     let totalSent = 0;
     let totalFailed = 0;
+    const errors: string[] = [];
 
-    // Envoyer une notification par catégorie
-    for (const [category, categoryEvents] of Object.entries(eventsByCategory)) {
-      const categoryEventIds = categoryEvents.map(e => e.id);
-      const categoryTitles = categoryEvents.slice(0, 2).map(e => e.title).join(", ");
-      const moreCategoryEvents = categoryEvents.length > 2 ? ` et ${categoryEvents.length - 2} autre(s)` : "";
-      
-      const categoryTitle = "Événements demain 🔔";
-      const categoryBody = categoryEvents.length === 1
-        ? `N'oubliez pas : ${categoryEvents[0].title} demain !`
-        : `${categoryEvents.length} événement(s) prévu(s) demain : ${categoryTitles}${moreCategoryEvents}`;
+    // Envoyer une seule notification par utilisateur avec tous ses événements
+    for (const [userId, userEvents] of Object.entries(eventsByUser)) {
+      try {
+        const eventIds = userEvents.map(e => e.id);
+        const eventTitles = userEvents.slice(0, 2).map(e => e.title).join(", ");
+        const moreEvents = userEvents.length > 2 ? ` et ${userEvents.length - 2} autre(s)` : "";
+        
+        const title = "Événements demain 🔔";
+        const body = userEvents.length === 1
+          ? `N'oubliez pas : ${userEvents[0].title} demain !`
+          : `${userEvents.length} événement(s) prévu(s) demain : ${eventTitles}${moreEvents}`;
+        
+        const categories = [...new Set(userEvents.map(e => e.category).filter(Boolean))];
 
-      const result = await sendNotificationToAll({
-        title: categoryTitle,
-        body: categoryBody,
-        data: {
-          type: "upcoming_reminder",
-          category,
-          date: tomorrowStart.split("T")[0],
-          event_ids: categoryEventIds,
-          events_count: categoryEvents.length,
-        },
-      });
+        const result = await sendNotificationToUser(userId, {
+          title,
+          body,
+          data: {
+            type: "upcoming_reminder",
+            date: tomorrowStart.split("T")[0],
+            event_ids: eventIds,
+            events_count: userEvents.length,
+            categories,
+          },
+        });
 
-      results.push({ category, ...result });
-      totalSent += result.sent;
-      totalFailed += result.failed;
+        if (result.success && result.sent > 0) {
+          totalSent++;
+        } else {
+          totalFailed++;
+          if (result.errors.length > 0) {
+            errors.push(`Utilisateur ${userId}: ${result.errors[0]}`);
+          }
+        }
+      } catch (error: any) {
+        console.error(`❌ Erreur lors de l'envoi à l'utilisateur ${userId}:`, error);
+        totalFailed++;
+        errors.push(`Utilisateur ${userId}: ${error.message}`);
+      }
     }
     
     const result = {
       success: totalFailed === 0,
       sent: totalSent,
       failed: totalFailed,
-      errors: results.flatMap(r => r.errors || []),
+      errors: errors.length > 0 ? errors : [],
     };
+    
+    console.log(`✅ Rappels envoyés: ${result.sent} réussis, ${result.failed} échecs`);
     
     console.log(`✅ Rappels envoyés: ${result.sent} réussis, ${result.failed} échecs`);
     
     return NextResponse.json({
       success: result.success,
-      message: `Rappels envoyés pour ${events.length} événement(s) répartis sur ${Object.keys(eventsByCategory).length} catégorie(s)`,
-      eventsCount: events.length,
-      categoriesCount: Object.keys(eventsByCategory).length,
+      message: `Rappels envoyés pour ${eventsWithCategory.length} événement(s) à ${Object.keys(eventsByUser).length} utilisateur(s)`,
+      eventsCount: eventsWithCategory.length,
+      usersNotified: Object.keys(eventsByUser).length,
       notificationsSent: result.sent,
       notificationsFailed: result.failed,
       errors: result.errors.length > 0 ? result.errors : undefined,
-      categoryResults: results,
     });
     
   } catch (error: any) {

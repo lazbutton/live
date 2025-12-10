@@ -38,23 +38,28 @@ export async function GET(request: NextRequest) {
     
     console.log("🔔 Démarrage du cron de rappels pour les événements activés par les utilisateurs");
     
-    // Récupérer la date de demain (début et fin de journée)
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
+    // Récupérer la date de demain (jour calendaire suivant, pas "dans 24h")
+    // Exemple: si aujourd'hui est le 15/01 à 19h, on veut les événements du 16/01 (de 00h00 à 23h59)
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1); // Ajouter 1 jour calendaire
+    tomorrow.setHours(0, 0, 0, 0); // Début du jour suivant (00:00:00)
     const tomorrowStart = tomorrow.toISOString();
     
     const tomorrowEnd = new Date(tomorrow);
-    tomorrowEnd.setHours(23, 59, 59, 999);
+    tomorrowEnd.setHours(23, 59, 59, 999); // Fin du jour suivant (23:59:59.999)
     const tomorrowEndStr = tomorrowEnd.toISOString();
     
+    console.log(`📅 Recherche des événements du ${tomorrow.toLocaleDateString("fr-FR")} (${tomorrowStart} -> ${tomorrowEndStr})`);
+    
     // Récupérer les événements approuvés de demain avec leurs détails
+    // Utilisation de gte (>=) et lt (<) pour récupérer tous les événements du jour calendaire suivant
     const { data: events, error: eventsError } = await supabase
       .from("events")
       .select("id, title, date, end_date, category, location:locations(name, address)")
       .eq("status", "approved")
-      .gte("date", tomorrowStart)
-      .lt("date", tomorrowEndStr);
+      .gte("date", tomorrowStart)  // date >= début du jour suivant
+      .lt("date", tomorrowEndStr);  // date < fin du jour suivant
     
     if (eventsError) {
       console.error("❌ Erreur lors de la récupération des événements:", eventsError);
@@ -79,107 +84,118 @@ export async function GET(request: NextRequest) {
     
     console.log(`📋 ${events.length} événement(s) trouvé(s) pour demain`);
     
-    // Pour chaque événement, récupérer les utilisateurs qui ont activé les notifications
+    // Filtrer les événements avec catégorie
+    const eventsWithCategory = events.filter(e => e.category);
+    
+    if (eventsWithCategory.length === 0) {
+      console.log("ℹ️ Aucun événement avec catégorie trouvé demain");
+      return NextResponse.json({
+        success: true,
+        message: "Aucun événement avec catégorie demain",
+        eventsCount: 0,
+        notificationsSent: 0,
+      });
+    }
+
+    // Récupérer toutes les notifications activées pour les événements de demain
+    const eventIds = eventsWithCategory.map(e => e.id);
+    const { data: allNotifications, error: notifError } = await supabase
+      .from("event_notifications")
+      .select("user_id, event_id")
+      .in("event_id", eventIds)
+      .eq("is_enabled", true);
+    
+    if (notifError) {
+      console.error("❌ Erreur lors de la récupération des notifications:", notifError);
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: notifError.message 
+        },
+        { status: 500 }
+      );
+    }
+    
+    if (!allNotifications || allNotifications.length === 0) {
+      console.log("ℹ️ Aucun utilisateur n'a activé les notifications pour les événements de demain");
+      return NextResponse.json({
+        success: true,
+        message: "Aucune notification activée",
+        eventsCount: eventsWithCategory.length,
+        notificationsSent: 0,
+      });
+    }
+    
+    // Grouper les événements par utilisateur
+    const eventsByUser: Record<string, typeof eventsWithCategory> = {};
+    allNotifications.forEach(notif => {
+      const event = eventsWithCategory.find(e => e.id === notif.event_id);
+      if (event) {
+        if (!eventsByUser[notif.user_id]) {
+          eventsByUser[notif.user_id] = [];
+        }
+        eventsByUser[notif.user_id].push(event);
+      }
+    });
+    
+    console.log(`📱 ${Object.keys(eventsByUser).length} utilisateur(s) avec notifications activées`);
+    
     let totalSent = 0;
     let totalFailed = 0;
     const errors: string[] = [];
-    const eventResults: Array<{ eventId: string; eventTitle: string; sent: number; failed: number }> = [];
-
-    for (const event of events) {
-      // Ignorer les événements sans catégorie
-      if (!event.category) {
-        console.log(`⚠️ Événement ${event.id} sans catégorie, ignoré`);
-        continue;
-      }
-
-      // Récupérer les utilisateurs qui ont activé les notifications pour cet événement
-      const { data: eventNotifications, error: notifError } = await supabase
-        .from("event_notifications")
-        .select("user_id")
-        .eq("event_id", event.id)
-        .eq("is_enabled", true);
-      
-      if (notifError) {
-        console.error(`❌ Erreur lors de la récupération des notifications pour l'événement ${event.id}:`, notifError);
-        errors.push(`Erreur pour l'événement ${event.title}: ${notifError.message}`);
-        continue;
-      }
-      
-      if (!eventNotifications || eventNotifications.length === 0) {
-        console.log(`ℹ️ Aucun utilisateur n'a activé les notifications pour l'événement ${event.title}`);
-        eventResults.push({
-          eventId: event.id,
-          eventTitle: event.title,
-          sent: 0,
-          failed: 0,
+    
+    // Envoyer une seule notification par utilisateur avec tous ses événements
+    for (const [userId, userEvents] of Object.entries(eventsByUser)) {
+      try {
+        // Préparer le message groupé
+        const eventTitles = userEvents.slice(0, 3).map(e => e.title).join(", ");
+        const moreEvents = userEvents.length > 3 ? ` et ${userEvents.length - 3} autre(s)` : "";
+        
+        const title = "Rappels : Événements demain 🔔";
+        const body = userEvents.length === 1
+          ? `${userEvents[0].title} a lieu demain ! Ne le manquez pas.`
+          : `${userEvents.length} événement(s) prévu(s) demain : ${eventTitles}${moreEvents}`;
+        
+        const eventIds = userEvents.map(e => e.id);
+        const categories = [...new Set(userEvents.map(e => e.category).filter(Boolean))];
+        
+        const result = await sendNotificationToUser(userId, {
+          title,
+          body,
+          data: {
+            type: "user_event_reminder",
+            event_ids: eventIds,
+            events_count: userEvents.length,
+            categories,
+            date: tomorrowStart.split("T")[0],
+          },
         });
-        continue;
-      }
-      
-      console.log(`📱 ${eventNotifications.length} utilisateur(s) avec notifications activées pour "${event.title}"`);
-      
-      let eventSent = 0;
-      let eventFailed = 0;
-      
-      // Envoyer une notification à chaque utilisateur
-      for (const notif of eventNotifications) {
-        try {
-          // Préparer le message personnalisé
-          const location = Array.isArray(event.location) ? event.location[0] : event.location;
-          const locationInfo = location?.name 
-            ? ` à ${location.name}${location.address ? ` (${location.address})` : ""}`
-            : "";
-          
-          const title = "Rappel : Événement demain 🔔";
-          const body = `${event.title}${locationInfo} a lieu demain ! Ne le manquez pas.`;
-          
-          const result = await sendNotificationToUser(notif.user_id, {
-            title,
-            body,
-            data: {
-              type: "user_event_reminder",
-              event_id: event.id,
-              category: event.category,
-              date: tomorrowStart.split("T")[0],
-            },
-          });
-          
-          if (result.success && result.sent > 0) {
-            eventSent++;
-            totalSent++;
-          } else {
-            eventFailed++;
-            totalFailed++;
-            if (result.errors.length > 0) {
-              errors.push(`${event.title} - ${result.errors[0]}`);
-            }
-          }
-        } catch (error: any) {
-          console.error(`❌ Erreur lors de l'envoi à l'utilisateur ${notif.user_id}:`, error);
-          eventFailed++;
+        
+        if (result.success && result.sent > 0) {
+          totalSent++;
+        } else {
           totalFailed++;
-          errors.push(`${event.title} - Erreur: ${error.message}`);
+          if (result.errors.length > 0) {
+            errors.push(`Utilisateur ${userId}: ${result.errors[0]}`);
+          }
         }
+      } catch (error: any) {
+        console.error(`❌ Erreur lors de l'envoi à l'utilisateur ${userId}:`, error);
+        totalFailed++;
+        errors.push(`Utilisateur ${userId}: ${error.message}`);
       }
-      
-      eventResults.push({
-        eventId: event.id,
-        eventTitle: event.title,
-        sent: eventSent,
-        failed: eventFailed,
-      });
     }
     
     console.log(`✅ Rappels envoyés: ${totalSent} réussis, ${totalFailed} échecs`);
     
     return NextResponse.json({
       success: totalFailed === 0,
-      message: `Rappels envoyés pour ${events.length} événement(s)`,
-      eventsCount: events.length,
+      message: `Rappels envoyés pour ${eventsWithCategory.length} événement(s) à ${Object.keys(eventsByUser).length} utilisateur(s)`,
+      eventsCount: eventsWithCategory.length,
+      usersNotified: Object.keys(eventsByUser).length,
       notificationsSent: totalSent,
       notificationsFailed: totalFailed,
       errors: errors.length > 0 ? errors : undefined,
-      eventResults,
     });
     
   } catch (error: any) {

@@ -41,17 +41,33 @@ export async function sendNotificationToUser(
     };
   }
 
-  // Vérifier les préférences de catégories si l'événement a une catégorie
-  if (payload.data?.category && preferences.category_ids && preferences.category_ids.length > 0) {
-    const eventCategory = payload.data.category;
-    // Si l'utilisateur a des catégories préférées, vérifier que la catégorie de l'événement correspond
-    if (!preferences.category_ids.includes(eventCategory)) {
-      return {
-        success: false,
-        sent: 0,
-        failed: 0,
-        errors: [`L'utilisateur n'a pas activé les notifications pour la catégorie "${eventCategory}"`],
-      };
+  // Vérifier les préférences de catégories si des catégories sont fournies dans les données
+  // Si payload.data.categories est fourni (tableau de catégories), vérifier qu'au moins une correspond
+  // Si payload.data.category est fourni (catégorie unique), vérifier qu'elle correspond
+  if (preferences.category_ids && preferences.category_ids.length > 0) {
+    if (payload.data?.categories && Array.isArray(payload.data.categories)) {
+      // Plusieurs catégories dans l'événement : vérifier qu'au moins une correspond
+      const matchingCategories = payload.data.categories.filter((cat: string) => 
+        preferences.category_ids.includes(cat)
+      );
+      if (matchingCategories.length === 0) {
+        return {
+          success: false,
+          sent: 0,
+          failed: 0,
+          errors: [`L'utilisateur n'a pas activé les notifications pour ces catégories`],
+        };
+      }
+    } else if (payload.data?.category) {
+      // Catégorie unique : vérifier qu'elle correspond
+      if (!preferences.category_ids.includes(payload.data.category)) {
+        return {
+          success: false,
+          sent: 0,
+          failed: 0,
+          errors: [`L'utilisateur n'a pas activé les notifications pour la catégorie "${payload.data.category}"`],
+        };
+      }
     }
   }
 
