@@ -98,6 +98,14 @@ export async function sendAPNsNotification(
     };
   }
 
+  // Valider que title et body sont définis
+  if (!title && !body) {
+    return {
+      success: false,
+      error: "Title et body ne peuvent pas être tous les deux vides pour une notification APNs",
+    };
+  }
+
   // Nettoyer le token (enlever les espaces, retours à la ligne, etc.)
   deviceToken = deviceToken.trim().replace(/\s+/g, "");
 
@@ -154,31 +162,32 @@ export async function sendAPNsNotification(
     // Le topic doit être le bundle ID de l'app iOS
     notification.topic = bundleId;
     
-    // Configuration de l'alert (peut être string ou object)
+    // Configuration de l'alert - REQUIS pour les notifications visibles
     // Pour iOS, on peut utiliser un objet avec title et body, ou juste une string
+    // On garantit qu'au moins title ou body est défini grâce à la validation ci-dessus
     if (title && body) {
       notification.alert = {
-        title: title,
-        body: body,
+        title: title || "Notification",
+        body: body || "Nouveau message",
       };
     } else if (title) {
       notification.alert = title;
-    } else {
+    } else if (body) {
       notification.alert = body;
+    } else {
+      // Fallback (ne devrait jamais arriver grâce à la validation)
+      notification.alert = "Notification";
     }
     
+    // Badge et sound - toujours définis pour les notifications visibles
     notification.badge = 1;
     notification.sound = "default";
+    
     notification.priority = 10; // 10 = high priority, 5 = low priority
     notification.expiry = Math.floor(Date.now() / 1000) + 3600; // Expire dans 1 heure
-    
-    // Content-available pour permettre la mise à jour en arrière-plan
-    notification.contentAvailable = true;
 
     // Données personnalisées (pour la navigation dans l'app)
-    // Note: payload est pour les données custom, pas pour l'alert
     if (data) {
-      // Les données custom doivent être dans payload
       notification.payload = data;
     }
 
