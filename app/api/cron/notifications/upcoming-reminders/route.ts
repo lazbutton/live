@@ -47,10 +47,10 @@ export async function GET(request: NextRequest) {
     tomorrowEnd.setHours(23, 59, 59, 999);
     const tomorrowEndStr = tomorrowEnd.toISOString();
     
-    // Récupérer les événements approuvés de demain
+    // Récupérer les événements approuvés de demain avec leurs catégories
     const { data: events, error: eventsError } = await supabase
       .from("events")
-      .select("id, title, date, end_date, location:locations(name, address), event_organizers(organizer:organizers(name))")
+      .select("id, title, date, end_date, category, location:locations(name, address), event_organizers(organizer:organizers(name))")
       .eq("status", "approved")
       .gte("date", tomorrowStart)
       .lt("date", tomorrowEndStr)
@@ -90,27 +90,81 @@ export async function GET(request: NextRequest) {
     // Extraire les IDs des événements pour les données de la notification
     const eventIds = events.map(e => e.id);
     
-    // Envoyer la notification à tous les utilisateurs ayant activé les notifications
-    const result = await sendNotificationToAll({
-      title,
-      body,
-      data: {
-        type: "upcoming_reminder",
-        date: tomorrowStart.split("T")[0],
-        event_ids: eventIds,
-        events_count: events.length,
-      },
+    // Grouper les événements par catégorie
+    const eventsByCategory: Record<string, typeof events> = {};
+    events.forEach(event => {
+      // Ignorer les événements sans catégorie
+      if (!event.category) {
+        return;
+      }
+      const category = event.category;
+      if (!eventsByCategory[category]) {
+        eventsByCategory[category] = [];
+      }
+      eventsByCategory[category].push(event);
     });
+
+    // Si aucune catégorie n'a d'événements, ne rien envoyer
+    if (Object.keys(eventsByCategory).length === 0) {
+      console.log("ℹ️ Aucun événement avec catégorie trouvé demain");
+      return NextResponse.json({
+        success: true,
+        message: "Aucun événement avec catégorie demain",
+        eventsCount: 0,
+        categoriesCount: 0,
+      });
+    }
+
+    const results: any[] = [];
+    let totalSent = 0;
+    let totalFailed = 0;
+
+    // Envoyer une notification par catégorie
+    for (const [category, categoryEvents] of Object.entries(eventsByCategory)) {
+      const categoryEventIds = categoryEvents.map(e => e.id);
+      const categoryTitles = categoryEvents.slice(0, 2).map(e => e.title).join(", ");
+      const moreCategoryEvents = categoryEvents.length > 2 ? ` et ${categoryEvents.length - 2} autre(s)` : "";
+      
+      const categoryTitle = "Événements demain 🔔";
+      const categoryBody = categoryEvents.length === 1
+        ? `N'oubliez pas : ${categoryEvents[0].title} demain !`
+        : `${categoryEvents.length} événement(s) prévu(s) demain : ${categoryTitles}${moreCategoryEvents}`;
+
+      const result = await sendNotificationToAll({
+        title: categoryTitle,
+        body: categoryBody,
+        data: {
+          type: "upcoming_reminder",
+          category,
+          date: tomorrowStart.split("T")[0],
+          event_ids: categoryEventIds,
+          events_count: categoryEvents.length,
+        },
+      });
+
+      results.push({ category, ...result });
+      totalSent += result.sent;
+      totalFailed += result.failed;
+    }
+    
+    const result = {
+      success: totalFailed === 0,
+      sent: totalSent,
+      failed: totalFailed,
+      errors: results.flatMap(r => r.errors || []),
+    };
     
     console.log(`✅ Rappels envoyés: ${result.sent} réussis, ${result.failed} échecs`);
     
     return NextResponse.json({
       success: result.success,
-      message: `Rappels envoyés pour ${events.length} événement(s)`,
+      message: `Rappels envoyés pour ${events.length} événement(s) répartis sur ${Object.keys(eventsByCategory).length} catégorie(s)`,
       eventsCount: events.length,
+      categoriesCount: Object.keys(eventsByCategory).length,
       notificationsSent: result.sent,
       notificationsFailed: result.failed,
       errors: result.errors.length > 0 ? result.errors : undefined,
+      categoryResults: results,
     });
     
   } catch (error: any) {

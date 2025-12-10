@@ -25,10 +25,10 @@ export async function sendNotificationToUser(
 ): Promise<NotificationResult> {
   const supabase = createServiceClient();
 
-  // Vérifier que l'utilisateur a activé les notifications
+  // Vérifier que l'utilisateur a activé les notifications et récupérer ses préférences de catégories
   const { data: preferences, error: prefsError } = await supabase
     .from("user_notification_preferences")
-    .select("is_enabled")
+    .select("is_enabled, category_ids")
     .eq("user_id", userId)
     .single();
 
@@ -39,6 +39,20 @@ export async function sendNotificationToUser(
       failed: 0,
       errors: ["L'utilisateur n'a pas activé les notifications"],
     };
+  }
+
+  // Vérifier les préférences de catégories si l'événement a une catégorie
+  if (payload.data?.category && preferences.category_ids && preferences.category_ids.length > 0) {
+    const eventCategory = payload.data.category;
+    // Si l'utilisateur a des catégories préférées, vérifier que la catégorie de l'événement correspond
+    if (!preferences.category_ids.includes(eventCategory)) {
+      return {
+        success: false,
+        sent: 0,
+        failed: 0,
+        errors: [`L'utilisateur n'a pas activé les notifications pour la catégorie "${eventCategory}"`],
+      };
+    }
   }
 
   // Récupérer uniquement le dernier token de l'utilisateur (le plus récent)
@@ -216,8 +230,25 @@ export async function sendNotificationToAll(
     errors: [],
   };
 
-  // Envoyer à chaque utilisateur (sendNotificationToUser vérifie déjà les préférences et récupère les tokens)
-  for (const userData of enabledUsers) {
+  // Filtrer les utilisateurs selon leurs préférences de catégories
+  const eventCategory = payload.data?.category;
+  const usersToNotify = enabledUsers.filter((userData: any) => {
+    // Si l'événement n'a pas de catégorie, ne pas envoyer (on ne peut pas matcher)
+    if (!eventCategory) {
+      return false;
+    }
+    // Si l'utilisateur n'a pas de préférences de catégories (NULL ou vide), il reçoit toutes les notifications
+    if (!userData.category_ids || userData.category_ids.length === 0) {
+      return true;
+    }
+    // Vérifier que la catégorie de l'événement correspond aux préférences de l'utilisateur
+    return userData.category_ids.includes(eventCategory);
+  });
+
+  console.log(`📊 ${usersToNotify.length} utilisateur(s) éligible(s) sur ${enabledUsers.length} avec notifications activées`);
+
+  // Envoyer à chaque utilisateur éligible (sendNotificationToUser vérifie déjà les préférences et récupère les tokens)
+  for (const userData of usersToNotify) {
     const result = await sendNotificationToUser(userData.user_id, payload);
     results.sent += result.sent;
     results.failed += result.failed;

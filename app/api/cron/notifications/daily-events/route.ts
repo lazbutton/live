@@ -46,10 +46,10 @@ export async function GET(request: NextRequest) {
     todayEnd.setHours(23, 59, 59, 999);
     const todayEndStr = todayEnd.toISOString();
     
-    // Récupérer les événements approuvés du jour
+    // Récupérer les événements approuvés du jour avec leurs catégories
     const { data: events, error: eventsError } = await supabase
       .from("events")
-      .select("id, title, date, end_date, location:locations(name, address), event_organizers(organizer:organizers(name))")
+      .select("id, title, date, end_date, category, location:locations(name, address), event_organizers(organizer:organizers(name))")
       .eq("status", "approved")
       .gte("date", todayStart)
       .lt("date", todayEndStr)
@@ -89,17 +89,70 @@ export async function GET(request: NextRequest) {
     // Extraire les IDs des événements pour les données de la notification
     const eventIds = events.map(e => e.id);
     
-    // Envoyer la notification à tous les utilisateurs ayant activé les notifications
-    const result = await sendNotificationToAll({
-      title,
-      body,
-      data: {
-        type: "daily_events",
-        date: todayStart.split("T")[0],
-        event_ids: eventIds,
-        events_count: events.length,
-      },
+    // Grouper les événements par catégorie pour envoyer des notifications personnalisées
+    const eventsByCategory: Record<string, typeof events> = {};
+    events.forEach(event => {
+      // Ignorer les événements sans catégorie
+      if (!event.category) {
+        return;
+      }
+      const category = event.category;
+      if (!eventsByCategory[category]) {
+        eventsByCategory[category] = [];
+      }
+      eventsByCategory[category].push(event);
     });
+
+    // Si aucune catégorie n'a d'événements, ne rien envoyer
+    if (Object.keys(eventsByCategory).length === 0) {
+      console.log("ℹ️ Aucun événement avec catégorie trouvé aujourd'hui");
+      return NextResponse.json({
+        success: true,
+        message: "Aucun événement avec catégorie aujourd'hui",
+        eventsCount: 0,
+        categoriesCount: 0,
+      });
+    }
+
+    const results: any[] = [];
+    let totalSent = 0;
+    let totalFailed = 0;
+
+    // Envoyer une notification par catégorie pour respecter les préférences utilisateur
+    for (const [category, categoryEvents] of Object.entries(eventsByCategory)) {
+      const categoryEventIds = categoryEvents.map(e => e.id);
+      const categoryTitles = categoryEvents.slice(0, 3).map(e => e.title).join(", ");
+      const moreCategoryEvents = categoryEvents.length > 3 ? ` et ${categoryEvents.length - 3} autre(s)` : "";
+      
+      const categoryTitle = "Événements du jour 📅";
+      const categoryBody = categoryEvents.length === 1
+        ? `${categoryEvents[0].title} a lieu aujourd'hui !`
+        : `${categoryEvents.length} événement(s) prévu(s) aujourd'hui : ${categoryTitles}${moreCategoryEvents}`;
+
+      const result = await sendNotificationToAll({
+        title: categoryTitle,
+        body: categoryBody,
+        data: {
+          type: "daily_events",
+          category,
+          date: todayStart.split("T")[0],
+          event_ids: categoryEventIds,
+          events_count: categoryEvents.length,
+        },
+      });
+
+      results.push({ category, ...result });
+      totalSent += result.sent;
+      totalFailed += result.failed;
+    }
+    
+    // Résultat combiné
+    const result = {
+      success: totalFailed === 0,
+      sent: totalSent,
+      failed: totalFailed,
+      errors: results.flatMap(r => r.errors || []),
+    };
     
     console.log(`✅ Notifications envoyées: ${result.sent} réussies, ${result.failed} échecs`);
     
