@@ -144,17 +144,20 @@ export async function sendNotificationToUser(
       results.errors.push(result.error || "Erreur inconnue");
 
       // Si le token est invalide, le supprimer de la base
-      if (
+      const shouldDeleteToken =
         result.error?.includes("Token invalide") ||
         result.error?.includes("BadDeviceToken") ||
         result.error?.includes("Unregistered") ||
-        result.error?.includes("registration-token-not-registered")
-      ) {
+        result.error?.includes("registration-token-not-registered") ||
+        result.error?.includes("400") || // Erreur 400 = généralement DeviceTokenNotForTopic (bundle ID mismatch)
+        result.error?.includes("Requête invalide");
+
+      if (shouldDeleteToken) {
         await supabase
           .from("user_push_tokens")
           .delete()
           .eq("token", tokenData.token);
-        console.log(`🗑️ Token invalide supprimé: ${tokenData.token}`);
+        console.log(`🗑️ Token invalide supprimé (${result.error}): ${tokenData.token.substring(0, 20)}...`);
       }
     }
   }
