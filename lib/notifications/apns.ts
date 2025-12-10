@@ -189,6 +189,8 @@ export async function sendAPNsNotification(
     }
 
     // Vérifier que les propriétés sont bien assignées
+    // Note: node-apn peut stocker les propriétés différemment selon la version
+    const apsObject = (notification as any).aps || {};
     console.log("📱 Configuration notification APNs (après assignation):", {
       topic: notification.topic,
       bundleId: bundleId,
@@ -197,14 +199,15 @@ export async function sendAPNsNotification(
       titleFinal: finalTitle,
       bodyFinal: finalBody,
       alertAssigned: alertObject,
-      alertFromNotification: notification.alert,
-      alertType: typeof notification.alert,
-      hasAlert: !!notification.alert,
-      badge: notification.badge,
-      sound: notification.sound,
+      alertProperty: notification.alert,
+      badgeProperty: notification.badge,
+      soundProperty: notification.sound,
+      apsObject: apsObject,
+      apsAlert: apsObject.alert,
+      apsBadge: apsObject.badge,
+      apsSound: apsObject.sound,
       priority: notification.priority,
       expiry: notification.expiry,
-      notificationKeys: Object.keys(notification),
     });
 
     // Envoyer la notification
