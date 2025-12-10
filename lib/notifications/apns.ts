@@ -151,14 +151,21 @@ export async function sendAPNsNotification(
   try {
     const notification = new apn.Notification();
 
-    // Configuration de base (2025)
-    notification.alert = {
-      title: title,
-      body: body,
-    };
-    
     // Le topic doit être le bundle ID de l'app iOS
     notification.topic = bundleId;
+    
+    // Configuration de l'alert (peut être string ou object)
+    // Pour iOS, on peut utiliser un objet avec title et body, ou juste une string
+    if (title && body) {
+      notification.alert = {
+        title: title,
+        body: body,
+      };
+    } else if (title) {
+      notification.alert = title;
+    } else {
+      notification.alert = body;
+    }
     
     notification.badge = 1;
     notification.sound = "default";
@@ -169,15 +176,22 @@ export async function sendAPNsNotification(
     notification.contentAvailable = true;
 
     // Données personnalisées (pour la navigation dans l'app)
+    // Note: payload est pour les données custom, pas pour l'alert
     if (data) {
+      // Les données custom doivent être dans payload
       notification.payload = data;
     }
 
     console.log("📱 Configuration notification APNs:", {
       topic: notification.topic,
       bundleId: bundleId,
+      alert: notification.alert,
+      alertType: typeof notification.alert,
       hasAlert: !!notification.alert,
       hasData: !!data,
+      badge: notification.badge,
+      sound: notification.sound,
+      priority: notification.priority,
       expiry: notification.expiry,
     });
 
@@ -246,10 +260,19 @@ export async function sendAPNsNotification(
       
       // Si c'est une erreur 400, ajouter des suggestions
       if (failure.status === "400") {
-        console.error("   💡 Suggestions pour corriger l'erreur 400:");
-        console.error("      - Vérifiez que APNS_BUNDLE_ID correspond au bundle ID de votre app iOS");
-        console.error("      - Vérifiez que la clé APNs est configurée pour ce bundle ID dans Apple Developer Portal");
-        console.error("      - Vérifiez que le certificat APNs est actif et valide");
+        console.error("   💡 L'erreur 400 d'APNs indique généralement:");
+        console.error("      ❌ DeviceTokenNotForTopic: Le token a été généré pour un bundle ID différent");
+        console.error("      💡 Solutions:");
+        console.error("         1. Vérifiez que le token iOS a été généré avec le même bundle ID");
+        console.error("         2. Vérifiez que APNS_BUNDLE_ID correspond exactement au bundle ID de l'app");
+        console.error("         3. Vérifiez que l'app mobile utilise le bon bundle ID lors de l'enregistrement du token");
+        console.error("         4. Assurez-vous que la clé APNs est configurée pour ce bundle ID sur Apple Developer Portal");
+        
+        // Afficher des informations de débogage supplémentaires
+        console.error("   🔍 Informations de débogage:");
+        console.error(`      Bundle ID utilisé: ${bundleId}`);
+        console.error(`      Topic de la notification: ${notification.topic}`);
+        console.error(`      Token (hex, 64 chars attendus): ${deviceToken.length} caractères`);
       }
 
       // Gérer les erreurs spécifiques
