@@ -158,14 +158,23 @@ export async function sendAPNsNotification(
   try {
     const notification = new apn.Notification();
 
+    // Vérifier que finalTitle et finalBody sont bien définis
+    console.log("🔧 Préparation notification - valeurs:", {
+      titleInput: title,
+      bodyInput: body,
+      finalTitle: finalTitle,
+      finalBody: finalBody,
+    });
+
     // Le topic doit être le bundle ID de l'app iOS
     notification.topic = bundleId;
     
     // Configuration de l'alert - toujours défini avec les valeurs finales (par défaut si nécessaire)
-    notification.alert = {
+    const alertObject = {
       title: finalTitle,
       body: finalBody,
     };
+    notification.alert = alertObject;
     
     // Badge et sound - toujours définis pour les notifications visibles
     notification.badge = 1;
@@ -179,20 +188,23 @@ export async function sendAPNsNotification(
       notification.payload = data;
     }
 
-    console.log("📱 Configuration notification APNs:", {
+    // Vérifier que les propriétés sont bien assignées
+    console.log("📱 Configuration notification APNs (après assignation):", {
       topic: notification.topic,
       bundleId: bundleId,
       titleOriginal: title || "(vide, valeur par défaut utilisée)",
       bodyOriginal: body || "(vide, valeur par défaut utilisée)",
       titleFinal: finalTitle,
       bodyFinal: finalBody,
-      alert: notification.alert,
+      alertAssigned: alertObject,
+      alertFromNotification: notification.alert,
+      alertType: typeof notification.alert,
       hasAlert: !!notification.alert,
-      hasData: !!data,
       badge: notification.badge,
       sound: notification.sound,
       priority: notification.priority,
       expiry: notification.expiry,
+      notificationKeys: Object.keys(notification),
     });
 
     // Envoyer la notification
