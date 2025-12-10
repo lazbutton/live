@@ -24,6 +24,15 @@ export async function POST(request: NextRequest) {
 
     const token = authHeader.replace("Bearer ", "");
 
+    // Vérifier que les variables d'environnement Supabase sont définies
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error("❌ Variables d'environnement Supabase manquantes");
+      return NextResponse.json(
+        { error: "Configuration serveur incomplète" },
+        { status: 500 }
+      );
+    }
+
     // Créer un client Supabase pour valider le token
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
@@ -50,7 +59,17 @@ export async function POST(request: NextRequest) {
     console.log("✅ Utilisateur authentifié:", user.id, user.email);
 
     // Récupérer le body de la requête
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError: any) {
+      console.error("❌ Erreur lors du parsing du body:", parseError);
+      return NextResponse.json(
+        { error: "Format JSON invalide dans le body", details: parseError?.message },
+        { status: 400 }
+      );
+    }
+
     const { title, body: messageBody, test } = body;
 
     if (!title || !messageBody) {
@@ -61,19 +80,34 @@ export async function POST(request: NextRequest) {
     }
 
     // Envoyer la notification à l'utilisateur connecté
-    const result = await sendNotificationToUser(user.id, {
-      title,
-      body: messageBody,
-      data: test ? { test: "true" } : {},
-    });
+    let result;
+    try {
+      result = await sendNotificationToUser(user.id, {
+        title,
+        body: messageBody,
+        data: test ? { test: "true" } : {},
+      });
+    } catch (sendError: any) {
+      console.error("❌ Erreur lors de l'appel à sendNotificationToUser:", sendError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Erreur lors de l'envoi de la notification",
+          details: sendError?.message || sendError?.toString(),
+        },
+        { status: 500 }
+      );
+    }
 
     if (!result.success) {
+      console.error("❌ Échec de l'envoi:", result.errors);
       return NextResponse.json(
         {
           success: false,
           error: result.errors[0] || "Erreur lors de l'envoi",
           sent: result.sent,
           failed: result.failed,
+          errors: result.errors,
         },
         { status: 500 }
       );
@@ -90,11 +124,14 @@ export async function POST(request: NextRequest) {
       failed: result.failed,
     });
   } catch (error: any) {
-    console.error("❌ Erreur lors de l'envoi de la notification:", error);
+    console.error("❌ Erreur inattendue lors de l'envoi de la notification:", error);
+    console.error("   Stack:", error?.stack);
+    console.error("   Message:", error?.message);
     return NextResponse.json(
       {
-        error: error.message || "Erreur serveur",
-        details: error.toString(),
+        error: error?.message || "Erreur serveur inattendue",
+        details: error?.toString(),
+        type: error?.constructor?.name || "Unknown",
       },
       { status: 500 }
     );
