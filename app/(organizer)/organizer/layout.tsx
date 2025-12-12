@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { checkIsOrganizer } from "@/lib/auth";
 import { OrganizerLayout } from "./components/organizer-layout";
 
@@ -11,20 +11,27 @@ export default function OrganizerRootLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
   useEffect(() => {
+    // Ne pas vérifier l'accès sur la page de login
+    if (pathname === "/organizer/login") {
+      setIsAuthorized(true);
+      return;
+    }
+
     async function checkAccess() {
       const isOrg = await checkIsOrganizer();
       if (!isOrg) {
-        router.push("/admin/login");
+        router.push("/organizer/login");
         return;
       }
       setIsAuthorized(true);
     }
 
     checkAccess();
-  }, [router]);
+  }, [router, pathname]);
 
   // Afficher un loader pendant la vérification
   if (isAuthorized === null) {
@@ -45,4 +52,5 @@ export default function OrganizerRootLayout({
 
   return <>{children}</>;
 }
+
 

@@ -178,3 +178,4 @@ Si vous utilisez Supabase CLI ou l'API, vous pouvez vérifier les limites config
 - [Politiques RLS pour Storage](https://supabase.com/docs/guides/storage/security/access-control)
 - [Edge Functions](https://supabase.com/docs/guides/functions)
 
+

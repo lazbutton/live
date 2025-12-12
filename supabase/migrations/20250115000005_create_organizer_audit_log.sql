@@ -73,3 +73,4 @@ COMMENT ON COLUMN public.organizer_audit_log.old_value IS 'Ancienne valeur (ex: 
 COMMENT ON COLUMN public.organizer_audit_log.new_value IS 'Nouvelle valeur (ex: nouveau rôle)';
 COMMENT ON COLUMN public.organizer_audit_log.metadata IS 'Données supplémentaires au format JSON';
 
+

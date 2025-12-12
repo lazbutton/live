@@ -16,6 +16,12 @@ export default function AdminLayout({
   const [hasAccess, setHasAccess] = useState(false);
 
   useEffect(() => {
+    // Ne pas vérifier l'accès sur la page de login
+    if (pathname === "/admin/login") {
+      setIsChecking(false);
+      setHasAccess(true);
+      return;
+    }
     checkAdminAccess();
   }, [pathname]);
 
@@ -72,4 +78,5 @@ export default function AdminLayout({
 
   return <>{children}</>;
 }
+
 

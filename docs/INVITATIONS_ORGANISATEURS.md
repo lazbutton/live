@@ -197,3 +197,4 @@ Si l'utilisateur existe déjà avec cet email, il pourra se connecter directemen
 - `GET /api/organizer/invite/verify?token=...` - Vérifier une invitation
 - `POST /api/organizer/invite/accept` - Accepter une invitation
 
+

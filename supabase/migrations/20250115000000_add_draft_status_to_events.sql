@@ -16,3 +16,4 @@ CHECK (status = ANY (ARRAY['draft'::text, 'pending'::text, 'approved'::text, 're
 -- Commenter la colonne status pour documentation
 COMMENT ON COLUMN public.events.status IS 'Statut de l''événement: draft (brouillon, visible uniquement par l''organisateur), pending (en attente de validation), approved (approuvé et visible publiquement), rejected (rejeté)';
 
+

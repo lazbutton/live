@@ -204,3 +204,4 @@ Barre sticky (quand sélection) :
 - Ne jamais perdre le contexte (liste visible, panneau à droite).
 - Les demandes `converted` affichent un lien clair vers l’événement créé.
 
+

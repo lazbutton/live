@@ -7,12 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, AlertCircle } from "lucide-react";
+import { Calendar, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { checkIsAdmin, checkIsOrganizer } from "@/lib/auth";
 import { getUserType } from "@/lib/auth-helpers";
 
-export default function AdminLoginPage() {
+export default function OrganizerLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -51,9 +50,8 @@ export default function AdminLoginPage() {
         } else if (userType === "organizer") {
           router.push("/organizer");
         } else if (userType === "admin_and_organizer") {
-          // Si l'utilisateur est les deux, rediriger vers l'admin par défaut
-          // (on pourra ajouter un choix d'interface plus tard)
-          router.push("/admin");
+          // Si l'utilisateur est les deux, rediriger vers l'organisateur par défaut
+          router.push("/organizer");
         }
       }
     } catch (err) {
@@ -69,11 +67,11 @@ export default function AdminLoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
-            <Shield className="h-12 w-12 text-primary" />
+            <Calendar className="h-12 w-12 text-primary" />
           </div>
-          <CardTitle className="text-2xl text-center">Administration</CardTitle>
+          <CardTitle className="text-2xl text-center">Organisateur</CardTitle>
           <CardDescription className="text-center">
-            Connectez-vous avec vos identifiants administrateur ou organisateur
+            Connectez-vous avec vos identifiants organisateur
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -90,7 +88,7 @@ export default function AdminLoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@example.com"
+                placeholder="organisateur@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

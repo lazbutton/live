@@ -189,3 +189,4 @@ Une ligne/carte fine avec:
   - ouvrir/éditer un événement sans perdre le contexte
 
 
+

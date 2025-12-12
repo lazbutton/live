@@ -16,3 +16,4 @@ CREATE POLICY "Admins can view all notifications"
 ON public.organizer_notifications FOR SELECT
 USING (is_user_admin());
 
+
