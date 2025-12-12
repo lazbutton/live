@@ -47,11 +47,12 @@ export async function GET(request: NextRequest) {
     nextWeek.setHours(23, 59, 59, 999);
     const nextWeekEnd = nextWeek.toISOString();
     
-    // Récupérer les événements approuvés de la semaine à venir avec leurs catégories
+    // Récupérer les événements approuvés de la semaine à venir avec leurs catégories (exclure les événements complets)
     const { data: events, error: eventsError } = await supabase
       .from("events")
       .select("id, title, date, end_date, category, location:locations(name, address), event_organizers(organizer:organizers(name))")
       .eq("status", "approved")
+      .or("is_full.is.null,is_full.eq.false") // Exclure les événements complets
       .gte("date", todayStart)
       .lt("date", nextWeekEnd)
       .order("date", { ascending: true })

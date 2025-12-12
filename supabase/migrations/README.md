@@ -7,10 +7,10 @@ Ce dossier contient toutes les migrations de base de données pour le projet.
 ```
 supabase/migrations/
 ├── README.md                    # Ce fichier
-├── MIGRATIONS_LOG.md            # Log de toutes les migrations
+├── MIGRATIONS_LOG.md            # Log (baseline + décisions)
 ├── TEMPLATE.sql                 # Template pour créer une nouvelle migration
-├── 001_initial_schema.sql       # Migration initiale
-└── 00X_xxx.sql                  # Futures migrations
+├── 20251212120000_baseline.sql  # Migration unique (baseline)
+└── archives/                    # Anciennes migrations (NE PAS APPLIQUER)
 ```
 
 ## 🚀 Comment utiliser
@@ -27,6 +27,10 @@ supabase/migrations/
    ```bash
    supabase db push
    ```
+
+⚠️ **Important** : 
+- Le dossier `supabase/migrations/archives/` est **historique**. Les fichiers qui s'y trouvent ne sont **plus** pris en compte et ne doivent pas être appliqués.
+- Si vous avez appliqué des migrations manuellement via SQL Editor et que vous voulez utiliser `supabase db push` ensuite, exécutez d'abord le script `_mark_migrations_as_applied.sql` dans le SQL Editor pour marquer ces migrations comme déjà appliquées.
 
 ### Créer une nouvelle migration
 
@@ -69,10 +73,7 @@ Exemples :
 
 ## 🔍 Vérifier l'état actuel
 
-Consulter `MIGRATIONS_LOG.md` pour voir :
-- Quelles migrations ont été appliquées
-- Leur statut (⏳ À appliquer / ✅ Appliquée)
-- Les dates d'application
+Consulter `MIGRATIONS_LOG.md` pour voir la stratégie actuelle (baseline + archives).
 
 ## 📚 Documentation complète
 

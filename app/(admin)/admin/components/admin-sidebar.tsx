@@ -15,7 +15,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { Shield, Calendar, MapPin, Users, Tag, Hash, FileText, LayoutDashboard, LogOut, MessageSquare, Share2, Bell, Clock } from "lucide-react";
+import { Shield, Calendar, MapPin, Users, Tag, Hash, FileText, LayoutDashboard, LogOut, MessageSquare, Share2, Bell, Clock, UserCog } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
@@ -48,6 +48,11 @@ const menuItems = [
     title: "Organisateurs",
     icon: Users,
     url: "/admin/organizers",
+  },
+  {
+    title: "Utilisateurs",
+    icon: UserCog,
+    url: "/admin/users",
   },
   {
     title: "Catégories",

@@ -37,19 +37,29 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className="dark" suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} antialiased dark`}
+        className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} antialiased`}
       >
         <Script
-          id="force-dark-mode"
+          id="theme-init"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 const html = document.documentElement;
-                html.classList.add('dark');
-                html.style.colorScheme = 'dark';
+                const savedTheme = localStorage.getItem('theme');
+                if (savedTheme === 'light') {
+                  html.classList.remove('dark');
+                  html.style.colorScheme = 'light';
+                } else if (savedTheme === 'dark') {
+                  html.classList.add('dark');
+                  html.style.colorScheme = 'dark';
+                } else {
+                  // Par défaut, utiliser dark si pas de préférence sauvegardée
+                  html.classList.add('dark');
+                  html.style.colorScheme = 'dark';
+                }
               })();
             `,
           }}

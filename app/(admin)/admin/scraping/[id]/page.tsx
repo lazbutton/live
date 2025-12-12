@@ -16,7 +16,7 @@ function ScrapingConfigContent() {
   const [organizerData, setOrganizerData] = useState<{
     id: string;
     name: string;
-    website_url: string | null;
+    scraping_example_url: string | null;
     type: "organizer" | "location";
   } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,7 +36,7 @@ function ScrapingConfigContent() {
       // Essayer d'abord comme organisateur
       const { data: organizer, error: organizerError } = await supabase
         .from("organizers")
-        .select("id, name, website_url")
+        .select("id, name, scraping_example_url")
         .eq("id", id)
         .single();
 
@@ -44,7 +44,7 @@ function ScrapingConfigContent() {
         setOrganizerData({
           id: organizer.id,
           name: organizer.name,
-          website_url: organizer.website_url,
+          scraping_example_url: organizer.scraping_example_url,
           type: "organizer",
         });
         setLoading(false);
@@ -54,7 +54,7 @@ function ScrapingConfigContent() {
       // Sinon, essayer comme lieu
       const { data: location, error: locationError } = await supabase
         .from("locations")
-        .select("id, name, website_url")
+        .select("id, name, scraping_example_url")
         .eq("id", id)
         .single();
 
@@ -62,7 +62,7 @@ function ScrapingConfigContent() {
         setOrganizerData({
           id: location.id,
           name: location.name,
-          website_url: location.website_url,
+          scraping_example_url: location.scraping_example_url,
           type: "location",
         });
         setLoading(false);
@@ -135,7 +135,7 @@ function ScrapingConfigContent() {
             organizerId={organizerData.type === "organizer" ? organizerData.id : undefined}
             locationId={organizerData.type === "location" ? organizerData.id : undefined}
             organizerName={organizerData.name}
-            websiteUrl={organizerData.website_url}
+            scrapingExampleUrl={organizerData.scraping_example_url}
             open={true}
             onOpenChange={(open) => {
               if (!open) {

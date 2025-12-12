@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { AdminSidebar } from "./admin-sidebar";
 import { MobileBottomNav } from "./mobile-bottom-nav";
+import { ThemeToggle } from "./theme-toggle";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -29,8 +30,8 @@ export function AdminLayout({ children, title, breadcrumbItems = [] }: AdminLayo
     <TooltipProvider>
       <SidebarProvider defaultOpen={!isMobile} className="flex h-screen">
         <AdminSidebar />
-      <SidebarInset className="flex-1 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
-        <header className="sticky top-0 z-10 flex h-14 md:h-16 shrink-0 items-center gap-2 md:gap-4 border-b border-border/20 px-3 md:px-6 bg-background">
+      <SidebarInset className="flex-1 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0" style={{ minWidth: 0, maxWidth: '100%', width: '100%' }}>
+        <header className="sticky top-0 z-10 flex h-14 md:h-16 shrink-0 items-center gap-2 md:gap-4 border-b border-border px-3 md:px-6 bg-background">
           <SidebarTrigger className="cursor-pointer hover:bg-accent/20 rounded-lg transition-all duration-200 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0" />
           <Separator orientation="vertical" className="mr-1 h-5 opacity-20 hidden md:block" />
           <div className="flex-1 min-w-0 flex items-center">
@@ -53,6 +54,9 @@ export function AdminLayout({ children, title, breadcrumbItems = [] }: AdminLayo
                 ))}
               </BreadcrumbList>
             </Breadcrumb>
+          </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
           </div>
         </header>
         <div className="flex flex-1 flex-col gap-4 p-3 md:p-4 lg:p-6 xl:p-8">

@@ -20,6 +20,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,7 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2, ExternalLink, Code } from "lucide-react";
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2, ExternalLink, Code, Edit2, Globe, Instagram, Facebook, Users, Music, ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -42,6 +49,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RoomsManagement } from "./rooms-management";
 import { compressImage } from "@/lib/image-compression";
 import Cropper, { Area } from "react-easy-crop";
@@ -66,10 +79,12 @@ interface Location {
   longitude: number | null;
   instagram_url: string | null;
   facebook_url: string | null;
+  tiktok_url: string | null;
   facebook_page_id: string | null;
   website_url: string | null;
   scraping_example_url: string | null;
   is_organizer: boolean | null;
+  suggested: boolean | null;
   created_at: string;
   updated_at: string;
   rooms?: Room[];
@@ -151,322 +166,299 @@ export function LocationsManagement() {
     }
   }
 
+  async function toggleSuggested(locationId: string, currentValue: boolean) {
+    try {
+      // Si on essaie d'activer, vérifier qu'on n'a pas déjà 6 lieux recommandés
+      if (!currentValue) {
+        const suggestedCount = locations.filter(loc => loc.suggested).length;
+        if (suggestedCount >= 6) {
+          alert("Vous ne pouvez pas recommander plus de 6 lieux. Veuillez désactiver un lieu recommandé avant d'en activer un autre.");
+          return;
+        }
+      }
+
+      const { error } = await supabase
+        .from("locations")
+        .update({ suggested: !currentValue })
+        .eq("id", locationId);
+
+      if (error) throw error;
+      await loadLocations();
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour:", error);
+      alert("Erreur lors de la mise à jour du lieu recommandé");
+    }
+  }
+
+  // Calculer le nombre de lieux recommandés
+  const suggestedCount = locations.filter(loc => loc.suggested).length;
+
   function handleOpenDialog(location?: Location) {
     setEditingLocation(location || null);
     setIsDialogOpen(true);
   }
 
-  if (loading) {
-    return <div className="text-center py-8">Chargement des lieux...</div>;
+  function getInitials(name: string) {
+    return name
+      .split(" ")
+      .slice(0, 2)
+      .map(n => n[0])
+      .join("")
+      .toUpperCase();
   }
 
-  // Vérifier si au moins un lieu a des salles
-  const hasAnyRooms = locations.some((loc) => loc.rooms && loc.rooms.length > 0);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-2">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
+          <p className="text-sm text-muted-foreground">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider delayDuration={300}>
-      <Card>
-      <CardHeader>
-        <CardTitle>Gestion des lieux</CardTitle>
-        <CardDescription>Gérez les lieux disponibles pour les événements</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {/* Barre de recherche et bouton d'ajout */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher un lieu..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 min-h-[44px] text-base"
-            />
-          </div>
-          <Button
-            onClick={() => handleOpenDialog()}
-            className="min-h-[44px] cursor-pointer"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Ajouter un lieu
-          </Button>
-        </div>
-
-        {/* Statistiques */}
-        <div className="mb-4 text-sm text-muted-foreground">
-          {filteredLocations.length} lieu{filteredLocations.length > 1 ? "x" : ""} 
-          {searchQuery && ` (sur ${locations.length} au total)`}
-        </div>
-
-        <MobileTableView
-          desktopView={
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nom</TableHead>
-                    <TableHead>Adresse</TableHead>
-                    {hasAnyRooms && <TableHead>Salles</TableHead>}
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredLocations.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={hasAnyRooms ? 4 : 3} className="text-center text-muted-foreground">
-                        {locations.length === 0 
-                          ? "Aucun lieu trouvé. Cliquez sur 'Ajouter un lieu' pour commencer."
-                          : "Aucun lieu ne correspond à votre recherche"}
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredLocations.map((location) => (
-                    <TableRow key={location.id} className="cursor-pointer">
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {location.name}
-                          <Link
-                            href={`/admin/events?location=${location.id}`}
-                            target="_blank"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-primary hover:text-primary/80 transition-colors"
-                          >
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <ExternalLink className="h-4 w-4" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Voir les événements</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </Link>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div>{location.address || "-"}</div>
-                          {location.short_description && (
-                            <div className="text-xs text-muted-foreground line-clamp-1">
-                              {location.short_description}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      {hasAnyRooms && (
-                        <TableCell>
-                          {location.rooms && location.rooms.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {location.rooms.map((room) => (
-                                <Badge key={room.id} variant="outline" className="text-xs">
-                                  {room.name}
-                                  {room.capacity && ` (${room.capacity})`}
-                                </Badge>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
-                        </TableCell>
-                      )}
-                      <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedLocationForRooms(location);
-                                    setIsRoomsDialogOpen(true);
-                                  }}
-                                  className="cursor-pointer"
-                                >
-                                  <Building2 className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Gérer les salles</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            {location.is_organizer && location.website_url && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      router.push(`/admin/scraping/${location.id}`);
-                                    }}
-                                    className="cursor-pointer"
-                                  >
-                                    <Code className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Configurer le scraping</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenDialog(location);
-                                  }}
-                                  className="cursor-pointer"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Modifier le lieu</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteLocation(location.id);
-                                  }}
-                                  className="cursor-pointer text-destructive hover:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Supprimer le lieu</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+      <div className="space-y-6">
+        {/* En-tête compact */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <h2 className="text-xl font-semibold">Lieux</h2>
+              <p className="text-sm text-muted-foreground">
+                {filteredLocations.length} lieu{filteredLocations.length > 1 ? "x" : ""}
+                {searchQuery && ` sur ${locations.length}`}
+              </p>
             </div>
-          }
-          mobileView={
-            filteredLocations.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                {locations.length === 0 
-                  ? "Aucun lieu trouvé. Cliquez sur 'Ajouter un lieu' pour commencer."
-                  : "Aucun lieu ne correspond à votre recherche"}
-              </div>
-            ) : (
-              filteredLocations.map((location) => (
-                <MobileCard
-                  key={location.id}
-                  onClick={() => handleOpenDialog(location)}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-1">
-                      <h3 className="font-semibold text-base flex-1">{location.name}</h3>
-                      <Link
-                        href={`/admin/events?location=${location.id}`}
-                        target="_blank"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-primary hover:text-primary/80 transition-colors"
-                      >
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <ExternalLink className="h-4 w-4" />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Voir les événements</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </Link>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50 border">
+              <span className="text-sm font-medium">Lieux recommandés:</span>
+              <Badge variant={suggestedCount >= 6 ? "destructive" : suggestedCount >= 4 ? "default" : "secondary"} className="font-semibold">
+                {suggestedCount}/6
+              </Badge>
+          </div>
+          <Button onClick={() => handleOpenDialog()} size="sm" className="h-9">
+            <Plus className="h-4 w-4 mr-1.5" />
+            Ajouter
+          </Button>
+          </div>
+        </div>
+
+        {/* Recherche */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher un lieu..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 h-10"
+          />
+        </div>
+
+        {/* Grille de lieux */}
+        {filteredLocations.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <Building2 className="h-12 w-12 mx-auto opacity-20 mb-2" />
+            <p>{locations.length === 0 ? "Aucun lieu. Cliquez sur 'Ajouter' pour commencer." : `Aucun résultat pour "${searchQuery}"`}</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredLocations.map((location) => (
+              <div
+                key={location.id}
+                onClick={() => handleOpenDialog(location)}
+                className="group relative flex flex-col p-4 rounded-lg border bg-card hover:shadow-md hover:border-primary/50 transition-all duration-200 cursor-pointer min-h-[160px]"
+              >
+                {/* Avatar et infos */}
+                <div className="flex items-start gap-3 mb-3">
+                  <Avatar className="h-12 w-12 ring-2 ring-background shrink-0">
+                    <AvatarImage src={location.image_url || undefined} alt={location.name} />
+                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                      {getInitials(location.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-sm truncate">{location.name}</h3>
+                      {location.is_organizer && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">Orga</Badge>
+                      )}
                     </div>
+                    {location.address && (
+                      <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                        {location.address}
+                      </p>
+                    )}
+                    {location.short_description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                        {location.short_description}
+                      </p>
+                    )}
                   </div>
-                  {location.short_description && (
-                    <MobileCardRow
-                      label="Description"
-                      value={location.short_description}
-                    />
-                  )}
-                  <MobileCardRow
-                    label="Adresse"
-                    value={location.address || "-"}
-                  />
-                  {location.capacity && (
-                    <MobileCardRow
-                      label="Capacité"
-                      value={`${location.capacity} places`}
-                    />
-                  )}
-                  {location.rooms && location.rooms.length > 0 && (
-                    <MobileCardRow
-                      label="Salles"
-                      value={
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {location.rooms.map((room) => (
-                            <Badge key={room.id} variant="outline" className="text-xs">
-                              {room.name}
-                              {room.capacity && ` (${room.capacity})`}
-                            </Badge>
-                          ))}
+                </div>
+
+                {/* Salles et capacité */}
+                {(location.rooms && location.rooms.length > 0) || location.capacity ? (
+                  <div className="mb-3 space-y-1">
+                    {location.rooms && location.rooms.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {location.rooms.map((room) => (
+                          <Badge key={room.id} variant="secondary" className="text-xs">
+                            {room.name}{room.capacity && ` (${room.capacity})`}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    {location.capacity && (
+                      <p className="text-xs text-muted-foreground">Capacité: {location.capacity}</p>
+                    )}
+                  </div>
+                ) : null}
+
+                {/* Liens sociaux */}
+                {(location.instagram_url || location.facebook_url || location.tiktok_url || location.website_url) && (
+                  <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                    {location.website_url && (
+                      <a
+                        href={location.website_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded hover:bg-accent transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                      </a>
+                    )}
+                    {location.instagram_url && (
+                      <a
+                        href={location.instagram_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded hover:bg-accent transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Instagram className="h-3.5 w-3.5 text-muted-foreground" />
+                      </a>
+                    )}
+                    {location.facebook_url && (
+                      <a
+                        href={location.facebook_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded hover:bg-accent transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Facebook className="h-3.5 w-3.5 text-muted-foreground" />
+                      </a>
+                    )}
+                    {location.tiktok_url && (
+                      <a
+                        href={location.tiktok_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded hover:bg-accent transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Music className="h-3.5 w-3.5 text-muted-foreground" />
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Actions - collées en bas */}
+                <div className="flex items-center justify-between gap-1 pt-2 border-t mt-auto">
+                  <div className="flex items-center gap-1">
+                    <Link
+                      href={`/admin/events?location=${location.id}`}
+                      target="_blank"
+                      className="p-1.5 rounded hover:bg-accent transition-colors"
+                      title="Voir les événements"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Link>
+                    {location.scraping_example_url && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/admin/scraping/${location.id}`);
+                        }}
+                        className="p-1.5 rounded hover:bg-accent transition-colors"
+                        title="Configuration scraping"
+                      >
+                        <Code className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {location.rooms && location.rooms.length > 0 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedLocationForRooms(location);
+                          setIsRoomsDialogOpen(true);
+                        }}
+                        className="p-1.5 rounded hover:bg-accent transition-colors"
+                        title="Gérer les salles"
+                      >
+                        <Users className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div 
+                          className="flex items-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Switch
+                            checked={location.suggested || false}
+                            onCheckedChange={() => toggleSuggested(location.id, location.suggested || false)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="cursor-pointer scale-75"
+                          />
                         </div>
-                      }
-                    />
-                  )}
-                  {location.directions && (
-                    <MobileCardRow
-                      label="Comment s'y rendre"
-                      value={location.directions}
-                    />
-                  )}
-                  <MobileCardActions>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 min-h-[44px] cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedLocationForRooms(location);
-                        setIsRoomsDialogOpen(true);
-                      }}
-                    >
-                      <Building2 className="h-4 w-4 mr-2" />
-                      Salles
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 min-h-[44px] cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenDialog(location);
-                      }}
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Modifier
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 min-h-[44px] cursor-pointer text-destructive hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteLocation(location.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Supprimer
-                    </Button>
-                  </MobileCardActions>
-                </MobileCard>
-              ))
-            )
-          }
-        />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{location.suggested ? "Recommandé" : "Non recommandé"}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                        <button 
+                          className="p-1.5 rounded hover:bg-accent transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-40 p-1" align="end">
+                      <div className="space-y-0.5">
+                        <button
+                          onClick={() => handleOpenDialog(location)}
+                          className="w-full text-left px-3 py-2 text-sm rounded hover:bg-accent transition-colors flex items-center gap-2"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                          Modifier
+                        </button>
+                        <button
+                          onClick={() => deleteLocation(location.id)}
+                          className="w-full text-left px-3 py-2 text-sm rounded hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Supprimer
+                        </button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <LocationDialog
           location={editingLocation}
@@ -482,13 +474,14 @@ export function LocationsManagement() {
             open={isRoomsDialogOpen}
             onOpenChange={(open) => {
               setIsRoomsDialogOpen(open);
-              if (!open) setSelectedLocationForRooms(null);
+              if (!open) {
+                setSelectedLocationForRooms(null);
+                loadLocations();
+              }
             }}
           />
         )}
-        
-      </CardContent>
-    </Card>
+      </div>
     </TooltipProvider>
   );
 }
@@ -516,9 +509,12 @@ function LocationDialog({
     longitude: "",
     instagram_url: "",
     facebook_url: "",
+    tiktok_url: "",
     facebook_page_id: "",
     website_url: "",
+    scraping_example_url: "",
     is_organizer: false,
+    suggested: false,
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -546,9 +542,12 @@ function LocationDialog({
         longitude: location.longitude?.toString() || "",
         instagram_url: location.instagram_url || "",
         facebook_url: location.facebook_url || "",
+        tiktok_url: location.tiktok_url || "",
         facebook_page_id: location.facebook_page_id || "",
         website_url: location.website_url || "",
+        scraping_example_url: location.scraping_example_url || "",
         is_organizer: location.is_organizer || false,
+        suggested: location.suggested || false,
       });
       setImagePreview(location.image_url || null);
       setOriginalImageSrc(location.image_url || null);
@@ -565,9 +564,12 @@ function LocationDialog({
         longitude: "",
         instagram_url: "",
         facebook_url: "",
+        tiktok_url: "",
         facebook_page_id: "",
         website_url: "",
+        scraping_example_url: "",
         is_organizer: false,
+        suggested: false,
       });
       setImagePreview(null);
       setOriginalImageSrc(null);
@@ -684,7 +686,7 @@ function LocationDialog({
       setUploading(true);
       
       // Compresser l'image avant upload pour qu'elle fasse moins de 10 Mo
-      const fileToUpload = await compressImage(imageFile, 10);
+      const fileToUpload = await compressImage(imageFile, 2);
 
       const fileExt = fileToUpload.name.split(".").pop() || "jpg";
       const fileName = `locations/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -751,9 +753,12 @@ function LocationDialog({
         longitude: formData.longitude ? parseFloat(formData.longitude) : null,
         instagram_url: formData.instagram_url || null,
         facebook_url: formData.facebook_url || null,
+        tiktok_url: formData.tiktok_url || null,
         facebook_page_id: formData.facebook_page_id || null,
         website_url: formData.website_url || null,
+        scraping_example_url: formData.scraping_example_url || null,
         is_organizer: formData.is_organizer || false,
+        suggested: formData.suggested || false,
       };
 
       if (location) {
@@ -781,16 +786,31 @@ function LocationDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{location ? "Modifier le lieu" : "Nouveau lieu"}</DialogTitle>
-          <DialogDescription>
-            {location
-              ? "Modifiez les informations du lieu"
-              : "Ajoutez un nouveau lieu pour les événements"}
-          </DialogDescription>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="w-full sm:w-[66.666vw] overflow-y-auto [@media(min-width:1440px)]:w-[66.666vw] [@media(min-width:1600px)]:max-w-2xl"
+      >
+        <SheetHeader className="mb-6">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="-ml-2 h-9 w-9"
+              onClick={() => onOpenChange(false)}
+            >
+              <ChevronLeft className="h-5 w-5" />
+              <span className="sr-only">Fermer</span>
+            </Button>
+            <SheetTitle className="text-xl md:text-2xl">
+              {location ? "Modifier le lieu" : "Nouveau lieu"}
+            </SheetTitle>
+          </div>
+          <SheetDescription className="mt-2">
+            {location ? "Modifiez les informations du lieu" : "Ajoutez un nouveau lieu pour les événements"}
+          </SheetDescription>
+        </SheetHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Nom *</Label>
@@ -918,6 +938,7 @@ function LocationDialog({
             </div>
           </div>
 
+          <div className="space-y-3">
           <div className="flex items-center space-x-2 p-4 border rounded-lg">
             <Switch
               id="is_organizer"
@@ -927,6 +948,17 @@ function LocationDialog({
             <Label htmlFor="is_organizer" className="cursor-pointer">
               Ce lieu peut aussi être utilisé comme organisateur
             </Label>
+            </div>
+            <div className="flex items-center space-x-2 p-4 border rounded-lg">
+              <Switch
+                id="suggested"
+                checked={formData.suggested}
+                onCheckedChange={(checked) => setFormData({ ...formData, suggested: checked })}
+              />
+              <Label htmlFor="suggested" className="cursor-pointer">
+                Lieu recommandé (maximum 6 lieux recommandés)
+              </Label>
+            </div>
           </div>
 
           {formData.is_organizer && (
@@ -949,6 +981,21 @@ function LocationDialog({
             </div>
           )}
 
+          <div className="space-y-2">
+            <Label htmlFor="tiktok_url" className="flex items-center gap-2">
+              <LinkIcon className="h-4 w-4" />
+              TikTok
+            </Label>
+            <Input
+              id="tiktok_url"
+              type="url"
+              value={formData.tiktok_url}
+              onChange={(e) => setFormData({ ...formData, tiktok_url: e.target.value })}
+              placeholder="https://tiktok.com/@..."
+              className="cursor-pointer min-h-[44px] text-base"
+            />
+          </div>
+
           {formData.is_organizer && (
             <>
               <div className="space-y-2">
@@ -969,6 +1016,24 @@ function LocationDialog({
                 </p>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="scraping_example_url" className="flex items-center gap-2">
+                  <Code className="h-4 w-4" />
+                  URL d'exemple pour le scraping
+                </Label>
+                <Input
+                  id="scraping_example_url"
+                  type="url"
+                  value={formData.scraping_example_url}
+                  onChange={(e) => setFormData({ ...formData, scraping_example_url: e.target.value })}
+                  placeholder="https://example.com/events"
+                  className="cursor-pointer min-h-[44px] text-base"
+                />
+                <p className="text-xs text-muted-foreground">
+                  URL d'exemple d'une page à scraper. Cette URL servira de modèle pour le scraping automatique d'événements.
+                </p>
+              </div>
+
             </>
           )}
 
@@ -984,8 +1049,8 @@ function LocationDialog({
                   alt="Aperçu"
                   className="w-full h-full object-contain bg-muted/20"
                 />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity text-white text-sm font-medium">
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center admin-overlay">
+                  <div className="text-sm font-medium">
                     Cliquer pour rogner
                   </div>
                 </div>
@@ -1104,7 +1169,7 @@ function LocationDialog({
               </div>
 
               {/* Cropper Area */}
-              <div className="relative w-full h-[400px] bg-black rounded-lg overflow-hidden">
+              <div className="relative w-full h-[400px] bg-muted rounded-lg overflow-hidden">
                 {cropImageSrc && (
                   <Cropper
                     image={cropImageSrc}
@@ -1173,8 +1238,8 @@ function LocationDialog({
             </div>
           </DialogContent>
         </Dialog>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 

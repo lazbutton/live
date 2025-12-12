@@ -9,11 +9,15 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
       <div
         ref={ref}
         className={cn(
-          "rounded-xl border border-border/30 bg-card/60 backdrop-blur-xl text-card-foreground shadow-sm transition-all duration-300",
-          "hover:shadow-md hover:border-border/50",
+          "rounded-lg border border-border bg-card text-card-foreground shadow-sm transition-all duration-200",
+          "hover:shadow-md hover:border-border",
           hasOnClick && "cursor-pointer hover:scale-[1.01]",
           className
         )}
+        style={{
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-sm)",
+        }}
         onClick={onClick}
         {...props}
       />
@@ -28,7 +32,7 @@ const CardHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("flex flex-col space-y-2 p-6 border-b border-border/20", className)}
+    className={cn("flex flex-col space-y-2 p-6 border-b border-border", className)}
     {...props}
   />
 ));

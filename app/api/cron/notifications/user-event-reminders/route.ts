@@ -52,12 +52,13 @@ export async function GET(request: NextRequest) {
     
     console.log(`📅 Recherche des événements du ${tomorrow.toLocaleDateString("fr-FR")} (${tomorrowStart} -> ${tomorrowEndStr})`);
     
-    // Récupérer les événements approuvés de demain avec leurs détails
+    // Récupérer les événements approuvés de demain avec leurs détails (exclure les événements complets)
     // Utilisation de gte (>=) et lt (<) pour récupérer tous les événements du jour calendaire suivant
     const { data: events, error: eventsError } = await supabase
       .from("events")
       .select("id, title, date, end_date, category, location:locations(name, address)")
       .eq("status", "approved")
+      .or("is_full.is.null,is_full.eq.false") // Exclure les événements complets
       .gte("date", tomorrowStart)  // date >= début du jour suivant
       .lt("date", tomorrowEndStr);  // date < fin du jour suivant
     

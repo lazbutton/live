@@ -41,13 +41,14 @@
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "lucide-react": "^0.555.0",
-    "next": "16.0.7",
+    "next": "16.0.10",
     "openai": "^6.10.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-easy-crop": "^5.5.6",
     "react-resizable-panels": "^3.0.6",
     "react-syntax-highlighter": "^16.1.0",
+    "resend": "^6.6.0",
     "tailwind-merge": "^3.4.0",
     "use-stick-to-bottom": "^1.1.1"
   },
@@ -57,9 +58,13 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.0.7",
+    "eslint-config-next": "16.0.10",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.4.0",
     "typescript": "^5"
+  },
+  "overrides": {
+    "jsonwebtoken": "^9.0.3",
+    "node-forge": "^1.3.3"
   }
 }

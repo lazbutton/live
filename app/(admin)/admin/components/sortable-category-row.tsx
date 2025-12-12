@@ -87,9 +87,9 @@ export function SortableCategoryRow({
       <TableCell>{category.display_order}</TableCell>
       <TableCell>
         {category.is_active ? (
-          <span className="text-green-600">Oui</span>
+          <span className="text-primary">Oui</span>
         ) : (
-          <span className="text-gray-400">Non</span>
+          <span className="text-muted-foreground">Non</span>
         )}
       </TableCell>
       <TableCell>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { AdminLayout } from "@/app/(admin)/admin/components/admin-layout";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,12 +33,38 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Calendar, MapPin, Tag, Euro, Users, Clock, Link as LinkIcon, Image as ImageIcon, Upload, X, Save, Maximize2, Minimize2, RotateCw, LayoutGrid, Plus, Globe, Loader2 } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Tag, Euro, Users, Clock, Link as LinkIcon, Image as ImageIcon, Upload, X, Save, Maximize2, Minimize2, RotateCw, LayoutGrid, Plus, Globe, Loader2, TriangleAlert, ExternalLink } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
 import { compressImage } from "@/lib/image-compression";
 import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
+
+type DuplicateEvent = {
+  id: string;
+  title: string;
+  date: string;
+  status: "pending" | "approved" | "rejected";
+};
+
+function startOfLocalDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function addDays(date: Date, days: number) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function toLocalDayKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 function CreateEventContent() {
   const router = useRouter();
@@ -55,6 +82,9 @@ function CreateEventContent() {
   const [isImporting, setIsImporting] = useState(false);
   const [importOrganizerId, setImportOrganizerId] = useState<string>("none");
   const [formKey, setFormKey] = useState(Date.now()); // Clé pour forcer le re-render du formulaire (utiliser timestamp pour garantir l'unicité)
+  const [duplicateEvents, setDuplicateEvents] = useState<DuplicateEvent[]>([]);
+  const [duplicateLoading, setDuplicateLoading] = useState(false);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   
   // Refs pour forcer la mise à jour des inputs
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -132,6 +162,49 @@ function CreateEventContent() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Doublons (lieu + jour de début) — debounce pour éviter spam de requêtes
+  useEffect(() => {
+    const locationId = formData.location_id;
+    const start = formData.date;
+    if (!locationId || locationId === "none" || !start) {
+      setDuplicateEvents([]);
+      setDuplicateLoading(false);
+      return;
+    }
+
+    const t = window.setTimeout(async () => {
+      try {
+        setDuplicateLoading(true);
+        const iso = fromDatetimeLocal(start) || start;
+        const dayStart = startOfLocalDay(new Date(iso));
+        if (Number.isNaN(dayStart.getTime())) {
+          setDuplicateEvents([]);
+          return;
+        }
+        const dayEnd = addDays(dayStart, 1);
+
+        const { data, error } = await supabase
+          .from("events")
+          .select("id,title,date,status")
+          .eq("location_id", locationId)
+          .gte("date", dayStart.toISOString())
+          .lt("date", dayEnd.toISOString())
+          .order("date", { ascending: true })
+          .limit(10);
+
+        if (error) throw error;
+        setDuplicateEvents((data || []) as DuplicateEvent[]);
+      } catch (e) {
+        console.error("Erreur doublons (create event):", e);
+        setDuplicateEvents([]);
+      } finally {
+        setDuplicateLoading(false);
+      }
+    }, 350);
+
+    return () => window.clearTimeout(t);
+  }, [formData.location_id, formData.date]);
 
   // Debug: log des changements de formData pour diagnostiquer
   useEffect(() => {
@@ -312,7 +385,7 @@ function CreateEventContent() {
     if (!imageFile) return null;
 
     try {
-      const compressedFile = await compressImage(imageFile, 10);
+      const compressedFile = await compressImage(imageFile, 2);
       
       const fileExt = compressedFile.name.split(".").pop() || "jpg";
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -1271,8 +1344,8 @@ function CreateEventContent() {
                       >
                         <X className="h-4 w-4" />
                       </Button>
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity cursor-pointer pointer-events-none">
-                        <div className="text-white text-sm font-medium flex items-center gap-2">
+                      <div className="absolute inset-0 flex items-center justify-center admin-overlay opacity-0 hover:opacity-100 transition-opacity cursor-pointer pointer-events-none">
+                        <div className="text-sm font-medium flex items-center gap-2">
                           <ImageIcon className="h-4 w-4" />
                           Cliquer pour rogner
                         </div>
@@ -1323,6 +1396,33 @@ function CreateEventContent() {
 
               {/* Action buttons */}
               <div className="flex flex-col gap-2 sticky top-4">
+                {(duplicateLoading || duplicateEvents.length > 0) && formData.location_id && formData.date && (
+                  <div className="rounded-lg border-2 border-destructive/60 bg-destructive/5 p-3 ring-2 ring-destructive/20">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <TriangleAlert className="h-4 w-4 mt-0.5 text-destructive shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-destructive">Doublon potentiel</div>
+                          <div className="text-xs text-muted-foreground">
+                            {duplicateLoading
+                              ? "Vérification des événements existants…"
+                              : `${duplicateEvents.length} événement${duplicateEvents.length > 1 ? "s" : ""} déjà prévu${duplicateEvents.length > 1 ? "s" : ""} à ce lieu ce jour.`}
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 shrink-0 border-destructive/50 text-destructive hover:bg-destructive/10"
+                        disabled={duplicateLoading || duplicateEvents.length === 0}
+                        onClick={() => setDuplicateDialogOpen(true)}
+                      >
+                        Voir
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <Button type="submit" size="lg" disabled={saving} className="w-full cursor-pointer">
                   {saving ? (
                     <>Création en cours...</>
@@ -1671,19 +1771,19 @@ function CreateEventContent() {
               {importOrganizerId && importOrganizerId !== "none" && (() => {
                 const selectedOrg = organizers.find((org) => org.id === importOrganizerId);
                 return selectedOrg?.scraping_example_url ? (
-                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <p className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">
+                  <div className="p-3 bg-info/10 rounded-lg border border-info/30">
+                    <p className="text-xs font-medium text-info mb-1">
                       📄 Exemple de page configurée :
                     </p>
                     <a
                       href={selectedOrg.scraping_example_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-blue-600 dark:text-blue-400 underline break-all"
+                      className="text-xs text-info underline break-all"
                     >
                       {selectedOrg.scraping_example_url}
                     </a>
-                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+                    <p className="text-xs text-muted-foreground mt-2">
                       ✅ Les sélecteurs CSS configurés seront utilisés pour scraper cette page et les nouvelles pages ajoutées.
                     </p>
                   </div>
@@ -1755,6 +1855,75 @@ function CreateEventContent() {
                 </>
               )}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal doublons (lieu + jour) */}
+      <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TriangleAlert className="h-5 w-5 text-warning-foreground" />
+              Doublons potentiels
+            </DialogTitle>
+            <DialogDescription>
+              Événements déjà prévus au même lieu le même jour.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            {duplicateLoading ? (
+              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Chargement…
+              </div>
+            ) : duplicateEvents.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Aucun doublon détecté.</div>
+            ) : (
+              <div className="space-y-2">
+                {duplicateEvents.map((e) => {
+                  const startKey = toLocalDayKey(startOfLocalDay(new Date(e.date)));
+                  const href = `/admin/events?view=agenda&start=${startKey}&open=${e.id}`;
+                  const variants: Record<string, "default" | "secondary" | "destructive"> = {
+                    approved: "default",
+                    pending: "secondary",
+                    rejected: "destructive",
+                  };
+                  const labels: Record<string, string> = {
+                    approved: "Approuvé",
+                    pending: "En attente",
+                    rejected: "Rejeté",
+                  };
+                  return (
+                    <div key={e.id} className="rounded-lg border p-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{e.title}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatDateWithoutTimezone(e.date, "PPp")}
+                        </div>
+                        <div className="mt-1">
+                          <Badge variant={variants[e.status] || "secondary"}>{labels[e.status] || e.status}</Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setDuplicateDialogOpen(false);
+                            router.push(href);
+                          }}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Ouvrir
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

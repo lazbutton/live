@@ -83,3 +83,7 @@ Dans votre `vercel.json`, vous pouvez changer :
 - Testez d'abord avec `*/5 * * * *` (toutes les 5 minutes) pour vérifier que ça fonctionne
 - Vercel exécute les crons en UTC, ajustez selon votre fuseau horaire
 
+
+
+
+

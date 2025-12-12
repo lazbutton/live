@@ -53,6 +53,8 @@ const EVENT_FIELDS = [
   { value: "date", label: "Date de début" },
   { value: "end_date", label: "Date de fin" },
   { value: "price", label: "Prix" },
+  { value: "presale_price", label: "Tarif prévente" },
+  { value: "subscriber_price", label: "Tarif abonné" },
   { value: "location", label: "Lieu" },
   { value: "address", label: "Adresse" },
   { value: "image_url", label: "Image" },
@@ -60,6 +62,7 @@ const EVENT_FIELDS = [
   { value: "category", label: "Catégorie" },
   { value: "capacity", label: "Capacité" },
   { value: "door_opening_time", label: "Heure d'ouverture" },
+  { value: "is_full", label: "Événement complet" },
 ];
 
 const ATTRIBUTE_OPTIONS = [
@@ -85,7 +88,7 @@ interface OrganizerScrapingConfigProps {
   organizerId?: string;
   locationId?: string;
   organizerName: string;
-  websiteUrl: string | null;
+  scrapingExampleUrl: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isPageMode?: boolean; // Si true, ne pas utiliser Dialog mais afficher directement
@@ -97,6 +100,8 @@ const AI_FIELD_OPTIONS = [
   { value: "date", label: "Date de début" },
   { value: "end_date", label: "Date de fin" },
   { value: "price", label: "Prix" },
+  { value: "presale_price", label: "Tarif prévente" },
+  { value: "subscriber_price", label: "Tarif abonné" },
   { value: "location", label: "Lieu" },
   { value: "address", label: "Adresse" },
   { value: "image_url", label: "Image" },
@@ -105,13 +110,14 @@ const AI_FIELD_OPTIONS = [
   { value: "tags", label: "Tags" },
   { value: "capacity", label: "Capacité" },
   { value: "door_opening_time", label: "Heure d'ouverture" },
+  { value: "is_full", label: "Événement complet" },
 ];
 
 export function OrganizerScrapingConfig({
   organizerId,
   locationId,
   organizerName,
-  websiteUrl,
+  scrapingExampleUrl,
   open,
   onOpenChange,
   isPageMode = false,
@@ -501,29 +507,29 @@ export function OrganizerScrapingConfig({
         </DialogHeader>
       )}
 
-        {!websiteUrl ? (
-          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-            <p className="text-sm text-yellow-800 dark:text-yellow-200">
-              ⚠️ Aucun site web configuré pour cet organisateur. Veuillez d'abord ajouter une URL de site web.
+        {!scrapingExampleUrl ? (
+          <div className="p-4 bg-warning/15 rounded-lg border border-warning/30">
+            <p className="text-sm text-warning-foreground">
+              ⚠️ Aucune URL d'exemple configurée pour cet organisateur. Veuillez d'abord ajouter une URL d'exemple pour le scraping.
             </p>
           </div>
         ) : (
           <>
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 mb-4">
+            <div className="p-4 bg-info/10 rounded-lg border border-info/30 mb-4">
               <div className="flex items-center gap-2 mb-2">
-                <Globe className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                <span className="font-medium text-blue-900 dark:text-blue-100">Site web :</span>
+                <Globe className="h-4 w-4 text-info" />
+                <span className="font-medium text-info">URL d'exemple :</span>
                 <a
-                  href={websiteUrl}
+                  href={scrapingExampleUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 dark:text-blue-400 underline"
+                  className="text-info underline"
                 >
-                  {websiteUrl}
+                  {scrapingExampleUrl}
                 </a>
               </div>
-              <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
-                💡 Astuce : Ouvrez le site web dans votre navigateur, faites un clic droit sur un élément et sélectionnez "Inspecter" pour trouver son sélecteur CSS.
+              <p className="text-xs text-muted-foreground mt-2">
+                💡 Astuce : Ouvrez cette URL dans votre navigateur, faites un clic droit sur un élément et sélectionnez "Inspecter" pour trouver son sélecteur CSS.
               </p>
             </div>
 

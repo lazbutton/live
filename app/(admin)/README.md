@@ -11,8 +11,17 @@ Créez un fichier `.env.local` à la racine du projet avec les variables suivant
 ```env
 NEXT_PUBLIC_SUPABASE_URL=votre_url_supabase
 NEXT_PUBLIC_SUPABASE_ANON_KEY=votre_clé_anon_supabase
+SUPABASE_SERVICE_ROLE_KEY=votre_clé_service_role
 FACEBOOK_ACCESS_TOKEN=votre_token_acces_facebook
+RESEND_API_KEY=votre_clé_api_resend (optionnel, pour les emails d'invitation)
+RESEND_FROM_EMAIL=noreply@votredomaine.com (optionnel, pour les emails d'invitation)
 ```
+
+**Note:** `SUPABASE_SERVICE_ROLE_KEY` est requise pour :
+- Créer des utilisateurs automatiquement confirmés (sans email de confirmation)
+- Accéder aux données admin depuis les API routes
+
+⚠️ **Important** : `SUPABASE_SERVICE_ROLE_KEY` donne un accès complet à votre base de données. Ne l'exposez jamais côté client et ne la commitez jamais dans Git.
 
 **Note:** `FACEBOOK_ACCESS_TOKEN` est requis pour importer les événements depuis Facebook. 
 
@@ -30,17 +39,16 @@ Voir le guide complet : [Configuration Facebook](docs/FACEBOOK_SETUP.md)
 
 ### Configuration Supabase
 
-1. **Appliquer les migrations** : Exécutez les migrations dans le dossier `supabase/migrations/` via le dashboard Supabase ou la CLI :
+1. **Appliquer les migrations** : Exécutez uniquement les migrations situées directement dans `supabase/migrations/` (hors `archives/`) via le dashboard Supabase ou la CLI :
 
 ```bash
 supabase db push
 ```
 
-Les migrations incluent :
-- `001_initial_schema.sql` : Schéma initial (tables events, locations, organizers, event_organizers)
-- `002_fix_rls_policies.sql` : Correction des politiques RLS
-- `003_user_requests.sql` : Table pour les demandes de création d'utilisateurs
-- `029_add_facebook_page_id_to_organizers.sql` : Ajout du champ `facebook_page_id` aux organisateurs pour l'importation depuis Facebook
+⚠️ **Important** : le dossier `supabase/migrations/archives/` est **historique** et ne doit plus être pris en compte.
+
+Migrations actives :
+- `20251212120000_baseline.sql` : baseline (schéma final) du projet
 
 2. **Créer un utilisateur admin** : Dans le dashboard Supabase, allez dans Authentication > Users et modifiez les métadonnées d'un utilisateur pour ajouter :
 ```json
@@ -77,9 +85,10 @@ Accédez à `/admin/login` pour vous connecter avec vos identifiants administrat
 
 ### Gestion des demandes utilisateurs
 
-- **Visualiser** : Liste de toutes les demandes de création de comptes
-- **Approuver/Rejeter** : Validation ou rejet des demandes avec possibilité d'ajouter des notes
-- **Détails** : Visualisation complète des informations d'une demande
+- **Visualiser** : Liste des demandes d'ajout d'événements (et demandes depuis URL)
+- **Éditer puis créer** : Conversion d'une demande en événement (créé en `pending`)
+- **Rejeter** : Rejet d'une demande
+- **Converti** : La demande est marquée `converted` une fois l'événement créé
 
 ## Sécurité
 

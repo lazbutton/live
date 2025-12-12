@@ -43,11 +43,14 @@ import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@
 
 interface UserRequest {
   id: string;
-  email: string | null;
-  name: string | null;
+  email?: string | null;
+  name?: string | null;
   requested_at: string;
-  status: "pending" | "approved" | "rejected";
-  request_type?: "user_account" | "event_creation";
+  status: "pending" | "approved" | "rejected" | "converted";
+  request_type?: "event_creation" | "event_from_url";
+  location_id?: string | null;
+  location_name?: string | null;
+  source_url?: string | null;
   event_data?: {
     title?: string;
     description?: string;
@@ -140,6 +143,7 @@ function CreateEventContent() {
     room_id: "",
     door_opening_time: "",
     external_url: "",
+    scraping_url: "",
     instagram_url: "",
     facebook_url: "",
     image_url: "",
@@ -191,7 +195,7 @@ function CreateEventContent() {
         .single();
 
       if (requestError) throw requestError;
-      if (!requestData || requestData.request_type !== "event_creation") {
+      if (!requestData || (requestData.request_type !== "event_creation" && requestData.request_type !== "event_from_url")) {
         alert("Demande invalide ou non trouvée");
         router.push("/admin/requests");
         return;
@@ -237,6 +241,7 @@ function CreateEventContent() {
           room_id: ed.room_id || "",
           door_opening_time: ed.door_opening_time || "",
           external_url: ed.external_url || "",
+          scraping_url: requestData.source_url || "",
           instagram_url: ed.instagram_url || "",
           facebook_url: ed.facebook_url || "",
           image_url: ed.image_url || "",
@@ -255,6 +260,60 @@ function CreateEventContent() {
         // Charger les salles si un lieu est déjà sélectionné
         if (ed.location_id) {
           loadRoomsForLocation(ed.location_id);
+        }
+      } else if (requestData.request_type === "event_from_url" && requestData.source_url) {
+        // Pré-remplir via scraping (event_from_url)
+        try {
+          const response = await fetch("/api/events/scrape", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              url: requestData.source_url,
+              location_id: requestData.location_id || null,
+            }),
+          });
+
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err?.error || "Erreur lors du scraping");
+          }
+
+          const result = await response.json();
+          const scrapedData = result.data || {};
+
+          const formattedDate = scrapedData.date ? toDatetimeLocal(scrapedData.date) : "";
+          const formattedEndDate = scrapedData.end_date ? toDatetimeLocal(scrapedData.end_date) : "";
+          const fallbackCategory = categoriesResult.data?.[0]?.id || "";
+          const locId = requestData.location_id || "";
+
+          setFormData({
+            title: scrapedData.title || "",
+            description: scrapedData.description || "",
+            date: formattedDate,
+            end_date: formattedEndDate,
+            category: scrapedData.category || fallbackCategory,
+            price: scrapedData.price ? String(parseFloat(scrapedData.price)) : "",
+            capacity: scrapedData.capacity ? String(parseInt(scrapedData.capacity)) : "",
+            location_id: locId,
+            room_id: "",
+            door_opening_time: scrapedData.door_opening_time || "",
+            external_url: scrapedData.external_url || requestData.source_url || "",
+            scraping_url: requestData.source_url || "",
+            instagram_url: "",
+            facebook_url: "",
+            image_url: scrapedData.image_url || "",
+          });
+
+          if (scrapedData.image_url) {
+            setImagePreview(scrapedData.image_url);
+            setOriginalImageSrc(scrapedData.image_url);
+          }
+
+          if (locId) {
+            loadRoomsForLocation(locId);
+          }
+        } catch (error) {
+          console.error("Erreur scraping (event_from_url):", error);
         }
       }
     } catch (error) {
@@ -372,7 +431,7 @@ function CreateEventContent() {
 
     try {
       // Compresser l'image avant l'upload pour qu'elle fasse moins de 10 Mo
-      const compressedFile = await compressImage(imageFile, 10);
+      const compressedFile = await compressImage(imageFile, 2);
       
       const fileExt = compressedFile.name.split(".").pop() || "jpg";
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -451,11 +510,12 @@ function CreateEventContent() {
         room_id: formData.room_id === "none" || formData.room_id === "" ? null : formData.room_id || null,
         door_opening_time: formData.door_opening_time || null,
         external_url: formData.external_url || null,
+        scraping_url: formData.scraping_url || null,
         instagram_url: formData.instagram_url || null,
         facebook_url: formData.facebook_url || null,
         image_url: finalImageUrl || null,
         created_by: request?.requested_by || user?.id || null,
-        status: "approved",
+        status: "pending",
       };
 
       // Ajouter les tags si sélectionnés
@@ -512,7 +572,9 @@ function CreateEventContent() {
       const { error: updateError } = await supabase
         .from("user_requests")
         .update({
-          status: "approved" as const,
+          status: "converted" as const,
+          converted_event_id: newEvent.id,
+          converted_at: new Date().toISOString(),
           reviewed_by: user?.id || null,
           reviewed_at: new Date().toISOString(),
           notes: `Converti en événement ID: ${newEvent.id}`,
@@ -998,6 +1060,24 @@ function CreateEventContent() {
                         className="cursor-pointer"
                       />
                     </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="scraping_url" className="flex items-center gap-2">
+                        <LinkIcon className="h-4 w-4" />
+                        URL de scraping
+                      </Label>
+                      <Input
+                        id="scraping_url"
+                        type="url"
+                        value={formData.scraping_url}
+                        onChange={(e) => setFormData({ ...formData, scraping_url: e.target.value })}
+                        placeholder="https://..."
+                        className="cursor-pointer"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        URL utilisée pour mettre à jour l'événement via scraping
+                      </p>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1174,8 +1254,8 @@ function CreateEventContent() {
                       >
                         <X className="h-4 w-4" />
                       </Button>
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity cursor-pointer pointer-events-none">
-                        <div className="text-white text-sm font-medium flex items-center gap-2">
+                      <div className="absolute inset-0 flex items-center justify-center admin-overlay opacity-0 hover:opacity-100 transition-opacity cursor-pointer pointer-events-none">
+                        <div className="text-sm font-medium flex items-center gap-2">
                           <ImageIcon className="h-4 w-4" />
                           Cliquer pour rogner
                         </div>

@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { checkIsAdmin, checkIsOrganizer } from "@/lib/auth";
+import { getUserType } from "@/lib/auth-helpers";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
@@ -34,13 +36,25 @@ export default function AdminLoginPage() {
       }
 
       if (data.user) {
-        const role = data.user.user_metadata?.role;
-        if (role !== "admin") {
+        // Vérifier le type d'utilisateur (admin, organisateur, ou les deux)
+        const userType = await getUserType();
+
+        if (userType === "none") {
           await supabase.auth.signOut();
-          setError("Vous n'avez pas les permissions administrateur.");
+          setError("Vous n'avez pas les permissions nécessaires pour accéder à cette interface.");
           return;
         }
-        router.push("/admin");
+
+        // Rediriger selon le type d'utilisateur
+        if (userType === "admin") {
+          router.push("/admin");
+        } else if (userType === "organizer") {
+          router.push("/organizer");
+        } else if (userType === "admin_and_organizer") {
+          // Si l'utilisateur est les deux, rediriger vers l'admin par défaut
+          // (on pourra ajouter un choix d'interface plus tard)
+          router.push("/admin");
+        }
       }
     } catch (err) {
       setError("Une erreur est survenue lors de la connexion.");
@@ -59,7 +73,7 @@ export default function AdminLoginPage() {
           </div>
           <CardTitle className="text-2xl text-center">Administration</CardTitle>
           <CardDescription className="text-center">
-            Connectez-vous avec vos identifiants administrateur
+            Connectez-vous avec vos identifiants administrateur ou organisateur
           </CardDescription>
         </CardHeader>
         <CardContent>

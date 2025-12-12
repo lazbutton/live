@@ -197,10 +197,10 @@ export async function POST(request: NextRequest) {
 
       return {
         request_type: "event_creation" as const,
-        email: null, // Les demandes d'événements n'ont pas besoin d'email
-        name: fbEvent.name || "Événement sans titre",
         requested_by: user.id,
         status: "pending" as const,
+        location_name: fbEvent.place?.name || null,
+        source_url: fbEvent.ticket_uri || `https://www.facebook.com/events/${fbEvent.id}` || null,
         event_data: {
           title: fbEvent.name || "Événement sans titre",
           description: fbEvent.description || "",

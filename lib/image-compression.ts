@@ -1,14 +1,14 @@
 /**
- * Compresse une image dans le navigateur pour qu'elle fasse moins de 10 Mo
+ * Compresse une image dans le navigateur pour qu'elle fasse moins de 2 Mo
  * @param file Le fichier image à compresser
- * @param maxSizeMo Taille maximale en Mo (défaut: 10)
+ * @param maxSizeMo Taille maximale en Mo (défaut: 2)
  * @param maxWidth Largeur maximale en pixels (défaut: 1920)
  * @param maxHeight Hauteur maximale en pixels (défaut: 1920)
  * @returns Promise<File> Le fichier compressé
  */
 export async function compressImage(
   file: File,
-  maxSizeMo: number = 10,
+  maxSizeMo: number = 2,
   maxWidth: number = 1920,
   maxHeight: number = 1920
 ): Promise<File> {

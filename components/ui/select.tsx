@@ -17,9 +17,15 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-10 w-full items-center justify-between whitespace-nowrap rounded-lg border border-border/30 bg-input/50 backdrop-blur-sm px-4 py-2 text-sm ring-offset-background cursor-pointer data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background focus:border-ring/50 hover:border-border/50 disabled:cursor-not-allowed disabled:opacity-40 shadow-sm hover:shadow-md [&>span]:line-clamp-1",
+      "flex h-10 w-full items-center justify-between whitespace-nowrap border px-4 py-2 text-sm ring-offset-background cursor-pointer data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40 shadow-sm hover:shadow-md [&>span]:line-clamp-1",
       className
     )}
+    style={{
+      borderRadius: "var(--radius-md)",
+      borderColor: "var(--border)",
+      backgroundColor: "var(--input)",
+      color: "var(--foreground)",
+    }}
     {...props}
   >
     {children}
@@ -66,7 +72,7 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        "relative z-50 max-h-[--radix-select-content-available-height] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-xl border border-border/30 bg-popover/95 backdrop-blur-xl text-popover-foreground shadow-2xl",
+        "relative z-50 max-h-[--radix-select-content-available-height] min-w-[8rem] overflow-y-auto overflow-x-hidden border",
         "[&[data-state=open]]:!transition-none [&[data-state=closed]]:!transition-none",
         "[&[data-state=open]]:!animate-none [&[data-state=closed]]:!animate-none",
         "[&[data-state=open]]:!transform-none [&[data-state=closed]]:!transform-none",
@@ -74,6 +80,13 @@ const SelectContent = React.forwardRef<
           "data-[side=bottom]:translate-y-0 data-[side=left]:translate-x-0 data-[side=right]:translate-x-0 data-[side=top]:translate-y-0",
         className
       )}
+      style={{
+        borderColor: "var(--border)",
+        backgroundColor: "var(--popover)",
+        color: "var(--popover-foreground)",
+        boxShadow: "var(--shadow-lg)",
+        borderRadius: "var(--radius-lg)",
+      }}
       position={position}
       {...props}
     >
@@ -112,9 +125,12 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2.5 pl-3 pr-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground hover:bg-accent/40 data-[disabled]:pointer-events-none data-[disabled]:opacity-40 mx-1",
+      "relative flex w-full cursor-pointer select-none items-center py-2.5 pl-3 pr-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground hover:bg-accent/40 data-[disabled]:pointer-events-none data-[disabled]:opacity-40 mx-1",
       className
     )}
+    style={{
+      borderRadius: "var(--radius-md)",
+    }}
     {...props}
   >
     <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">

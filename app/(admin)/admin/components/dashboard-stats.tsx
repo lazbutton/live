@@ -1,22 +1,46 @@
 "use client";
 
+import type * as React from "react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, MapPin, Users, Tag, FileText, CheckCircle2 } from "lucide-react";
+import { CalendarClock, FileText, MessageSquare, Sparkles, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 interface Stats {
   events: {
     total: number;
     pending: number;
     approved: number;
+    upcoming7: number;
   };
-  locations: number;
-  organizers: number;
-  categories: number;
+  suggestedLocations: number;
   pendingRequests: number;
+  pendingFeedbacks: number;
+}
+
+type EventRow = {
+  id: string;
+  status: "pending" | "approved" | "rejected";
+  date: string;
+};
+
+type StatCard = {
+  title: string;
+  description: string;
+  value: number;
+  icon: React.ComponentType<{ className?: string }>;
+  change?: string;
+  href: string;
+  emphasize?: boolean;
+};
+
+function startOfLocalDay(date: Date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
 export function DashboardStats() {
@@ -30,33 +54,40 @@ export function DashboardStats() {
 
   async function loadStats() {
     try {
-      const [eventsResult, locationsResult, organizersResult, categoriesResult, requestsResult] = await Promise.all([
-        supabase.from("events").select("id, status"),
-        supabase.from("locations").select("id"),
-        supabase.from("organizers").select("id"),
-        supabase.from("categories").select("id").eq("is_active", true),
+      const [eventsResult, suggestedLocationsResult, requestsResult, feedbacksResult] = await Promise.all([
+        supabase.from("events").select("id, status, date"),
+        supabase.from("locations").select("id").eq("suggested", true),
         supabase.from("user_requests").select("id").eq("status", "pending"),
+        supabase.from("feedbacks").select("id").eq("status", "pending"),
       ]);
 
-      const events = eventsResult.data || [];
+      const events = (eventsResult.data || []) as EventRow[];
       const eventsByStatus = events.reduce(
         (acc, event) => {
-          acc[event.status as keyof typeof acc]++;
+          acc[event.status]++;
           return acc;
         },
         { pending: 0, approved: 0, rejected: 0 }
       );
+
+      const today = startOfLocalDay(new Date());
+      const end = startOfLocalDay(new Date());
+      end.setDate(end.getDate() + 7);
+      const upcoming7 = events.filter((e) => {
+        const d = startOfLocalDay(new Date(e.date));
+        return d >= today && d < end;
+      }).length;
 
       setStats({
         events: {
           total: events.length,
           pending: eventsByStatus.pending,
           approved: eventsByStatus.approved,
+          upcoming7,
         },
-        locations: locationsResult.data?.length || 0,
-        organizers: organizersResult.data?.length || 0,
-        categories: categoriesResult.data?.length || 0,
+        suggestedLocations: suggestedLocationsResult.data?.length || 0,
         pendingRequests: requestsResult.data?.length || 0,
+        pendingFeedbacks: feedbacksResult.data?.length || 0,
       });
     } catch (error) {
       console.error("Erreur lors du chargement des statistiques:", error);
@@ -82,43 +113,31 @@ export function DashboardStats() {
 
   if (!stats) return null;
 
-  const statCards = [
+  const statCards: StatCard[] = [
     {
-      title: "Événements",
-      description: "Total d'événements",
-      value: stats.events.total,
-      icon: Calendar,
-      change: `${stats.events.approved} approuvés`,
-      href: "/admin/events",
+      title: "Événements à traiter",
+      description: "En attente de validation",
+      value: stats.events.pending,
+      icon: AlertCircle,
+      change: stats.events.pending > 0 ? "Nécessite une action" : "Tout est à jour",
+      href: "/admin/events?status=pending&view=agenda",
+      emphasize: stats.events.pending > 0,
     },
     {
-      title: "Événements approuvés",
-      description: "Événements validés",
-      value: stats.events.approved,
-      icon: CheckCircle2,
-      change: `${stats.events.total > 0 ? Math.round((stats.events.approved / stats.events.total) * 100) : 0}% du total`,
-      href: "/admin/events",
+      title: "Prochains 7 jours",
+      description: "Charge à venir",
+      value: stats.events.upcoming7,
+      icon: CalendarClock,
+      change: stats.events.upcoming7 > 0 ? "À surveiller" : "Rien de planifié",
+      href: "/admin/events?view=agenda",
     },
     {
-      title: "Lieux",
-      description: "Lieux enregistrés",
-      value: stats.locations,
-      icon: MapPin,
+      title: "Lieux recommandés",
+      description: "Sélection (max 6)",
+      value: stats.suggestedLocations,
+      icon: Sparkles,
+      change: stats.suggestedLocations >= 6 ? "Limite atteinte" : "Vous pouvez en ajouter",
       href: "/admin/locations",
-    },
-    {
-      title: "Organisateurs",
-      description: "Organisateurs actifs",
-      value: stats.organizers,
-      icon: Users,
-      href: "/admin/organizers",
-    },
-    {
-      title: "Catégories",
-      description: "Catégories actives",
-      value: stats.categories,
-      icon: Tag,
-      href: "/admin/categories",
     },
     {
       title: "Demandes",
@@ -127,6 +146,16 @@ export function DashboardStats() {
       icon: FileText,
       change: stats.pendingRequests > 0 ? "Nécessite une action" : "Tout est à jour",
       href: "/admin/requests",
+      emphasize: stats.pendingRequests > 0,
+    },
+    {
+      title: "Feedback",
+      description: "À traiter",
+      value: stats.pendingFeedbacks,
+      icon: MessageSquare,
+      change: stats.pendingFeedbacks > 0 ? "Nécessite une action" : "Tout est à jour",
+      href: "/admin/feedback",
+      emphasize: stats.pendingFeedbacks > 0,
     },
   ];
 
@@ -137,7 +166,10 @@ export function DashboardStats() {
         return (
           <Card 
             key={stat.title} 
-            className="cursor-pointer transition-shadow hover:shadow-md"
+            className={cn(
+              "cursor-pointer transition-shadow hover:shadow-md",
+              stat.emphasize ? "border-warning/40 bg-warning/5" : ""
+            )}
             onClick={() => router.push(stat.href)}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 pt-4 px-4">

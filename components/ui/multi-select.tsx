@@ -53,9 +53,15 @@ export function MultiSelect({
           type="button"
           disabled={disabled}
           className={cn(
-            "flex min-h-[44px] w-full items-center justify-between whitespace-nowrap rounded-lg border border-border/30 bg-input/50 backdrop-blur-sm px-4 py-2 text-sm ring-offset-background cursor-pointer data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background focus:border-ring/50 hover:border-border/50 disabled:cursor-not-allowed disabled:opacity-40 shadow-sm hover:shadow-md",
+            "flex min-h-[44px] w-full items-center justify-between whitespace-nowrap border px-4 py-2 text-sm ring-offset-background cursor-pointer data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40 shadow-sm hover:shadow-md",
             className
           )}
+          style={{
+            borderRadius: "var(--radius-md)",
+            borderColor: "var(--border)",
+            backgroundColor: "var(--input)",
+            color: "var(--foreground)",
+          }}
         >
           <div className="flex flex-wrap gap-1 flex-1">
             {selected.length === 0 ? (
@@ -108,9 +114,16 @@ export function MultiSelect({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-full p-0 rounded-xl border border-border/30 bg-popover/95 backdrop-blur-xl shadow-2xl"
+        className="w-full p-0 border"
         align="start"
-        style={{ width: "var(--radix-popover-trigger-width)" }}
+        style={{
+          width: "var(--radix-popover-trigger-width)",
+          borderRadius: "var(--radius-lg)",
+          borderColor: "var(--border)",
+          backgroundColor: "var(--popover)",
+          color: "var(--popover-foreground)",
+          boxShadow: "var(--shadow-lg)",
+        }}
       >
         <div className="max-h-60 overflow-auto p-1">
           {options.length === 0 ? (
@@ -124,9 +137,12 @@ export function MultiSelect({
                 <div
                   key={option.value}
                   className={cn(
-                    "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2.5 px-3 text-sm outline-none hover:bg-accent/40 hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground transition-colors",
+                    "relative flex w-full cursor-pointer select-none items-center py-2.5 px-3 text-sm outline-none hover:bg-accent/40 hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground transition-colors",
                     isSelected && "bg-accent/60 text-accent-foreground"
                   )}
+                  style={{
+                    borderRadius: "var(--radius-md)",
+                  }}
                   onClick={() => handleSelect(option.value)}
                 >
                   <div className="flex items-center gap-2 flex-1">

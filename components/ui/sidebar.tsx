@@ -205,7 +205,8 @@ const Sidebar = React.forwardRef<
         ref={ref}
         className={cn(
           "group peer text-sidebar-foreground transition-width hidden w-[var(--sidebar-width)] duration-200 md:block",
-          state === "collapsed" && "w-0"
+          state === "collapsed" && collapsible === "offcanvas" && "w-0",
+          state === "collapsed" && collapsible === "icon" && "w-[var(--sidebar-width-icon)]"
         )}
         data-state={state}
         data-collapsible={state === "collapsed" ? collapsible : ""}
@@ -236,16 +237,16 @@ const Sidebar = React.forwardRef<
               data-variant-sidebar={variant}
               className={cn(
                 "bg-sidebar flex h-full w-full flex-col overflow-hidden sidebar-macos-style",
-                variant === "floating" && "shadow-lg",
-                variant === "inset" && "shadow-lg"
+                "border-sidebar-border",
+                variant === "floating" && "shadow-lg rounded-r-3xl",
+                variant === "inset" && "shadow-lg rounded-r-3xl"
               )}
               style={{
-                borderTopRightRadius: "1.875rem",
-                borderBottomRightRadius: "1.875rem",
-                borderRight: "0.5px solid rgba(255, 255, 255, 0.08)",
-                borderLeft: variant === "floating" || variant === "inset" ? "0.5px solid rgba(255, 255, 255, 0.08)" : undefined,
-                borderTop: variant === "floating" || variant === "inset" ? "0.5px solid rgba(255, 255, 255, 0.08)" : undefined,
-                borderBottom: variant === "floating" || variant === "inset" ? "0.5px solid rgba(255, 255, 255, 0.08)" : undefined,
+                borderTopRightRadius: "calc(var(--radius) * 5)",
+                borderBottomRightRadius: "calc(var(--radius) * 5)",
+                borderColor: "var(--sidebar-border)",
+                backgroundColor: "var(--sidebar)",
+                color: "var(--sidebar-foreground)",
               } as React.CSSProperties}
             >
               {children}
@@ -353,7 +354,10 @@ const SidebarHeader = React.forwardRef<HTMLDivElement, React.ComponentProps<"div
       <div
         ref={ref}
         data-sidebar="header"
-        className={cn("flex flex-col p-3 border-b border-sidebar-border/20", className)}
+        className={cn("flex flex-col p-3 border-b", className)}
+        style={{
+          borderColor: "var(--sidebar-border)",
+        }}
         {...props}
       />
     );
@@ -367,7 +371,10 @@ const SidebarFooter = React.forwardRef<HTMLDivElement, React.ComponentProps<"div
       <div
         ref={ref}
         data-sidebar="footer"
-        className={cn("flex flex-col p-3 border-t border-sidebar-border/20 mt-auto", className)}
+        className={cn("flex flex-col p-3 border-t mt-auto", className)}
+        style={{
+          borderColor: "var(--sidebar-border)",
+        }}
         {...props}
       />
     );
@@ -432,10 +439,14 @@ const SidebarGroupLabel = React.forwardRef<
       ref={ref}
       data-sidebar="group-label"
       className={cn(
-        "text-sidebar-foreground/60 ring-sidebar-ring flex h-6 shrink-0 items-center px-3 text-[11px] font-semibold uppercase tracking-wider outline-hidden transition-[margin,opa] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0 mb-1",
+        "ring-sidebar-ring flex h-6 shrink-0 items-center px-3 text-[11px] font-semibold uppercase tracking-wider outline-hidden transition-[margin,opa] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0 mb-1",
         "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
         className
       )}
+      style={{
+        color: "var(--sidebar-foreground)",
+        opacity: 0.6,
+      }}
       {...props}
     />
   );
@@ -502,13 +513,12 @@ const SidebarMenuItem = React.forwardRef<HTMLLIElement, React.ComponentProps<"li
 SidebarMenuItem.displayName = "SidebarMenuItem";
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2.5 overflow-hidden rounded-md px-2.5 py-1.5 text-left text-sm outline-hidden ring-sidebar-ring transition-colors duration-150 hover:bg-sidebar-accent/20 hover:text-white hover:[&>svg]:text-white focus-visible:outline-none active:bg-sidebar-accent/25 active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-40 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-40 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent/20 data-[state=open]:hover:text-white data-[state=open]:hover:[&>svg]:text-white group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:opacity-75",
+  "peer/menu-button flex w-full items-center gap-2.5 overflow-hidden px-2.5 py-1.5 text-left text-sm outline-hidden transition-colors duration-150 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-40 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:opacity-75",
   {
     variants: {
       variant: {
-        default: "hover:bg-sidebar-accent/20 hover:text-sidebar-accent-foreground",
-        outline:
-          "bg-background/50 border border-sidebar-border/30 backdrop-blur-sm hover:bg-sidebar-accent/20 hover:text-sidebar-accent-foreground hover:border-sidebar-accent/40",
+        default: "",
+        outline: "border",
       },
       size: {
         default: "h-7 text-sm",
@@ -553,6 +563,17 @@ const SidebarMenuButton = React.forwardRef<
         data-size={size}
         data-active={isActive}
         className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+        style={{
+          borderRadius: "var(--radius-md)",
+          color: "var(--sidebar-foreground)",
+          ...(isActive && {
+            backgroundColor: "var(--sidebar-accent)",
+            color: "var(--sidebar-accent-foreground)",
+          }),
+          ...(variant === "outline" && {
+            borderColor: "var(--sidebar-border)",
+          }),
+        }}
         {...props}
       />
     );

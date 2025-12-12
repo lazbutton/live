@@ -9,6 +9,8 @@ interface ScrapedEventData {
   date?: string;
   end_date?: string;
   price?: string;
+  presale_price?: string;
+  subscriber_price?: string;
   location?: string;
   address?: string;
   image_url?: string;
@@ -18,6 +20,7 @@ interface ScrapedEventData {
   tags?: string[]; // Liste de noms de tags
   capacity?: string;
   door_opening_time?: string;
+  is_full?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -366,12 +369,12 @@ export async function POST(request: NextRequest) {
         console.log("💡 Indications IA:", aiHintsMap);
       } else {
         // Par défaut, tous les champs sont activés si aucune configuration n'existe
-        enabledAIFields = ["title", "description", "date", "end_date", "price", "location", "address", "image_url", "organizer", "category", "tags", "capacity", "door_opening_time"];
+        enabledAIFields = ["title", "description", "date", "end_date", "price", "presale_price", "subscriber_price", "location", "address", "image_url", "organizer", "category", "tags", "capacity", "door_opening_time", "is_full"];
         console.log("📋 Utilisation des champs IA par défaut (tous activés)");
       }
     } catch (error) {
       console.warn("⚠️ Erreur lors du chargement des champs IA, utilisation par défaut:", error);
-      enabledAIFields = ["title", "description", "date", "end_date", "price", "location", "address", "image_url", "organizer", "category", "tags", "capacity", "door_opening_time"];
+      enabledAIFields = ["title", "description", "date", "end_date", "price", "presale_price", "subscriber_price", "location", "address", "image_url", "organizer", "category", "tags", "capacity", "door_opening_time", "is_full"];
     }
 
     // Préparer le contexte enrichi pour l'IA
@@ -417,6 +420,8 @@ ${Object.keys(customScrapingData).length > 0 ? `\nDonnées extraites via sélect
         date: "Les dates et heures de début",
         end_date: "Les dates et heures de fin",
         price: "Les informations de prix (prix normal, réduit, gratuit, sur donation, etc.)",
+        presale_price: "Le tarif prévente si mentionné (prix réduit avant une date limite)",
+        subscriber_price: "Le tarif pour les abonnés si mentionné",
         location: "Le lieu exact",
         address: "L'adresse complète du lieu",
         image_url: "L'URL de l'image principale de l'événement",
@@ -425,6 +430,7 @@ ${Object.keys(customScrapingData).length > 0 ? `\nDonnées extraites via sélect
         tags: "Des tags pertinents et variés (minimum 3-5 tags)",
         capacity: "La capacité si mentionnée",
         door_opening_time: "L'heure d'ouverture des portes si disponible",
+        is_full: "Indique si l'événement est complet (sold out) - true ou false uniquement",
       };
       
       // Ajouter l'indication personnalisée si elle existe
@@ -450,6 +456,9 @@ ${Object.keys(customScrapingData).length > 0 ? `\nDonnées extraites via sélect
         tags: '"tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]',
         capacity: '"capacity": "Capacité maximale en nombre (uniquement le chiffre)"',
         door_opening_time: '"door_opening_time": "Heure d\'ouverture des portes au format HH:mm (ex: 19:30)"',
+        presale_price: '"presale_price": "Tarif prévente numérique uniquement (nombre décimal, null si non mentionné)"',
+        subscriber_price: '"subscriber_price": "Tarif abonné numérique uniquement (nombre décimal, null si non mentionné)"',
+        is_full: '"is_full": "Booléen indiquant si l\'événement est complet (true si sold out, false sinon, null si non mentionné)"',
       };
       return fieldDefinitions[fieldName] || `"${fieldName}": "Valeur extraite"`;
     }).join(",\n  ");
