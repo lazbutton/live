@@ -38,3 +38,4 @@ COMMENT ON CONSTRAINT organizer_invitations_organizer_id_check ON public.organiz
 'Vérifie que organizer_id référence soit un organisateur classique (organizers.id) soit un lieu-organisateur (locations.id où is_organizer = true)';
 
 
+

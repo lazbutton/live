@@ -198,3 +198,4 @@ Si l'utilisateur existe déjà avec cet email, il pourra se connecter directemen
 - `POST /api/organizer/invite/accept` - Accepter une invitation
 
 
+

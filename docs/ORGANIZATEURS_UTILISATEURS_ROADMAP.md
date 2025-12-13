@@ -845,3 +845,4 @@ Assurer la qualité et la fiabilité du système.
 Cette roadmap couvre l'ensemble des fonctionnalités nécessaires pour offrir aux organisateurs une interface complète et professionnelle de gestion de leurs événements. Elle est conçue pour être itérative, permettant de livrer de la valeur rapidement avec le MVP, puis d'enrichir progressivement avec les fonctionnalités avancées.
 
 
+

@@ -74,3 +74,4 @@ COMMENT ON COLUMN public.organizer_audit_log.new_value IS 'Nouvelle valeur (ex: 
 COMMENT ON COLUMN public.organizer_audit_log.metadata IS 'Données supplémentaires au format JSON';
 
 
+
