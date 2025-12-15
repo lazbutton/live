@@ -68,9 +68,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Construire le message de notification
-    const title = requestData?.event_data?.title || eventTitle || "Nouvelle demande";
+    // Si eventTitle contient des variables non interpolées ({{ $1... }}), l'ignorer et utiliser les données de la base
+    let title = requestData?.event_data?.title;
+    
+    if (!title) {
+      // Vérifier si eventTitle contient des variables non interpolées
+      if (eventTitle && !eventTitle.includes("{{") && !eventTitle.includes("$1")) {
+        title = eventTitle;
+      } else {
+        title = "Nouvelle demande";
+      }
+    }
+    
     const requestTypeLabel = requestType === "event_from_url" ? "depuis URL" : "complète";
-    const bodyText = requestData?.event_data?.title
+    const bodyText = title && title !== "Nouvelle demande"
       ? `Nouvelle demande ${requestTypeLabel}: ${title}`
       : `Nouvelle demande ${requestTypeLabel} d'événement`;
 

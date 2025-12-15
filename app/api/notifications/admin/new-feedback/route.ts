@@ -64,11 +64,31 @@ export async function POST(request: NextRequest) {
 
     if (feedbackError || !feedbackData) {
       console.error("❌ Erreur lors de la récupération du feedback:", feedbackError);
-      // On continue quand même, on utilisera les données du body
+      // Si on ne peut pas récupérer depuis la base, utiliser le message du body seulement s'il n'est pas une variable
+      if (message && !message.includes("{{") && !message.includes("$1")) {
+        // Le message est valide, on peut l'utiliser
+      } else {
+        return NextResponse.json(
+          { error: "Impossible de récupérer le feedback depuis la base de données" },
+          { status: 404 }
+        );
+      }
     }
 
     // Construire le message de notification
-    const feedbackDescription = feedbackData?.description || message || "Nouveau feedback";
+    // Priorité : données de la base > message du body (seulement si pas de variables non interpolées)
+    let feedbackDescription = feedbackData?.description;
+    
+    if (!feedbackDescription) {
+      // Vérifier si le message contient des variables non interpolées
+      if (message && !message.includes("{{") && !message.includes("$1")) {
+        feedbackDescription = message;
+      } else {
+        // Si le message contient des variables non interpolées, utiliser un message par défaut
+        feedbackDescription = "Nouveau feedback";
+      }
+    }
+    
     // Tronquer le message à 100 caractères pour la notification
     const truncatedMessage = feedbackDescription.length > 100 
       ? feedbackDescription.substring(0, 97) + "..." 
