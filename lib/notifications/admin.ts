@@ -1,5 +1,4 @@
 import { sendAPNsNotification } from "./apns";
-import { sendFCMNotification } from "./fcm";
 import { createServiceClient } from "@/lib/supabase/service";
 import { NotificationPayload, NotificationResult } from "./index";
 import { createClient } from "@supabase/supabase-js";
@@ -82,18 +81,22 @@ export async function sendNotificationToAdmins(
     };
   }
 
-  // Filtrer les tokens pour ne garder que ceux des admins
-  const adminTokens = allTokens.filter((token) => adminUserIds.has(token.user_id));
+  // Filtrer les tokens pour ne garder que ceux des admins ET uniquement iOS (APNs)
+  const adminTokens = allTokens.filter(
+    (token) => adminUserIds.has(token.user_id) && token.platform === "ios"
+  );
 
   if (adminTokens.length === 0) {
-    console.log("ℹ️ Aucun token push trouvé pour les admins");
+    console.log("ℹ️ Aucun token iOS (APNs) trouvé pour les admins");
     return {
       success: false,
       sent: 0,
       failed: 0,
-      errors: ["Aucun token push trouvé pour les admins"],
+      errors: ["Aucun token iOS (APNs) trouvé pour les admins"],
     };
   }
+
+  console.log(`📱 ${adminTokens.length} token(s) iOS trouvé(s) pour les admins`);
 
   const results: NotificationResult = {
     success: true,
@@ -102,40 +105,24 @@ export async function sendNotificationToAdmins(
     errors: [],
   };
 
-  // Envoyer la notification à chaque admin
+  // Envoyer la notification à chaque admin (uniquement iOS/APNs)
   for (const tokenData of adminTokens) {
     try {
-      let result;
-
-      if (tokenData.platform === "ios") {
-        if (tokenData.token.startsWith("ios_user_")) {
-          results.failed++;
-          results.errors.push(
-            `Token iOS invalide pour admin ${tokenData.user_id}: format identifiant au lieu d'un vrai token APNs`
-          );
-          results.success = false;
-          continue;
-        }
-        result = await sendAPNsNotification(
-          tokenData.token,
-          payload.title,
-          payload.body,
-          payload.data
-        );
-      } else if (tokenData.platform === "android") {
-        result = await sendFCMNotification(
-          tokenData.token,
-          payload.title,
-          payload.body,
-          payload.data
-        );
-      } else {
-        console.warn(`⚠️ Plateforme "${tokenData.platform}" non supportée pour admin ${tokenData.user_id}`);
+      if (tokenData.token.startsWith("ios_user_")) {
         results.failed++;
-        results.errors.push(`Plateforme "${tokenData.platform}" non supportée`);
+        results.errors.push(
+          `Token iOS invalide pour admin ${tokenData.user_id}: format identifiant au lieu d'un vrai token APNs`
+        );
         results.success = false;
         continue;
       }
+
+      const result = await sendAPNsNotification(
+        tokenData.token,
+        payload.title,
+        payload.body,
+        payload.data
+      );
 
       // Traiter le résultat
       if (result) {
