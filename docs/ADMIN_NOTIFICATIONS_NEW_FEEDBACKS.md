@@ -29,13 +29,18 @@ Lorsqu'un utilisateur soumet un nouveau feedback (via l'app mobile), tous les ad
      ```
      Content-Type: application/json
      ```
-   - **HTTP Request Body** :
+   - **HTTP Request Body** (Option 1 - JSON) :
      ```json
      {
        "feedbackId": "{{ $1.id }}",
        "message": "{{ $1.description }}",
        "userId": "{{ $1.user_id }}"
      }
+     ```
+   
+   - **OU HTTP Request Body** (Option 2 - Query Parameters) :
+     ```
+     feedbackId={{ $1.id }}&message={{ $1.description }}&userId={{ $1.user_id }}
      ```
 
 4. Cliquez sur **Save**

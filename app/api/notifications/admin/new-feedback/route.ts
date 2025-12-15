@@ -21,12 +21,35 @@ import { createServiceClient } from "@/lib/supabase/service";
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // Essayer de lire le body JSON d'abord
+    let body: any = {};
+    try {
+      body = await request.json();
+    } catch {
+      // Si le body n'est pas JSON, utiliser les paramètres de requête
+      const url = new URL(request.url);
+      body = {
+        feedbackId: url.searchParams.get("feedbackId"),
+        message: url.searchParams.get("message"),
+        userId: url.searchParams.get("userId"),
+        feedbackType: url.searchParams.get("feedbackType"),
+      };
+    }
+
+    // Aussi vérifier les paramètres de requête si le body est vide
+    if (!body.feedbackId) {
+      const url = new URL(request.url);
+      body.feedbackId = url.searchParams.get("feedbackId");
+      body.message = url.searchParams.get("message") || body.message;
+      body.userId = url.searchParams.get("userId") || body.userId;
+      body.feedbackType = url.searchParams.get("feedbackType") || body.feedbackType;
+    }
+
     const { feedbackId, feedbackType, message, userId } = body;
 
     if (!feedbackId) {
       return NextResponse.json(
-        { error: "feedbackId est requis" },
+        { error: "feedbackId est requis (dans le body JSON ou en paramètre de requête)" },
         { status: 400 }
       );
     }

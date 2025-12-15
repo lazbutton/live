@@ -29,7 +29,7 @@ Lorsqu'un utilisateur crée une nouvelle demande d'événement (via l'app mobile
      ```
      Content-Type: application/json
      ```
-   - **HTTP Request Body** :
+   - **HTTP Request Body** (Option 1 - JSON) :
      ```json
      {
        "requestId": "{{ $1.id }}",
@@ -37,6 +37,11 @@ Lorsqu'un utilisateur crée une nouvelle demande d'événement (via l'app mobile
        "eventTitle": "{{ $1.event_data.title }}",
        "sourceUrl": "{{ $1.source_url }}"
      }
+     ```
+   
+   - **OU HTTP Request Body** (Option 2 - Query Parameters) :
+     ```
+     requestId={{ $1.id }}&requestType={{ $1.request_type }}&eventTitle={{ $1.event_data.title }}&sourceUrl={{ $1.source_url }}
      ```
 
 4. Cliquez sur **Save**
