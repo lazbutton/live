@@ -19,7 +19,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
-  title: string;
+  title?: string;
   breadcrumbItems?: Array<{ label: string; href?: string }>;
 }
 
@@ -60,9 +60,11 @@ export function AdminLayout({ children, title, breadcrumbItems = [] }: AdminLayo
           </div>
         </header>
         <div className="flex flex-1 flex-col gap-4 p-3 md:p-4 lg:p-6 xl:p-8">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl md:text-2xl font-semibold truncate">{title}</h1>
-          </div>
+          {title && (
+            <div className="flex items-center justify-between">
+              <h1 className="text-xl md:text-2xl font-semibold truncate">{title}</h1>
+            </div>
+          )}
           {children}
         </div>
       </SidebarInset>

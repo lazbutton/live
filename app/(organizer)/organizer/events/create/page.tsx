@@ -60,6 +60,26 @@ import { compressImage } from "@/lib/image-compression";
 import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
 import { useAlertDialog } from "@/hooks/use-alert-dialog";
 import { organizerCache, CACHE_KEYS, CACHE_TTL } from "@/lib/organizer-cache";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
+
+function addHoursToDatetimeLocal(value: string, hoursToAdd: number) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!m) return value;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const d = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (Number.isNaN(d.getTime())) return value;
+  d.setHours(d.getHours() + hoursToAdd);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  const ho = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${mo}-${da}T${ho}:${mi}`;
+}
 
 function CreateEventContent() {
   const router = useRouter();
@@ -145,7 +165,8 @@ function CreateEventContent() {
       loadRoomsForLocation(formData.location_id);
     } else {
       setRooms([]);
-      setFormData((prev) => ({ ...prev, room_id: "" }));
+      // Ne pas réinitialiser room_id ici pour éviter les boucles
+      // Il sera réinitialisé seulement si nécessaire
     }
   }, [formData.location_id]);
 
@@ -520,6 +541,21 @@ function CreateEventContent() {
     );
   }
 
+  // Handlers mémorisés pour éviter les re-renders
+  const handleDateChange = useCallback((newStartDate: string) => {
+    setFormData((prev) => {
+      const nextEnd =
+        (!prev.end_date && newStartDate)
+          ? addHoursToDatetimeLocal(newStartDate, 1)
+          : prev.end_date;
+      return { ...prev, date: newStartDate, end_date: nextEnd };
+    });
+  }, []);
+
+  const handleEndDateChange = useCallback((v: string) => {
+    setFormData((prev) => ({ ...prev, end_date: v }));
+  }, []);
+
   // Vérifier que l'utilisateur a au moins un organisateur
   if (userOrganizers.length === 0) {
     return (
@@ -585,7 +621,7 @@ function CreateEventContent() {
                     <Input
                       id="title"
                       value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
                       required
                       placeholder="Nom de l'événement"
                     />
@@ -599,7 +635,7 @@ function CreateEventContent() {
                       </Label>
                       <Select
                         value={formData.category}
-                        onValueChange={(value) => setFormData({ ...formData, category: value })}
+                        onValueChange={(value) => setFormData((prev) => ({ ...prev, category: value }))}
                         required
                       >
                         <SelectTrigger>
@@ -661,7 +697,7 @@ function CreateEventContent() {
                       id="description"
                       value={formData.description}
                       onChange={(e) =>
-                        setFormData({ ...formData, description: e.target.value })
+                        setFormData((prev) => ({ ...prev, description: e.target.value }))
                       }
                       rows={6}
                       placeholder="Description détaillée de l'événement"
@@ -670,52 +706,24 @@ function CreateEventContent() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="date" className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        Date et heure de début *
-                      </Label>
-                      <Input
+                      <DateTimePicker
                         id="date"
-                        type="datetime-local"
+                        label="Date et heure de début *"
                         value={formData.date}
-                        onChange={(e) => {
-                          const newStartDate = e.target.value;
-                          let newEndDate = formData.end_date;
-
-                          // Si la date de fin n'est pas remplie, la définir à début + 1 heure
-                          if (!formData.end_date && newStartDate) {
-                            const startDate = new Date(newStartDate);
-                            startDate.setHours(startDate.getHours() + 1);
-                            const year = startDate.getFullYear();
-                            const month = String(startDate.getMonth() + 1).padStart(2, "0");
-                            const day = String(startDate.getDate()).padStart(2, "0");
-                            const hours = String(startDate.getHours()).padStart(2, "0");
-                            const minutes = String(startDate.getMinutes()).padStart(2, "0");
-                            newEndDate = `${year}-${month}-${day}T${hours}:${minutes}`;
-                          }
-
-                          setFormData({
-                            ...formData,
-                            date: newStartDate,
-                            end_date: newEndDate,
-                          });
-                        }}
+                        onChange={handleDateChange}
                         required
+                        placeholder="Choisir une date et une heure"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="end_date" className="flex items-center gap-2">
-                        <Clock className="h-4 w-4" />
-                        Date et heure de fin
-                      </Label>
-                      <Input
+                      <DateTimePicker
                         id="end_date"
-                        type="datetime-local"
+                        label="Date et heure de fin"
                         value={formData.end_date}
-                        onChange={(e) =>
-                          setFormData({ ...formData, end_date: e.target.value })
-                        }
+                        onChange={handleEndDateChange}
+                        placeholder="Optionnel"
+                        allowClear
                       />
                     </div>
                   </div>
@@ -731,7 +739,7 @@ function CreateEventContent() {
                         type="time"
                         value={formData.door_opening_time}
                         onChange={(e) =>
-                          setFormData({ ...formData, door_opening_time: e.target.value })
+                          setFormData((prev) => ({ ...prev, door_opening_time: e.target.value }))
                         }
                       />
                     </div>
@@ -747,7 +755,7 @@ function CreateEventContent() {
                         step="0.01"
                         min="0"
                         value={formData.price}
-                        onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, price: e.target.value }))}
                         placeholder="0.00"
                       />
                     </div>
@@ -758,14 +766,14 @@ function CreateEventContent() {
                       <Users className="h-4 w-4" />
                       Capacité
                     </Label>
-                    <Input
-                      id="capacity"
-                      type="number"
-                      min="1"
-                      value={formData.capacity}
-                      onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
-                      placeholder="Nombre de places"
-                    />
+                      <Input
+                        id="capacity"
+                        type="number"
+                        min="1"
+                        value={formData.capacity}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, capacity: e.target.value }))}
+                        placeholder="Nombre de places"
+                      />
                   </div>
                 </CardContent>
               </Card>
@@ -784,7 +792,7 @@ function CreateEventContent() {
                     <Select
                       value={formData.location_id || "none"}
                       onValueChange={(value) =>
-                        setFormData({ ...formData, location_id: value, room_id: "" })
+                        setFormData((prev) => ({ ...prev, location_id: value, room_id: "" }))
                       }
                     >
                       <SelectTrigger>
@@ -807,7 +815,7 @@ function CreateEventContent() {
                       <Select
                         value={formData.room_id || "none"}
                         onValueChange={(value) =>
-                          setFormData({ ...formData, room_id: value })
+                          setFormData((prev) => ({ ...prev, room_id: value }))
                         }
                       >
                         <SelectTrigger>
@@ -842,7 +850,7 @@ function CreateEventContent() {
                       type="url"
                       value={formData.external_url}
                       onChange={(e) =>
-                        setFormData({ ...formData, external_url: e.target.value })
+                        setFormData((prev) => ({ ...prev, external_url: e.target.value }))
                       }
                       placeholder="https://..."
                     />
@@ -855,7 +863,7 @@ function CreateEventContent() {
                         id="external_url_label"
                         value={formData.external_url_label}
                         onChange={(e) =>
-                          setFormData({ ...formData, external_url_label: e.target.value })
+                          setFormData((prev) => ({ ...prev, external_url_label: e.target.value }))
                         }
                         placeholder="Ex: Réserver, Acheter des billets, etc."
                       />
@@ -870,7 +878,7 @@ function CreateEventContent() {
                         type="url"
                         value={formData.instagram_url}
                         onChange={(e) =>
-                          setFormData({ ...formData, instagram_url: e.target.value })
+                          setFormData((prev) => ({ ...prev, instagram_url: e.target.value }))
                         }
                         placeholder="https://instagram.com/..."
                       />
@@ -883,7 +891,7 @@ function CreateEventContent() {
                         type="url"
                         value={formData.facebook_url}
                         onChange={(e) =>
-                          setFormData({ ...formData, facebook_url: e.target.value })
+                          setFormData((prev) => ({ ...prev, facebook_url: e.target.value }))
                         }
                         placeholder="https://facebook.com/..."
                       />

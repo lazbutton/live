@@ -7,6 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -22,9 +30,9 @@ import {
 } from "@/components/ui/popover";
 import {
   Plus, Search, Edit2, Trash2, ExternalLink, Code, Facebook,
-  Globe, Instagram, Image as ImageIcon, X, Save, Users, RotateCw, Music, ChevronLeft, UserPlus, UserMinus
+  Globe, Instagram, Image as ImageIcon, X, Save, Users, RotateCw, Music, ChevronLeft, UserPlus, UserMinus, LayoutGrid, List as ListIcon
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { compressImage } from "@/lib/image-compression";
 import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
@@ -58,18 +66,27 @@ interface Organizer {
 
 export function OrganizersManagement() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [organizers, setOrganizers] = useState<Organizer[]>([]);
   const [filteredOrganizers, setFilteredOrganizers] = useState<Organizer[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingOrganizer, setEditingOrganizer] = useState<Organizer | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [isImporterOpen, setIsImporterOpen] = useState(false);
   const { showAlert, showConfirm, AlertDialogComponent } = useAlertDialog();
 
   useEffect(() => {
     loadOrganizers();
   }, []);
+
+  useEffect(() => {
+    const importParam = searchParams?.get("import");
+    if (importParam === "1") {
+      setIsImporterOpen(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -167,6 +184,11 @@ export function OrganizersManagement() {
   }
 
   function handleOpenDialog(organizer?: Organizer) {
+    // Les lieux-organisateurs se gèrent dans la page /admin/locations
+    if (organizer?.type === "location") {
+      router.push(`/admin/locations?open=${organizer.id}`);
+      return;
+    }
     setEditingOrganizer(organizer || null);
     setIsDialogOpen(true);
   }
@@ -205,7 +227,31 @@ export function OrganizersManagement() {
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <div className="flex items-center gap-1 rounded-lg border bg-background p-1">
+            <Button
+              type="button"
+              variant={viewMode === "list" ? "default" : "ghost"}
+              size="sm"
+              className="h-8 px-2"
+              onClick={() => setViewMode("list")}
+              title="Vue liste"
+            >
+              <ListIcon className="h-4 w-4" />
+              <span className="hidden md:inline">Liste</span>
+            </Button>
+            <Button
+              type="button"
+              variant={viewMode === "grid" ? "default" : "ghost"}
+              size="sm"
+              className="h-8 px-2"
+              onClick={() => setViewMode("grid")}
+              title="Vue grille"
+            >
+              <LayoutGrid className="h-4 w-4" />
+              <span className="hidden md:inline">Grille</span>
+            </Button>
+          </div>
           <Button
             onClick={() => setIsImporterOpen(true)}
             variant="outline"
@@ -237,13 +283,13 @@ export function OrganizersManagement() {
         />
       </div>
 
-      {/* Grille d'organisateurs */}
+      {/* Liste / Grille */}
       {filteredOrganizers.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <Users className="h-12 w-12 mx-auto opacity-20 mb-2" />
           <p>{organizers.length === 0 ? "Aucun organisateur. Cliquez sur 'Ajouter' pour commencer." : `Aucun résultat pour "${searchQuery}"`}</p>
         </div>
-      ) : (
+      ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredOrganizers.map((organizer) => (
             <div
@@ -370,7 +416,7 @@ export function OrganizersManagement() {
                         className="w-full text-left px-3 py-2 text-sm rounded hover:bg-accent transition-colors flex items-center gap-2"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
-                        Modifier
+                        {organizer.type === "location" ? "Ouvrir dans Lieux" : "Modifier"}
                       </button>
                       <button
                         onClick={() => deleteOrganizer(organizer.id)}
@@ -385,6 +431,174 @@ export function OrganizersManagement() {
               </div>
             </div>
           ))}
+        </div>
+      ) : (
+        <div className="rounded-lg border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Organisateur</TableHead>
+                <TableHead className="hidden md:table-cell">Type</TableHead>
+                <TableHead className="hidden lg:table-cell">Liens</TableHead>
+                <TableHead className="text-right">Commandes</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredOrganizers.map((organizer) => (
+                <TableRow
+                  key={organizer.id}
+                  className="cursor-pointer"
+                  onClick={() => handleOpenDialog(organizer)}
+                >
+                  <TableCell>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar className="h-9 w-9 ring-2 ring-background shrink-0">
+                        <AvatarImage src={organizer.logo_url || undefined} alt={organizer.name} />
+                        <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                          {getInitials(organizer.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium truncate">{organizer.name}</div>
+                          {organizer.type === "location" && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+                              Lieu
+                            </Badge>
+                          )}
+                        </div>
+                        {organizer.short_description && (
+                          <div className="text-xs text-muted-foreground truncate">
+                            {organizer.short_description}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {organizer.type === "location" ? (
+                      <Badge variant="secondary">Lieu-organisateur</Badge>
+                    ) : (
+                      <Badge variant="secondary">Organisateur</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    <div className="flex items-center gap-1.5">
+                      {organizer.website_url && (
+                        <a
+                          href={organizer.website_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded hover:bg-accent transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                          title="Site web"
+                        >
+                          <Globe className="h-4 w-4 text-muted-foreground" />
+                        </a>
+                      )}
+                      {organizer.instagram_url && (
+                        <a
+                          href={organizer.instagram_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded hover:bg-accent transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                          title="Instagram"
+                        >
+                          <Instagram className="h-4 w-4 text-muted-foreground" />
+                        </a>
+                      )}
+                      {organizer.facebook_url && (
+                        <a
+                          href={organizer.facebook_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded hover:bg-accent transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                          title="Facebook"
+                        >
+                          <Facebook className="h-4 w-4 text-muted-foreground" />
+                        </a>
+                      )}
+                      {organizer.tiktok_url && (
+                        <a
+                          href={organizer.tiktok_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded hover:bg-accent transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                          title="TikTok"
+                        >
+                          <Music className="h-4 w-4 text-muted-foreground" />
+                        </a>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button asChild variant="ghost" size="icon">
+                        <Link
+                          href={`/admin/organizers/${organizer.id}/team`}
+                          title="Équipe"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Users className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <Button asChild variant="ghost" size="icon">
+                        <Link
+                          href={`/admin/events?organizer=${organizer.id}`}
+                          target="_blank"
+                          title="Événements"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        title={organizer.scraping_example_url ? "Configuration scraping" : "Aucune URL de scraping"}
+                        disabled={!organizer.scraping_example_url}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!organizer.scraping_example_url) return;
+                          router.push(`/admin/scraping/${organizer.id}`);
+                        }}
+                      >
+                        <Code className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        title={organizer.type === "location" ? "Ouvrir dans Lieux" : "Modifier"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenDialog(organizer);
+                        }}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        title="Supprimer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteOrganizer(organizer.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
 

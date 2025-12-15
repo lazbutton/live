@@ -35,9 +35,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { path } = body;
+    const { path: cronPath } = body;
 
-    if (!path) {
+    if (!cronPath) {
       return NextResponse.json(
         { error: "Le chemin du cron est requis" },
         { status: 400 }
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     const vercelJsonPath = path.join(process.cwd(), "vercel.json");
     const vercelJsonContent = fs.readFileSync(vercelJsonPath, "utf-8");
     const vercelJson = JSON.parse(vercelJsonContent);
-    const cron = vercelJson.crons?.find((c: any) => c.path === path);
+    const cron = vercelJson.crons?.find((c: any) => c.path === cronPath);
 
     if (!cron) {
       return NextResponse.json(
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     const protocol = origin?.includes("localhost") ? "http" : "https";
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
       (origin ? `${protocol}://${origin}` : "http://localhost:3000");
-    const cronUrl = `${baseUrl}${path}`;
+    const cronUrl = `${baseUrl}${cronPath}`;
     const cronSecret = process.env.CRON_SECRET;
 
     if (!cronSecret) {

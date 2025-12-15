@@ -45,7 +45,25 @@ const SOCIAL_SQUARE = {
   backgroundColor: "#ffffff",
 } as const;
 
+function toProxyImageUrl(url: string) {
+  return `/api/admin/images/proxy?url=${encodeURIComponent(url)}`;
+}
+
+function isHttpUrl(url: string) {
+  return /^https?:\/\//i.test(url);
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("FileReader error"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 export function ShareNetworkContent() {
+  const [proxyToken, setProxyToken] = useState<string | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
@@ -66,6 +84,35 @@ export function ShareNetworkContent() {
   const [generationProgress, setGenerationProgress] = useState<{ done: number; total: number } | null>(null);
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
   const imageRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  // Sert à invalider une génération en cours quand on change de période (évite des résultats "mélangés")
+  const generationEpochRef = useRef(0);
+  const AUTO_GENERATE_LIMIT = 10;
+  // IMPORTANT: html-to-image/toPng peut produire des résultats non déterministes en parallèle
+  // (captures identiques / mélangées). On séquence pour fiabiliser.
+  const GENERATE_CONCURRENCY = 1;
+
+  useEffect(() => {
+    // Access token utile pour le proxy d'images (appelé via <img src>, sans headers).
+    // Important: le token peut être rafraîchi par Supabase → on se synchronise via onAuthStateChange.
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setProxyToken(data.session?.access_token ?? null);
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setProxyToken(session?.access_token ?? null);
+    });
+    return () => {
+      mounted = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  const needsProxyToken = events.some((e) => {
+    const src = e.image_url || e.location?.image_url || "";
+    return !!src && isHttpUrl(src);
+  });
 
   useEffect(() => {
     loadCategories();
@@ -81,57 +128,78 @@ export function ShareNetworkContent() {
   useEffect(() => {
     if (events.length === 0 || loading) return;
     if (generatingImages) return;
+    // Si on doit proxy des images externes, attendre le token (sinon on risque des placeholders).
+    if (needsProxyToken && !proxyToken) return;
     // Générer automatiquement les visuels manquants
     const missing = events.some((e) => !generatedImages[e.id]);
     if (!missing) return;
 
       // Attendre un peu pour que les refs soient prêts
       const timer = setTimeout(() => {
-        generateAllImages();
+        // Par défaut, on limite l'auto-génération à 10 images pour éviter de surcharger le navigateur
+        generateMissingImages(AUTO_GENERATE_LIMIT);
       }, 200);
       return () => clearTimeout(timer);
-  }, [events, loading, generatingImages, generatedImages]);
+  }, [events, loading, generatingImages, generatedImages, needsProxyToken, proxyToken]);
 
-  async function generateAllImages() {
+  function getMissingTasks() {
+    return events.filter((e) => !generatedImages[e.id]);
+  }
+
+  function getSelectedMissingTasks() {
+    return events.filter((e) => selectedImages.has(e.id) && !generatedImages[e.id]);
+  }
+
+  async function generateTasks(tasks: Event[]) {
+    const epochAtStart = generationEpochRef.current;
     setGeneratingImages(true);
     setGenerationProgress(null);
     try {
-      const tasks = events.filter((e) => !generatedImages[e.id]);
       setGenerationProgress({ done: 0, total: tasks.length });
 
-      const batchSize = 4;
-      
+      const batchSize = GENERATE_CONCURRENCY; // conservé pour éventuelle évolution
+      // Séquentiel (batchSize=1) : beaucoup plus fiable.
       for (let i = 0; i < tasks.length; i += batchSize) {
-        const batch = tasks.slice(i, i + batchSize);
-        const batchPromises = batch.map(async (event) => {
-          const imageUrl = await generateImage(event.id);
-          return { eventId: event.id, imageUrl };
-        });
-        
-        const batchResults = await Promise.all(batchPromises);
-        setGeneratedImages((prev) => {
-          const next = { ...prev };
-        batchResults.forEach(({ eventId, imageUrl }) => {
-            if (imageUrl) next[eventId] = imageUrl;
-          });
-          return next;
-        });
+        if (epochAtStart !== generationEpochRef.current) return;
+        const event = tasks[i];
+        if (!event) continue;
+
+        const imageUrl = await generateImage(event.id);
+        if (epochAtStart !== generationEpochRef.current) return;
+
+        if (imageUrl) {
+          setGeneratedImages((prev) => ({ ...prev, [event.id]: imageUrl }));
+        }
         setGenerationProgress((prev) => {
           if (!prev) return prev;
-          return { ...prev, done: Math.min(prev.total, prev.done + batch.length) };
+          return { ...prev, done: Math.min(prev.total, prev.done + 1) };
         });
-        
-        // Petit délai entre les batches pour éviter de surcharger
+
+        // Petit délai pour laisser respirer le navigateur (évite jank + pics CPU)
         if (i + batchSize < tasks.length) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 50));
         }
-      }
+      }      
     } catch (error) {
       console.error("Erreur lors de la génération des images:", error);
     } finally {
       setGeneratingImages(false);
       setGenerationProgress(null);
     }
+  }
+
+  async function generateMissingImages(limit?: number) {
+    const tasks = getMissingTasks();
+    const sliced = typeof limit === "number" ? tasks.slice(0, Math.max(0, limit)) : tasks;
+    if (sliced.length === 0) return;
+    await generateTasks(sliced);
+  }
+
+  async function generateSelectedImages(limit?: number) {
+    const tasks = getSelectedMissingTasks();
+    const sliced = typeof limit === "number" ? tasks.slice(0, Math.max(0, limit)) : tasks;
+    if (sliced.length === 0) return;
+    await generateTasks(sliced);
   }
 
   async function loadCategories() {
@@ -202,10 +270,12 @@ export function ShareNetworkContent() {
   async function loadWeekEvents() {
     try {
       setLoading(true);
+      generationEpochRef.current += 1;
       setEvents([]);
       setGeneratedImages({});
       setSelectedImages(new Set());
       setGeneratingImages(false);
+      imageRefs.current = {};
 
       const start = startOfLocalDay(parseLocalDateKey(rangeStartKey));
       const end = endOfLocalDay(parseLocalDateKey(rangeEndKey));
@@ -332,45 +402,199 @@ export function ShareNetworkContent() {
 
   async function generateImage(eventId: string): Promise<string | null> {
     const element = imageRefs.current[eventId];
-    if (!element) return null;
+    if (!element) {
+      console.error(`[generateImage] Élément non trouvé pour l'événement ${eventId}`);
+      return null;
+    }
+
+    let coverImg: HTMLImageElement | null = null;
+    let originalCoverSrc: string | null = null;
+    let images: NodeListOf<HTMLImageElement> | null = null;
 
     try {
       const spec = SOCIAL_SQUARE;
+      
+      // Vérifier que l'élément est visible dans le DOM
+      if (!element.isConnected) {
+        console.error(`[generateImage] L'élément pour l'événement ${eventId} n'est pas dans le DOM`);
+        return null;
+      }
+
+      // WORKAROUND: html-to-image peut "mélanger" des images externes/proxy entre captures.
+      // Pour fiabiliser, on inline l'image de couverture (fetch -> dataURL) juste pour la capture.
+      coverImg = element.querySelector('img[data-event-cover="1"]') as HTMLImageElement | null;
+      originalCoverSrc = coverImg?.src || null;
+      if (coverImg && originalCoverSrc && !originalCoverSrc.startsWith("data:")) {
+        try {
+          const res = await fetch(originalCoverSrc, { cache: "no-store" });
+          if (res.ok) {
+            const blob = await res.blob();
+            const dataUrl = await blobToDataUrl(blob);
+            coverImg.src = dataUrl;
+            // S'assurer que le dataURL est bien chargé avant de continuer
+            if (!(coverImg.complete && coverImg.naturalWidth > 0)) {
+              // Capturer coverImg dans une variable locale pour TypeScript
+              const img = coverImg;
+              await new Promise<void>((resolve) => {
+                const cleanup = () => {
+                  img.onload = null;
+                  img.onerror = null;
+                };
+                img.onload = () => {
+                  cleanup();
+                  resolve();
+                };
+                img.onerror = () => {
+                  cleanup();
+                  resolve();
+                };
+              });
+            }
+          }
+        } catch (e) {
+          // Non bloquant: on tente quand même la capture
+          console.warn(`[generateImage] Inline cover failed for ${eventId}`, e);
+        }
+      }
+
       // Attendre que les images soient chargées
-      const images = element.querySelectorAll("img");
-      await Promise.all(
-        Array.from(images).map(
-          (img) =>
-            new Promise((resolve, reject) => {
-              if (img.complete) {
-                resolve(null);
-                return;
-              }
-              img.onload = () => resolve(null);
-              img.onerror = () => reject(new Error("Erreur de chargement d'image"));
-            })
-        )
+      images = element.querySelectorAll("img") as NodeListOf<HTMLImageElement>;
+      console.log(`[generateImage] Événement ${eventId}: ${images.length} image(s) trouvée(s)`);
+      // Reset des flags de capture (ne pas persister les erreurs d'une génération à l'autre)
+      images.forEach((img) => img.removeAttribute("data-skip-capture"));
+      
+      const imageLoadPromises = Array.from(images).map(
+        (img, index) =>
+          new Promise<void>((resolve) => {
+            const timeout = setTimeout(() => {
+              const src = img.src || img.getAttribute("src") || "source inconnue";
+              console.warn(
+                `[generateImage] Timeout de chargement pour l'image ${index} (src: ${src}) → fallback`
+              );
+              // Fallback: ne pas bloquer la génération, mais ne pas inclure cette image dans la capture
+              img.setAttribute("data-skip-capture", "1");
+              clearTimeout(timeout);
+              resolve();
+            }, 20000); // 20 secondes max par image
+
+            // IMPORTANT: avec le key unique et le cache-busting dans l'URL, React devrait
+            // recréer l'élément <img> et forcer le rechargement. On attend toujours le onload
+            // pour garantir que l'image est bien chargée (même si img.complete est true).
+            if (img.complete && img.naturalWidth > 0) {
+              // L'image est déjà chargée, mais on attend quand même un petit délai
+              // pour s'assurer que le navigateur a bien rechargé l'image (et pas servi le cache)
+              setTimeout(() => {
+                clearTimeout(timeout);
+                resolve();
+              }, 100);
+              return;
+            }
+            
+            img.onload = () => {
+              clearTimeout(timeout);
+              resolve();
+            };
+            
+            img.onerror = (e) => {
+              clearTimeout(timeout);
+              const src = img.src || img.getAttribute('src') || 'source inconnue';
+              console.warn(
+                `[generateImage] Erreur de chargement d'image ${index} (src: ${src}) → fallback`,
+                e
+              );
+              img.setAttribute("data-skip-capture", "1");
+              resolve();
+            };
+          })
       );
 
+      await Promise.all(imageLoadPromises);
+      console.log(`[generateImage] Toutes les images chargées pour l'événement ${eventId}`);
+
       // Petit délai pour s'assurer que tout est rendu
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Vérifier les dimensions de l'élément
+      const rect = element.getBoundingClientRect();
+      console.log(`[generateImage] Dimensions de l'élément: ${rect.width}x${rect.height}`);
 
       const dataUrl = await toPng(element, {
         width: spec.width,
         height: spec.height,
         backgroundColor: spec.backgroundColor,
         pixelRatio: 1,
-        cacheBust: false, // Désactiver cacheBust pour plus de vitesse
-        quality: 0.95, // Légèrement réduire la qualité pour accélérer
+        // Évite certains effets de cache (proxy / navigateur) qui peuvent faire "réutiliser" une image
+        // lors de captures successives (ex: changement de période).
+        cacheBust: true,
+        quality: 0.95,
+        // Ne pas inclure les images qui ont timeout/erreur, sinon elles peuvent polluer le rendu
+        filter: (node) => {
+          if (node && (node as any).getAttribute) {
+            return (node as any).getAttribute("data-skip-capture") !== "1";
+          }
+          return true;
+        },
         style: {
           transform: "none",
           position: "static",
         },
       });
+      
+      console.log(`[generateImage] Image générée avec succès pour l'événement ${eventId}`);
       return dataUrl;
     } catch (error) {
-      console.error("Erreur lors de la génération de l'image:", error);
+      console.error(
+        `[generateImage] Erreur lors de la génération de l'image pour l'événement ${eventId}:`,
+        error
+      );
+      
+      // Logging détaillé de l'erreur
+      if (error instanceof Error) {
+        console.error("  - Message:", error.message);
+        console.error("  - Stack:", error.stack);
+      } else {
+        console.error("  - Type d'erreur:", typeof error);
+      }
+      
+      // Essayer de sérialiser l'erreur
+      try {
+        if (typeof error === "object" && error !== null) {
+          const errorObj: Record<string, unknown> = {};
+          const src = error as Record<string, unknown>;
+          for (const key in src) {
+            try {
+              errorObj[key] = src[key];
+            } catch (e) {
+              errorObj[key] = String(src[key]);
+            }
+          }
+          console.error("  - Détails de l'erreur:", JSON.stringify(errorObj, null, 2));
+        } else {
+          console.error("  - Détails de l'erreur (primitive):", String(error));
+        }
+      } catch (e) {
+        console.error("  - Erreur (objet brut):", error);
+      }
+      
+      // Informations supplémentaires sur l'élément
+      if (element) {
+        console.error("  - Élément trouvé:", true);
+        console.error("  - Élément dans le DOM:", element.isConnected);
+        const rect = element.getBoundingClientRect();
+        console.error("  - Dimensions:", `${rect.width}x${rect.height}`);
+        console.error("  - Position:", `(${rect.left}, ${rect.top})`);
+      } else {
+        console.error("  - Élément trouvé: false");
+      }
+      
       return null;
+    } finally {
+      // Cleanup (toujours)
+      if (images) images.forEach((img) => img.removeAttribute("data-skip-capture"));
+      // Restaurer l'image de couverture si on l'a inlinée
+      if (coverImg && originalCoverSrc && coverImg.src !== originalCoverSrc) {
+        coverImg.src = originalCoverSrc;
+      }
     }
   }
 
@@ -509,6 +733,42 @@ export function ShareNetworkContent() {
                 </span>
               </CardTitle>
               <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  onClick={() => generateMissingImages(10)}
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    generatingImages ||
+                    (needsProxyToken && !proxyToken) ||
+                    events.filter((e) => !generatedImages[e.id]).length === 0
+                  }
+                >
+                  Générer 10 manquantes
+                </Button>
+                <Button
+                  onClick={() => generateSelectedImages(10)}
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    generatingImages ||
+                    (needsProxyToken && !proxyToken) ||
+                    events.filter((e) => selectedImages.has(e.id) && !generatedImages[e.id]).length === 0
+                  }
+                >
+                  Générer 10 sélectionnées
+                </Button>
+                <Button
+                  onClick={() => generateMissingImages()}
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    generatingImages ||
+                    (needsProxyToken && !proxyToken) ||
+                    events.filter((e) => !generatedImages[e.id]).length === 0
+                  }
+                >
+                  Générer tout
+                </Button>
                 <Button
                   onClick={toggleAllImages}
                   variant="outline"
@@ -659,7 +919,8 @@ export function ShareNetworkContent() {
       )}
 
       {/* Images cachées pour génération */}
-      <div className="absolute -left-[9999px] opacity-0 pointer-events-none">
+      {/* Important: ne PAS utiliser opacity/visibility/display none ici, sinon html-to-image peut produire des images blanches */}
+      <div className="fixed -left-[10000px] top-0 -z-10 pointer-events-none">
         {events.map((event) => {
           const organizers = event.event_organizers
             ?.filter((eo) => {
@@ -673,7 +934,16 @@ export function ShareNetworkContent() {
             .filter((name): name is string => name != null)
             .join(", ");
 
-          const imageSrc = event.image_url || event.location?.image_url || "";
+          const rawImageSrc = event.image_url || event.location?.image_url || "";
+          // Important: beaucoup d'images externes n'ont pas CORS → html-to-image échoue.
+          // On proxy les URLs externes via une route server-side (admin) pour garantir CORS.
+          // Ajout d'un cache-busting basé sur la période pour forcer le rechargement des images
+          // quand on change de période (évite que le navigateur serve une image en cache).
+          const cacheBuster = `${rangeStartKey}-${rangeEndKey}`;
+          const imageSrc =
+            rawImageSrc && isHttpUrl(rawImageSrc)
+              ? `${toProxyImageUrl(rawImageSrc)}&token=${encodeURIComponent(proxyToken || "")}&_cb=${encodeURIComponent(cacheBuster)}`
+              : rawImageSrc;
           const startDayKey = format(startOfLocalDay(new Date(event.date)), "yyyy-MM-dd");
           const endDayKey = event.end_date ? format(startOfLocalDay(new Date(event.end_date)), "yyyy-MM-dd") : startDayKey;
           const isMultiDay = startDayKey !== endDayKey;
@@ -747,6 +1017,7 @@ export function ShareNetworkContent() {
               >
                 {imageSrc ? (
                   <img
+                    key={`${event.id}-${cacheBuster}`}
                     src={imageSrc}
                     alt={event.title}
                     style={{
@@ -756,6 +1027,7 @@ export function ShareNetworkContent() {
                       display: "block",
                       borderRadius: "12px",
                     }}
+                    data-event-cover="1"
                     crossOrigin="anonymous"
                   />
                 ) : (

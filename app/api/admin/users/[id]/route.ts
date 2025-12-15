@@ -2,6 +2,85 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { NextResponse } from "next/server";
 
+// PATCH : Mettre à jour un utilisateur (rôle, etc.)
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    
+    // Vérifier l'authentification de l'admin
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    }
+
+    const role = user.user_metadata?.role;
+    if (role !== "admin") {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+
+    // Utiliser le service role key pour mettre à jour l'utilisateur
+    const supabaseAdmin = createServiceClient();
+
+    // Récupérer les métadonnées actuelles
+    const { data: currentUser, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(id);
+
+    if (getUserError || !currentUser.user) {
+      return NextResponse.json(
+        { error: "Utilisateur non trouvé" },
+        { status: 404 }
+      );
+    }
+
+    // Mettre à jour les métadonnées
+    const currentMetadata = currentUser.user.user_metadata || {};
+    const updatedMetadata = { ...currentMetadata };
+
+    if (body.role !== undefined) {
+      if (body.role === "" || body.role === null) {
+        delete updatedMetadata.role;
+      } else {
+        updatedMetadata.role = body.role;
+      }
+    }
+
+    // Mettre à jour l'utilisateur
+    const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      id,
+      {
+        user_metadata: updatedMetadata,
+      }
+    );
+
+    if (updateError) {
+      console.error("Erreur lors de la mise à jour de l'utilisateur:", updateError);
+      return NextResponse.json(
+        { error: updateError.message || "Erreur lors de la mise à jour de l'utilisateur" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Utilisateur mis à jour avec succès",
+      user: updatedUser.user,
+    });
+  } catch (error: any) {
+    console.error("Erreur API /api/admin/users/[id] PATCH:", error);
+    return NextResponse.json(
+      { error: error.message || "Erreur serveur" },
+      { status: 500 }
+    );
+  }
+}
+
 // DELETE : Supprimer un utilisateur
 export async function DELETE(
   request: Request,

@@ -27,6 +27,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { usePendingRequestsCount } from "@/hooks/use-pending-requests-count";
+import { Badge } from "@/components/ui/badge";
 
 const menuItems = [
   {
@@ -95,6 +97,7 @@ export function AdminSidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const menuItemsRefs = React.useRef<(HTMLAnchorElement | null)[]>([]);
+  const { count: pendingRequestsCount } = usePendingRequestsCount();
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -165,6 +168,14 @@ export function AdminSidebar() {
                     >
                       <item.icon className="size-4" />
                       <span className="flex-1">{item.title}</span>
+                      {item.title === "Demandes" && pendingRequestsCount !== null && pendingRequestsCount > 0 && (
+                        <Badge 
+                          variant="secondary" 
+                          className="ml-auto h-5 min-w-5 px-1.5 text-xs font-semibold"
+                        >
+                          {pendingRequestsCount > 99 ? "99+" : pendingRequestsCount}
+                        </Badge>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

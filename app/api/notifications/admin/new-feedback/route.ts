@@ -1,0 +1,90 @@
+import { NextRequest, NextResponse } from "next/server";
+import { sendNotificationToAdmins } from "@/lib/notifications/admin";
+import { createServiceClient } from "@/lib/supabase/service";
+
+/**
+ * POST /api/notifications/admin/new-feedback
+ * 
+ * Envoie une notification push à tous les admins lorsqu'un nouveau feedback est créé
+ * 
+ * Body:
+ * {
+ *   feedbackId: string - ID du feedback
+ *   feedbackType?: string - Type de feedback (optionnel)
+ *   message?: string - Description du feedback (optionnel, tronqué)
+ *   userId?: string - ID de l'utilisateur qui a créé le feedback (optionnel)
+ * }
+ * 
+ * Cette route peut être appelée :
+ * - Par un trigger Supabase Database Webhook
+ * - Directement depuis le code qui crée un feedback
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { feedbackId, feedbackType, message, userId } = body;
+
+    if (!feedbackId) {
+      return NextResponse.json(
+        { error: "feedbackId est requis" },
+        { status: 400 }
+      );
+    }
+
+    // Récupérer les détails du feedback si nécessaire
+    const supabase = createServiceClient();
+    const { data: feedbackData, error: feedbackError } = await supabase
+      .from("feedbacks")
+      .select("id, description, user_id, created_at, status, feedback_object_id")
+      .eq("id", feedbackId)
+      .single();
+
+    if (feedbackError || !feedbackData) {
+      console.error("❌ Erreur lors de la récupération du feedback:", feedbackError);
+      // On continue quand même, on utilisera les données du body
+    }
+
+    // Construire le message de notification
+    const feedbackDescription = feedbackData?.description || message || "Nouveau feedback";
+    // Tronquer le message à 100 caractères pour la notification
+    const truncatedMessage = feedbackDescription.length > 100 
+      ? feedbackDescription.substring(0, 97) + "..." 
+      : feedbackDescription;
+
+    const feedbackTypeLabel = feedbackType || "feedback";
+
+    // Envoyer la notification à tous les admins
+    const result = await sendNotificationToAdmins({
+      title: "💬 Nouveau feedback",
+      body: `${feedbackTypeLabel}: ${truncatedMessage}`,
+      data: {
+        type: "new_feedback",
+        feedback_id: feedbackId,
+        feedback_type: feedbackType || null,
+        message: truncatedMessage,
+        user_id: feedbackData?.user_id || userId || null,
+        feedback_object_id: feedbackData?.feedback_object_id || null,
+      },
+    });
+
+    if (result.success) {
+      console.log(`✅ Notification envoyée à ${result.sent} admin(s) pour le feedback ${feedbackId}`);
+    } else {
+      console.error(`❌ Erreur lors de l'envoi des notifications:`, result.errors);
+    }
+
+    return NextResponse.json({
+      success: result.success,
+      sent: result.sent,
+      failed: result.failed,
+      errors: result.errors,
+    });
+  } catch (error: any) {
+    console.error("❌ Erreur lors de l'envoi de la notification admin:", error);
+    return NextResponse.json(
+      { error: error?.message || "Erreur serveur" },
+      { status: 500 }
+    );
+  }
+}
+

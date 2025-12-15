@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, Calendar, MapPin, Users, Tag, FileText, MessageSquare, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePendingRequestsCount } from "@/hooks/use-pending-requests-count";
+import { Badge } from "@/components/ui/badge";
 
 const menuItems = [
   {
@@ -53,6 +55,7 @@ const menuItems = [
 export function MobileBottomNav() {
   const pathname = usePathname();
   const isMobile = useIsMobile();
+  const { count: pendingRequestsCount } = usePendingRequestsCount();
 
   if (!isMobile) return null;
 
@@ -67,13 +70,23 @@ export function MobileBottomNav() {
               key={item.url}
               href={item.url}
               className={cn(
-                "flex min-w-[44px] flex-col items-center justify-center gap-1 rounded-lg px-3 py-2 transition-all duration-200 cursor-pointer",
+                "relative flex min-w-[44px] flex-col items-center justify-center gap-1 rounded-lg px-3 py-2 transition-all duration-200 cursor-pointer",
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground active:scale-95"
               )}
             >
-              <item.icon className={cn("h-5 w-5", isActive && "scale-110")} />
+              <div className="relative">
+                <item.icon className={cn("h-5 w-5", isActive && "scale-110")} />
+                {item.title === "Demandes" && pendingRequestsCount !== null && pendingRequestsCount > 0 && (
+                  <Badge 
+                    variant="secondary" 
+                    className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-[9px] font-semibold leading-none flex items-center justify-center"
+                  >
+                    {pendingRequestsCount > 99 ? "99+" : pendingRequestsCount}
+                  </Badge>
+                )}
+              </div>
               <span className="text-[10px] font-medium leading-tight">{item.title}</span>
               {isActive && (
                 <div className="absolute bottom-0 left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-full bg-primary" />

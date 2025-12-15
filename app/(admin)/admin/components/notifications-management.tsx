@@ -41,7 +41,8 @@ import {
   AlertDescription,
 } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { Bell, CheckCircle2, XCircle, Clock, Send, User, Smartphone, Globe, Loader2, RefreshCw } from "lucide-react";
+import { Bell, CheckCircle2, XCircle, Clock, Send, User, Smartphone, Globe, Loader2, RefreshCw, Settings, Save } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -110,6 +111,11 @@ export function NotificationsManagement() {
     body: "",
     data: "",
   });
+  const [settings, setSettings] = useState<{
+    notification_time: string;
+    is_active: boolean;
+  } | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const isMobile = useIsMobile();
 
@@ -144,10 +150,51 @@ export function NotificationsManagement() {
         const errorData = await usersRes.json().catch(() => ({}));
         console.error("❌ Erreur lors du chargement des utilisateurs:", usersRes.status, errorData);
       }
+
+      // Charger les paramètres
+      const settingsRes = await fetch("/api/admin/notifications/settings");
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json();
+        // Convertir le format TIME (HH:MM:SS) en HH:MM pour l'input
+        const timeStr = settingsData.notification_time || "09:00:00";
+        const [hours, minutes] = timeStr.split(":");
+        setSettings({
+          notification_time: `${hours}:${minutes}`,
+          is_active: settingsData.is_active ?? true,
+        });
+      }
     } catch (error) {
       console.error("Erreur lors du chargement des données:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveSettings() {
+    if (!settings) return;
+
+    setSavingSettings(true);
+    try {
+      const res = await fetch("/api/admin/notifications/settings", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(settings),
+      });
+
+      const result = await res.json();
+
+      if (res.ok) {
+        alert("Paramètres sauvegardés avec succès !");
+      } else {
+        alert(`Erreur: ${result.error || "Erreur inconnue"}`);
+      }
+    } catch (error: any) {
+      console.error("Erreur lors de la sauvegarde:", error);
+      alert(`Erreur: ${error?.message || "Erreur inconnue"}`);
+    } finally {
+      setSavingSettings(false);
     }
   }
 
@@ -337,13 +384,103 @@ export function NotificationsManagement() {
         </CardContent>
       </Card>
 
-      {/* Tabs pour Envoyer, Logs et Utilisateurs */}
-      <Tabs defaultValue="send" className="space-y-4">
+      {/* Tabs pour Envoyer, Logs, Utilisateurs et Paramètres */}
+      <Tabs defaultValue="settings" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="settings">Paramètres</TabsTrigger>
           <TabsTrigger value="send">Envoyer une notification</TabsTrigger>
           <TabsTrigger value="logs">Logs de notifications</TabsTrigger>
           <TabsTrigger value="users">Utilisateurs</TabsTrigger>
         </TabsList>
+
+        {/* Paramètres */}
+        <TabsContent value="settings">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Paramètres globaux de notifications
+              </CardTitle>
+              <CardDescription>
+                Configurez l'activation globale et l'heure d'envoi des notifications push
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {settings ? (
+                <>
+                  {/* Activation globale */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-0.5">
+                      <Label className="text-base font-semibold">Activation globale</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Si désactivé, aucun utilisateur ne recevra de notifications push, même s'ils ont activé les notifications dans leurs préférences.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings.is_active}
+                      onCheckedChange={(checked) =>
+                        setSettings((prev) => prev ? { ...prev, is_active: checked } : null)
+                      }
+                    />
+                  </div>
+
+                  {/* Heure d'envoi */}
+                  <div className="space-y-2 p-4 border rounded-lg">
+                    <Label htmlFor="notification-time" className="text-base font-semibold">
+                      Heure d'envoi
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Heure à laquelle les notifications sont envoyées pour les utilisateurs qui ont choisi la fréquence "Tous les jours". Format : HH:MM (ex: 09:00)
+                    </p>
+                    <Input
+                      id="notification-time"
+                      type="time"
+                      value={settings.notification_time}
+                      onChange={(e) =>
+                        setSettings((prev) => prev ? { ...prev, notification_time: e.target.value } : null)
+                      }
+                      className="w-full max-w-xs"
+                    />
+                  </div>
+
+                  {/* Bouton de sauvegarde */}
+                  <div className="flex justify-end pt-4 border-t">
+                    <Button
+                      onClick={saveSettings}
+                      disabled={savingSettings}
+                      className="cursor-pointer"
+                    >
+                      {savingSettings ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Sauvegarde...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Sauvegarder les paramètres
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* Avertissement si désactivé */}
+                  {!settings.is_active && (
+                    <Alert variant="destructive">
+                      <AlertDescription>
+                        <strong>Les notifications push sont désactivées.</strong> Aucun utilisateur ne recevra de notifications push, même s'ils ont activé les notifications dans leurs préférences.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Envoi de notifications */}
         <TabsContent value="send">

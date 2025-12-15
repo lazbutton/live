@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SelectSearchable } from "@/components/ui/select-searchable";
 import {
   Card,
   CardContent,
@@ -26,6 +27,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -33,12 +35,33 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Calendar, MapPin, Tag, Euro, Users, Clock, Link as LinkIcon, Image as ImageIcon, Upload, X, Save, Maximize2, Minimize2, RotateCw, LayoutGrid } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Tag, Euro, Users, Clock, Link as LinkIcon, Image as ImageIcon, Upload, X, Save, Maximize2, Minimize2, RotateCw, LayoutGrid, ExternalLink } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
 import { compressImage } from "@/lib/image-compression";
 import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { checkIsAdmin } from "@/lib/auth";
+
+function addHoursToDatetimeLocal(value: string, hoursToAdd: number) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!m) return value;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const d = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (Number.isNaN(d.getTime())) return value;
+  d.setHours(d.getHours() + hoursToAdd);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  const ho = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${mo}-${da}T${ho}:${mi}`;
+}
 // Import toast from sonner - using alert for now
 
 interface UserRequest {
@@ -138,15 +161,19 @@ function CreateEventContent() {
     end_date: "",
     category: "",
     price: "",
+    presale_price: "",
+    subscriber_price: "",
     capacity: "",
     location_id: "",
     room_id: "",
     door_opening_time: "",
     external_url: "",
+    external_url_label: "",
     scraping_url: "",
     instagram_url: "",
     facebook_url: "",
     image_url: "",
+    is_full: false,
   });
 
   // Fonction pour charger les salles d'un lieu
@@ -169,6 +196,161 @@ function CreateEventContent() {
       console.error("Erreur lors du chargement des salles:", error);
       setRooms([]);
     }
+  }
+
+  // Fonction pour trouver ou créer une catégorie (inactive si créée)
+  async function findOrCreateCategory(categoryName: string): Promise<string | null> {
+    if (!categoryName || !categoryName.trim()) return null;
+
+    const trimmedName = categoryName.trim();
+    const normalizedName = trimmedName.toLowerCase();
+    
+    // Chercher une catégorie existante (active ou inactive) - recherche insensible à la casse
+    const { data: allCategories, error: fetchError } = await supabase
+      .from("categories")
+      .select("id, name");
+    
+    if (fetchError) {
+      console.error("Erreur lors de la récupération des catégories:", {
+        message: fetchError.message,
+        details: fetchError.details,
+        hint: fetchError.hint,
+        code: fetchError.code,
+      });
+      return null;
+    }
+
+    // Rechercher une correspondance insensible à la casse
+    const existing = allCategories?.find(
+      (cat) => cat.name.toLowerCase() === normalizedName
+    );
+
+    if (existing) {
+      return existing.id;
+    }
+
+    // Si aucune catégorie ne correspond, créer une catégorie inactive
+    // Utiliser le nom original (pas forcément en majuscules)
+    const { data: created, error } = await supabase
+      .from("categories")
+      .insert([{ name: trimmedName, is_active: false }])
+      .select("id")
+      .single();
+
+    if (error) {
+      // Vérifier les permissions admin
+      const isAdmin = await checkIsAdmin();
+      
+      console.error("Erreur lors de la création de la catégorie:");
+      console.error("  - Message:", error.message || "Aucun message");
+      console.error("  - Code:", error.code || "Aucun code");
+      console.error("  - Détails:", error.details || "Aucun détail");
+      console.error("  - Indice:", error.hint || "Aucun indice");
+      console.error("  - Nom de catégorie:", trimmedName);
+      console.error("  - Utilisateur est admin:", isAdmin);
+      
+      // Essayer de sérialiser l'erreur de manière plus complète
+      try {
+        const errorObj: any = {};
+        for (const key in error) {
+          try {
+            errorObj[key] = (error as any)[key];
+          } catch (e) {
+            errorObj[key] = String((error as any)[key]);
+          }
+        }
+        console.error("  - Erreur complète:", JSON.stringify(errorObj, null, 2));
+      } catch (e) {
+        console.error("  - Erreur (objet brut):", error);
+      }
+      
+      // Si c'est une erreur de contrainte unique (23505), la catégorie existe peut-être déjà
+      // Essayer de la récupérer à nouveau
+      if (error.code === "23505") {
+        console.log("  - Tentative de récupération après erreur de contrainte unique...");
+        const { data: retryExisting, error: retryError } = await supabase
+          .from("categories")
+          .select("id, name")
+          .ilike("name", trimmedName)
+          .maybeSingle();
+        
+        if (retryError) {
+          console.error("  - Erreur lors de la récupération:", retryError);
+        }
+        
+        if (retryExisting) {
+          console.log("  - Catégorie trouvée après réessai:", retryExisting.id);
+          return retryExisting.id;
+        }
+      }
+      
+      // Si l'utilisateur n'est pas admin, c'est probablement un problème de permissions RLS
+      if (!isAdmin) {
+        console.error("  - ATTENTION: L'utilisateur n'est pas admin, la création peut être bloquée par RLS");
+      }
+      
+      return null;
+    }
+
+    // Recharger la liste des catégories pour inclure la nouvelle
+    const { data: updatedCategories } = await supabase
+      .from("categories")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("display_order");
+    
+    if (updatedCategories) {
+      setCategories(updatedCategories);
+    }
+
+    return created?.id || null;
+  }
+
+  // Fonction pour trouver ou créer des tags
+  async function findOrCreateTags(tagNames: string[]): Promise<string[]> {
+    if (!tagNames || tagNames.length === 0) return [];
+
+    const tagIds: string[] = [];
+
+    for (const tagName of tagNames) {
+      if (!tagName || !tagName.trim()) continue;
+
+      const normalizedName = tagName.trim().toLowerCase();
+      
+      // Chercher un tag existant
+      const { data: existing } = await supabase
+        .from("tags")
+        .select("id")
+        .ilike("name", normalizedName)
+        .maybeSingle();
+
+      if (existing) {
+        tagIds.push(existing.id);
+      } else {
+        // Créer un nouveau tag
+        const { data: created, error } = await supabase
+          .from("tags")
+          .insert([{ name: tagName.trim() }])
+          .select("id")
+          .single();
+
+        if (!error && created) {
+          tagIds.push(created.id);
+        }
+      }
+    }
+
+    // Recharger la liste des tags pour inclure les nouveaux
+    const { data: updatedTags } = await supabase
+      .from("tags")
+      .select("id, name")
+      .order("name");
+    
+    if (updatedTags) {
+      setTags(updatedTags);
+    }
+
+    return tagIds;
   }
 
   // Charger les salles quand le lieu change
@@ -223,44 +405,67 @@ function CreateEventContent() {
       if (categoriesResult.data) setCategories(categoriesResult.data);
       if (tagsResult.data) setTags(tagsResult.data);
 
-      // Populate form from request data
-      if (requestData.event_data) {
-        const ed = requestData.event_data;
-        const formattedDate = ed.date ? toDatetimeLocal(ed.date) : "";
-        const formattedEndDate = ed.end_date ? toDatetimeLocal(ed.end_date) : "";
+        // Populate form from request data
+        if (requestData.event_data) {
+          const ed = requestData.event_data;
+          const formattedDate = ed.date ? toDatetimeLocal(ed.date) : "";
+          const formattedEndDate = ed.end_date ? toDatetimeLocal(ed.end_date) : "";
 
-        setFormData({
-          title: ed.title || "",
-          description: ed.description || "",
-          date: formattedDate,
-          end_date: formattedEndDate,
-          category: ed.category || "",
-          price: ed.price != null ? ed.price.toString() : "",
-          capacity: ed.capacity != null ? ed.capacity.toString() : "",
-          location_id: ed.location_id || "",
-          room_id: ed.room_id || "",
-          door_opening_time: ed.door_opening_time || "",
-          external_url: ed.external_url || "",
-          scraping_url: requestData.source_url || "",
-          instagram_url: ed.instagram_url || "",
-          facebook_url: ed.facebook_url || "",
-          image_url: ed.image_url || "",
-        });
+          // Gérer la catégorie (peut être un nom de catégorie scrapé)
+          let categoryId = "";
+          if (ed.category) {
+            // Si c'est déjà un ID (UUID), l'utiliser directement
+            if (ed.category.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+              categoryId = ed.category;
+            } else {
+              // Sinon, c'est un nom de catégorie, trouver ou créer
+              const foundCategoryId = await findOrCreateCategory(ed.category);
+              categoryId = foundCategoryId || "";
+            }
+          }
 
-        if (ed.image_url) {
-          setImagePreview(ed.image_url);
-          setOriginalImageSrc(ed.image_url); // Conserver l'URL originale
-        }
+          // Gérer les tags (peut être un tableau de noms de tags scrapés)
+          if (ed.tags && Array.isArray(ed.tags) && ed.tags.length > 0) {
+            const tagIds = await findOrCreateTags(ed.tags);
+            setSelectedTagIds(tagIds);
+          }
 
-        // Charger les organisateurs si un organizer_id est présent
-        if (ed.organizer_id) {
-          setSelectedOrganizerIds([ed.organizer_id]);
-        }
+          setFormData({
+            title: ed.title || "",
+            description: ed.description || "",
+            date: formattedDate,
+            end_date: formattedEndDate,
+            category: categoryId,
+            price: ed.price != null ? ed.price.toString() : "",
+            presale_price: ed.presale_price != null ? ed.presale_price.toString() : "",
+            subscriber_price: ed.subscriber_price != null ? ed.subscriber_price.toString() : "",
+            capacity: ed.capacity != null ? ed.capacity.toString() : "",
+            location_id: ed.location_id || "",
+            room_id: ed.room_id || "",
+            door_opening_time: ed.door_opening_time || "",
+            external_url: ed.external_url || "",
+            external_url_label: ed.external_url_label || "",
+            scraping_url: requestData.source_url || "",
+            instagram_url: ed.instagram_url || "",
+            facebook_url: ed.facebook_url || "",
+            image_url: ed.image_url || "",
+            is_full: ed.is_full ?? false,
+          });
 
-        // Charger les salles si un lieu est déjà sélectionné
-        if (ed.location_id) {
-          loadRoomsForLocation(ed.location_id);
-        }
+          if (ed.image_url) {
+            setImagePreview(ed.image_url);
+            setOriginalImageSrc(ed.image_url); // Conserver l'URL originale
+          }
+
+          // Charger les organisateurs si un organizer_id est présent
+          if (ed.organizer_id) {
+            setSelectedOrganizerIds([ed.organizer_id]);
+          }
+
+          // Charger les salles si un lieu est déjà sélectionné
+          if (ed.location_id) {
+            loadRoomsForLocation(ed.location_id);
+          }
       } else if (requestData.request_type === "event_from_url" && requestData.source_url) {
         // Pré-remplir via scraping (event_from_url)
         try {
@@ -283,25 +488,43 @@ function CreateEventContent() {
 
           const formattedDate = scrapedData.date ? toDatetimeLocal(scrapedData.date) : "";
           const formattedEndDate = scrapedData.end_date ? toDatetimeLocal(scrapedData.end_date) : "";
-          const fallbackCategory = categoriesResult.data?.[0]?.id || "";
           const locId = requestData.location_id || "";
+
+          // Gérer la catégorie scrapée (peut être un nom)
+          let categoryId = "";
+          if (scrapedData.category) {
+            const foundCategoryId = await findOrCreateCategory(scrapedData.category);
+            categoryId = foundCategoryId || categoriesResult.data?.[0]?.id || "";
+          } else {
+            categoryId = categoriesResult.data?.[0]?.id || "";
+          }
+
+          // Gérer les tags scrapés
+          if (scrapedData.tags && Array.isArray(scrapedData.tags) && scrapedData.tags.length > 0) {
+            const tagIds = await findOrCreateTags(scrapedData.tags);
+            setSelectedTagIds(tagIds);
+          }
 
           setFormData({
             title: scrapedData.title || "",
             description: scrapedData.description || "",
             date: formattedDate,
             end_date: formattedEndDate,
-            category: scrapedData.category || fallbackCategory,
+            category: categoryId,
             price: scrapedData.price ? String(parseFloat(scrapedData.price)) : "",
+            presale_price: scrapedData.presale_price ? String(parseFloat(scrapedData.presale_price)) : "",
+            subscriber_price: scrapedData.subscriber_price ? String(parseFloat(scrapedData.subscriber_price)) : "",
             capacity: scrapedData.capacity ? String(parseInt(scrapedData.capacity)) : "",
             location_id: locId,
             room_id: "",
             door_opening_time: scrapedData.door_opening_time || "",
             external_url: scrapedData.external_url || requestData.source_url || "",
+            external_url_label: "",
             scraping_url: requestData.source_url || "",
             instagram_url: "",
             facebook_url: "",
             image_url: scrapedData.image_url || "",
+            is_full: scrapedData.is_full ?? false,
           });
 
           if (scrapedData.image_url) {
@@ -473,6 +696,17 @@ function CreateEventContent() {
     setSaving(true);
 
     try {
+      // Validation : la date de fin ne peut pas être antérieure à la date de début
+      if (formData.end_date && formData.date) {
+        const startDate = new Date(formData.date);
+        const endDate = new Date(formData.end_date);
+        if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()) && endDate < startDate) {
+          alert("La date et heure de fin ne peut pas être antérieure à la date et heure de début");
+          setSaving(false);
+          return;
+        }
+      }
+
       let finalImageUrl = formData.image_url;
 
       if (imageFile) {
@@ -502,14 +736,18 @@ function CreateEventContent() {
         end_date: formData.end_date ? fromDatetimeLocal(formData.end_date) : null,
         category: formData.category,
         price: formData.price ? parseFloat(formData.price) : null,
+        presale_price: formData.presale_price ? parseFloat(formData.presale_price) : null,
+        subscriber_price: formData.subscriber_price ? parseFloat(formData.subscriber_price) : null,
         address: selectedLocation?.address || null,
         latitude: selectedLocation?.latitude || null,
         longitude: selectedLocation?.longitude || null,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
+        is_full: formData.is_full || false,
         location_id: formData.location_id === "none" ? null : formData.location_id || null,
         room_id: formData.room_id === "none" || formData.room_id === "" ? null : formData.room_id || null,
         door_opening_time: formData.door_opening_time || null,
         external_url: formData.external_url || null,
+        external_url_label: formData.external_url_label || null,
         scraping_url: formData.scraping_url || null,
         instagram_url: formData.instagram_url || null,
         facebook_url: formData.facebook_url || null,
@@ -814,46 +1052,33 @@ function CreateEventContent() {
                         <Calendar className="h-4 w-4" />
                         Date et heure de début *
                       </Label>
-                      <Input
+                      <DateTimePicker
                         id="date"
-                        type="datetime-local"
                         value={formData.date}
-                        onChange={(e) => {
-                          const newStartDate = e.target.value;
-                          let newEndDate = formData.end_date;
-                          
-                          // Si la date de fin n'est pas remplie, la définir à début + 1 heure
-                          if (!formData.end_date && newStartDate) {
-                            const startDate = new Date(newStartDate);
-                            startDate.setHours(startDate.getHours() + 1);
-                            // Convertir en format datetime-local (YYYY-MM-DDTHH:mm)
-                            const year = startDate.getFullYear();
-                            const month = String(startDate.getMonth() + 1).padStart(2, '0');
-                            const day = String(startDate.getDate()).padStart(2, '0');
-                            const hours = String(startDate.getHours()).padStart(2, '0');
-                            const minutes = String(startDate.getMinutes()).padStart(2, '0');
-                            newEndDate = `${year}-${month}-${day}T${hours}:${minutes}`;
-                          }
-                          
-                          // Si la date de fin est antérieure à la nouvelle date de début, la corriger
-                          if (newEndDate && newStartDate) {
-                            const startDate = new Date(newStartDate);
-                            const endDate = new Date(newEndDate);
-                            if (endDate < startDate) {
-                              startDate.setHours(startDate.getHours() + 1);
-                              const year = startDate.getFullYear();
-                              const month = String(startDate.getMonth() + 1).padStart(2, '0');
-                              const day = String(startDate.getDate()).padStart(2, '0');
-                              const hours = String(startDate.getHours()).padStart(2, '0');
-                              const minutes = String(startDate.getMinutes()).padStart(2, '0');
-                              newEndDate = `${year}-${month}-${day}T${hours}:${minutes}`;
+                        onChange={(newStartDate) => {
+                          setFormData((prev) => {
+                            const next: typeof prev = { ...prev, date: newStartDate };
+
+                            // Si la date de fin n'est pas remplie, la définir à début + 1 heure
+                            if (!prev.end_date && newStartDate) {
+                              next.end_date = addHoursToDatetimeLocal(newStartDate, 1);
                             }
-                          }
-                          
-                          setFormData({ ...formData, date: newStartDate, end_date: newEndDate });
+
+                            // Si la date de fin est antérieure à la nouvelle date de début, la corriger
+                            if (next.end_date && newStartDate) {
+                              const start = new Date(newStartDate);
+                              const end = new Date(next.end_date);
+                              if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end < start) {
+                                next.end_date = addHoursToDatetimeLocal(newStartDate, 1);
+                              }
+                            }
+
+                            return next;
+                          });
                         }}
                         required
-                        className="cursor-pointer"
+                        placeholder="Choisir une date et une heure"
+                        className="space-y-0"
                       />
                     </div>
 
@@ -862,25 +1087,15 @@ function CreateEventContent() {
                         <Calendar className="h-4 w-4" />
                         Date et heure de fin
                       </Label>
-                      <Input
+                      <DateTimePicker
                         id="end_date"
-                        type="datetime-local"
                         value={formData.end_date}
-                        min={formData.date || undefined}
-                        onChange={(e) => {
-                          const newEndDate = e.target.value;
-                          // Validation : la date de fin ne peut pas être antérieure à la date de début
-                          if (newEndDate && formData.date) {
-                            const startDate = new Date(formData.date);
-                            const endDate = new Date(newEndDate);
-                            if (endDate < startDate) {
-                              alert("La date et heure de fin ne peut pas être antérieure à la date et heure de début");
-                              return;
-                            }
-                          }
-                          setFormData({ ...formData, end_date: newEndDate });
+                        onChange={(newEndDate) => {
+                          setFormData((prev) => ({ ...prev, end_date: newEndDate }));
                         }}
-                        className="cursor-pointer"
+                        placeholder="Optionnel"
+                        allowClear
+                        className="space-y-0"
                       />
                     </div>
 
@@ -930,7 +1145,14 @@ function CreateEventContent() {
                         <MapPin className="h-4 w-4" />
                         Lieu
                       </Label>
-                      <Select
+                      <SelectSearchable
+                        options={[
+                          { value: "none", label: "Aucun lieu" },
+                          ...locations.map((loc) => ({
+                            value: loc.id,
+                            label: loc.name,
+                          })),
+                        ]}
                         value={formData.location_id || "none"}
                         onValueChange={(value) => {
                           const locationId = value === "none" ? "" : value;
@@ -938,39 +1160,27 @@ function CreateEventContent() {
                           if (locationId) {
                             const selectedLocation = locations.find((loc) => loc.id === locationId);
                             if (selectedLocation) {
-                              setFormData({ 
-                                ...formData, 
+                              setFormData((prev) => ({ 
+                                ...prev, 
                                 location_id: locationId,
                                 room_id: "", // Réinitialiser la salle quand le lieu change
-                                capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : formData.capacity || ""
-                              });
+                                capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : prev.capacity || ""
+                              }));
                               // Charger les salles du lieu sélectionné
                               loadRoomsForLocation(locationId);
                               return;
                             }
                           }
-                          setFormData({ 
-                            ...formData, 
+                          setFormData((prev) => ({ 
+                            ...prev, 
                             location_id: locationId,
                             room_id: "" // Réinitialiser la salle quand le lieu change
-                          });
+                          }));
                           setRooms([]);
                         }}
-                      >
-                        <SelectTrigger className="cursor-pointer">
-                          <SelectValue placeholder="Sélectionner un lieu" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none" className="cursor-pointer">
-                            Aucun lieu
-                          </SelectItem>
-                          {locations.map((loc) => (
-                            <SelectItem key={loc.id} value={loc.id} className="cursor-pointer">
-                              {loc.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        placeholder="Sélectionner un lieu"
+                        searchPlaceholder="Rechercher un lieu..."
+                      />
                     </div>
 
                     <div className="space-y-2">
@@ -1012,7 +1222,7 @@ function CreateEventContent() {
                   <CardDescription>Prix, capacité et autres informations</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="price" className="flex items-center gap-2">
                         <Euro className="h-4 w-4" />
@@ -1023,12 +1233,46 @@ function CreateEventContent() {
                         type="number"
                         step="0.01"
                         value={formData.price}
-                        onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, price: e.target.value }))}
                         placeholder="0.00"
                         className="cursor-pointer"
                       />
                     </div>
 
+                    <div className="space-y-2">
+                      <Label htmlFor="presale_price" className="flex items-center gap-2">
+                        <Euro className="h-4 w-4" />
+                        Tarif prévente (€)
+                      </Label>
+                      <Input
+                        id="presale_price"
+                        type="number"
+                        step="0.01"
+                        value={formData.presale_price}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, presale_price: e.target.value }))}
+                        placeholder="Optionnel"
+                        className="cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="subscriber_price" className="flex items-center gap-2">
+                        <Euro className="h-4 w-4" />
+                        Tarif abonné (€)
+                      </Label>
+                      <Input
+                        id="subscriber_price"
+                        type="number"
+                        step="0.01"
+                        value={formData.subscriber_price}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, subscriber_price: e.target.value }))}
+                        placeholder="Optionnel"
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="capacity" className="flex items-center gap-2">
                         <Users className="h-4 w-4" />
@@ -1038,10 +1282,37 @@ function CreateEventContent() {
                         id="capacity"
                         type="number"
                         value={formData.capacity}
-                        onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, capacity: e.target.value }))}
                         placeholder="Nombre de places"
                         className="cursor-pointer"
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="is_full" className="flex items-center gap-2">
+                        Disponibilité
+                      </Label>
+                      <div className="flex items-center gap-3 p-4 rounded-lg border bg-card">
+                        <div className="flex items-center gap-3 flex-1">
+                          {formData.is_full ? (
+                            <>
+                              <span className="font-medium text-destructive">Événement complet</span>
+                              <p className="text-sm text-muted-foreground">Plus de places disponibles (sold out)</p>
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-medium text-success">Places disponibles</span>
+                              <p className="text-sm text-muted-foreground">L'événement accepte encore des réservations</p>
+                            </>
+                          )}
+                        </div>
+                        <Switch
+                          id="is_full"
+                          checked={formData.is_full}
+                          onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, is_full: checked }))}
+                          className="shrink-0"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -1055,29 +1326,60 @@ function CreateEventContent() {
                         id="external_url"
                         type="url"
                         value={formData.external_url}
-                        onChange={(e) => setFormData({ ...formData, external_url: e.target.value })}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, external_url: e.target.value }))}
                         placeholder="https://..."
                         className="cursor-pointer"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="scraping_url" className="flex items-center gap-2">
+                      <Label htmlFor="external_url_label" className="flex items-center gap-2">
                         <LinkIcon className="h-4 w-4" />
-                        URL de scraping
+                        Label du lien externe
                       </Label>
+                      <Input
+                        id="external_url_label"
+                        type="text"
+                        value={formData.external_url_label}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, external_url_label: e.target.value }))}
+                        placeholder="Réserver des billets"
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="scraping_url" className="flex items-center gap-2">
+                      <LinkIcon className="h-4 w-4" />
+                      URL de scraping
+                    </Label>
+                    <div className="flex gap-2">
                       <Input
                         id="scraping_url"
                         type="url"
                         value={formData.scraping_url}
-                        onChange={(e) => setFormData({ ...formData, scraping_url: e.target.value })}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, scraping_url: e.target.value }))}
                         placeholder="https://..."
-                        className="cursor-pointer"
+                        className="cursor-pointer flex-1"
                       />
-                      <p className="text-xs text-muted-foreground">
-                        URL utilisée pour mettre à jour l'événement via scraping
-                      </p>
+                      {formData.scraping_url && formData.scraping_url.trim() && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          asChild
+                          className="cursor-pointer"
+                          title="Ouvrir l'URL dans un nouvel onglet"
+                        >
+                          <a href={formData.scraping_url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      )}
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      URL utilisée pour mettre à jour l'événement via scraping
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

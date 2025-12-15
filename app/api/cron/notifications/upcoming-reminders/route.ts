@@ -104,6 +104,22 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Vérifier si les notifications globales sont activées
+    const { data: globalSettings } = await supabase
+      .from("notification_settings")
+      .select("is_active")
+      .maybeSingle();
+
+    if (!globalSettings || !globalSettings.is_active) {
+      console.log("ℹ️ Les notifications globales sont désactivées");
+      return NextResponse.json({
+        success: true,
+        message: "Notifications globales désactivées",
+        eventsCount: eventsWithCategory.length,
+        notificationsSent: 0,
+      });
+    }
+
     // Récupérer tous les utilisateurs avec leurs préférences de catégories
     const { data: enabledUsers, error: prefsError } = await supabase
       .from("user_notification_preferences")

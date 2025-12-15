@@ -44,7 +44,7 @@ type RequestTypeFilter = "all" | RequestType;
 
 type PeriodFilter = "all" | "24h" | "7d" | "30d";
 
-type SortMode = "newest" | "oldest";
+type SortMode = "newest" | "oldest" | "event_date_asc";
 
 interface UserRequest {
   id: string;
@@ -366,7 +366,7 @@ export function UserRequestsManagement() {
   const [tab, setTab] = React.useState<RequestStatusTab>("pending");
   const [filterType, setFilterType] = React.useState<RequestTypeFilter>("all");
   const [filterPeriod, setFilterPeriod] = React.useState<PeriodFilter>("7d");
-  const [sortMode, setSortMode] = React.useState<SortMode>("newest");
+  const [sortMode, setSortMode] = React.useState<SortMode>("event_date_asc");
   const [searchQuery, setSearchQuery] = React.useState("");
 
   // Selection & details
@@ -407,6 +407,19 @@ export function UserRequestsManagement() {
   const filtered = React.useMemo(() => {
     let list = requests.filter((r) => r.request_type === "event_creation" || r.request_type === "event_from_url");
 
+    // Filtrer les demandes avec dates passées
+    const now = Date.now();
+    list = list.filter((r) => {
+      const eventDate = r.event_data?.date;
+      if (!eventDate) return true; // Garder les demandes sans date
+      const eventDateTimestamp = new Date(eventDate).getTime();
+      if (Number.isNaN(eventDateTimestamp)) return true; // Garder si la date est invalide
+      // Garder uniquement les événements futurs (date >= aujourd'hui à minuit)
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      return eventDateTimestamp >= todayStart.getTime();
+    });
+
     if (tab !== "all") list = list.filter((r) => r.status === tab);
 
     if (filterType !== "all") list = list.filter((r) => r.request_type === filterType);
@@ -438,6 +451,30 @@ export function UserRequestsManagement() {
     }
 
     list.sort((a, b) => {
+      if (sortMode === "event_date_asc") {
+        // Trier par date de début de l'événement (les plus proches en premier)
+        const dateA = a.event_data?.date ? new Date(a.event_data.date).getTime() : null;
+        const dateB = b.event_data?.date ? new Date(b.event_data.date).getTime() : null;
+        
+        // Si les deux ont une date, trier par ordre croissant
+        if (dateA !== null && dateB !== null) {
+          return dateA - dateB;
+        }
+        // Si seulement A a une date, A vient avant
+        if (dateA !== null && dateB === null) {
+          return -1;
+        }
+        // Si seulement B a une date, B vient avant
+        if (dateA === null && dateB !== null) {
+          return 1;
+        }
+        // Si aucune des deux n'a de date, garder l'ordre original (ou trier par requested_at)
+        const ta = new Date(a.requested_at).getTime();
+        const tb = new Date(b.requested_at).getTime();
+        return tb - ta; // Plus récentes en premier pour celles sans date
+      }
+      
+      // Tri par requested_at (comportement original)
       const ta = new Date(a.requested_at).getTime();
       const tb = new Date(b.requested_at).getTime();
       return sortMode === "newest" ? tb - ta : ta - tb;
@@ -490,7 +527,48 @@ export function UserRequestsManagement() {
       return;
     }
 
-    setRequests(((data || []) as unknown) as UserRequest[]);
+    const allRequests = ((data || []) as unknown) as UserRequest[];
+
+    // Supprimer automatiquement les demandes avec dates passées
+    const now = Date.now();
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayStartTimestamp = todayStart.getTime();
+
+    const requestsToDelete: string[] = [];
+    const validRequests: UserRequest[] = [];
+
+    for (const request of allRequests) {
+      const eventDate = request.event_data?.date;
+      if (eventDate) {
+        const eventDateTimestamp = new Date(eventDate).getTime();
+        if (!Number.isNaN(eventDateTimestamp) && eventDateTimestamp < todayStartTimestamp) {
+          // Date passée : marquer pour suppression
+          requestsToDelete.push(request.id);
+          continue;
+        }
+      }
+      validRequests.push(request);
+    }
+
+    // Supprimer les demandes avec dates passées
+    if (requestsToDelete.length > 0) {
+      console.log(`🗑️ Suppression automatique de ${requestsToDelete.length} demande(s) avec dates passées`);
+      try {
+        const { error: deleteError } = await supabase
+          .from("user_requests")
+          .delete()
+          .in("id", requestsToDelete);
+        
+        if (deleteError) {
+          console.error("Erreur lors de la suppression des demandes passées:", deleteError);
+        }
+      } catch (err) {
+        console.error("Erreur lors de la suppression des demandes passées:", err);
+      }
+    }
+
+    setRequests(validRequests);
   }, []);
 
   React.useEffect(() => {
@@ -842,7 +920,14 @@ export function UserRequestsManagement() {
         clear: () => setFilterType("all"),
       });
     if (filterPeriod !== "all") items.push({ key: "period", label: `Période: ${filterPeriod}`, clear: () => setFilterPeriod("all") });
-    if (sortMode !== "newest") items.push({ key: "sort", label: "Tri: ancien", clear: () => setSortMode("newest") });
+    if (sortMode !== "event_date_asc") {
+      const sortLabels: Record<SortMode, string> = {
+        newest: "Tri: récent",
+        oldest: "Tri: ancien",
+        event_date_asc: "Tri: date événement",
+      };
+      items.push({ key: "sort", label: sortLabels[sortMode] || "Tri", clear: () => setSortMode("event_date_asc") });
+    }
     return items;
   }, [searchQuery, filterType, filterPeriod, sortMode]);
 
@@ -940,6 +1025,7 @@ export function UserRequestsManagement() {
                     <SelectValue placeholder="Tri" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="event_date_asc">Date événement ↑</SelectItem>
                     <SelectItem value="newest">Récent</SelectItem>
                     <SelectItem value="oldest">Ancien</SelectItem>
                   </SelectContent>
@@ -963,7 +1049,7 @@ export function UserRequestsManagement() {
                       setSearchQuery("");
                       setFilterType("all");
                       setFilterPeriod("7d");
-                      setSortMode("newest");
+                      setSortMode("event_date_asc");
                     }}
                   >
                     Réinitialiser

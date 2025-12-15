@@ -15,7 +15,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { Calendar, LayoutDashboard, User, LogOut, Users, Bell } from "lucide-react";
+import { Calendar, LayoutDashboard, User, LogOut, Users, Bell, Code } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
@@ -59,6 +59,7 @@ export function OrganizerSidebar() {
   const [organizers, setOrganizers] = useState<OrganizerInfo[]>([]);
   const [activeOrganizer, setActiveOrganizer] = useState<OrganizerInfo | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [canManageScraping, setCanManageScraping] = useState(false);
   const [loadingOrganizers, setLoadingOrganizers] = useState(true);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
@@ -71,6 +72,10 @@ export function OrganizerSidebar() {
         // Vérifier si l'utilisateur est propriétaire d'au moins un organisateur
         const hasOwnerRole = orgs.some(org => org.role === "owner");
         setIsOwner(hasOwnerRole);
+        
+        // Vérifier si l'utilisateur peut gérer le scraping (owner ou editor)
+        const canManage = orgs.some(org => org.role === "owner" || org.role === "editor");
+        setCanManageScraping(canManage);
         
         if (orgs.length > 0) {
           const active = await getActiveOrganizer();
@@ -212,6 +217,30 @@ export function OrganizerSidebar() {
                     >
                       <Users className="size-4" />
                       <span className="flex-1">Gérer l'équipe</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {/* Afficher le bouton de scraping si l'utilisateur est propriétaire ou éditeur */}
+              {(canManageScraping || loadingOrganizers) && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/organizer/scraping"}
+                    className={loadingOrganizers ? "opacity-50 pointer-events-none" : ""}
+                  >
+                    <Link 
+                      href="/organizer/scraping"
+                      className="cursor-pointer focus:outline-none"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        if (loadingOrganizers) {
+                          e.preventDefault();
+                        }
+                      }}
+                    >
+                      <Code className="size-4" />
+                      <span className="flex-1">Configuration scraping</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

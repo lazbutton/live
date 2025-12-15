@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { X, Check, ChevronDown } from "lucide-react";
+import { X, Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -22,6 +23,7 @@ interface MultiSelectProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  searchPlaceholder?: string;
 }
 
 export function MultiSelect({
@@ -31,8 +33,18 @@ export function MultiSelect({
   placeholder = "Sélectionner...",
   className,
   disabled = false,
+  searchPlaceholder = "Rechercher...",
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
+
+  const filteredOptions = React.useMemo(() => {
+    if (!searchQuery.trim()) return options;
+    const query = searchQuery.toLowerCase();
+    return options.filter((option) =>
+      option.label.toLowerCase().includes(query)
+    );
+  }, [options, searchQuery]);
 
   const handleUnselect = (value: string) => {
     onChange(selected.filter((s) => s !== value));
@@ -45,6 +57,13 @@ export function MultiSelect({
       onChange([...selected, value]);
     }
   };
+
+  // Réinitialiser la recherche quand le popover se ferme
+  React.useEffect(() => {
+    if (!open) {
+      setSearchQuery("");
+    }
+  }, [open]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -125,13 +144,25 @@ export function MultiSelect({
           boxShadow: "var(--shadow-lg)",
         }}
       >
+        <div className="p-2 border-b">
+          <div className="relative">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder={searchPlaceholder}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-9"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
         <div className="max-h-60 overflow-auto p-1">
-          {options.length === 0 ? (
+          {filteredOptions.length === 0 ? (
             <div className="py-6 text-center text-sm text-muted-foreground">
-              Aucune option disponible
+              {searchQuery.trim() ? "Aucun résultat trouvé" : "Aucune option disponible"}
             </div>
           ) : (
-            options.map((option) => {
+            filteredOptions.map((option) => {
               const isSelected = selected.includes(option.value);
               return (
                 <div

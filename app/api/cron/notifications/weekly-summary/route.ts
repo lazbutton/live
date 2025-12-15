@@ -93,11 +93,28 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Récupérer tous les utilisateurs avec leurs préférences de catégories
+    // Vérifier si les notifications globales sont activées
+    const { data: globalSettings } = await supabase
+      .from("notification_settings")
+      .select("is_active")
+      .maybeSingle();
+
+    if (!globalSettings || !globalSettings.is_active) {
+      console.log("ℹ️ Les notifications globales sont désactivées");
+      return NextResponse.json({
+        success: true,
+        message: "Notifications globales désactivées",
+        eventsCount: eventsWithCategory.length,
+        notificationsSent: 0,
+      });
+    }
+
+    // Récupérer tous les utilisateurs avec leurs préférences de catégories et fréquence "weekly"
     const { data: enabledUsers, error: prefsError } = await supabase
       .from("user_notification_preferences")
-      .select("user_id, category_ids")
-      .eq("is_enabled", true);
+      .select("user_id, category_ids, frequency")
+      .eq("is_enabled", true)
+      .in("frequency", ["weekly"]); // Seulement les utilisateurs avec fréquence "weekly"
 
     if (prefsError || !enabledUsers || enabledUsers.length === 0) {
       console.log("ℹ️ Aucun utilisateur n'a activé les notifications");

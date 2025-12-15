@@ -103,12 +103,50 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Récupérer tous les utilisateurs avec leurs préférences de catégories
+    // Vérifier si les notifications globales sont activées
+    const { data: globalSettings } = await supabase
+      .from("notification_settings")
+      .select("is_active, notification_time")
+      .maybeSingle();
+
+    if (!globalSettings || !globalSettings.is_active) {
+      console.log("ℹ️ Les notifications globales sont désactivées");
+      return NextResponse.json({
+        success: true,
+        message: "Notifications globales désactivées",
+        eventsCount: eventsWithCategory.length,
+        notificationsSent: 0,
+      });
+    }
+
+    // Vérifier si l'heure actuelle correspond à l'heure configurée (pour les utilisateurs "daily")
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    
+    if (globalSettings.notification_time) {
+      const [configuredHour, configuredMinute] = globalSettings.notification_time.split(":").map(Number);
+      // Vérifier si on est dans la bonne fenêtre (à l'heure configurée, avec une marge de 5 minutes)
+      const isInTimeWindow = currentHour === configuredHour && Math.abs(currentMinute - configuredMinute) <= 5;
+      
+      if (!isInTimeWindow) {
+        console.log(`ℹ️ Pas dans la fenêtre d'envoi. Heure actuelle: ${currentHour}:${currentMinute}, Heure configurée: ${configuredHour}:${configuredMinute}`);
+        return NextResponse.json({
+          success: true,
+          message: "Pas dans la fenêtre d'envoi",
+          eventsCount: eventsWithCategory.length,
+          notificationsSent: 0,
+        });
+      }
+    }
+
+    // Récupérer tous les utilisateurs avec leurs préférences de catégories et fréquence
     // Note: On doit utiliser createServiceClient pour bypass RLS
     const { data: enabledUsers, error: prefsError } = await supabase
       .from("user_notification_preferences")
-      .select("user_id, category_ids")
-      .eq("is_enabled", true);
+      .select("user_id, category_ids, frequency")
+      .eq("is_enabled", true)
+      .in("frequency", ["daily"]); // Seulement les utilisateurs avec fréquence "daily"
 
     if (prefsError || !enabledUsers || enabledUsers.length === 0) {
       console.log("ℹ️ Aucun utilisateur n'a activé les notifications");

@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/select";
 import { SelectSearchable } from "@/components/ui/select-searchable";
 import { Separator } from "@/components/ui/separator";
-import { Check, X, Edit, Trash2, Plus, Search, Image as ImageIcon, Upload, Save, Maximize2, Minimize2, RotateCw, LayoutGrid, CalendarDays, Edit2, RefreshCw, Download, ChevronLeft, ChevronRight, CheckCircle2, Circle, EyeOff, Eye } from "lucide-react";
+import { Check, X, Edit, Trash2, Plus, Search, Image as ImageIcon, Upload, Save, Maximize2, Minimize2, RotateCw, LayoutGrid, CalendarDays, Edit2, RefreshCw, Download, ChevronLeft, ChevronRight, CheckCircle2, Circle, EyeOff, Eye, ExternalLink } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -52,6 +52,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { compressImage } from "@/lib/image-compression";
 import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 interface Event {
   id: string;
@@ -1425,6 +1426,18 @@ export function EventsManagement() {
                             </div>
 
                             <div className="flex items-center gap-1 shrink-0">
+                              {event.external_url && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.open(event.external_url!, '_blank', 'noopener,noreferrer');
+                                  }}
+                                  className="p-1.5 rounded hover:bg-accent transition-colors cursor-pointer"
+                                  title={`Ouvrir ${event.external_url_label || 'l\'URL externe'}`}
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </button>
+                              )}
                               {event.status === "pending" && (
                                 <>
                                   <button
@@ -1880,6 +1893,18 @@ export function EventsManagement() {
                   )}
                 </div>
                 <div className="flex items-center gap-1">
+                    {event.external_url && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(event.external_url!, '_blank', 'noopener,noreferrer');
+                        }}
+                        className="p-1.5 rounded hover:bg-accent transition-colors cursor-pointer"
+                        title={`Ouvrir ${event.external_url_label || 'l\'URL externe'}`}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1961,15 +1986,15 @@ export function EventsManagement() {
             <div className="space-y-2">
               <Label htmlFor="import-organizer">Organisateur (optionnel)</Label>
               <Select
-                value={importOrganizerId}
-                onValueChange={setImportOrganizerId}
+                value={importOrganizerId || "none"}
+                onValueChange={(value) => setImportOrganizerId(value === "none" ? "" : value)}
                 disabled={isImporting}
               >
                 <SelectTrigger className="min-h-[44px] text-base cursor-pointer">
                   <SelectValue placeholder="Sélectionner un organisateur pour utiliser ses configurations de scraping" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aucun organisateur</SelectItem>
+                  <SelectItem value="none">Aucun organisateur</SelectItem>
                   {organizers.map((org) => (
                     <SelectItem key={org.id} value={org.id} className="cursor-pointer">
                       {org.name}{org.type === "location" ? " (Lieu)" : ""}
@@ -2446,6 +2471,16 @@ function EventEditDialog({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    
+    // Validation : la date de fin ne peut pas être antérieure à la date de début
+    if (formData.end_date && formData.date) {
+      const startDate = new Date(formData.date);
+      const endDate = new Date(formData.end_date);
+      if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()) && endDate < startDate) {
+        alert("La date et heure de fin ne peut pas être antérieure à la date et heure de début");
+        return;
+      }
+    }
     
     let finalImageUrl = event?.image_url || null;
 
@@ -3096,13 +3131,13 @@ function EventEditDialog({
                   </Button>
                 )}
               </div>
-              <Input
+              <DateTimePicker
                 id="date"
-                type="datetime-local"
                 value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                onChange={(v) => setFormData((prev) => ({ ...prev, date: v }))}
                 required
-                className="min-h-[44px] text-base"
+                placeholder="Choisir une date et une heure"
+                className="space-y-0"
               />
             </div>
 
@@ -3122,12 +3157,13 @@ function EventEditDialog({
                   </Button>
                 )}
               </div>
-              <Input
+              <DateTimePicker
                 id="end_date"
-                type="datetime-local"
                 value={formData.end_date || ""}
-                onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                className="min-h-[44px] text-base"
+                onChange={(v) => setFormData((prev) => ({ ...prev, end_date: v }))}
+                placeholder="Optionnel"
+                allowClear
+                className="space-y-0"
               />
           </div>
 
@@ -3170,7 +3206,16 @@ function EventEditDialog({
               <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-3"}`}>
             <div className="space-y-2">
               <Label htmlFor="location_id">Lieu</Label>
-              <Select
+              <SelectSearchable
+                options={[
+                  { value: "none", label: "Aucun lieu" },
+                  ...locations
+                    .filter((loc) => loc.id && loc.name && loc.name.trim() !== "")
+                    .map((loc) => ({
+                      value: loc.id,
+                      label: loc.name,
+                    })),
+                ]}
                 value={formData.location_id || "none"}
                 onValueChange={(value) => {
                   const locationId = value === "none" ? "" : value;
@@ -3192,21 +3237,9 @@ function EventEditDialog({
                   setFormData({ ...formData, location_id: locationId, room_id: "" });
                   setRooms([]);
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un lieu" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Aucun lieu</SelectItem>
-                  {locations
-                    .filter((loc) => loc.id && loc.name && loc.name.trim() !== "")
-                    .map((loc) => (
-                      <SelectItem key={loc.id} value={loc.id}>
-                        {loc.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+                placeholder="Sélectionner un lieu"
+                searchPlaceholder="Rechercher un lieu..."
+              />
             </div>
 
             <div className="space-y-2">
@@ -3352,14 +3385,30 @@ function EventEditDialog({
 
           <div className="space-y-2">
             <Label htmlFor="scraping_url">URL d'exemple pour le scraping</Label>
-            <Input
-              id="scraping_url"
-              type="url"
-              value={formData.scraping_url || ""}
-              onChange={(e) => setFormData({ ...formData, scraping_url: e.target.value })}
-              placeholder="https://example.com/event"
-              className="min-h-[44px] text-base"
-            />
+            <div className="flex gap-2">
+              <Input
+                id="scraping_url"
+                type="url"
+                value={formData.scraping_url || ""}
+                onChange={(e) => setFormData({ ...formData, scraping_url: e.target.value })}
+                placeholder="https://example.com/event"
+                className="min-h-[44px] text-base flex-1"
+              />
+              {formData.scraping_url && formData.scraping_url.trim() && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  asChild
+                  className="min-h-[44px] min-w-[44px] cursor-pointer"
+                  title="Ouvrir l'URL dans un nouvel onglet"
+                >
+                  <a href={formData.scraping_url} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
               URL d'exemple utilisée pour le scraping d'informations sur cet événement
             </p>

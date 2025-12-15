@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SelectSearchable } from "@/components/ui/select-searchable";
 import {
   Card,
   CardContent,
@@ -39,6 +40,7 @@ import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
 import { compressImage } from "@/lib/image-compression";
 import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 type DuplicateEvent = {
   id: string;
@@ -57,6 +59,25 @@ function addDays(date: Date, days: number) {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
   return d;
+}
+
+function addHoursToDatetimeLocal(value: string, hoursToAdd: number) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!m) return value;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const d = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (Number.isNaN(d.getTime())) return value;
+  d.setHours(d.getHours() + hoursToAdd);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  const ho = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${mo}-${da}T${ho}:${mi}`;
 }
 
 function toLocalDayKey(date: Date) {
@@ -585,16 +606,27 @@ function CreateEventContent() {
         }
       }
 
-      // Essayer de trouver et sélectionner l'organisateur si un nom est fourni
+      // Essayer de trouver et sélectionner l'organisateur
       let organizerIdToSet = "";
-      if (data.organizer) {
-        console.log("🔍 Recherche d'organisateur:", data.organizer);
+      
+      // Priorité 1: Utiliser l'organisateur sélectionné dans le dialog d'import
+      if (importOrganizerId && importOrganizerId !== "none") {
+        const selectedOrg = organizers.find((org) => org.id === importOrganizerId);
+        if (selectedOrg) {
+          console.log("✅ Organisateur sélectionné dans l'import:", selectedOrg.name);
+          organizerIdToSet = importOrganizerId;
+        }
+      }
+      
+      // Priorité 2: Si aucun organisateur sélectionné dans l'import, chercher dans les données scrapées
+      if (!organizerIdToSet && data.organizer) {
+        console.log("🔍 Recherche d'organisateur dans les données scrapées:", data.organizer);
         const matchingOrganizer = organizers.find(
           (org) => org.name.toLowerCase().includes(data.organizer.toLowerCase()) ||
                    data.organizer.toLowerCase().includes(org.name.toLowerCase())
         );
         if (matchingOrganizer) {
-          console.log("✅ Organisateur trouvé:", matchingOrganizer.name);
+          console.log("✅ Organisateur trouvé dans les données:", matchingOrganizer.name);
           organizerIdToSet = matchingOrganizer.id;
         } else {
           console.warn("⚠️ Aucun organisateur correspondant trouvé pour:", data.organizer);
@@ -722,7 +754,13 @@ function CreateEventContent() {
       // ATTENTION: Ne pas appeler handleOrganizerChange ici car elle utilise ...formData (ancienne closure)
       // et peut écraser les données récemment importées. Mettre à jour manuellement.
       if (organizerIdToSet) {
-        setSelectedOrganizerIds([organizerIdToSet]);
+        // Ajouter l'organisateur à la liste existante s'il n'est pas déjà présent
+        setSelectedOrganizerIds((prev) => {
+          if (prev.includes(organizerIdToSet)) {
+            return prev; // Déjà présent, ne rien changer
+          }
+          return [...prev, organizerIdToSet]; // Ajouter à la liste existante
+        });
         // Attendre un peu avant de mettre à jour les réseaux sociaux pour ne pas écraser les données importées
         setTimeout(() => {
           const selectedOrganizer = organizers.find((org) => org.id === organizerIdToSet);
@@ -819,6 +857,17 @@ function CreateEventContent() {
     setSaving(true);
 
     try {
+      // Validation : la date de fin ne peut pas être antérieure à la date de début
+      if (formData.end_date && formData.date) {
+        const startDate = new Date(formData.date);
+        const endDate = new Date(formData.end_date);
+        if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()) && endDate < startDate) {
+          alert("La date et heure de fin ne peut pas être antérieure à la date et heure de début");
+          setSaving(false);
+          return;
+        }
+      }
+
       let finalImageUrl = formData.image_url;
 
       if (imageFile) {
@@ -991,7 +1040,7 @@ function CreateEventContent() {
                     <Input
                       id="title"
                       ref={titleInputRef}
-                      key={`input-title-${formKey}-${formData.title}`}
+                      key={`input-title-${formKey}`}
                       value={formData.title || ""}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       required
@@ -1007,7 +1056,7 @@ function CreateEventContent() {
                         Catégorie *
                       </Label>
                       <Select
-                        key={`select-category-${formKey}-${formData.category || ''}`}
+                        key={`select-category-${formKey}`}
                         value={formData.category || ""}
                         onValueChange={(value) => setFormData({ ...formData, category: value })}
                         required
@@ -1080,7 +1129,7 @@ function CreateEventContent() {
                     <Textarea
                       id="description"
                       ref={descriptionTextareaRef}
-                      key={`textarea-description-${formKey}-${formData.description?.substring(0, 20) || ''}`}
+                      key={`textarea-description-${formKey}`}
                       value={formData.description || ""}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={6}
@@ -1095,48 +1144,33 @@ function CreateEventContent() {
                         <Calendar className="h-4 w-4" />
                         Début *
                       </Label>
-                      <Input
+                      <DateTimePicker
                         id="date"
-                        ref={dateInputRef}
-                        type="datetime-local"
-                        key={`input-date-${formKey}-${formData.date || ''}`}
                         value={formData.date || ""}
-                        onChange={(e) => {
-                          const newStartDate = e.target.value;
-                          let newEndDate = formData.end_date;
-                          
-                          // Si la date de fin n'est pas remplie, la définir à début + 1 heure
-                          if (!formData.end_date && newStartDate) {
-                            const startDate = new Date(newStartDate);
-                            startDate.setHours(startDate.getHours() + 1);
-                            // Convertir en format datetime-local (YYYY-MM-DDTHH:mm)
-                            const year = startDate.getFullYear();
-                            const month = String(startDate.getMonth() + 1).padStart(2, '0');
-                            const day = String(startDate.getDate()).padStart(2, '0');
-                            const hours = String(startDate.getHours()).padStart(2, '0');
-                            const minutes = String(startDate.getMinutes()).padStart(2, '0');
-                            newEndDate = `${year}-${month}-${day}T${hours}:${minutes}`;
-                          }
-                          
-                          // Si la date de fin est antérieure à la nouvelle date de début, la corriger
-                          if (newEndDate && newStartDate) {
-                            const startDate = new Date(newStartDate);
-                            const endDate = new Date(newEndDate);
-                            if (endDate < startDate) {
-                              startDate.setHours(startDate.getHours() + 1);
-                              const year = startDate.getFullYear();
-                              const month = String(startDate.getMonth() + 1).padStart(2, '0');
-                              const day = String(startDate.getDate()).padStart(2, '0');
-                              const hours = String(startDate.getHours()).padStart(2, '0');
-                              const minutes = String(startDate.getMinutes()).padStart(2, '0');
-                              newEndDate = `${year}-${month}-${day}T${hours}:${minutes}`;
+                        onChange={(newStartDate) => {
+                          setFormData((prev) => {
+                            const next: typeof prev = { ...prev, date: newStartDate };
+
+                            // Si la date de fin n'est pas remplie, la définir à début + 1 heure
+                            if (!prev.end_date && newStartDate) {
+                              next.end_date = addHoursToDatetimeLocal(newStartDate, 1);
                             }
-                          }
-                          
-                          setFormData({ ...formData, date: newStartDate, end_date: newEndDate });
+
+                            // Si la date de fin est antérieure à la nouvelle date de début, la corriger
+                            if (next.end_date && newStartDate) {
+                              const start = new Date(newStartDate);
+                              const end = new Date(next.end_date);
+                              if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end < start) {
+                                next.end_date = addHoursToDatetimeLocal(newStartDate, 1);
+                              }
+                            }
+
+                            return next;
+                          });
                         }}
                         required
-                        className="cursor-pointer"
+                        placeholder="Choisir une date et une heure"
+                        className="space-y-0"
                       />
                     </div>
 
@@ -1145,27 +1179,15 @@ function CreateEventContent() {
                         <Calendar className="h-4 w-4" />
                         Fin
                       </Label>
-                      <Input
+                      <DateTimePicker
                         id="end_date"
-                        ref={endDateInputRef}
-                        type="datetime-local"
-                        key={`input-end_date-${formKey}-${formData.end_date || ''}`}
                         value={formData.end_date || ""}
-                        min={formData.date || undefined}
-                        onChange={(e) => {
-                          const newEndDate = e.target.value;
-                          // Validation : la date de fin ne peut pas être antérieure à la date de début
-                          if (newEndDate && formData.date) {
-                            const startDate = new Date(formData.date);
-                            const endDate = new Date(newEndDate);
-                            if (endDate < startDate) {
-                              alert("La date et heure de fin ne peut pas être antérieure à la date et heure de début");
-                              return;
-                            }
-                          }
-                          setFormData({ ...formData, end_date: newEndDate });
+                        onChange={(newEndDate) => {
+                          setFormData((prev) => ({ ...prev, end_date: newEndDate }));
                         }}
-                        className="cursor-pointer"
+                        placeholder="Optionnel"
+                        allowClear
+                        className="space-y-0"
                       />
                     </div>
 
@@ -1203,7 +1225,7 @@ function CreateEventContent() {
                         ref={priceInputRef}
                         type="number"
                         step="0.01"
-                        key={`input-price-${formKey}-${formData.price || ''}`}
+                        key={`input-price-${formKey}`}
                         value={formData.price || ""}
                         onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                         placeholder="0.00"
@@ -1375,7 +1397,7 @@ function CreateEventContent() {
                       <Input
                         id="image_url"
                         type="url"
-                        key={`input-image_url-${formKey}-${formData.image_url?.substring(0, 30) || ''}`}
+                        key={`input-image_url-${formKey}`}
                         value={formData.image_url || ""}
                         onChange={(e) => {
                           setFormData({ ...formData, image_url: e.target.value });
@@ -1499,7 +1521,14 @@ function CreateEventContent() {
                         Ajouter
                       </Button>
                     </div>
-                    <Select
+                    <SelectSearchable
+                      options={[
+                        { value: "none", label: "Aucun lieu" },
+                        ...locations.map((loc) => ({
+                          value: loc.id,
+                          label: loc.name,
+                        })),
+                      ]}
                       value={formData.location_id || "none"}
                       onValueChange={(value) => {
                         const locationId = value === "none" ? "" : value;
@@ -1507,35 +1536,23 @@ function CreateEventContent() {
                         if (locationId) {
                           const selectedLocation = locations.find((loc) => loc.id === locationId);
                           if (selectedLocation) {
-                            setFormData({ 
-                              ...formData, 
+                            setFormData((prev) => ({ 
+                              ...prev, 
                               location_id: locationId,
                               room_id: "", // Réinitialiser la salle quand le lieu change
-                              capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : formData.capacity || ""
-                            });
+                              capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : prev.capacity || ""
+                            }));
                             // Charger les salles du lieu sélectionné
                             loadRoomsForLocation(locationId);
                             return;
                           }
                         }
-                        setFormData({ ...formData, location_id: locationId, room_id: "" });
+                        setFormData((prev) => ({ ...prev, location_id: locationId, room_id: "" }));
                         setRooms([]);
                       }}
-                    >
-                      <SelectTrigger className="cursor-pointer">
-                        <SelectValue placeholder="Sélectionner un lieu" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none" className="cursor-pointer">
-                          Aucun lieu
-                        </SelectItem>
-                        {locations.map((loc) => (
-                          <SelectItem key={loc.id} value={loc.id} className="cursor-pointer">
-                            {loc.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Sélectionner un lieu"
+                      searchPlaceholder="Rechercher un lieu..."
+                    />
                   </div>
 
                   <div className="space-y-2">

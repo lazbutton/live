@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SelectSearchable } from "@/components/ui/select-searchable";
 import { Label } from "@/components/ui/label";
 import { Loader2, Download, CheckCircle2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -374,31 +375,16 @@ export function FacebookEventsImporter({
                 Chargement des organisateurs...
               </div>
             ) : (
-              <Select
+              <SelectSearchable
+                options={organizers.map((organizer) => ({
+                  value: organizer.id,
+                  label: `${organizer.name}${organizer.type === "location" ? " (Lieu)" : ""}${!organizer.facebook_page_id ? " (Pas d'ID Facebook)" : ""}`,
+                }))}
                 value={selectedOrganizerId}
                 onValueChange={setSelectedOrganizerId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionnez un organisateur" />
-                </SelectTrigger>
-                <SelectContent>
-                  {organizers.map((organizer) => (
-                    <SelectItem key={organizer.id} value={organizer.id}>
-                      {organizer.name}
-                      {organizer.type === "location" && (
-                        <span className="text-muted-foreground text-xs ml-2">
-                          (Lieu)
-                        </span>
-                      )}
-                      {!organizer.facebook_page_id && (
-                        <span className="text-muted-foreground text-xs ml-2">
-                          (Pas d'ID Facebook)
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Sélectionnez un organisateur"
+                searchPlaceholder="Rechercher un organisateur..."
+              />
             )}
           </div>
 

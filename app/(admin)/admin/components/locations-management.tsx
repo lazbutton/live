@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import {
   Table,
@@ -38,8 +38,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2, ExternalLink, Code, Edit2, Globe, Instagram, Facebook, Users, Music, ChevronLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2, ExternalLink, Code, Edit2, Globe, Instagram, Facebook, Users, Music, ChevronLeft, LayoutGrid, List as ListIcon } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
@@ -92,18 +92,35 @@ interface Location {
 
 export function LocationsManagement() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const openLocationId = searchParams.get("open");
+  const didAutoOpenRef = useRef(false);
+
   const [locations, setLocations] = useState<Location[]>([]);
   const [filteredLocations, setFilteredLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [isRoomsDialogOpen, setIsRoomsDialogOpen] = useState(false);
   const [selectedLocationForRooms, setSelectedLocationForRooms] = useState<Location | null>(null);
 
   useEffect(() => {
     loadLocations();
   }, []);
+
+  // Ouvrir automatiquement un lieu depuis /admin/locations?open=<id>
+  useEffect(() => {
+    if (!openLocationId) return;
+    if (didAutoOpenRef.current) return;
+    if (loading) return;
+    const loc = locations.find((l) => l.id === openLocationId);
+    if (!loc) return;
+    didAutoOpenRef.current = true;
+    setEditingLocation(loc);
+    setIsDialogOpen(true);
+  }, [openLocationId, loading, locations]);
 
   async function loadLocations() {
     try {
@@ -233,17 +250,43 @@ export function LocationsManagement() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50 border">
               <span className="text-sm font-medium">Lieux recommandés:</span>
               <Badge variant={suggestedCount >= 6 ? "destructive" : suggestedCount >= 4 ? "default" : "secondary"} className="font-semibold">
                 {suggestedCount}/6
               </Badge>
-          </div>
-          <Button onClick={() => handleOpenDialog()} size="sm" className="h-9">
-            <Plus className="h-4 w-4 mr-1.5" />
-            Ajouter
-          </Button>
+            </div>
+
+            <div className="flex items-center gap-1 rounded-lg border bg-background p-1">
+              <Button
+                type="button"
+                variant={viewMode === "list" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => setViewMode("list")}
+                title="Vue liste"
+              >
+                <ListIcon className="h-4 w-4" />
+                <span className="hidden md:inline">Liste</span>
+              </Button>
+              <Button
+                type="button"
+                variant={viewMode === "grid" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => setViewMode("grid")}
+                title="Vue grille"
+              >
+                <LayoutGrid className="h-4 w-4" />
+                <span className="hidden md:inline">Grille</span>
+              </Button>
+            </div>
+
+            <Button onClick={() => handleOpenDialog()} size="sm" className="h-9">
+              <Plus className="h-4 w-4 mr-1.5" />
+              Ajouter
+            </Button>
           </div>
         </div>
 
@@ -258,13 +301,13 @@ export function LocationsManagement() {
           />
         </div>
 
-        {/* Grille de lieux */}
+        {/* Liste / Grille */}
         {filteredLocations.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <Building2 className="h-12 w-12 mx-auto opacity-20 mb-2" />
             <p>{locations.length === 0 ? "Aucun lieu. Cliquez sur 'Ajouter' pour commencer." : `Aucun résultat pour "${searchQuery}"`}</p>
           </div>
-        ) : (
+        ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredLocations.map((location) => (
               <div
@@ -371,6 +414,16 @@ export function LocationsManagement() {
                 {/* Actions - collées en bas */}
                 <div className="flex items-center justify-between gap-1 pt-2 border-t mt-auto">
                   <div className="flex items-center gap-1">
+                    {location.is_organizer && (
+                      <Link
+                        href={`/admin/organizers/${location.id}/team`}
+                        className="p-1.5 rounded hover:bg-accent transition-colors"
+                        title="Gérer l'équipe"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Users className="h-3.5 w-3.5" />
+                      </Link>
+                    )}
                     <Link
                       href={`/admin/events?location=${location.id}`}
                       target="_blank"
@@ -392,19 +445,17 @@ export function LocationsManagement() {
                         <Code className="h-3.5 w-3.5" />
                       </button>
                     )}
-                    {location.rooms && location.rooms.length > 0 && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedLocationForRooms(location);
-                          setIsRoomsDialogOpen(true);
-                        }}
-                        className="p-1.5 rounded hover:bg-accent transition-colors"
-                        title="Gérer les salles"
-                      >
-                        <Users className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedLocationForRooms(location);
+                        setIsRoomsDialogOpen(true);
+                      }}
+                      className="p-1.5 rounded hover:bg-accent transition-colors"
+                      title="Gérer les salles"
+                    >
+                      <LayoutGrid className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                   <div className="flex items-center gap-1">
                     <Tooltip>
@@ -417,7 +468,7 @@ export function LocationsManagement() {
                             checked={location.suggested || false}
                             onCheckedChange={() => toggleSuggested(location.id, location.suggested || false)}
                             onClick={(e) => e.stopPropagation()}
-                            className="cursor-pointer scale-75"
+                            className="cursor-pointer"
                           />
                         </div>
                       </TooltipTrigger>
@@ -457,6 +508,146 @@ export function LocationsManagement() {
                 </div>
               </div>
             ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Lieu</TableHead>
+                  <TableHead className="hidden md:table-cell text-right">Recommandé</TableHead>
+                  <TableHead className="text-right">Commandes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredLocations.map((location) => (
+                  <TableRow
+                    key={location.id}
+                    className="cursor-pointer"
+                    onClick={() => handleOpenDialog(location)}
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar className="h-9 w-9 ring-2 ring-background shrink-0">
+                          <AvatarImage src={location.image_url || undefined} alt={location.name} />
+                          <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                            {getInitials(location.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium truncate">{location.name}</div>
+                            {location.is_organizer && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">Orga</Badge>
+                            )}
+                            {location.suggested && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">Recommandé</Badge>
+                            )}
+                          </div>
+                          {location.address && (
+                            <div className="text-xs text-muted-foreground truncate">{location.address}</div>
+                          )}
+                          {(location.rooms?.length || 0) > 0 && (
+                            <div className="text-xs text-muted-foreground">
+                              {(location.rooms?.length || 0)} salle{(location.rooms?.length || 0) > 1 ? "s" : ""}
+                              {location.capacity ? ` • Capacité ${location.capacity}` : ""}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <div
+                        className="flex justify-end"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Switch
+                          checked={location.suggested || false}
+                          onCheckedChange={() => toggleSuggested(location.id, location.suggested || false)}
+                          className="cursor-pointer"
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        {location.is_organizer && (
+                          <Button asChild variant="ghost" size="icon">
+                            <Link
+                              href={`/admin/organizers/${location.id}/team`}
+                              title="Équipe"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Users className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        )}
+                        <Button asChild variant="ghost" size="icon">
+                          <Link
+                            href={`/admin/events?location=${location.id}`}
+                            target="_blank"
+                            title="Événements"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          title={location.scraping_example_url ? "Configuration scraping" : "Aucune URL de scraping"}
+                          disabled={!location.scraping_example_url}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!location.scraping_example_url) return;
+                            router.push(`/admin/scraping/${location.id}`);
+                          }}
+                        >
+                          <Code className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          title="Gérer les salles"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedLocationForRooms(location);
+                            setIsRoomsDialogOpen(true);
+                          }}
+                        >
+                          <LayoutGrid className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          title="Modifier"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDialog(location);
+                          }}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          title="Supprimer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteLocation(location.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
 

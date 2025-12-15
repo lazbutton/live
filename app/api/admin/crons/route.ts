@@ -82,7 +82,6 @@ export async function GET(request: NextRequest) {
 
 function getCronName(path: string): string {
   const names: Record<string, string> = {
-    "/api/cron/scrape-events": "Scraping des événements",
     "/api/cron/cleanup": "Nettoyage de la base de données",
     "/api/cron/notifications/daily-events": "Notifications quotidiennes",
     "/api/cron/notifications/upcoming-reminders": "Rappels événements à venir",
@@ -94,7 +93,6 @@ function getCronName(path: string): string {
 
 function getCronDescription(path: string): string {
   const descriptions: Record<string, string> = {
-    "/api/cron/scrape-events": "Scrape automatiquement les événements des organisateurs configurés",
     "/api/cron/cleanup": "Nettoie les données anciennes (événements passés, logs, tokens invalides)",
     "/api/cron/notifications/daily-events": "Envoie des notifications sur les événements du jour",
     "/api/cron/notifications/upcoming-reminders": "Envoie des rappels pour les événements du lendemain",

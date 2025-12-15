@@ -37,6 +37,9 @@ export async function GET(request: Request) {
       id: u.id,
       email: u.email || "",
       role: u.user_metadata?.role || null,
+      first_name: u.user_metadata?.first_name || u.user_metadata?.firstName || null,
+      last_name: u.user_metadata?.last_name || u.user_metadata?.lastName || null,
+      full_name: u.user_metadata?.full_name || u.user_metadata?.fullName || null,
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at || null,
     }));
