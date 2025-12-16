@@ -16,6 +16,8 @@ Lorsqu'un utilisateur soumet un nouveau feedback (via l'app mobile), tous les ad
 
 ### Option 1: Database Webhook Supabase (Recommandé)
 
+> 📚 Pour plus de détails sur la configuration générale des webhooks Supabase, consultez [SUPABASE_WEBHOOKS_CONFIG.md](./SUPABASE_WEBHOOKS_CONFIG.md)
+
 1. Allez dans le **Supabase Dashboard** > **Database** > **Webhooks**
 2. Cliquez sur **Create a new webhook**
 3. Configurez le webhook :
@@ -29,19 +31,47 @@ Lorsqu'un utilisateur soumet un nouveau feedback (via l'app mobile), tous les ad
      ```
      Content-Type: application/json
      ```
-   - **HTTP Request Body** (Option 1 - JSON) :
-     ```json
-     {
-       "feedbackId": "{{ $1.id }}",
-       "message": "{{ $1.description }}",
-       "userId": "{{ $1.user_id }}"
-     }
-     ```
+   - **HTTP Request Body** - ⚠️ **IMPORTANT** : Supabase Database Webhooks **n'interpole PAS** les variables `{{ $1.id }}` dans le body JSON. Les variables sont envoyées littéralement.
    
-   - **OU HTTP Request Body** (Option 2 - Query Parameters) :
+     **Option A : Utiliser un trigger PostgreSQL (Recommandé)** :
+     
+     Une migration SQL est déjà disponible : `supabase/migrations/20250120000003_trigger_notify_admins_new_feedback.sql`
+     
+     Pour l'activer :
+     
+     1. **Vérifier que l'extension `pg_net` est activée** :
+        ```sql
+        SELECT * FROM pg_available_extensions WHERE name = 'pg_net';
+        CREATE EXTENSION IF NOT EXISTS pg_net;
+        ```
+     
+     2. **Appliquer la migration** :
+        - Via Supabase CLI : `supabase migration up`
+        - Via Supabase Dashboard : SQL Editor > Exécuter le contenu de la migration
+     
+     3. **Configurer l'URL de l'API** (optionnel) :
+        ```sql
+        -- Définir l'URL de l'API comme variable de session (temporaire)
+        SET app.api_url = 'https://votre-domaine.com/api/notifications/admin/new-feedback';
+        
+        -- Ou modifier directement la fonction dans la migration pour utiliser votre URL
+        ```
+     
+     > 💡 **Avantage** : Les données sont envoyées directement sans variables non interpolées. Le trigger s'exécute automatiquement à chaque insertion dans `feedbacks`.
+   
+     **Option B : Query Parameters (Simple mais limité)** :
+     
+     Dans le webhook Supabase, laissez le **HTTP Request Body vide** et utilisez l'URL avec des query parameters :
+     
      ```
-     feedbackId={{ $1.id }}&message={{ $1.description }}&userId={{ $1.user_id }}
+     URL: https://votre-domaine.com/api/notifications/admin/new-feedback?feedbackId={{ $1.id }}
      ```
+     
+     > ⚠️ **Limitation** : Les query parameters peuvent être interpolés, mais vous ne pouvez passer que l'ID. L'API récupérera les données complètes depuis la base de données.
+   
+     **Option C : Appel Direct depuis le Code (Recommandé si vous créez les feedbacks depuis votre code)** :
+     
+     Voir la section "Option 2" ci-dessous.
 
 4. Cliquez sur **Save**
 

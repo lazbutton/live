@@ -262,6 +262,21 @@ export async function POST(request: NextRequest) {
                 }
                 Object.assign(mergedEventData, scrapeRes.data);
 
+                // Si aucun organisateur n'a été trouvé et qu'on a un lieu, vérifier si c'est un lieu-organisateur
+                if (!mergedEventData.organizer_id && cfg.location_id) {
+                  const { data: location } = await serviceSupabase
+                    .from("locations")
+                    .select("is_organizer")
+                    .eq("id", cfg.location_id)
+                    .maybeSingle();
+                  
+                  if (location?.is_organizer) {
+                    // Le lieu est un organisateur, on l'ajoute automatiquement
+                    // On garde location_id pour le lieu et on note que c'est aussi un organisateur
+                    mergedEventData.location_organizer_id = cfg.location_id;
+                  }
+                }
+
                 await serviceSupabase
                   .from("user_requests")
                   .update({ event_data: mergedEventData })

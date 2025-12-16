@@ -30,6 +30,7 @@ import {
   Pencil,
   Search,
   ThumbsDown,
+  Trash2,
   Wand2,
   X,
 } from "lucide-react";
@@ -179,6 +180,7 @@ function RequestDetailsBody({
   onOpenUrl,
   onEdit,
   onReject,
+  onDelete,
   onFastConvert,
   onViewEvent,
 }: {
@@ -193,6 +195,7 @@ function RequestDetailsBody({
   onOpenUrl: (url: string) => void;
   onEdit: () => void;
   onReject: () => void;
+  onDelete: () => void;
   onFastConvert: () => void;
   onViewEvent: () => void;
 }) {
@@ -259,6 +262,11 @@ function RequestDetailsBody({
             Rejeter
           </Button>
         )}
+
+        <Button type="button" variant="destructive" size="sm" onClick={onDelete}>
+          <Trash2 className="h-4 w-4 mr-2" />
+          Supprimer
+        </Button>
 
         {request.status === "converted" && request.converted_event_id && (
           <Button type="button" variant="outline" size="sm" onClick={onViewEvent}>
@@ -819,6 +827,34 @@ export function UserRequestsManagement() {
     [loadRequests]
   );
 
+  const deleteRequests = React.useCallback(
+    async (ids: string[]) => {
+      if (!confirm(`Êtes-vous sûr de vouloir supprimer ${ids.length} demande(s) ? Cette action est irréversible.`)) {
+        return;
+      }
+
+      setIsWorking(true);
+      try {
+        const { error } = await supabase.from("user_requests").delete().in("id", ids);
+
+        if (error) throw error;
+
+        await loadRequests();
+        setSelectedIds(new Set());
+        if (activeId && ids.includes(activeId)) {
+          setActiveId(null);
+          setDetailsOpen(false);
+        }
+      } catch (e) {
+        console.error("Erreur suppression:", e);
+        alert("Impossible de supprimer la/les demande(s).");
+      } finally {
+        setIsWorking(false);
+      }
+    },
+    [loadRequests, activeId]
+  );
+
   const convertFast = React.useCallback(
     async (ids: string[]) => {
       setIsWorking(true);
@@ -1094,6 +1130,21 @@ export function UserRequestsManagement() {
                     <ThumbsDown className="h-4 w-4 mr-2" />
                     Rejeter
                   </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    disabled={isWorking}
+                    onClick={() => {
+                      const ids = Array.from(selectedIds);
+                      if (ids.length > 0) {
+                        void deleteRequests(ids);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Supprimer
+                  </Button>
                   <Button type="button" variant="ghost" size="sm" disabled={isWorking} onClick={() => setSelectedIds(new Set())}>
                     Tout désélectionner
                   </Button>
@@ -1275,6 +1326,21 @@ export function UserRequestsManagement() {
                               </Button>
                             )}
 
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 text-destructive hover:text-destructive"
+                              onClick={async () => {
+                                if (confirm("Êtes-vous sûr de vouloir supprimer cette demande ? Cette action est irréversible.")) {
+                                  await deleteRequests([r.id]);
+                                }
+                              }}
+                              title="Supprimer"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+
                             <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => openDetails(r.id)} title="Détails">
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -1321,6 +1387,7 @@ export function UserRequestsManagement() {
                         setRejectNotes(activeRequest.notes || "");
                         setRejectOpen(true);
                       }}
+                      onDelete={() => void deleteRequests([activeRequest.id])}
                       onFastConvert={() => void convertFast([activeRequest.id])}
                       onViewEvent={() => viewEvent(activeRequest)}
                     />
@@ -1370,6 +1437,7 @@ export function UserRequestsManagement() {
                   setRejectNotes(activeRequest.notes || "");
                   setRejectOpen(true);
                 }}
+                onDelete={() => void deleteRequests([activeRequest.id])}
                 onFastConvert={() => void convertFast([activeRequest.id])}
                 onViewEvent={() => viewEvent(activeRequest)}
               />

@@ -857,6 +857,13 @@ function CreateEventContent() {
     setSaving(true);
 
     try {
+      // Validation : la catégorie est obligatoire
+      if (!formData.category || formData.category.trim() === "") {
+        alert("La catégorie est obligatoire");
+        setSaving(false);
+        return;
+      }
+
       // Validation : la date de fin ne peut pas être antérieure à la date de début
       if (formData.end_date && formData.date) {
         const startDate = new Date(formData.date);

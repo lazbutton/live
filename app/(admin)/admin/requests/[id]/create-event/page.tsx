@@ -141,6 +141,7 @@ function CreateEventContent() {
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
   const isMobile = useIsMobile();
 
   // Image states
@@ -198,8 +199,8 @@ function CreateEventContent() {
     }
   }
 
-  // Fonction pour trouver ou créer une catégorie (inactive si créée)
-  async function findOrCreateCategory(categoryName: string): Promise<string | null> {
+  // Fonction pour trouver une catégorie (ne crée pas de catégorie)
+  async function findCategory(categoryName: string): Promise<string | null> {
     if (!categoryName || !categoryName.trim()) return null;
 
     const trimmedName = categoryName.trim();
@@ -229,81 +230,8 @@ function CreateEventContent() {
       return existing.id;
     }
 
-    // Si aucune catégorie ne correspond, créer une catégorie inactive
-    // Utiliser le nom original (pas forcément en majuscules)
-    const { data: created, error } = await supabase
-      .from("categories")
-      .insert([{ name: trimmedName, is_active: false }])
-      .select("id")
-      .single();
-
-    if (error) {
-      // Vérifier les permissions admin
-      const isAdmin = await checkIsAdmin();
-      
-      console.error("Erreur lors de la création de la catégorie:");
-      console.error("  - Message:", error.message || "Aucun message");
-      console.error("  - Code:", error.code || "Aucun code");
-      console.error("  - Détails:", error.details || "Aucun détail");
-      console.error("  - Indice:", error.hint || "Aucun indice");
-      console.error("  - Nom de catégorie:", trimmedName);
-      console.error("  - Utilisateur est admin:", isAdmin);
-      
-      // Essayer de sérialiser l'erreur de manière plus complète
-      try {
-        const errorObj: any = {};
-        for (const key in error) {
-          try {
-            errorObj[key] = (error as any)[key];
-          } catch (e) {
-            errorObj[key] = String((error as any)[key]);
-          }
-        }
-        console.error("  - Erreur complète:", JSON.stringify(errorObj, null, 2));
-      } catch (e) {
-        console.error("  - Erreur (objet brut):", error);
-      }
-      
-      // Si c'est une erreur de contrainte unique (23505), la catégorie existe peut-être déjà
-      // Essayer de la récupérer à nouveau
-      if (error.code === "23505") {
-        console.log("  - Tentative de récupération après erreur de contrainte unique...");
-        const { data: retryExisting, error: retryError } = await supabase
-          .from("categories")
-          .select("id, name")
-          .ilike("name", trimmedName)
-          .maybeSingle();
-        
-        if (retryError) {
-          console.error("  - Erreur lors de la récupération:", retryError);
-        }
-        
-        if (retryExisting) {
-          console.log("  - Catégorie trouvée après réessai:", retryExisting.id);
-          return retryExisting.id;
-        }
-      }
-      
-      // Si l'utilisateur n'est pas admin, c'est probablement un problème de permissions RLS
-      if (!isAdmin) {
-        console.error("  - ATTENTION: L'utilisateur n'est pas admin, la création peut être bloquée par RLS");
-      }
-      
-      return null;
-    }
-
-    // Recharger la liste des catégories pour inclure la nouvelle
-    const { data: updatedCategories } = await supabase
-      .from("categories")
-      .select("id, name")
-      .eq("is_active", true)
-      .order("display_order");
-    
-    if (updatedCategories) {
-      setCategories(updatedCategories);
-    }
-
-    return created?.id || null;
+    // Ne pas créer de catégorie, retourner null si elle n'existe pas
+    return null;
   }
 
   // Fonction pour trouver ou créer des tags
@@ -418,8 +346,8 @@ function CreateEventContent() {
             if (ed.category.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
               categoryId = ed.category;
             } else {
-              // Sinon, c'est un nom de catégorie, trouver ou créer
-              const foundCategoryId = await findOrCreateCategory(ed.category);
+              // Sinon, c'est un nom de catégorie, seulement trouver (ne pas créer)
+              const foundCategoryId = await findCategory(ed.category);
               categoryId = foundCategoryId || "";
             }
           }
@@ -460,6 +388,21 @@ function CreateEventContent() {
           // Charger les organisateurs si un organizer_id est présent
           if (ed.organizer_id) {
             setSelectedOrganizerIds([ed.organizer_id]);
+          } else if (ed.location_organizer_id) {
+            // Si un lieu-organisateur a été détecté automatiquement lors de l'enrichissement
+            setSelectedOrganizerIds([ed.location_organizer_id]);
+          } else if (ed.location_id) {
+            // Si aucun organisateur n'a été trouvé mais qu'un lieu est présent, vérifier si c'est un lieu-organisateur
+            const { data: location } = await supabase
+              .from("locations")
+              .select("is_organizer")
+              .eq("id", ed.location_id)
+              .maybeSingle();
+            
+            if (location?.is_organizer) {
+              // Le lieu est un organisateur, l'ajouter automatiquement
+              setSelectedOrganizerIds([ed.location_id]);
+            }
           }
 
           // Charger les salles si un lieu est déjà sélectionné
@@ -493,7 +436,8 @@ function CreateEventContent() {
           // Gérer la catégorie scrapée (peut être un nom)
           let categoryId = "";
           if (scrapedData.category) {
-            const foundCategoryId = await findOrCreateCategory(scrapedData.category);
+            // Seulement trouver la catégorie, ne pas la créer
+            const foundCategoryId = await findCategory(scrapedData.category);
             categoryId = foundCategoryId || categoriesResult.data?.[0]?.id || "";
           } else {
             categoryId = categoriesResult.data?.[0]?.id || "";
@@ -534,6 +478,21 @@ function CreateEventContent() {
 
           if (locId) {
             loadRoomsForLocation(locId);
+            
+            // Si aucun organisateur n'a été trouvé dans les données scrapées et qu'un lieu est présent,
+            // vérifier si c'est un lieu-organisateur et l'ajouter automatiquement
+            if (!scrapedData.organizer && locId) {
+              const { data: location } = await supabase
+                .from("locations")
+                .select("is_organizer")
+                .eq("id", locId)
+                .maybeSingle();
+              
+              if (location?.is_organizer) {
+                // Le lieu est un organisateur, l'ajouter automatiquement
+                setSelectedOrganizerIds([locId]);
+              }
+            }
           }
         } catch (error) {
           console.error("Erreur scraping (event_from_url):", error);
@@ -691,11 +650,18 @@ function CreateEventContent() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent, isDraft: boolean = false) {
     e.preventDefault();
     setSaving(true);
 
     try {
+      // Validation : la catégorie est obligatoire (sauf pour les brouillons)
+      if (!isDraft && (!formData.category || formData.category.trim() === "")) {
+        alert("La catégorie est obligatoire");
+        setSaving(false);
+        return;
+      }
+
       // Validation : la date de fin ne peut pas être antérieure à la date de début
       if (formData.end_date && formData.date) {
         const startDate = new Date(formData.date);
@@ -753,7 +719,7 @@ function CreateEventContent() {
         facebook_url: formData.facebook_url || null,
         image_url: finalImageUrl || null,
         created_by: request?.requested_by || user?.id || null,
-        status: "pending",
+        status: isDraft ? "draft" : "pending",
       };
 
       // Ajouter les tags si sélectionnés
@@ -805,35 +771,53 @@ function CreateEventContent() {
         if (orgError) throw orgError;
       }
 
-      // Update request
-      // Note: On ne met à jour que les champs nécessaires pour éviter les conflits RLS
-      const { error: updateError } = await supabase
-        .from("user_requests")
-        .update({
-          status: "converted" as const,
-          converted_event_id: newEvent.id,
-          converted_at: new Date().toISOString(),
-          reviewed_by: user?.id || null,
-          reviewed_at: new Date().toISOString(),
-          notes: `Converti en événement ID: ${newEvent.id}`,
-        })
-        .eq("id", requestId)
-        .select(); // Ajouter select() pour forcer l'exécution et vérifier les permissions
+      // Update request (seulement si ce n'est pas un brouillon)
+      if (!isDraft) {
+        // Note: On ne met à jour que les champs nécessaires pour éviter les conflits RLS
+        const { error: updateError } = await supabase
+          .from("user_requests")
+          .update({
+            status: "converted" as const,
+            converted_event_id: newEvent.id,
+            converted_at: new Date().toISOString(),
+            reviewed_by: user?.id || null,
+            reviewed_at: new Date().toISOString(),
+            notes: `Converti en événement ID: ${newEvent.id}`,
+          })
+          .eq("id", requestId)
+          .select(); // Ajouter select() pour forcer l'exécution et vérifier les permissions
 
-      if (updateError) {
-        console.error("Erreur détaillée lors de la mise à jour de la demande:", {
-          message: updateError.message,
-          details: updateError.details,
-          hint: updateError.hint,
-          code: updateError.code,
-          requestId,
-          user: user?.id,
-        });
-        throw updateError;
+        if (updateError) {
+          console.error("Erreur détaillée lors de la mise à jour de la demande:", {
+            message: updateError.message,
+            details: updateError.details,
+            hint: updateError.hint,
+            code: updateError.code,
+            requestId,
+            user: user?.id,
+          });
+          throw updateError;
+        }
+
+        alert("Événement créé avec succès !");
+        router.push("/admin/requests");
+      } else {
+        // Pour les brouillons, on met juste à jour les notes avec l'ID de l'événement brouillon
+        const { error: updateError } = await supabase
+          .from("user_requests")
+          .update({
+            notes: `Brouillon créé - Événement ID: ${newEvent.id}`,
+          })
+          .eq("id", requestId);
+
+        if (updateError) {
+          console.error("Erreur lors de la mise à jour de la demande (brouillon):", updateError);
+          // Ne pas bloquer si la mise à jour de la demande échoue pour un brouillon
+        }
+
+        alert("Événement sauvegardé en brouillon !");
+        router.push("/admin/events");
       }
-
-      alert("Événement créé avec succès !");
-      router.push("/admin/requests");
     } catch (error: any) {
       console.error("Erreur lors de la création:", {
         error,
@@ -958,7 +942,10 @@ function CreateEventContent() {
                       </Label>
                       <Select
                         value={formData.category}
-                        onValueChange={(value) => setFormData({ ...formData, category: value })}
+                        onValueChange={(value) => {
+                          setFormData({ ...formData, category: value });
+                          setCategoryError(null);
+                        }}
                         required
                       >
                         <SelectTrigger className="cursor-pointer">
@@ -966,12 +953,15 @@ function CreateEventContent() {
                         </SelectTrigger>
                         <SelectContent>
                           {categories.map((cat) => (
-                            <SelectItem key={cat.id} value={cat.name} className="cursor-pointer">
+                            <SelectItem key={cat.id} value={cat.id} className="cursor-pointer">
                               {cat.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      {categoryError && (
+                        <p className="text-sm text-destructive">{categoryError}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -1614,6 +1604,23 @@ function CreateEventContent() {
                     <>
                       <Save className="mr-2 h-4 w-4" />
                       Créer l'événement
+                    </>
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  disabled={saving}
+                  onClick={(e) => handleSubmit(e, true)}
+                  className="w-full cursor-pointer"
+                >
+                  {saving ? (
+                    <>Sauvegarde en cours...</>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Sauvegarder en brouillon
                     </>
                   )}
                 </Button>

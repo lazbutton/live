@@ -45,56 +45,72 @@ export async function POST(request: NextRequest) {
       body.feedbackType = url.searchParams.get("feedbackType") || body.feedbackType;
     }
 
-    const { feedbackId, feedbackType, message, userId } = body;
+    // Détecter si le body contient directement les données du feedback (format webhook Supabase)
+    // Le webhook Supabase peut envoyer soit { feedbackId: "{{ $1.id }}" } soit directement { id: "...", description: "..." }
+    let feedbackId: string | null = null;
+    let feedbackData: any = null;
 
-    if (!feedbackId) {
+    // Vérifier si le body contient directement les champs de la table feedbacks (format webhook)
+    if (body.id && typeof body.id === "string" && !body.id.includes("{{") && !body.id.includes("$1")) {
+      // Le body contient directement les données du feedback (format webhook Supabase)
+      feedbackId = body.id;
+      feedbackData = {
+        id: body.id,
+        description: body.description || body.message,
+        user_id: body.user_id || body.userId,
+        status: body.status,
+        feedback_object_id: body.feedback_object_id,
+        created_at: body.created_at,
+      };
+    } else if (body.feedbackId && typeof body.feedbackId === "string" && !body.feedbackId.includes("{{") && !body.feedbackId.includes("$1")) {
+      // Le body contient un feedbackId valide
+      feedbackId = body.feedbackId;
+    } else {
+      // Le feedbackId contient des variables non interpolées, on ne peut pas continuer
       return NextResponse.json(
-        { error: "feedbackId est requis (dans le body JSON ou en paramètre de requête)" },
+        { 
+          error: "feedbackId invalide ou contient des variables non interpolées. Le webhook Supabase doit interpoler les variables ou envoyer les données complètes du feedback.",
+          hint: "Configurez le webhook pour envoyer soit un body JSON avec les données complètes (id, description, user_id, etc.), soit un feedbackId interpolé."
+        },
         { status: 400 }
       );
     }
 
-    // Récupérer les détails du feedback si nécessaire
-    const supabase = createServiceClient();
-    const { data: feedbackData, error: feedbackError } = await supabase
-      .from("feedbacks")
-      .select("id, description, user_id, created_at, status, feedback_object_id")
-      .eq("id", feedbackId)
-      .single();
+    // Si on n'a pas encore les données, les récupérer depuis la base
+    if (!feedbackData && feedbackId) {
+      const supabase = createServiceClient();
+      const { data: fetchedData, error: feedbackError } = await supabase
+        .from("feedbacks")
+        .select("id, description, user_id, created_at, status, feedback_object_id")
+        .eq("id", feedbackId)
+        .single();
 
-    if (feedbackError || !feedbackData) {
-      console.error("❌ Erreur lors de la récupération du feedback:", feedbackError);
-      // Si on ne peut pas récupérer depuis la base, utiliser le message du body seulement s'il n'est pas une variable
-      if (message && !message.includes("{{") && !message.includes("$1")) {
-        // Le message est valide, on peut l'utiliser
-      } else {
+      if (feedbackError || !fetchedData) {
+        console.error("❌ Erreur lors de la récupération du feedback:", feedbackError);
         return NextResponse.json(
-          { error: "Impossible de récupérer le feedback depuis la base de données" },
+          { error: "Impossible de récupérer le feedback depuis la base de données", details: feedbackError },
           { status: 404 }
         );
       }
+      feedbackData = fetchedData;
+    }
+
+    if (!feedbackData) {
+      return NextResponse.json(
+        { error: "Impossible de récupérer les données du feedback" },
+        { status: 400 }
+      );
     }
 
     // Construire le message de notification
-    // Priorité : données de la base > message du body (seulement si pas de variables non interpolées)
-    let feedbackDescription = feedbackData?.description;
-    
-    if (!feedbackDescription) {
-      // Vérifier si le message contient des variables non interpolées
-      if (message && !message.includes("{{") && !message.includes("$1")) {
-        feedbackDescription = message;
-      } else {
-        // Si le message contient des variables non interpolées, utiliser un message par défaut
-        feedbackDescription = "Nouveau feedback";
-      }
-    }
+    const feedbackDescription = feedbackData.description || "Nouveau feedback";
     
     // Tronquer le message à 100 caractères pour la notification
     const truncatedMessage = feedbackDescription.length > 100 
       ? feedbackDescription.substring(0, 97) + "..." 
       : feedbackDescription;
 
-    const feedbackTypeLabel = feedbackType || "feedback";
+    const feedbackTypeLabel = body.feedbackType || "feedback";
 
     // Envoyer la notification à tous les admins
     const result = await sendNotificationToAdmins({
@@ -102,16 +118,16 @@ export async function POST(request: NextRequest) {
       body: `${feedbackTypeLabel}: ${truncatedMessage}`,
       data: {
         type: "new_feedback",
-        feedback_id: feedbackId,
-        feedback_type: feedbackType || null,
+        feedback_id: feedbackData.id,
+        feedback_type: body.feedbackType || null,
         message: truncatedMessage,
-        user_id: feedbackData?.user_id || userId || null,
-        feedback_object_id: feedbackData?.feedback_object_id || null,
+        user_id: feedbackData.user_id || null,
+        feedback_object_id: feedbackData.feedback_object_id || null,
       },
     });
 
     if (result.success) {
-      console.log(`✅ Notification envoyée à ${result.sent} admin(s) pour le feedback ${feedbackId}`);
+      console.log(`✅ Notification envoyée à ${result.sent} admin(s) pour le feedback ${feedbackData.id}`);
     } else {
       console.error(`❌ Erreur lors de l'envoi des notifications:`, result.errors);
     }

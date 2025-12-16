@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict dbBvoNyVPCGg7l1MttK6fxfWLof0q8xVhzISN1j5F3QMWNeB1a71xPFy9Cik6fL
+-- \restrict dbBvoNyVPCGg7l1MttK6fxfWLof0q8xVhzISN1j5F3QMWNeB1a71xPFy9Cik6fL
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 18.1
@@ -3048,5 +3048,5 @@ ALTER TABLE public.user_requests ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict dbBvoNyVPCGg7l1MttK6fxfWLof0q8xVhzISN1j5F3QMWNeB1a71xPFy9Cik6fL
+-- \unrestrict dbBvoNyVPCGg7l1MttK6fxfWLof0q8xVhzISN1j5F3QMWNeB1a71xPFy9Cik6fL
 

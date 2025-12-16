@@ -45,41 +45,65 @@ export async function POST(request: NextRequest) {
       body.sourceUrl = url.searchParams.get("sourceUrl") || body.sourceUrl;
     }
 
-    const { requestId, requestType, eventTitle, sourceUrl } = body;
+    // Détecter si le body contient directement les données de la demande (format webhook Supabase)
+    let requestId: string | null = null;
+    let requestData: any = null;
 
-    if (!requestId || !requestType) {
+    // Vérifier si le body contient directement les champs de la table user_requests (format webhook)
+    if (body.id && typeof body.id === "string" && !body.id.includes("{{") && !body.id.includes("$1")) {
+      // Le body contient directement les données de la demande (format webhook Supabase)
+      requestId = body.id;
+      requestData = {
+        id: body.id,
+        request_type: body.request_type || body.requestType,
+        event_data: body.event_data,
+        source_url: body.source_url || body.sourceUrl,
+        requested_at: body.requested_at,
+      };
+    } else if (body.requestId && typeof body.requestId === "string" && !body.requestId.includes("{{") && !body.requestId.includes("$1")) {
+      // Le body contient un requestId valide
+      requestId = body.requestId;
+    } else {
+      // Le requestId contient des variables non interpolées, on ne peut pas continuer
       return NextResponse.json(
-        { error: "requestId et requestType sont requis (dans le body JSON ou en paramètre de requête)" },
+        { 
+          error: "requestId invalide ou contient des variables non interpolées. Le webhook Supabase doit interpoler les variables ou envoyer les données complètes de la demande.",
+          hint: "Configurez le webhook pour envoyer soit un body JSON avec les données complètes (id, request_type, event_data, etc.), soit un requestId interpolé."
+        },
         { status: 400 }
       );
     }
 
-    // Récupérer les détails de la demande si nécessaire
-    const supabase = createServiceClient();
-    const { data: requestData, error: requestError } = await supabase
-      .from("user_requests")
-      .select("id, request_type, event_data, source_url, requested_at")
-      .eq("id", requestId)
-      .single();
+    // Si on n'a pas encore les données, les récupérer depuis la base
+    if (!requestData && requestId) {
+      const supabase = createServiceClient();
+      const { data: fetchedData, error: requestError } = await supabase
+        .from("user_requests")
+        .select("id, request_type, event_data, source_url, requested_at")
+        .eq("id", requestId)
+        .single();
 
-    if (requestError || !requestData) {
-      console.error("❌ Erreur lors de la récupération de la demande:", requestError);
-      // On continue quand même, on utilisera les données du body
+      if (requestError || !fetchedData) {
+        console.error("❌ Erreur lors de la récupération de la demande:", requestError);
+        return NextResponse.json(
+          { error: "Impossible de récupérer la demande depuis la base de données", details: requestError },
+          { status: 404 }
+        );
+      }
+      requestData = fetchedData;
     }
+
+    if (!requestData) {
+      return NextResponse.json(
+        { error: "Impossible de récupérer les données de la demande" },
+        { status: 400 }
+      );
+    }
+
+    const requestType = requestData.request_type || body.requestType;
 
     // Construire le message de notification
-    // Si eventTitle contient des variables non interpolées ({{ $1... }}), l'ignorer et utiliser les données de la base
-    let title = requestData?.event_data?.title;
-    
-    if (!title) {
-      // Vérifier si eventTitle contient des variables non interpolées
-      if (eventTitle && !eventTitle.includes("{{") && !eventTitle.includes("$1")) {
-        title = eventTitle;
-      } else {
-        title = "Nouvelle demande";
-      }
-    }
-    
+    const title = requestData.event_data?.title || body.eventTitle || "Nouvelle demande";
     const requestTypeLabel = requestType === "event_from_url" ? "depuis URL" : "complète";
     const bodyText = title && title !== "Nouvelle demande"
       ? `Nouvelle demande ${requestTypeLabel}: ${title}`
@@ -91,15 +115,15 @@ export async function POST(request: NextRequest) {
       body: bodyText,
       data: {
         type: "new_request",
-        request_id: requestId,
+        request_id: requestData.id,
         request_type: requestType,
-        event_title: requestData?.event_data?.title || eventTitle || null,
-        source_url: requestData?.source_url || sourceUrl || null,
+        event_title: requestData.event_data?.title || null,
+        source_url: requestData.source_url || null,
       },
     });
 
     if (result.success) {
-      console.log(`✅ Notification envoyée à ${result.sent} admin(s) pour la demande ${requestId}`);
+      console.log(`✅ Notification envoyée à ${result.sent} admin(s) pour la demande ${requestData.id}`);
     } else {
       console.error(`❌ Erreur lors de l'envoi des notifications:`, result.errors);
     }

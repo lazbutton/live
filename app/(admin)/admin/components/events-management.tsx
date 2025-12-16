@@ -2104,7 +2104,7 @@ function EventEditDialog({
     facebook_url: string;
     scraping_url: string;
     image_url: string;
-    status: "pending" | "approved" | "rejected";
+    status: "draft" | "pending" | "approved" | "rejected";
   }>({
     title: "",
     description: "",
@@ -2469,8 +2469,14 @@ function EventEditDialog({
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent, isDraft: boolean = false) {
     e.preventDefault();
+    
+    // Validation : la catégorie est obligatoire (sauf pour les brouillons)
+    if (!isDraft && (!formData.category || formData.category.trim() === "")) {
+      alert("La catégorie est obligatoire");
+      return;
+    }
     
     // Validation : la date de fin ne peut pas être antérieure à la date de début
     if (formData.end_date && formData.date) {
@@ -2506,9 +2512,14 @@ function EventEditDialog({
       ? (locations.find((loc) => loc.id === formData.location_id) as LocationData | undefined)
       : null;
 
+    // Déterminer le statut selon le bouton cliqué
+    // Si c'est un brouillon, statut "draft", sinon "approved" (validation automatique)
+    const status = isDraft ? "draft" : "approved";
+
     onSave(
       {
         ...formData,
+        status: status as "draft" | "pending" | "approved" | "rejected",
         date: fromDatetimeLocal(formData.date) || formData.date,
         end_date: formData.end_date ? (fromDatetimeLocal(formData.end_date) || null) : null,
         price: formData.price ? parseFloat(formData.price) : null,
@@ -2809,33 +2820,15 @@ function EventEditDialog({
             </div>
           </SheetHeader>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Section: Statut, disponibilité et Image */}
+          {/* Section: Disponibilité et Image */}
           <div className={`grid gap-6 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Statut et disponibilité</CardTitle>
-                <CardDescription>Gestion du statut et de la disponibilité de l'événement</CardDescription>
+                <CardTitle className="text-lg">Disponibilité</CardTitle>
+                <CardDescription>Gestion de la disponibilité de l'événement</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="status">Statut</Label>
-                    <Select
-                      value={formData.status}
-                      onValueChange={(value: "pending" | "approved" | "rejected") =>
-                        setFormData({ ...formData, status: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">En attente</SelectItem>
-                        <SelectItem value="approved">Approuvé</SelectItem>
-                        <SelectItem value="rejected">Rejeté</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="is_full" className="text-base font-medium">
                       Disponibilité
@@ -3516,8 +3509,20 @@ function EventEditDialog({
             >
               Annuler
             </Button>
-            <Button type="submit" className="min-h-[44px] w-full md:w-auto cursor-pointer">
-              Enregistrer
+            <Button
+              type="button"
+              variant="outline"
+              onClick={(e) => handleSubmit(e, true)}
+              className="min-h-[44px] w-full md:w-auto cursor-pointer"
+            >
+              Enregistrer comme brouillon
+            </Button>
+            <Button
+              type="button"
+              onClick={(e) => handleSubmit(e, false)}
+              className="min-h-[44px] w-full md:w-auto cursor-pointer"
+            >
+              Enregistrer l'événement
             </Button>
           </div>
         </form>
