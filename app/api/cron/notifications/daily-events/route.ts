@@ -19,9 +19,9 @@ function verifyCronRequest(request: NextRequest): boolean {
 
 /**
  * GET /api/cron/notifications/daily-events
- * 
- * Cron job pour envoyer des notifications sur les événements du jour
- * Configuré pour s'exécuter tous les jours à 8h du matin (schedule: "0 8 * * *")
+ *
+ * Cron job pour envoyer la passe quotidienne des notifications par categories suivies.
+ * L'heure effective reste pilotee par `notification_settings.notification_time`.
  */
 export async function GET(request: NextRequest) {
   // Vérifier que la requête vient bien de Vercel Cron
@@ -38,7 +38,8 @@ export async function GET(request: NextRequest) {
     console.log("📅 Démarrage du cron de notifications pour les événements du jour");
     
     // Récupérer la date d'aujourd'hui (début et fin de journée)
-    const today = new Date();
+    const now = new Date();
+    const today = new Date(now);
     today.setHours(0, 0, 0, 0);
     const todayStart = today.toISOString();
     
@@ -67,7 +68,16 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    if (!events || events.length === 0) {
+    const relevantEvents = (events || []).filter((event: any) => {
+      const start = new Date(event.date);
+      const end = event.end_date ? new Date(event.end_date) : null;
+      if (end && !Number.isNaN(end.getTime())) {
+        return end >= now;
+      }
+      return !Number.isNaN(start.getTime()) && start >= now;
+    });
+
+    if (relevantEvents.length === 0) {
       console.log("ℹ️ Aucun événement aujourd'hui");
       return NextResponse.json({
         success: true,
@@ -76,22 +86,22 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    console.log(`📋 ${events.length} événement(s) trouvé(s) pour aujourd'hui`);
+    console.log(`📋 ${relevantEvents.length} événement(s) pertinent(s) trouvé(s) pour aujourd'hui`);
     
     // Préparer le message de notification
-    const eventTitles = events.slice(0, 5).map(e => e.title).join(", ");
-    const moreEvents = events.length > 5 ? ` et ${events.length - 5} autre(s)` : "";
+    const eventTitles = relevantEvents.slice(0, 5).map(e => e.title).join(", ");
+    const moreEvents = relevantEvents.length > 5 ? ` et ${relevantEvents.length - 5} autre(s)` : "";
     
     const title = "Événements du jour 📅";
-    const body = events.length === 1
-      ? `${events[0].title} a lieu aujourd'hui !`
-      : `${events.length} événement(s) prévu(s) aujourd'hui : ${eventTitles}${moreEvents}`;
+    const body = relevantEvents.length === 1
+      ? `${relevantEvents[0].title} a lieu aujourd'hui !`
+      : `${relevantEvents.length} événement(s) prévu(s) aujourd'hui : ${eventTitles}${moreEvents}`;
     
     // Extraire les IDs des événements pour les données de la notification
-    const eventIds = events.map(e => e.id);
+    const eventIds = relevantEvents.map(e => e.id);
     
     // Filtrer les événements avec catégorie
-    const eventsWithCategory = events.filter(e => e.category);
+    const eventsWithCategory = relevantEvents.filter(e => e.category);
     
     if (eventsWithCategory.length === 0) {
       console.log("ℹ️ Aucun événement avec catégorie trouvé aujourd'hui");
@@ -120,7 +130,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Vérifier si l'heure actuelle correspond à l'heure configurée (pour les utilisateurs "daily")
-    const now = new Date();
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
     
@@ -162,17 +171,13 @@ export async function GET(request: NextRequest) {
     const eventsByUser: Record<string, typeof eventsWithCategory> = {};
     
     enabledUsers.forEach((user: any) => {
-      // Si l'utilisateur n'a pas de préférences de catégories, il reçoit tous les événements
-      if (!user.category_ids || user.category_ids.length === 0) {
-        eventsByUser[user.user_id] = eventsWithCategory;
-      } else {
-        // Filtrer les événements selon les catégories préférées
-        const userEvents = eventsWithCategory.filter(e => 
-          e.category && user.category_ids.includes(e.category)
-        );
-        if (userEvents.length > 0) {
-          eventsByUser[user.user_id] = userEvents;
-        }
+      if (!Array.isArray(user.category_ids) || user.category_ids.length === 0) return;
+
+      const userEvents = eventsWithCategory.filter(
+        (e) => e.category && user.category_ids.includes(e.category),
+      );
+      if (userEvents.length > 0) {
+        eventsByUser[user.user_id] = userEvents;
       }
     });
 
@@ -190,6 +195,7 @@ export async function GET(request: NextRequest) {
 
     let totalSent = 0;
     let totalFailed = 0;
+    let skippedAlreadySent = 0;
     const errors: string[] = [];
 
     // Envoyer une seule notification par utilisateur avec tous ses événements
@@ -205,6 +211,23 @@ export async function GET(request: NextRequest) {
           : `${userEvents.length} événement(s) prévu(s) aujourd'hui : ${eventTitles}${moreEvents}`;
         
         const categories = [...new Set(userEvents.map(e => e.category).filter(Boolean))];
+
+        const { count: alreadySentCount, error: logCheckError } = await supabase
+          .from("notification_logs")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("title", title)
+          .gte("sent_at", todayStart)
+          .lt("sent_at", todayEndStr);
+
+        if (logCheckError) {
+          console.warn(`⚠️ Impossible de vérifier l'anti-doublon daily pour ${userId}:`, logCheckError);
+        }
+
+        if ((alreadySentCount ?? 0) > 0) {
+          skippedAlreadySent++;
+          continue;
+        }
 
         const result = await sendNotificationToUser(userId, {
           title,
@@ -244,10 +267,11 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       success: result.success,
-      message: `Notifications envoyées pour ${events.length} événement(s)`,
-      eventsCount: events.length,
+      message: `Notifications envoyées pour ${eventsWithCategory.length} événement(s)`,
+      eventsCount: eventsWithCategory.length,
       notificationsSent: result.sent,
       notificationsFailed: result.failed,
+      notificationsSkipped: skippedAlreadySent,
       errors: result.errors.length > 0 ? result.errors : undefined,
     });
     

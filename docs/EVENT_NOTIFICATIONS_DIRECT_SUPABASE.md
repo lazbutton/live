@@ -1,5 +1,11 @@
 # Utilisation directe de Supabase pour les notifications d'événements
 
+> Attention
+>
+> Ce document decrit un ancien flux de rappels individuels par evenement.
+> Ce systeme est desormais obsolete et ne doit plus etre utilise pour le produit courant.
+> Les envois actifs reposent uniquement sur les notifications par categories suivies en `daily` et `weekly`.
+
 ## Vue d'ensemble
 
 L'application mobile peut utiliser directement le client Supabase pour gérer les notifications d'événements, sans passer par l'API Next.js. Cela fonctionne grâce aux **RLS policies** (Row Level Security) de Supabase qui permettent aux utilisateurs de gérer leurs propres notifications.
@@ -326,6 +332,7 @@ class EventNotificationService {
   }
 }
 ```
+
 
 
 

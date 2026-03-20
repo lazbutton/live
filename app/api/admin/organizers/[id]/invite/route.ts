@@ -231,7 +231,7 @@ async function sendInvitationEmail(
               </p>
               
               <p style="margin: 0 0 24px 0; font-size: 16px; color: #1f2937; line-height: 1.6;">
-                Vous avez été invité à rejoindre <strong style="color: #667eea; font-weight: 600;">${organizerName}</strong> en tant qu'organisateur sur la plateforme Live Orléans.
+                Vous avez été invité à rejoindre <strong style="color: #667eea; font-weight: 600;">${organizerName}</strong> en tant qu'organisateur sur la plateforme OutLive.
               </p>
               
               <p style="margin: 0 0 32px 0; font-size: 16px; color: #4b5563; line-height: 1.6;">
@@ -299,7 +299,7 @@ async function sendInvitationEmail(
                 Cet email a été envoyé automatiquement, merci de ne pas y répondre.
               </p>
               <p style="margin: 0; font-size: 12px; color: #9ca3af;">
-                © ${new Date().getFullYear()} Live Orléans - Tous droits réservés
+                © ${new Date().getFullYear()} OutLive - Tous droits réservés
               </p>
             </td>
           </tr>

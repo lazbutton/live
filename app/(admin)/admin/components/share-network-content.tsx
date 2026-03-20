@@ -644,6 +644,7 @@ export function ShareNetworkContent() {
                   setRangeStartKey(next);
                   if (next && rangeEndKey && next > rangeEndKey) setRangeEndKey(next);
                 }}
+                className="h-11"
               />
             </div>
             <div className="space-y-1.5">
@@ -657,6 +658,7 @@ export function ShareNetworkContent() {
                   setRangeEndKey(next);
                   if (next && rangeStartKey && next < rangeStartKey) setRangeStartKey(next);
                 }}
+                className="h-11"
               />
             </div>
           </div>

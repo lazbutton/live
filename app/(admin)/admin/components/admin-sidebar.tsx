@@ -9,14 +9,13 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { Shield, Calendar, MapPin, Users, Tag, Hash, FileText, LayoutDashboard, LogOut, MessageSquare, Share2, Bell, Clock, UserCog } from "lucide-react";
-import { useRouter, usePathname } from "next/navigation";
+import { Calendar, LayoutDashboard, LogOut, Settings } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
   DropdownMenu,
@@ -28,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { usePendingRequestsCount } from "@/hooks/use-pending-requests-count";
+import { usePendingEventsCount } from "@/hooks/use-pending-events-count";
 import { Badge } from "@/components/ui/badge";
 
 const menuItems = [
@@ -42,107 +42,22 @@ const menuItems = [
     url: "/admin/events",
   },
   {
-    title: "Lieux",
-    icon: MapPin,
-    url: "/admin/locations",
-  },
-  {
-    title: "Organisateurs",
-    icon: Users,
-    url: "/admin/organizers",
-  },
-  {
-    title: "Utilisateurs",
-    icon: UserCog,
-    url: "/admin/users",
-  },
-  {
-    title: "Catégories",
-    icon: Tag,
-    url: "/admin/categories",
-  },
-  {
-    title: "Tags",
-    icon: Hash,
-    url: "/admin/tags",
-  },
-  {
-    title: "Demandes",
-    icon: FileText,
-    url: "/admin/requests",
-  },
-  {
-    title: "Feedback",
-    icon: MessageSquare,
-    url: "/admin/feedback",
-  },
-  {
-    title: "Partage réseaux",
-    icon: Share2,
-    url: "/admin/share",
-  },
-  {
-    title: "Notifications",
-    icon: Bell,
-    url: "/admin/notifications",
-  },
-  {
-    title: "Crons",
-    icon: Clock,
-    url: "/admin/crons",
+    title: "Réglages",
+    icon: Settings,
+    url: "/admin/settings",
   },
 ];
 
 export function AdminSidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const menuItemsRefs = React.useRef<(HTMLAnchorElement | null)[]>([]);
   const { count: pendingRequestsCount } = usePendingRequestsCount();
+  const { count: pendingEventsCount } = usePendingEventsCount();
 
   async function handleLogout() {
     await supabase.auth.signOut();
     router.push("/admin/login");
   }
-
-  // Navigation au clavier avec les flèches haut/bas
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Vérifier si on est dans la sidebar (ou si aucun input n'est focus)
-      const activeElement = document.activeElement;
-      const isInputFocused = activeElement?.tagName === 'INPUT' || 
-                             activeElement?.tagName === 'TEXTAREA' || 
-                             activeElement?.getAttribute('contenteditable') === 'true';
-      
-      if (isInputFocused) return; // Ne pas interférer si on est dans un input
-
-      const currentIndex = menuItemsRefs.current.findIndex(
-        (ref) => ref === activeElement || ref?.contains(activeElement as Node)
-      );
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        const nextIndex = currentIndex < menuItemsRefs.current.length - 1 
-          ? currentIndex + 1 
-          : 0;
-        const nextItem = menuItemsRefs.current[nextIndex];
-        if (nextItem) {
-          nextItem.focus();
-        }
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        const prevIndex = currentIndex > 0 
-          ? currentIndex - 1 
-          : menuItemsRefs.current.length - 1;
-        const prevItem = menuItemsRefs.current[prevIndex];
-        if (prevItem) {
-          prevItem.focus();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   return (
     <Sidebar collapsible="icon" variant="floating" className="h-screen">
@@ -152,30 +67,39 @@ export function AdminSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item, index) => (
+              {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
                     isActive={pathname === item.url || (item.url !== "/admin/dashboard" && pathname?.startsWith(item.url))}
+                    size="lg"
                   >
                     <Link 
                       href={item.url} 
                       className="cursor-pointer focus:outline-none"
-                      ref={(el) => {
-                        menuItemsRefs.current[index] = el;
-                      }}
-                      tabIndex={0}
                     >
-                      <item.icon className="size-4" />
+                      <item.icon className="h-6 w-6" />
                       <span className="flex-1">{item.title}</span>
-                      {item.title === "Demandes" && pendingRequestsCount !== null && pendingRequestsCount > 0 && (
-                        <Badge 
-                          variant="secondary" 
-                          className="ml-auto h-5 min-w-5 px-1.5 text-xs font-semibold"
-                        >
-                          {pendingRequestsCount > 99 ? "99+" : pendingRequestsCount}
-                        </Badge>
-                      )}
+                      {item.title === "Dashboard" &&
+                        pendingRequestsCount !== null &&
+                        pendingRequestsCount > 0 && (
+                          <Badge
+                            variant="destructive"
+                            className="ml-auto h-5 min-w-5 px-1.5 text-xs font-bold tabular-nums"
+                          >
+                            {pendingRequestsCount > 99 ? "99+" : pendingRequestsCount}
+                          </Badge>
+                        )}
+                      {item.title === "Événements" &&
+                        pendingEventsCount !== null &&
+                        pendingEventsCount > 0 && (
+                          <Badge
+                            variant="destructive"
+                            className="ml-auto h-5 min-w-5 px-1.5 text-xs font-bold tabular-nums"
+                          >
+                            {pendingEventsCount > 99 ? "99+" : pendingEventsCount}
+                          </Badge>
+                        )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -61,6 +61,28 @@ import { compressImage } from "@/lib/image-compression";
 import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { organizerCache, CACHE_KEYS, CACHE_TTL } from "@/lib/organizer-cache";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { SelectSearchable } from "@/components/ui/select-searchable";
+import { EventFormOverviewCard } from "@/components/events/event-form-overview-card";
+
+function addHoursToDatetimeLocal(value: string, hoursToAdd: number) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!m) return value;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const d = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (Number.isNaN(d.getTime())) return value;
+  d.setHours(d.getHours() + hoursToAdd);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  const ho = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${mo}-${da}T${ho}:${mi}`;
+}
 
 function EditEventContent() {
   const router = useRouter();
@@ -560,6 +582,19 @@ function EditEventContent() {
     );
   }
 
+  const selectedLocationLabel = locations.find((location) => location.id === formData.location_id)?.name;
+  const selectedCategoryLabel = categories.find((category) => category.id === formData.category)?.name;
+  const selectedOrganizerLabels = selectedOrganizerIds
+    .map((id) => userOrganizers.find((organizer) => organizer.organizer_id === id)?.organizer?.name ?? id)
+    .filter((value): value is string => Boolean(value));
+  const missingRequired = [
+    !formData.title.trim() ? "Titre" : null,
+    !formData.date ? "Date" : null,
+    !formData.category ? "Categorie" : null,
+    selectedOrganizerIds.length === 0 ? "Organisateur" : null,
+  ].filter((value): value is string => Boolean(value));
+  const priceSummary = formData.price.trim() ? `${formData.price.trim()} EUR` : undefined;
+
   return (
     <OrganizerLayout
       title="Éditer l'événement"
@@ -597,6 +632,19 @@ function EditEventContent() {
 
         {/* Main form */}
         <form onSubmit={(e) => handleSubmit(e)} className="space-y-6">
+          <EventFormOverviewCard
+            title={formData.title}
+            categoryLabel={selectedCategoryLabel}
+            startDate={formData.date}
+            endDate={formData.end_date}
+            locationLabel={selectedLocationLabel}
+            organizerLabels={selectedOrganizerLabels}
+            tagsCount={selectedTagIds.length}
+            priceLabel={priceSummary}
+            hasImage={Boolean(imagePreview)}
+            missingRequired={missingRequired}
+          />
+
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Left column - Main info */}
             <div className="lg:col-span-2 space-y-6">
@@ -695,12 +743,35 @@ function EditEventContent() {
                         <Calendar className="h-4 w-4" />
                         Date et heure de début *
                       </Label>
-                      <Input
+                      <DateTimePicker
                         id="date"
-                        type="datetime-local"
                         value={formData.date}
-                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                        onChange={(newStartDate) => {
+                          setFormData((prev) => {
+                            const next = { ...prev, date: newStartDate };
+
+                            if (!prev.end_date && newStartDate) {
+                              next.end_date = addHoursToDatetimeLocal(newStartDate, 1);
+                            }
+
+                            if (next.end_date && newStartDate) {
+                              const start = new Date(newStartDate);
+                              const end = new Date(next.end_date);
+                              if (
+                                !Number.isNaN(start.getTime()) &&
+                                !Number.isNaN(end.getTime()) &&
+                                end < start
+                              ) {
+                                next.end_date = addHoursToDatetimeLocal(newStartDate, 1);
+                              }
+                            }
+
+                            return next;
+                          });
+                        }}
                         required
+                        placeholder="Choisir une date et une heure"
+                        className="space-y-0"
                       />
                     </div>
 
@@ -709,11 +780,15 @@ function EditEventContent() {
                         <Clock className="h-4 w-4" />
                         Date et heure de fin
                       </Label>
-                      <Input
+                      <DateTimePicker
                         id="end_date"
-                        type="datetime-local"
                         value={formData.end_date}
-                        onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                        onChange={(newEndDate) =>
+                          setFormData((prev) => ({ ...prev, end_date: newEndDate }))
+                        }
+                        placeholder="Optionnel"
+                        allowClear
+                        className="space-y-0"
                       />
                     </div>
                   </div>
@@ -727,10 +802,12 @@ function EditEventContent() {
                       <Input
                         id="door_opening_time"
                         type="time"
+                        step={60}
                         value={formData.door_opening_time}
                         onChange={(e) =>
                           setFormData({ ...formData, door_opening_time: e.target.value })
                         }
+                        className="h-11"
                       />
                     </div>
 
@@ -776,24 +853,25 @@ function EditEventContent() {
                       <MapPin className="h-4 w-4" />
                       Lieu
                     </Label>
-                    <Select
+                    <SelectSearchable
+                      options={[
+                        { value: "none", label: "Aucun lieu" },
+                        ...locations.map((location) => ({
+                          value: location.id,
+                          label: location.name,
+                        })),
+                      ]}
                       value={formData.location_id || "none"}
                       onValueChange={(value) =>
-                        setFormData({ ...formData, location_id: value, room_id: "" })
+                        setFormData({
+                          ...formData,
+                          location_id: value === "none" ? "" : value,
+                          room_id: "",
+                        })
                       }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Aucun lieu</SelectItem>
-                        {locations.map((loc) => (
-                          <SelectItem key={loc.id} value={loc.id}>
-                            {loc.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Sélectionner un lieu"
+                      searchPlaceholder="Rechercher un lieu..."
+                    />
                   </div>
 
                   {rooms.length > 0 && (
@@ -837,6 +915,7 @@ function EditEventContent() {
               <Card>
                 <CardHeader>
                   <CardTitle>Liens et réseaux sociaux</CardTitle>
+                  <CardDescription>Ces champs restent visibles pour garder toute l'édition sur un seul écran.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -852,7 +931,7 @@ function EditEventContent() {
                     />
                   </div>
 
-                  {formData.external_url && (
+                  {formData.external_url ? (
                     <div className="space-y-2">
                       <Label htmlFor="external_url_label">Label du lien</Label>
                       <Input
@@ -863,7 +942,7 @@ function EditEventContent() {
                         }
                       />
                     </div>
-                  )}
+                  ) : null}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">

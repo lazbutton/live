@@ -11,7 +11,7 @@ export default function TermsOfServicePage() {
             </p>
             <p>
               Veuillez lire attentivement les présentes Conditions d'Utilisation avant d'utiliser 
-              la plateforme Live Orléans. En accédant ou en utilisant notre service, vous acceptez 
+              la plateforme OutLive. En accédant ou en utilisant notre service, vous acceptez 
               d'être lié par ces conditions.
             </p>
           </section>
@@ -19,7 +19,7 @@ export default function TermsOfServicePage() {
           <section>
             <h2 className="text-2xl font-semibold mt-8 mb-4">1. Acceptation des Conditions</h2>
             <p>
-              En accédant et en utilisant la plateforme Live Orléans, vous acceptez d'être lié par 
+              En accédant et en utilisant la plateforme OutLive, vous acceptez d'être lié par 
               ces Conditions d'Utilisation et toutes les lois et réglementations applicables. Si vous 
               n'acceptez pas ces conditions, vous ne devez pas utiliser notre service.
             </p>
@@ -28,7 +28,7 @@ export default function TermsOfServicePage() {
           <section>
             <h2 className="text-2xl font-semibold mt-8 mb-4">2. Description du Service</h2>
             <p>
-              Live Orléans est une plateforme mobile gratuite qui centralise les événements culturels 
+              OutLive est une plateforme mobile gratuite qui centralise les événements culturels 
               et de sorties de la ville d'Orléans, France. Notre service permet aux utilisateurs de :
             </p>
             <ul className="list-disc pl-6 space-y-2">
@@ -86,7 +86,7 @@ export default function TermsOfServicePage() {
             <p>
               Le service, y compris son contenu, sa structure, son design, ses logos, ses graphismes, 
               ses textes et ses images, est protégé par les lois sur la propriété intellectuelle et 
-              appartient à Live Orléans ou à ses concédants de licence.
+              appartient à OutLive ou à ses concédants de licence.
             </p>
 
             <h3 className="text-xl font-semibold mt-6 mb-3">5.2 Contenu des tiers</h3>
@@ -198,7 +198,7 @@ export default function TermsOfServicePage() {
             <h2 className="text-2xl font-semibold mt-8 mb-4">13. Dispositions Générales</h2>
             <h3 className="text-xl font-semibold mt-6 mb-3">13.1 Intégralité de l'accord</h3>
             <p>
-              Ces Conditions d'Utilisation constituent l'intégralité de l'accord entre vous et Live Orléans 
+              Ces Conditions d'Utilisation constituent l'intégralité de l'accord entre vous et OutLive 
               concernant l'utilisation du service.
             </p>
 

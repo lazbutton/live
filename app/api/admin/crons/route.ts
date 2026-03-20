@@ -46,6 +46,9 @@ export async function GET(request: NextRequest) {
       if (minute !== "*" && hour !== "*" && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
         // Format: minute hour * * *
         scheduleDescription = `Tous les jours à ${hour}:${minute.padStart(2, "0")}`;
+      } else if (minute.startsWith("*/") && hour === "*" && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+        // Format: */5 * * * *
+        scheduleDescription = `Toutes les ${minute.slice(2)} minutes`;
       } else if (minute !== "*" && hour !== "*" && dayOfMonth === "*" && month === "*" && dayOfWeek !== "*") {
         // Format: minute hour * * dayOfWeek
         const days = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
@@ -84,9 +87,7 @@ function getCronName(path: string): string {
   const names: Record<string, string> = {
     "/api/cron/cleanup": "Nettoyage de la base de données",
     "/api/cron/notifications/daily-events": "Notifications quotidiennes",
-    "/api/cron/notifications/upcoming-reminders": "Rappels événements à venir",
     "/api/cron/notifications/weekly-summary": "Résumé hebdomadaire",
-  "/api/cron/notifications/user-event-reminders": "Rappels événements utilisateurs",
   };
   return names[path] || path;
 }
@@ -94,10 +95,8 @@ function getCronName(path: string): string {
 function getCronDescription(path: string): string {
   const descriptions: Record<string, string> = {
     "/api/cron/cleanup": "Nettoie les données anciennes (événements passés, logs, tokens invalides)",
-    "/api/cron/notifications/daily-events": "Envoie des notifications sur les événements du jour",
-    "/api/cron/notifications/upcoming-reminders": "Envoie des rappels pour les événements du lendemain",
-    "/api/cron/notifications/weekly-summary": "Envoie un résumé des événements de la semaine",
-    "/api/cron/notifications/user-event-reminders": "Envoie des rappels pour les événements du lendemain uniquement aux utilisateurs qui ont activé les notifications",
+    "/api/cron/notifications/daily-events": "Envoie la passe quotidienne des notifications par catégories suivies",
+    "/api/cron/notifications/weekly-summary": "Envoie la passe hebdomadaire des notifications par catégories suivies",
   };
   return descriptions[path] || "";
 }

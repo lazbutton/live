@@ -120,7 +120,7 @@ export async function scrapeEventPage({ url, organizer_id, location_id, supabase
   }
 
   // Charger les configurations CSS personnalisées
-  let customScrapingData: Partial<ScrapedEventData> = {};
+  const customScrapingData: Partial<ScrapedEventData> = {};
   const configOwnerId = organizer_id || location_id;
   if (configOwnerId) {
     try {
@@ -451,6 +451,7 @@ Retourne UNIQUEMENT le JSON valide, sans texte avant ou après, sans commentaire
     metadata: { scraped: true, ai_processed: true, url },
   };
 }
+
 
 
 

@@ -1,5 +1,13 @@
 # Types de Notifications Disponibles pour les Utilisateurs
 
+> Attention
+>
+> Ce document decrit en grande partie un ancien systeme devenu obsolete.
+>
+> Les rappels individuels par evenement ont ete retires du produit.
+> Le systeme actuel conserve uniquement les notifications par categories suivies avec deux frequences: `daily` et `weekly`.
+> Pour l'etat cible et les regles produit a suivre, se referer a `docs/NOTIFICATION_TYPES_ADMIN copy.md`.
+
 ## Vue d'ensemble
 
 Les utilisateurs de l'application peuvent recevoir différents types de notifications selon leurs préférences et leurs interactions avec les événements. Ce document décrit tous les types de notifications disponibles et comment ils fonctionnent.

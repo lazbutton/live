@@ -23,6 +23,7 @@ interface SelectSearchableProps {
   placeholder?: string;
   className?: string;
   searchPlaceholder?: string;
+  disabled?: boolean;
 }
 
 export function SelectSearchable({
@@ -32,6 +33,7 @@ export function SelectSearchable({
   placeholder = "Sélectionner...",
   className,
   searchPlaceholder = "Rechercher...",
+  disabled = false,
 }: SelectSearchableProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -53,6 +55,7 @@ export function SelectSearchable({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          disabled={disabled}
           className={cn(
             "w-full justify-between min-h-[44px] text-base cursor-pointer",
             className
@@ -64,7 +67,7 @@ export function SelectSearchable({
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0" align="start">
+      <PopoverContent className="w-full p-0" align="start" portalled={false}>
         <div className="p-2">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -73,10 +76,14 @@ export function SelectSearchable({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-8 h-9"
+              disabled={disabled}
             />
           </div>
         </div>
-        <div className="max-h-[300px] overflow-auto">
+        <div
+          className="max-h-[300px] overflow-auto"
+          style={{ overscrollBehavior: "contain" }}
+        >
           {filteredOptions.length === 0 ? (
             <div className="py-6 text-center text-sm text-muted-foreground">
               Aucun résultat trouvé

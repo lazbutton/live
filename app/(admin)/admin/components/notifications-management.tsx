@@ -435,11 +435,12 @@ export function NotificationsManagement() {
                     <Input
                       id="notification-time"
                       type="time"
+                      step={60}
                       value={settings.notification_time}
                       onChange={(e) =>
                         setSettings((prev) => prev ? { ...prev, notification_time: e.target.value } : null)
                       }
-                      className="w-full max-w-xs"
+                      className="h-11 w-full max-w-xs"
                     />
                   </div>
 

@@ -1096,10 +1096,11 @@ function CreateEventContent() {
                       </Label>
                       <Input
                         id="door_opening_time"
+                        type="time"
+                        step={60}
                         value={formData.door_opening_time}
                         onChange={(e) => setFormData({ ...formData, door_opening_time: e.target.value })}
-                        placeholder="20:00"
-                        className="cursor-pointer"
+                        className="h-11"
                       />
                     </div>
                   </div>

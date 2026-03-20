@@ -61,6 +61,8 @@ import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@
 import { useAlertDialog } from "@/hooks/use-alert-dialog";
 import { organizerCache, CACHE_KEYS, CACHE_TTL } from "@/lib/organizer-cache";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { SelectSearchable } from "@/components/ui/select-searchable";
+import { EventFormOverviewCard } from "@/components/events/event-form-overview-card";
 
 function addHoursToDatetimeLocal(value: string, hoursToAdd: number) {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
@@ -134,6 +136,21 @@ function CreateEventContent() {
     instagram_url: "",
     facebook_url: "",
   });
+
+  // Handlers mémorisés pour éviter les re-renders
+  const handleDateChange = useCallback((newStartDate: string) => {
+    setFormData((prev) => {
+      const nextEnd =
+        !prev.end_date && newStartDate
+          ? addHoursToDatetimeLocal(newStartDate, 1)
+          : prev.end_date;
+      return { ...prev, date: newStartDate, end_date: nextEnd };
+    });
+  }, []);
+
+  const handleEndDateChange = useCallback((v: string) => {
+    setFormData((prev) => ({ ...prev, end_date: v }));
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -541,21 +558,6 @@ function CreateEventContent() {
     );
   }
 
-  // Handlers mémorisés pour éviter les re-renders
-  const handleDateChange = useCallback((newStartDate: string) => {
-    setFormData((prev) => {
-      const nextEnd =
-        (!prev.end_date && newStartDate)
-          ? addHoursToDatetimeLocal(newStartDate, 1)
-          : prev.end_date;
-      return { ...prev, date: newStartDate, end_date: nextEnd };
-    });
-  }, []);
-
-  const handleEndDateChange = useCallback((v: string) => {
-    setFormData((prev) => ({ ...prev, end_date: v }));
-  }, []);
-
   // Vérifier que l'utilisateur a au moins un organisateur
   if (userOrganizers.length === 0) {
     return (
@@ -583,6 +585,23 @@ function CreateEventContent() {
     );
   }
 
+  const selectedLocationLabel = locations.find((location) => location.id === formData.location_id)?.name;
+  const selectedCategoryLabel = categories.find((category) => category.id === formData.category)?.name;
+  const selectedOrganizerLabels = selectedOrganizerIds
+    .map((id) => {
+      const owned = userOrganizers.find((organizer) => organizer.organizer_id === id)?.organizer?.name;
+      if (owned) return owned;
+      return allOrganizers.find((organizer) => organizer.id === id)?.name;
+    })
+    .filter((value): value is string => Boolean(value));
+  const missingRequired = [
+    !formData.title.trim() ? "Titre" : null,
+    !formData.date ? "Date" : null,
+    !formData.category ? "Categorie" : null,
+    selectedOrganizerIds.length === 0 ? "Organisateur" : null,
+  ].filter((value): value is string => Boolean(value));
+  const priceSummary = formData.price.trim() ? `${formData.price.trim()} EUR` : undefined;
+
   return (
     <OrganizerLayout
       title="Créer un événement"
@@ -605,6 +624,19 @@ function CreateEventContent() {
 
         {/* Main form */}
         <form onSubmit={(e) => handleSubmit(e, "draft")} className="space-y-6">
+          <EventFormOverviewCard
+            title={formData.title}
+            categoryLabel={selectedCategoryLabel}
+            startDate={formData.date}
+            endDate={formData.end_date}
+            locationLabel={selectedLocationLabel}
+            organizerLabels={selectedOrganizerLabels}
+            tagsCount={selectedTagIds.length}
+            priceLabel={priceSummary}
+            hasImage={Boolean(imagePreview)}
+            missingRequired={missingRequired}
+          />
+
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Left column - Main info */}
             <div className="lg:col-span-2 space-y-6">
@@ -737,10 +769,12 @@ function CreateEventContent() {
                       <Input
                         id="door_opening_time"
                         type="time"
+                        step={60}
                         value={formData.door_opening_time}
                         onChange={(e) =>
                           setFormData((prev) => ({ ...prev, door_opening_time: e.target.value }))
                         }
+                        className="h-11"
                       />
                     </div>
 
@@ -789,24 +823,25 @@ function CreateEventContent() {
                       <MapPin className="h-4 w-4" />
                       Lieu
                     </Label>
-                    <Select
+                    <SelectSearchable
+                      options={[
+                        { value: "none", label: "Aucun lieu" },
+                        ...locations.map((location) => ({
+                          value: location.id,
+                          label: location.name,
+                        })),
+                      ]}
                       value={formData.location_id || "none"}
                       onValueChange={(value) =>
-                        setFormData((prev) => ({ ...prev, location_id: value, room_id: "" }))
+                        setFormData((prev) => ({
+                          ...prev,
+                          location_id: value === "none" ? "" : value,
+                          room_id: "",
+                        }))
                       }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionner un lieu" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Aucun lieu</SelectItem>
-                        {locations.map((loc) => (
-                          <SelectItem key={loc.id} value={loc.id}>
-                            {loc.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Sélectionner un lieu"
+                      searchPlaceholder="Rechercher un lieu..."
+                    />
                   </div>
 
                   {rooms.length > 0 && (
@@ -838,6 +873,7 @@ function CreateEventContent() {
               <Card>
                 <CardHeader>
                   <CardTitle>Liens et réseaux sociaux</CardTitle>
+                  <CardDescription>Ces champs restent visibles pour une saisie complète sans étape cachée.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -856,7 +892,7 @@ function CreateEventContent() {
                     />
                   </div>
 
-                  {formData.external_url && (
+                  {formData.external_url ? (
                     <div className="space-y-2">
                       <Label htmlFor="external_url_label">Label du lien</Label>
                       <Input
@@ -868,7 +904,7 @@ function CreateEventContent() {
                         placeholder="Ex: Réserver, Acheter des billets, etc."
                       />
                     </div>
-                  )}
+                  ) : null}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">

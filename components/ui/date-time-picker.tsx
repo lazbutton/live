@@ -7,6 +7,7 @@ import { Calendar as CalendarIcon, Clock, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type ReminderValue = string; // "YYYY-MM-DDTHH:mm" (datetime-local)
@@ -18,7 +19,7 @@ function pad2(n: number) {
 function parseDatetimeLocal(value?: string | null): { date: CalendarDate; time: Time } | null {
   if (!value) return null;
   // attendu: YYYY-MM-DDTHH:mm
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
   if (!m) return null;
   const year = Number(m[1]);
   const month = Number(m[2]);
@@ -36,13 +37,11 @@ function toDatetimeLocal(date: CalendarDate, time: Time): ReminderValue {
   return `${date.year}-${pad2(date.month)}-${pad2(date.day)}T${pad2(time.hour)}:${pad2(time.minute)}`;
 }
 
-function formatHuman(value?: string | null) {
+function normalizeDatetimeLocal(value: string): ReminderValue {
   if (!value) return "";
-  const parsed = parseDatetimeLocal(value);
-  if (!parsed) return value;
-  const { date, time } = parsed;
-  // format simple FR sans dépendances supplémentaires
-  return `${pad2(date.day)}/${pad2(date.month)}/${date.year} • ${pad2(time.hour)}:${pad2(time.minute)}`;
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+  if (!m) return value;
+  return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`;
 }
 
 export interface DateTimePickerProps {
@@ -95,21 +94,16 @@ export function DateTimePicker({
   const commit = React.useCallback(
     (d: CalendarDate | null, t: Time | null) => {
       if (!d || !t) return;
-      // arrondir aux steps si besoin
-      const step = Math.max(1, Math.min(60, minuteStep));
-      const roundedMin = Math.round(t.minute / step) * step;
-      const finalMin = roundedMin === 60 ? 55 : roundedMin; // garde simple; évite overflow
-      const finalTime = new Time(t.hour, finalMin);
-      const newValue = toDatetimeLocal(d, finalTime);
+      const newValue = toDatetimeLocal(d, t);
       // Ne pas appeler onChange si la valeur n'a pas changé
       if (newValue !== value) {
         onChange(newValue);
       }
     },
-    [minuteStep, onChange, value]
+    [onChange, value]
   );
 
-  const human = value ? formatHuman(value) : "";
+  const normalizedValue = React.useMemo(() => normalizeDatetimeLocal(value || ""), [value]);
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -122,20 +116,32 @@ export function DateTimePicker({
       <I18nProvider locale="fr-FR">
         <Popover open={open} onOpenChange={setOpen}>
           <div className="flex items-stretch gap-2">
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
+            <div className="relative flex-1">
+              <Input
+                id={id}
+                type="datetime-local"
+                value={normalizedValue}
+                onChange={(e) => onChange(normalizeDatetimeLocal(e.target.value))}
+                placeholder={placeholder}
+                required={required}
                 disabled={disabled}
-                className={cn(
-                  "w-full justify-start gap-2 font-normal",
-                  !human ? "text-muted-foreground" : ""
-                )}
-              >
-                <CalendarIcon className="h-4 w-4" />
-                <span className="truncate">{human || placeholder}</span>
-              </Button>
-            </PopoverTrigger>
+                step={60}
+                className="h-11 pr-11"
+                aria-label={label || "Date et heure"}
+              />
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={disabled}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9"
+                  aria-label="Ouvrir le calendrier"
+                >
+                  <CalendarIcon className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+            </div>
 
             {allowClear && value && !disabled ? (
               <Button

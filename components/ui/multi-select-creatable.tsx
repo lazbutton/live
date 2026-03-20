@@ -179,6 +179,7 @@ export function MultiSelectCreatable({
       <PopoverContent
         className="w-full p-0 rounded-xl border border-border/30 bg-popover/95 backdrop-blur-xl shadow-2xl"
         align="start"
+        portalled={false}
         style={{ width: "var(--radix-popover-trigger-width)" }}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
@@ -192,7 +193,7 @@ export function MultiSelectCreatable({
             className="min-h-[36px] text-base"
           />
         </div>
-        <div className="max-h-60 overflow-auto p-1">
+        <div className="max-h-60 overflow-auto p-1" style={{ overscrollBehavior: "contain" }}>
           {filteredOptions.length === 0 && !showCreateOption ? (
             <div className="py-6 text-center text-sm text-muted-foreground">
               Aucune option disponible

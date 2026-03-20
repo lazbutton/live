@@ -259,29 +259,30 @@ export async function GET(request: NextRequest) {
 
 ### 2. Crons de notifications (Déjà configurés dans le projet)
 
-Trois crons de notifications sont déjà configurés et fonctionnels :
+Deux crons de notifications produit sont configurés :
 
 #### a. Notifications quotidiennes (`/api/cron/notifications/daily-events`)
-- **Schedule** : `0 8 * * *` (Tous les jours à 8h)
-- **Fonction** : Envoie une notification à tous les utilisateurs avec les événements du jour
+- **Schedule** : `*/5 * * * *` (Polling toutes les 5 minutes)
+- **Fonction** : Envoie la passe quotidienne des notifications par catégories suivies
 - **Fichier** : `app/api/cron/notifications/daily-events/route.ts`
 
-#### b. Rappels pour événements à venir (`/api/cron/notifications/upcoming-reminders`)
-- **Schedule** : `0 18 * * *` (Tous les jours à 18h)
-- **Fonction** : Envoie un rappel sur les événements prévus pour le lendemain
-- **Fichier** : `app/api/cron/notifications/upcoming-reminders/route.ts`
-
-#### c. Résumé hebdomadaire (`/api/cron/notifications/weekly-summary`)
-- **Schedule** : `0 10 * * 0` (Tous les dimanches à 10h)
-- **Fonction** : Envoie un résumé des événements de la semaine à venir
+#### b. Résumé hebdomadaire (`/api/cron/notifications/weekly-summary`)
+- **Schedule** : `*/5 * * * *` (Polling toutes les 5 minutes)
+- **Fonction** : Envoie le résumé hebdomadaire des événements de la semaine en début de semaine
 - **Fichier** : `app/api/cron/notifications/weekly-summary/route.ts`
 
 **Fonctionnalités communes :**
 - ✅ Vérifient l'authentification via `CRON_SECRET`
 - ✅ Récupèrent uniquement les événements avec `status = 'approved'`
 - ✅ Envoient uniquement aux utilisateurs ayant activé les notifications (`user_notification_preferences.is_enabled = true`)
+- ✅ Respectent la fréquence choisie (`daily` ou `weekly`)
+- ✅ Respectent les catégories suivies via `user_notification_preferences.category_ids`
+- ✅ Respectent `notification_settings.notification_time`
+- ✅ Évitent les doubles envois sur une même passe grâce à l'anti-doublon
 - ✅ Log les résultats dans `notification_logs`
 - ✅ Gèrent automatiquement les tokens invalides (suppression)
+
+Les anciens crons de rappels individuels par événement sont désormais legacy et ne doivent plus être planifiés dans `vercel.json`.
 
 ### 3. Exemple simple d'envoi de notifications
 

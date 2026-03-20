@@ -3,10 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Calendar, MapPin, Users, Tag, FileText, MessageSquare, Share2 } from "lucide-react";
+import { LayoutDashboard, Calendar, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePendingRequestsCount } from "@/hooks/use-pending-requests-count";
+import { usePendingEventsCount } from "@/hooks/use-pending-events-count";
 import { Badge } from "@/components/ui/badge";
 
 const menuItems = [
@@ -21,34 +22,9 @@ const menuItems = [
     url: "/admin/events",
   },
   {
-    title: "Lieux",
-    icon: MapPin,
-    url: "/admin/locations",
-  },
-  {
-    title: "Organisateurs",
-    icon: Users,
-    url: "/admin/organizers",
-  },
-  {
-    title: "Catégories",
-    icon: Tag,
-    url: "/admin/categories",
-  },
-  {
-    title: "Demandes",
-    icon: FileText,
-    url: "/admin/requests",
-  },
-  {
-    title: "Feedback",
-    icon: MessageSquare,
-    url: "/admin/feedback",
-  },
-  {
-    title: "Partage",
-    icon: Share2,
-    url: "/admin/share",
+    title: "Réglages",
+    icon: Settings,
+    url: "/admin/settings",
   },
 ];
 
@@ -56,6 +32,7 @@ export function MobileBottomNav() {
   const pathname = usePathname();
   const isMobile = useIsMobile();
   const { count: pendingRequestsCount } = usePendingRequestsCount();
+  const { count: pendingEventsCount } = usePendingEventsCount();
 
   if (!isMobile) return null;
 
@@ -78,12 +55,20 @@ export function MobileBottomNav() {
             >
               <div className="relative">
                 <item.icon className={cn("h-5 w-5", isActive && "scale-110")} />
-                {item.title === "Demandes" && pendingRequestsCount !== null && pendingRequestsCount > 0 && (
-                  <Badge 
-                    variant="secondary" 
-                    className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-[9px] font-semibold leading-none flex items-center justify-center"
+                {item.title === "Dashboard" && pendingRequestsCount !== null && pendingRequestsCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-[9px] font-bold leading-none flex items-center justify-center tabular-nums"
                   >
                     {pendingRequestsCount > 99 ? "99+" : pendingRequestsCount}
+                  </Badge>
+                )}
+                {item.title === "Événements" && pendingEventsCount !== null && pendingEventsCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-[9px] font-bold leading-none flex items-center justify-center tabular-nums"
+                  >
+                    {pendingEventsCount > 99 ? "99+" : pendingEventsCount}
                   </Badge>
                 )}
               </div>

@@ -19,9 +19,9 @@ function verifyCronRequest(request: NextRequest): boolean {
 
 /**
  * GET /api/cron/notifications/weekly-summary
- * 
+ *
  * Cron job pour envoyer un résumé hebdomadaire des événements à venir
- * Configuré pour s'exécuter tous les dimanches à 10h (schedule: "0 10 * * 0")
+ * Convention produit: la passe hebdomadaire part en debut de semaine, le lundi.
  */
 export async function GET(request: NextRequest) {
   // Vérifier que la requête vient bien de Vercel Cron
@@ -36,16 +36,27 @@ export async function GET(request: NextRequest) {
     const supabase = createServiceClient();
     
     console.log("📊 Démarrage du cron de résumé hebdomadaire");
-    
-    // Récupérer la date de début (aujourd'hui) et de fin (dans 7 jours)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStart = today.toISOString();
-    
-    const nextWeek = new Date();
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    nextWeek.setHours(23, 59, 59, 999);
-    const nextWeekEnd = nextWeek.toISOString();
+
+    const now = new Date();
+    const weekDay = now.getDay() === 0 ? 7 : now.getDay();
+    if (weekDay !== 1) {
+      return NextResponse.json({
+        success: true,
+        message: "La passe hebdomadaire ne s'exécute que le lundi",
+        notificationsSent: 0,
+      });
+    }
+
+    const weekStart = new Date(now);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekStartIso = weekStart.toISOString();
+
+    const nextWeekStart = new Date(weekStart);
+    nextWeekStart.setDate(nextWeekStart.getDate() + 7);
+    nextWeekStart.setHours(0, 0, 0, 0);
+    const nextWeekStartIso = nextWeekStart.toISOString();
+
+    const weekEnd = new Date(nextWeekStart.getTime() - 1);
     
     // Récupérer les événements approuvés de la semaine à venir avec leurs catégories (exclure les événements complets)
     const { data: events, error: eventsError } = await supabase
@@ -53,8 +64,8 @@ export async function GET(request: NextRequest) {
       .select("id, title, date, end_date, category, location:locations(name, address), event_organizers(organizer:organizers(name))")
       .eq("status", "approved")
       .or("is_full.is.null,is_full.eq.false") // Exclure les événements complets
-      .gte("date", todayStart)
-      .lt("date", nextWeekEnd)
+      .gte("date", weekStartIso)
+      .lt("date", nextWeekStartIso)
       .order("date", { ascending: true })
       .limit(20); // Limiter à 20 événements pour ne pas surcharger la notification
     
@@ -69,7 +80,16 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    if (!events || events.length === 0) {
+    const relevantEvents = (events || []).filter((event: any) => {
+      const start = new Date(event.date);
+      const end = event.end_date ? new Date(event.end_date) : null;
+      if (end && !Number.isNaN(end.getTime())) {
+        return end >= now;
+      }
+      return !Number.isNaN(start.getTime()) && start >= now;
+    });
+
+    if (relevantEvents.length === 0) {
       console.log("ℹ️ Aucun événement cette semaine");
       return NextResponse.json({
         success: true,
@@ -78,10 +98,10 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    console.log(`📋 ${events.length} événement(s) trouvé(s) pour cette semaine`);
+    console.log(`📋 ${relevantEvents.length} événement(s) pertinent(s) trouvé(s) pour cette semaine`);
     
     // Filtrer les événements avec catégorie
-    const eventsWithCategory = events.filter(e => e.category);
+    const eventsWithCategory = relevantEvents.filter(e => e.category);
     
     if (eventsWithCategory.length === 0) {
       console.log("ℹ️ Aucun événement avec catégorie trouvé cette semaine");
@@ -96,7 +116,7 @@ export async function GET(request: NextRequest) {
     // Vérifier si les notifications globales sont activées
     const { data: globalSettings } = await supabase
       .from("notification_settings")
-      .select("is_active")
+      .select("is_active, notification_time")
       .maybeSingle();
 
     if (!globalSettings || !globalSettings.is_active) {
@@ -109,12 +129,32 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    if (globalSettings.notification_time) {
+      const [configuredHour, configuredMinute] = globalSettings.notification_time.split(":").map(Number);
+      const isInTimeWindow = currentHour === configuredHour && Math.abs(currentMinute - configuredMinute) <= 5;
+
+      if (!isInTimeWindow) {
+        console.log(
+          `ℹ️ Pas dans la fenêtre d'envoi hebdomadaire. Heure actuelle: ${currentHour}:${currentMinute}, Heure configurée: ${configuredHour}:${configuredMinute}`,
+        );
+        return NextResponse.json({
+          success: true,
+          message: "Pas dans la fenêtre d'envoi hebdomadaire",
+          eventsCount: eventsWithCategory.length,
+          notificationsSent: 0,
+        });
+      }
+    }
+
     // Récupérer tous les utilisateurs avec leurs préférences de catégories et fréquence "weekly"
     const { data: enabledUsers, error: prefsError } = await supabase
       .from("user_notification_preferences")
       .select("user_id, category_ids, frequency")
       .eq("is_enabled", true)
-      .in("frequency", ["weekly"]); // Seulement les utilisateurs avec fréquence "weekly"
+      .eq("frequency", "weekly"); // Seulement les utilisateurs avec fréquence "weekly"
 
     if (prefsError || !enabledUsers || enabledUsers.length === 0) {
       console.log("ℹ️ Aucun utilisateur n'a activé les notifications");
@@ -130,17 +170,13 @@ export async function GET(request: NextRequest) {
     const eventsByUser: Record<string, typeof eventsWithCategory> = {};
     
     enabledUsers.forEach((user: any) => {
-      // Si l'utilisateur n'a pas de préférences de catégories, il reçoit tous les événements
-      if (!user.category_ids || user.category_ids.length === 0) {
-        eventsByUser[user.user_id] = eventsWithCategory;
-      } else {
-        // Filtrer les événements selon les catégories préférées
-        const userEvents = eventsWithCategory.filter(e => 
-          e.category && user.category_ids.includes(e.category)
-        );
-        if (userEvents.length > 0) {
-          eventsByUser[user.user_id] = userEvents;
-        }
+      if (!Array.isArray(user.category_ids) || user.category_ids.length === 0) return;
+
+      const userEvents = eventsWithCategory.filter(
+        (e) => e.category && user.category_ids.includes(e.category),
+      );
+      if (userEvents.length > 0) {
+        eventsByUser[user.user_id] = userEvents;
       }
     });
 
@@ -159,6 +195,7 @@ export async function GET(request: NextRequest) {
     // Grouper les événements par jour pour chaque utilisateur
     let totalSent = 0;
     let totalFailed = 0;
+    let skippedAlreadySent = 0;
     const errors: string[] = [];
 
     // Envoyer une seule notification par utilisateur avec tous ses événements
@@ -184,13 +221,30 @@ export async function GET(request: NextRequest) {
           ? `${userEvents[0].title} cette semaine !`
           : `${userEvents.length} événement(s) prévu(s) cette semaine sur ${dayCount} jour(s). Ne manquez rien !`;
 
+        const { count: alreadySentCount, error: logCheckError } = await supabase
+          .from("notification_logs")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("title", title)
+          .gte("sent_at", weekStartIso)
+          .lt("sent_at", nextWeekStartIso);
+
+        if (logCheckError) {
+          console.warn(`⚠️ Impossible de vérifier l'anti-doublon weekly pour ${userId}:`, logCheckError);
+        }
+
+        if ((alreadySentCount ?? 0) > 0) {
+          skippedAlreadySent++;
+          continue;
+        }
+
         const result = await sendNotificationToUser(userId, {
           title,
           body,
           data: {
             type: "weekly_summary",
-            start_date: todayStart.split("T")[0],
-            end_date: nextWeekEnd.split("T")[0],
+            start_date: weekStartIso.split("T")[0],
+            end_date: weekEnd.toISOString().split("T")[0],
             event_ids: eventIds,
             events_count: userEvents.length,
             days_count: dayCount,
@@ -231,6 +285,7 @@ export async function GET(request: NextRequest) {
       usersNotified: Object.keys(eventsByUser).length,
       notificationsSent: result.sent,
       notificationsFailed: result.failed,
+      notificationsSkipped: skippedAlreadySent,
       errors: result.errors.length > 0 ? result.errors : undefined,
     });
     

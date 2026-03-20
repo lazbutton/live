@@ -1,5 +1,5 @@
 {
-  "name": "live-admin",
+  "name": "outlive-admin",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -45,6 +45,7 @@
     "lucide-react": "^0.555.0",
     "next": "16.0.10",
     "openai": "^6.10.0",
+    "playwright-core": "^1.58.2",
     "react": "19.2.0",
     "react-aria-components": "^1.13.0",
     "react-dom": "19.2.0",

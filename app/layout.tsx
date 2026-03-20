@@ -23,7 +23,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Live Orléans - Découvrez la vie à Orléans",
+  title: "OutLive - Découvrez la vie à Orléans",
+  applicationName: "OutLive",
   description: "L'application qui vous connecte à tous les événements, lieux et communautés d'Orléans. Téléchargez l'app maintenant sur iOS et Android.",
   icons: {
     icon: "/logo.png",

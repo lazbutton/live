@@ -1,15 +1,5 @@
-"use client";
-
-import { AdminLayout } from "../components/admin-layout";
-import { UsersManagement } from "../components/users-management";
+import { redirect } from "next/navigation";
 
 export default function UsersPage() {
-  return (
-    <AdminLayout title="Utilisateurs">
-      <UsersManagement />
-    </AdminLayout>
-  );
+  redirect("/admin/settings?tab=users");
 }
-
-
-

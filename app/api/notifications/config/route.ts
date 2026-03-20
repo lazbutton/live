@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     const apnsTeamId = process.env.APNS_TEAM_ID;
     const apnsBundleId = process.env.APNS_BUNDLE_ID;
 
-    let apnsStatus = {
+    const apnsStatus = {
       configured: false,
       keyFileExists: false,
       keyId: apnsKeyId ? "✓ Défini" : "✗ Non défini",
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     const fcmServiceAccountPath = process.env.FCM_SERVICE_ACCOUNT_PATH;
     const fcmServiceAccountJson = process.env.FCM_SERVICE_ACCOUNT_JSON;
 
-    let fcmStatus = {
+    const fcmStatus = {
       configured: false,
       filePath: fcmServiceAccountPath || null,
       fileExists: false,

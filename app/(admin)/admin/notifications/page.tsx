@@ -1,20 +1,9 @@
-"use client";
-
-import { AdminLayout } from "../components/admin-layout";
-import { NotificationsManagement } from "../components/notifications-management";
+import { redirect } from "next/navigation";
 
 export default function NotificationsPage() {
-  return (
-    <AdminLayout
-      title="Notifications Push"
-      breadcrumbItems={[
-        { label: "Notifications Push" }
-      ]}
-    >
-      <NotificationsManagement />
-    </AdminLayout>
-  );
+  redirect("/admin/settings?tab=notifications");
 }
+
 
 
 

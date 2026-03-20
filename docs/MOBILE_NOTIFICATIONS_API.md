@@ -1,5 +1,11 @@
 # API Notifications pour l'Application Mobile
 
+> Attention
+>
+> Les sections de ce document qui concernent les rappels individuels par evenement sont desormais legacy.
+> Le produit ne garde plus que les notifications par categories suivies en frequence `daily` ou `weekly`.
+> Les endpoints lies aux rappels individuels ont ete desactives.
+
 Ce document explique comment l'application mobile doit appeler l'API Next.js pour envoyer des notifications, au lieu d'utiliser une Edge Function Supabase.
 
 ## Endpoints disponibles

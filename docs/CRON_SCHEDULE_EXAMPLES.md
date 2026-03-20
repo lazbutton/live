@@ -29,31 +29,29 @@ Pour exécuter un cron à une minute précise, modifiez le premier champ :
 
 ## Modifier vos crons actuels
 
-Dans votre `vercel.json`, vous pouvez changer :
+Pour les notifications produit pilotees par `notification_settings.notification_time`, il faut garder un cron de polling regulier et laisser le backend decider du bon moment d'envoi.
 
-### Notifications quotidiennes (actuellement 8h00)
+### Notifications quotidiennes
 ```json
 {
   "path": "/api/cron/notifications/daily-events",
-  "schedule": "15 8 * * *"  // Change de 8h00 à 8h15
+  "schedule": "*/5 * * * *"  // Polling toutes les 5 minutes
 }
 ```
 
-### Rappels (actuellement 18h00)
-```json
-{
-  "path": "/api/cron/notifications/upcoming-reminders",
-  "schedule": "30 18 * * *"  // Change de 18h00 à 18h30
-}
-```
-
-### Résumé hebdomadaire (actuellement dimanche 10h00)
+### Résumé hebdomadaire
 ```json
 {
   "path": "/api/cron/notifications/weekly-summary",
-  "schedule": "45 10 * * 0"  // Change de 10h00 à 10h45
+  "schedule": "*/5 * * * *"  // Polling toutes les 5 minutes
 }
 ```
+
+Le backend applique ensuite :
+
+- l'heure admin `notification_settings.notification_time`
+- la passe `daily` ou `weekly`
+- l'anti-doublon pour ne jamais envoyer deux fois la meme passe
 
 ## Exemples courants
 
@@ -82,6 +80,7 @@ Dans votre `vercel.json`, vous pouvez changer :
 - Pour éviter la charge simultanée, utilisez des minutes différentes (ex: 8h15, 9h23, 10h37)
 - Testez d'abord avec `*/5 * * * *` (toutes les 5 minutes) pour vérifier que ça fonctionne
 - Vercel exécute les crons en UTC, ajustez selon votre fuseau horaire
+
 
 
 
