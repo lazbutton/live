@@ -51,9 +51,13 @@ interface ConfigStatus {
   apns: {
     configured: boolean;
     keyFileExists: boolean;
+    keyPathDefined: boolean;
+    keyContentDefined: boolean;
+    keySource: "missing" | "file" | "env";
     keyId: string;
     teamId: string;
     bundleId: string | null;
+    production: boolean;
   };
   fcm: {
     configured: boolean;
@@ -319,10 +323,34 @@ export function NotificationsManagement() {
                   )}
                 </div>
                 <div className="text-sm text-muted-foreground space-y-1 pl-6">
-                  <p>Fichier clé: {config.apns.keyFileExists ? "✓ Trouvé" : "✗ Non trouvé"}</p>
+                  <p>
+                    Source clé:{" "}
+                    {config.apns.keySource === "env"
+                      ? "✓ Variable d'environnement"
+                      : config.apns.keySource === "file"
+                        ? "✓ Fichier local"
+                        : "✗ Aucune source valide"}
+                  </p>
+                  <p>
+                    Clé inline: {config.apns.keyContentDefined ? "✓ Définie" : "✗ Non définie"}
+                  </p>
+                  <p>
+                    Fichier clé:{" "}
+                    {config.apns.keyFileExists
+                      ? "✓ Trouvé"
+                      : config.apns.keyPathDefined
+                        ? "✗ Non trouvé"
+                        : "— Non configuré"}
+                  </p>
                   <p>Key ID: {config.apns.keyId}</p>
                   <p>Team ID: {config.apns.teamId}</p>
                   <p>Bundle ID: {config.apns.bundleId || "Non défini"}</p>
+                  <p>Mode APNs: {config.apns.production ? "Production" : "Sandbox"}</p>
+                  {config.apns.keySource === "env" && !config.apns.keyFileExists ? (
+                    <p className="text-amber-600">
+                      En production, l'absence de fichier local est normale si `APNS_KEY_CONTENT` est utilisé.
+                    </p>
+                  ) : null}
                 </div>
               </div>
 

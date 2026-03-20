@@ -40,16 +40,25 @@ export async function GET(request: NextRequest) {
 
     // Vérifier la configuration APNs (iOS)
     const apnsKeyPath = process.env.APNS_KEY_PATH;
+    const apnsKeyContent = process.env.APNS_KEY_CONTENT;
     const apnsKeyId = process.env.APNS_KEY_ID;
     const apnsTeamId = process.env.APNS_TEAM_ID;
     const apnsBundleId = process.env.APNS_BUNDLE_ID;
+    const apnsProduction =
+      process.env.APNS_PRODUCTION !== undefined
+        ? process.env.APNS_PRODUCTION === "true" || process.env.APNS_PRODUCTION === "1"
+        : process.env.NODE_ENV === "production";
 
     const apnsStatus = {
       configured: false,
       keyFileExists: false,
+      keyPathDefined: !!apnsKeyPath,
+      keyContentDefined: !!apnsKeyContent,
+      keySource: "missing" as "missing" | "file" | "env",
       keyId: apnsKeyId ? "✓ Défini" : "✗ Non défini",
       teamId: apnsTeamId ? "✓ Défini" : "✗ Non défini",
       bundleId: apnsBundleId || null,
+      production: apnsProduction,
     };
 
     if (apnsKeyPath) {
@@ -61,8 +70,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    apnsStatus.keySource = apnsStatus.keyContentDefined
+      ? "env"
+      : apnsStatus.keyFileExists
+        ? "file"
+        : "missing";
+
     apnsStatus.configured =
-      apnsStatus.keyFileExists &&
+      (apnsStatus.keyContentDefined || apnsStatus.keyFileExists) &&
       !!apnsKeyId &&
       !!apnsTeamId &&
       !!apnsBundleId;
