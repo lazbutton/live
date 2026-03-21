@@ -22,6 +22,38 @@ function normalizeSearchValue(value: string) {
     .trim();
 }
 
+function matchesEventSearch(event: AdminEvent, rawQuery: string) {
+  const query = rawQuery.trim().toLowerCase();
+  if (!query) return true;
+
+  const title = event.title?.toLowerCase() || "";
+  const description = event.description?.toLowerCase() || "";
+  const category = event.category?.toLowerCase() || "";
+  const location = event.location?.name?.toLowerCase() || "";
+  const majorEvent = event.major_event_events?.[0]?.major_event?.title?.toLowerCase() || "";
+
+  return (
+    title.includes(query) ||
+    description.includes(query) ||
+    category.includes(query) ||
+    location.includes(query) ||
+    majorEvent.includes(query)
+  );
+}
+
+function isEventLongerThan24Hours(event: Pick<AdminEvent, "date" | "end_date">) {
+  if (!event.end_date) return false;
+
+  const start = new Date(event.date);
+  const end = new Date(event.end_date);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return false;
+  }
+
+  return end.getTime() - start.getTime() > 24 * 60 * 60 * 1000;
+}
+
 export function EventsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -35,6 +67,7 @@ export function EventsPage() {
 
   const [searchQuery, setSearchQuery] = React.useState("");
   const [filterStatus, setFilterStatus] = React.useState<"all" | "pending" | "approved">("all");
+  const [hideLongEvents, setHideLongEvents] = React.useState(false);
 
   const [selectedEvent, setSelectedEvent] = React.useState<AdminEvent | null>(null);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -76,9 +109,15 @@ export function EventsPage() {
   }, []);
 
   const loadLocations = React.useCallback(async () => {
-    const { data, error } = await supabase.from("locations").select("id, name, address, capacity, latitude, longitude");
+    const { data, error } = await supabase
+      .from("locations")
+      .select("id, name, address, capacity, latitude, longitude, city_id, city:cities(id, label)");
     if (error) throw error;
-    setLocations((data || []) as LocationData[]);
+    const normalizedLocations = ((data || []) as any[]).map((location) => ({
+      ...location,
+      city: Array.isArray(location.city) ? (location.city[0] ?? null) : (location.city ?? null),
+    }));
+    setLocations(normalizedLocations as LocationData[]);
   }, []);
 
   const loadEvents = React.useCallback(async () => {
@@ -91,6 +130,10 @@ export function EventsPage() {
         event_organizers:event_organizers(
           organizer:organizers(id, name),
           location:locations(id, name)
+        ),
+        major_event_events(
+          major_event_id,
+          major_event:major_events(id, title, slug)
         )
       `,
       )
@@ -299,35 +342,28 @@ export function EventsPage() {
     }
 
     if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      filtered = filtered.filter((ev) => {
-        const title = ev.title?.toLowerCase() || "";
-        const description = ev.description?.toLowerCase() || "";
-        const category = ev.category?.toLowerCase() || "";
-        const location = ev.location?.name?.toLowerCase() || "";
-        return title.includes(q) || description.includes(q) || category.includes(q) || location.includes(q);
-      });
+      filtered = filtered.filter((ev) => matchesEventSearch(ev, searchQuery));
+    }
+
+    if (hideLongEvents) {
+      filtered = filtered.filter((ev) => !isEventLongerThan24Hours(ev));
     }
 
     filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     return filtered;
-  }, [events, filterStatus, searchQuery]);
+  }, [events, filterStatus, hideLongEvents, searchQuery]);
 
   const pendingCount = React.useMemo(() => {
     // count pending with current search, independent of status toggle
     let base = [...events];
     if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      base = base.filter((ev) => {
-        const title = ev.title?.toLowerCase() || "";
-        const description = ev.description?.toLowerCase() || "";
-        const category = ev.category?.toLowerCase() || "";
-        const location = ev.location?.name?.toLowerCase() || "";
-        return title.includes(q) || description.includes(q) || category.includes(q) || location.includes(q);
-      });
+      base = base.filter((ev) => matchesEventSearch(ev, searchQuery));
+    }
+    if (hideLongEvents) {
+      base = base.filter((ev) => !isEventLongerThan24Hours(ev));
     }
     return base.filter((ev) => ev.status === "pending").length;
-  }, [events, searchQuery]);
+  }, [events, hideLongEvents, searchQuery]);
 
   function openCreate(date?: Date) {
     setSelectedEvent(null);
@@ -488,6 +524,8 @@ export function EventsPage() {
         onSearchChange={setSearchQuery}
         filterStatus={filterStatus}
         onFilterStatusChange={setFilterStatus}
+        hideLongEvents={hideLongEvents}
+        onHideLongEventsChange={setHideLongEvents}
         pendingCount={pendingCount}
         onCreateClick={() => openCreate()}
         onImportClick={() => setIsImportOpen(true)}

@@ -5,6 +5,8 @@ import { Download, Plus, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 export type EventFiltersBarProps = {
@@ -12,6 +14,8 @@ export type EventFiltersBarProps = {
   onSearchChange: (q: string) => void;
   filterStatus: "all" | "pending" | "approved";
   onFilterStatusChange: (s: "all" | "pending" | "approved") => void;
+  hideLongEvents: boolean;
+  onHideLongEventsChange: (value: boolean) => void;
   pendingCount: number;
   onCreateClick: () => void;
   onImportClick: () => void;
@@ -53,6 +57,8 @@ export function EventFiltersBar({
   onSearchChange,
   filterStatus,
   onFilterStatusChange,
+  hideLongEvents,
+  onHideLongEventsChange,
   pendingCount,
   onCreateClick,
   onImportClick,
@@ -97,6 +103,17 @@ export function EventFiltersBar({
             { value: "approved", label: "Approuvés" },
           ]}
         />
+
+        <div className="flex items-center gap-3 rounded-lg border bg-background px-3 py-2">
+          <Switch
+            id="hide-long-events"
+            checked={hideLongEvents}
+            onCheckedChange={onHideLongEventsChange}
+          />
+          <Label htmlFor="hide-long-events" className="cursor-pointer text-sm">
+            Masquer les événements &gt; 24h
+          </Label>
+        </div>
       </div>
     </div>
   );

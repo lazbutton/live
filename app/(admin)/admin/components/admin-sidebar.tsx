@@ -14,7 +14,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { Calendar, LayoutDashboard, LogOut, Settings } from "lucide-react";
+import { Calendar, LayoutDashboard, LogOut, Map, Settings } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
@@ -40,6 +40,11 @@ const menuItems = [
     title: "Événements",
     icon: Calendar,
     url: "/admin/events",
+  },
+  {
+    title: "Multi-événements",
+    icon: Map,
+    url: "/admin/major-events",
   },
   {
     title: "Réglages",

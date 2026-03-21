@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { Calendar, CheckCircle2, Image as ImageIcon, MapPin, Tag, Users } from "lucide-react";
+import { Calendar, CheckCircle2, Image as ImageIcon, Layers3, MapPin, Tag, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -15,10 +15,12 @@ type EventFormOverviewCardProps = {
   startDate?: string;
   endDate?: string;
   locationLabel?: string;
+  majorEventLabel?: string;
   organizerLabels?: string[];
   tagsCount?: number;
   priceLabel?: string;
   hasImage?: boolean;
+  isFeatured?: boolean;
   missingRequired: string[];
   className?: string;
 };
@@ -42,10 +44,12 @@ export function EventFormOverviewCard({
   startDate,
   endDate,
   locationLabel,
+  majorEventLabel,
   organizerLabels = [],
   tagsCount = 0,
   priceLabel,
   hasImage = false,
+  isFeatured = false,
   missingRequired,
   className,
 }: EventFormOverviewCardProps) {
@@ -72,6 +76,11 @@ export function EventFormOverviewCard({
               </Badge>
             ) : null}
             {priceLabel ? <Badge variant="outline">{priceLabel}</Badge> : null}
+            {isFeatured ? (
+              <Badge variant="outline" className="gap-1">
+                A la une
+              </Badge>
+            ) : null}
           </div>
 
           <div>
@@ -115,6 +124,14 @@ export function EventFormOverviewCard({
             Categorie
           </div>
           <div className="mt-1 text-sm font-medium">{categoryLabel || "Non selectionnee"}</div>
+        </div>
+
+        <div className="rounded-xl border bg-muted/20 p-3">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <Layers3 className="h-3.5 w-3.5" />
+            Multi-evenements
+          </div>
+          <div className="mt-1 text-sm font-medium">{majorEventLabel || "Aucun"}</div>
         </div>
 
         <div className="rounded-xl border bg-muted/20 p-3">

@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -38,11 +37,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2, ExternalLink, Code, Edit2, Globe, Instagram, Facebook, Users, Music, ChevronLeft, LayoutGrid, List as ListIcon } from "lucide-react";
+import { Plus, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2, ExternalLink, Code, Edit2, Globe, Instagram, Facebook, Users, Music, ChevronLeft, LayoutGrid, List as ListIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { MobileTableView, MobileCard, MobileCardRow, MobileCardActions } from "./mobile-table-view";
 import {
   Tooltip,
   TooltipContent,
@@ -87,6 +85,11 @@ interface Location {
   suggested: boolean | null;
   created_at: string;
   updated_at: string;
+  city_id?: string | null;
+  city?: {
+    id: string;
+    label: string;
+  } | null;
   rooms?: Room[];
 }
 
@@ -127,7 +130,7 @@ export function LocationsManagement() {
       // Charger les lieux
       const { data: locationsData, error: locationsError } = await supabase
         .from("locations")
-        .select("*")
+        .select("*, city:cities(id, label)")
         .order("name", { ascending: true });
 
       if (locationsError) throw locationsError;
@@ -143,6 +146,7 @@ export function LocationsManagement() {
       // Associer les salles aux lieux
       const locationsWithRooms = (locationsData || []).map((location) => ({
         ...location,
+        city: Array.isArray(location.city) ? (location.city[0] ?? null) : (location.city ?? null),
         rooms: (roomsData || []).filter((room) => room.location_id === location.id),
       }));
 
@@ -164,7 +168,8 @@ export function LocationsManagement() {
       setFilteredLocations(
         locations.filter((location) => 
           location.name.toLowerCase().includes(query) ||
-          location.address?.toLowerCase().includes(query)
+          location.address?.toLowerCase().includes(query) ||
+          location.city?.label.toLowerCase().includes(query)
         )
       );
     }
@@ -334,6 +339,13 @@ export function LocationsManagement() {
                       <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
                         {location.address}
                       </p>
+                    )}
+                    {location.city?.label && (
+                      <div className="mt-1">
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                          {location.city.label}
+                        </Badge>
+                      </div>
                     )}
                     {location.short_description && (
                       <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
@@ -546,6 +558,13 @@ export function LocationsManagement() {
                           </div>
                           {location.address && (
                             <div className="text-xs text-muted-foreground truncate">{location.address}</div>
+                          )}
+                          {location.city?.label && (
+                            <div className="mt-1">
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                {location.city.label}
+                              </Badge>
+                            </div>
                           )}
                           {(location.rooms?.length || 0) > 0 && (
                             <div className="text-xs text-muted-foreground">

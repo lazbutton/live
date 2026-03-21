@@ -8,6 +8,7 @@ export type AdminEvent = {
   end_date: string | null;
   end_time: string | null;
   status: EventStatus;
+  is_featured?: boolean | null;
   category: string;
   price: number | null;
   presale_price: number | null;
@@ -35,6 +36,10 @@ export type AdminEvent = {
     organizer?: { id: string; name: string } | null;
     location?: { id: string; name: string } | null;
   }>;
+  major_event_events?: Array<{
+    major_event_id: string;
+    major_event?: { id: string; title: string; slug: string } | null;
+  }>;
 };
 
 export type LocationData = {
@@ -44,6 +49,11 @@ export type LocationData = {
   capacity: number | null;
   latitude: number | null;
   longitude: number | null;
+  city_id?: string | null;
+  city?: {
+    id: string;
+    label: string;
+  } | null;
 };
 
 export type OrganizerOption = {
@@ -79,5 +89,7 @@ export type EventFormData = {
   scraping_url: string;
   image_url: string;
   status: EventStatus;
+  is_featured: boolean;
+  major_event_id: string;
 };
 

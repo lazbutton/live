@@ -28,6 +28,15 @@ import { EventFormOverviewCard } from "@/components/events/event-form-overview-c
 import { EventImageUpload } from "./event-image-upload";
 import type { AdminEvent, CategoryOption, EventFormData, EventStatus, LocationData, OrganizerOption, RoomOption, TagOption } from "./types";
 
+type MajorEventOption = {
+  id: string;
+  title: string;
+  slug: string;
+  city_name: string | null;
+  start_at: string;
+  status: string;
+};
+
 export type EventFormPrefill = Partial<{
   form: Partial<EventFormData>;
   organizerIds: string[];
@@ -80,6 +89,8 @@ function emptyForm(): EventFormData {
     scraping_url: "",
     image_url: "",
     status: "pending",
+    is_featured: false,
+    major_event_id: "",
   };
 }
 
@@ -144,6 +155,8 @@ export function EventFormSheet({
 
   const [rooms, setRooms] = React.useState<RoomOption[]>([]);
   const [loadingRooms, setLoadingRooms] = React.useState(false);
+  const [majorEvents, setMajorEvents] = React.useState<MajorEventOption[]>([]);
+  const [loadingMajorEvents, setLoadingMajorEvents] = React.useState(false);
 
   const [showEndDate, setShowEndDate] = React.useState(false);
 
@@ -189,6 +202,8 @@ export function EventFormSheet({
         scraping_url: event.scraping_url || "",
         image_url: event.image_url || "",
         status: event.status || "pending",
+        is_featured: Boolean(event.is_featured),
+        major_event_id: event.major_event_events?.[0]?.major_event_id || "",
       });
 
       const orgIds =
@@ -225,6 +240,75 @@ export function EventFormSheet({
     setSelectedTagIds(prefill?.tagIds || []);
     setImagePreview(merged.image_url ? merged.image_url : null);
     setShowEndDate(Boolean(merged.end_date));
+  }, [open, event?.id]);
+
+  React.useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+
+    async function loadMajorEvents() {
+      setLoadingMajorEvents(true);
+      try {
+        const { data, error } = await supabase
+          .from("major_events")
+          .select("id, title, slug, city_name, start_at, status")
+          .order("start_at", { ascending: false });
+
+        if (error) throw error;
+        if (!cancelled) {
+          setMajorEvents((data || []) as MajorEventOption[]);
+        }
+      } catch (e) {
+        console.error("Erreur major events:", e);
+        if (!cancelled) {
+          setMajorEvents([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingMajorEvents(false);
+        }
+      }
+    }
+
+    void loadMajorEvents();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open || !event?.id) return;
+    const currentEventId = event.id;
+
+    let cancelled = false;
+
+    async function loadCurrentMajorEventLink() {
+      try {
+        const { data, error } = await supabase
+          .from("major_event_events")
+          .select("major_event_id")
+          .eq("event_id", currentEventId)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (!cancelled) {
+          setFormData((previous) => ({
+            ...previous,
+            major_event_id: data?.major_event_id || "",
+          }));
+        }
+      } catch (e) {
+        console.error("Erreur liaison major_event_events:", e);
+      }
+    }
+
+    void loadCurrentMajorEventLink();
+
+    return () => {
+      cancelled = true;
+    };
   }, [open, event?.id]);
 
   // load rooms when location changes
@@ -349,6 +433,64 @@ export function EventFormSheet({
     return value.trim() ? value.trim() : null;
   }
 
+  async function syncMajorEventLink(savedEventId: string, nextMajorEventId: string) {
+    const normalizedMajorEventId = nextMajorEventId.trim();
+
+    const { data: existingLinks, error: existingError } = await supabase
+      .from("major_event_events")
+      .select("major_event_id")
+      .eq("event_id", savedEventId);
+
+    if (existingError) throw existingError;
+
+    const currentMajorEventId = existingLinks?.[0]?.major_event_id || "";
+
+    if (!normalizedMajorEventId) {
+      if (currentMajorEventId) {
+        const { error: deleteError } = await supabase
+          .from("major_event_events")
+          .delete()
+          .eq("event_id", savedEventId);
+
+        if (deleteError) throw deleteError;
+      }
+      return;
+    }
+
+    if (currentMajorEventId === normalizedMajorEventId) {
+      return;
+    }
+
+    if (currentMajorEventId) {
+      const { error: deleteError } = await supabase
+        .from("major_event_events")
+        .delete()
+        .eq("event_id", savedEventId);
+
+      if (deleteError) throw deleteError;
+    }
+
+    const { data: lastLink, error: sortError } = await supabase
+      .from("major_event_events")
+      .select("sort_index")
+      .eq("major_event_id", normalizedMajorEventId)
+      .order("sort_index", { ascending: false })
+      .limit(1);
+
+    if (sortError) throw sortError;
+
+    const nextSortIndex = (lastLink?.[0]?.sort_index ?? -1) + 1;
+
+    const { error: insertError } = await supabase.from("major_event_events").insert({
+      major_event_id: normalizedMajorEventId,
+      event_id: savedEventId,
+      sort_index: nextSortIndex,
+      is_featured: false,
+    });
+
+    if (insertError) throw insertError;
+  }
+
   async function save({ forceApproved }: { forceApproved: boolean }) {
     if (saving) return;
 
@@ -417,6 +559,7 @@ export function EventFormSheet({
         facebook_url: normalizeNullable(formData.facebook_url),
         scraping_url: normalizeNullable(formData.scraping_url),
         status: statusToSave,
+        is_featured: Boolean(formData.is_featured),
         tag_ids: selectedTagIds.length > 0 ? selectedTagIds : [],
         address: selectedLocation?.address || null,
         latitude: selectedLocation?.latitude || null,
@@ -466,6 +609,8 @@ export function EventFormSheet({
         if (orgError) throw orgError;
       }
 
+      await syncMajorEventLink(savedEventId, formData.major_event_id);
+
       toast({ title: "Événement enregistré", variant: "success" });
       onOpenChange(false);
       onSaved?.(savedEventId);
@@ -514,7 +659,12 @@ export function EventFormSheet({
   const locationOptions = React.useMemo(
     () => [
       { value: "", label: "Aucun lieu" },
-      ...locations.map((l) => ({ value: l.id, label: l.name })),
+      ...locations.map((location) => ({
+        value: location.id,
+        label: location.city?.label
+            ? `${location.name} • ${location.city.label}`
+            : location.name,
+      })),
     ],
     [locations],
   );
@@ -529,10 +679,22 @@ export function EventFormSheet({
     [organizers],
   );
   const tagOptions = React.useMemo(() => tags.map((t) => ({ value: t.id, label: t.name })), [tags]);
+  const majorEventOptions = React.useMemo(
+    () => [
+      { value: "", label: "Aucun Multi-événements" },
+      ...majorEvents.map((majorEvent) => ({
+        value: majorEvent.id,
+        label: `${majorEvent.title}${majorEvent.city_name ? ` • ${majorEvent.city_name}` : ""}`,
+      })),
+    ],
+    [majorEvents],
+  );
 
   const side = isMobile ? "bottom" : "right";
-  const selectedLocationLabel = locations.find((location) => location.id === formData.location_id)?.name;
+  const selectedLocation = locations.find((location) => location.id === formData.location_id) || null;
+  const selectedLocationLabel = selectedLocation?.name;
   const selectedCategoryLabel = categories.find((category) => category.id === formData.category)?.name;
+  const selectedMajorEvent = majorEvents.find((majorEvent) => majorEvent.id === formData.major_event_id) || null;
   const selectedOrganizerLabels = selectedOrganizerIds
     .map((id) => organizers.find((organizer) => organizer.id === id)?.name)
     .filter((value): value is string => Boolean(value));
@@ -578,10 +740,12 @@ export function EventFormSheet({
                   startDate={formData.date}
                   endDate={formData.end_date}
                   locationLabel={selectedLocationLabel}
+                  majorEventLabel={selectedMajorEvent?.title}
                   organizerLabels={selectedOrganizerLabels}
                   tagsCount={selectedTagIds.length}
                   priceLabel={priceSummary}
                   hasImage={Boolean(imagePreview || formData.image_url.trim())}
+                  isFeatured={formData.is_featured}
                   missingRequired={missingRequired}
                 />
 
@@ -650,6 +814,11 @@ export function EventFormSheet({
                       onValueChange={(v) => setFormData((p) => ({ ...p, location_id: v, room_id: "" }))}
                       placeholder="Sélectionner un lieu"
                     />
+                    {selectedLocation?.city?.label ? (
+                      <p className="text-xs text-muted-foreground">
+                        Ville détectée : {selectedLocation.city.label}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="space-y-2">
@@ -671,6 +840,31 @@ export function EventFormSheet({
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Multi-événements</Label>
+                    <SelectSearchable
+                      options={majorEventOptions}
+                      value={formData.major_event_id}
+                      onValueChange={(value) =>
+                        setFormData((previous) => ({
+                          ...previous,
+                          major_event_id: value,
+                        }))
+                      }
+                      placeholder={
+                        loadingMajorEvents
+                          ? "Chargement des Multi-événements..."
+                          : "Rattacher à un Multi-événements"
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Raccourci principal pour lier cet événement à une programmation commune.
+                      {selectedMajorEvent != null
+                        ? ` Actuellement : ${selectedMajorEvent.title}.`
+                        : ""}
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -707,6 +901,18 @@ export function EventFormSheet({
                       onChange={(s) => setFormData((p) => ({ ...p, status: s }))}
                       disabled={saving || deleting}
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Mise en avant</Label>
+                    <div className="flex items-center justify-between rounded-lg border px-4 h-11">
+                      <span className="text-sm text-muted-foreground">Afficher dans les surfaces “A la une”</span>
+                      <Switch
+                        checked={formData.is_featured}
+                        onCheckedChange={(v) => setFormData((p) => ({ ...p, is_featured: v }))}
+                        disabled={saving || deleting}
+                      />
+                    </div>
                   </div>
                 </div>
 

@@ -1,0 +1,51 @@
+export type MajorEventStatus = "draft" | "pending" | "approved" | "archived";
+
+export type AdminMajorEvent = {
+  id: string;
+  slug: string;
+  title: string;
+  short_description: string | null;
+  long_description: string | null;
+  hero_image_url: string | null;
+  logo_url: string | null;
+  start_at: string;
+  end_at: string;
+  timezone: string;
+  city_name: string | null;
+  primary_category: string | null;
+  tag_ids: string[];
+  status: MajorEventStatus;
+  is_featured: boolean;
+  map_center_latitude: number | null;
+  map_center_longitude: number | null;
+  default_map_zoom: number | null;
+  ticketing_url: string | null;
+  official_url: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  events_count?: number;
+  locations_count?: number;
+  organizers_count?: number;
+};
+
+export type MajorEventFormData = {
+  title: string;
+  slug: string;
+  short_description: string;
+  long_description: string;
+  hero_image_url: string;
+  logo_url: string;
+  start_at: string;
+  end_at: string;
+  timezone: string;
+  city_name: string;
+  primary_category: string;
+  status: MajorEventStatus;
+  is_featured: boolean;
+  map_center_latitude: string;
+  map_center_longitude: string;
+  default_map_zoom: string;
+  ticketing_url: string;
+  official_url: string;
+};

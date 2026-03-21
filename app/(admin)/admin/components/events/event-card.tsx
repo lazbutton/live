@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, MapPin } from "lucide-react";
+import { CheckCircle2, MapPin, Star } from "lucide-react";
 import { format } from "date-fns";
 
 import { cn } from "@/lib/utils";
@@ -52,6 +52,7 @@ export function EventCard({ event, onClick, onQuickApprove, compact = false }: E
   }, [dt]);
 
   const locationName = event.location?.name || event.event_organizers?.[0]?.location?.name || null;
+  const linkedMajorEventTitle = event.major_event_events?.[0]?.major_event?.title || null;
 
   const isPending = event.status === "pending";
   const isRejected = event.status === "rejected";
@@ -119,9 +120,34 @@ export function EventCard({ event, onClick, onQuickApprove, compact = false }: E
                 >
                   {event.title || "(Sans titre)"}
                 </div>
+                {event.is_featured ? (
+                  <div
+                    className={cn(
+                      "mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                      hasImage
+                        ? "border-white/20 bg-black/25 text-white"
+                        : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+                    )}
+                  >
+                    <Star className="h-3 w-3" />
+                    A la une
+                  </div>
+                ) : null}
+                {linkedMajorEventTitle ? (
+                  <div
+                    className={cn(
+                      "mt-2 inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                      hasImage
+                        ? "border-white/20 bg-black/25 text-white"
+                        : "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+                    )}
+                  >
+                    <span className="truncate">Multi-événements · {linkedMajorEventTitle}</span>
+                  </div>
+                ) : null}
                 <div
                   className={cn(
-                    "mt-1 flex items-center gap-2 text-xs",
+                    "mt-2 flex items-center gap-2 text-xs",
                     hasImage ? "text-white/80" : "text-muted-foreground",
                   )}
                 >

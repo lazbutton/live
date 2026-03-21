@@ -103,6 +103,10 @@ export default function DashboardPage() {
             event_organizers:event_organizers(
               organizer:organizers(id, name),
               location:locations(id, name)
+            ),
+            major_event_events(
+              major_event_id,
+              major_event:major_events(id, title, slug)
             )
           `,
           )
