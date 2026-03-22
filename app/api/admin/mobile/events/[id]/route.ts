@@ -83,6 +83,12 @@ export async function PATCH(
               : body.externalUrlLabel === null
                 ? null
                 : undefined,
+          price:
+            typeof body.price === "number"
+              ? body.price
+              : body.price === null
+                ? null
+                : undefined,
         });
         break;
       default:

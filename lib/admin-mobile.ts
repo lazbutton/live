@@ -21,6 +21,7 @@ export type MobileAdminEventItem = {
   date: string;
   status: "pending" | "approved" | "rejected";
   category: string | null;
+  price: number | null;
   locationId: string | null;
   locationName: string | null;
   locationSummary: string | null;
@@ -70,6 +71,7 @@ type RawMobileEventRow = {
   date: string;
   status: "pending" | "approved" | "rejected";
   category: string | null;
+  price: number | null;
   location_id: string | null;
   address: string | null;
   image_url: string | null;
@@ -101,6 +103,7 @@ const MOBILE_EVENT_SELECT = `
   date,
   status,
   category,
+  price,
   location_id,
   address,
   image_url,
@@ -181,6 +184,7 @@ function serializeEvent(row: RawMobileEventRow): MobileAdminEventItem {
     date: row.date,
     status: row.status,
     category: row.category?.trim() || null,
+    price: row.price,
     locationId: row.location_id,
     locationName,
     locationSummary,
@@ -485,6 +489,7 @@ export async function quickEditMobileEvent(
     title?: string;
     date?: string;
     locationId?: string | null;
+    price?: number | null;
     externalUrl?: string | null;
     externalUrlLabel?: string | null;
   }
@@ -524,6 +529,17 @@ export async function quickEditMobileEvent(
     }
 
     updates.location_id = input.locationId;
+  }
+
+  if (input.price !== undefined) {
+    if (input.price !== null) {
+      if (!Number.isFinite(input.price) || input.price < 0) {
+        throw new Error("Prix invalide");
+      }
+      updates.price = input.price;
+    } else {
+      updates.price = null;
+    }
   }
 
   if (input.externalUrl !== undefined) {
