@@ -36,6 +36,16 @@ export type AdminEvent = {
     organizer?: { id: string; name: string } | null;
     location?: { id: string; name: string } | null;
   }>;
+  event_artists?: Array<{
+    artist?: {
+      id: string;
+      name: string;
+      slug: string;
+      image_url?: string | null;
+    } | null;
+    role_label?: string | null;
+    sort_index?: number | null;
+  }>;
   major_event_events?: Array<{
     major_event_id: string;
     major_event?: { id: string; title: string; slug: string } | null;
@@ -62,6 +72,13 @@ export type OrganizerOption = {
   instagram_url: string | null;
   facebook_url: string | null;
   type: "organizer" | "location";
+};
+
+export type ArtistOption = {
+  id: string;
+  name: string;
+  slug: string;
+  image_url: string | null;
 };
 
 export type TagOption = { id: string; name: string };

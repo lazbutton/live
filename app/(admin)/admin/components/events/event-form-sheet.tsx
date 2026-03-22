@@ -26,7 +26,17 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { EventFormOverviewCard } from "@/components/events/event-form-overview-card";
 
 import { EventImageUpload } from "./event-image-upload";
-import type { AdminEvent, CategoryOption, EventFormData, EventStatus, LocationData, OrganizerOption, RoomOption, TagOption } from "./types";
+import type {
+  AdminEvent,
+  ArtistOption,
+  CategoryOption,
+  EventFormData,
+  EventStatus,
+  LocationData,
+  OrganizerOption,
+  RoomOption,
+  TagOption,
+} from "./types";
 
 type MajorEventOption = {
   id: string;
@@ -40,6 +50,7 @@ type MajorEventOption = {
 export type EventFormPrefill = Partial<{
   form: Partial<EventFormData>;
   organizerIds: string[];
+  artistIds: string[];
   tagIds: string[];
 }>;
 
@@ -49,6 +60,7 @@ export type EventFormSheetProps = {
   onOpenChange: (open: boolean) => void;
   locations: LocationData[];
   organizers: OrganizerOption[];
+  artists: ArtistOption[];
   tags: TagOption[];
   categories: CategoryOption[];
   defaultDate?: Date;
@@ -138,6 +150,7 @@ export function EventFormSheet({
   onOpenChange,
   locations,
   organizers,
+  artists,
   tags,
   categories,
   defaultDate,
@@ -151,6 +164,7 @@ export function EventFormSheet({
 
   const [formData, setFormData] = React.useState<EventFormData>(() => emptyForm());
   const [selectedOrganizerIds, setSelectedOrganizerIds] = React.useState<string[]>([]);
+  const [selectedArtistIds, setSelectedArtistIds] = React.useState<string[]>([]);
   const [selectedTagIds, setSelectedTagIds] = React.useState<string[]>([]);
 
   const [rooms, setRooms] = React.useState<RoomOption[]>([]);
@@ -212,6 +226,13 @@ export function EventFormSheet({
           .filter((id): id is string => Boolean(id)) || [];
       setSelectedOrganizerIds(orgIds);
 
+      const artistIds =
+        [...(event.event_artists || [])]
+          .sort((a, b) => (a.sort_index ?? 0) - (b.sort_index ?? 0))
+          .map((ea) => ea.artist?.id || null)
+          .filter((id): id is string => Boolean(id)) || [];
+      setSelectedArtistIds(artistIds);
+
       setSelectedTagIds(event.tag_ids || []);
       setImagePreview(event.image_url || null);
       setShowEndDate(Boolean(event.end_date));
@@ -237,10 +258,11 @@ export function EventFormSheet({
 
     setFormData(merged);
     setSelectedOrganizerIds(prefill?.organizerIds || []);
+    setSelectedArtistIds(prefill?.artistIds || []);
     setSelectedTagIds(prefill?.tagIds || []);
     setImagePreview(merged.image_url ? merged.image_url : null);
     setShowEndDate(Boolean(merged.end_date));
-  }, [open, event?.id]);
+  }, [defaultDate, event, open, prefill]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -609,6 +631,20 @@ export function EventFormSheet({
         if (orgError) throw orgError;
       }
 
+      await supabase.from("event_artists").delete().eq("event_id", savedEventId);
+
+      if (selectedArtistIds.length > 0) {
+        const artistEntries = selectedArtistIds.map((artistId, index) => ({
+          event_id: savedEventId,
+          artist_id: artistId,
+          sort_index: index,
+          role_label: null,
+        }));
+
+        const { error: artistError } = await supabase.from("event_artists").insert(artistEntries);
+        if (artistError) throw artistError;
+      }
+
       await syncMajorEventLink(savedEventId, formData.major_event_id);
 
       toast({ title: "Événement enregistré", variant: "success" });
@@ -678,6 +714,14 @@ export function EventFormSheet({
       })),
     [organizers],
   );
+  const artistOptions = React.useMemo(
+    () =>
+      artists.map((artist) => ({
+        value: artist.id,
+        label: artist.name,
+      })),
+    [artists],
+  );
   const tagOptions = React.useMemo(() => tags.map((t) => ({ value: t.id, label: t.name })), [tags]);
   const majorEventOptions = React.useMemo(
     () => [
@@ -697,6 +741,9 @@ export function EventFormSheet({
   const selectedMajorEvent = majorEvents.find((majorEvent) => majorEvent.id === formData.major_event_id) || null;
   const selectedOrganizerLabels = selectedOrganizerIds
     .map((id) => organizers.find((organizer) => organizer.id === id)?.name)
+    .filter((value): value is string => Boolean(value));
+  const selectedArtistLabels = selectedArtistIds
+    .map((id) => artists.find((artist) => artist.id === id)?.name)
     .filter((value): value is string => Boolean(value));
   const missingRequired = [
     !formData.title.trim() ? "Titre" : null,
@@ -742,6 +789,7 @@ export function EventFormSheet({
                   locationLabel={selectedLocationLabel}
                   majorEventLabel={selectedMajorEvent?.title}
                   organizerLabels={selectedOrganizerLabels}
+                  artistLabels={selectedArtistLabels}
                   tagsCount={selectedTagIds.length}
                   priceLabel={priceSummary}
                   hasImage={Boolean(imagePreview || formData.image_url.trim())}
@@ -957,6 +1005,20 @@ export function EventFormSheet({
                         placeholder="Sélectionner…"
                         disabled={saving || deleting}
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Artistes / collaborateurs</Label>
+                      <MultiSelect
+                        options={artistOptions}
+                        selected={selectedArtistIds}
+                        onChange={setSelectedArtistIds}
+                        placeholder="Selectionner..."
+                        disabled={saving || deleting}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Cette liste alimente la section publique "Artistes" dans la fiche evenement.
+                      </p>
                     </div>
 
                     <div className="grid gap-3 md:grid-cols-3">

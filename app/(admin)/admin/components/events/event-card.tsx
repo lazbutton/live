@@ -11,6 +11,7 @@ export type EventCardProps = {
   event: AdminEvent;
   onClick: () => void;
   onQuickApprove?: () => Promise<void>;
+  onContextMenu?: (event: React.MouseEvent<HTMLDivElement>) => void;
   compact?: boolean;
 };
 
@@ -41,7 +42,13 @@ function getStatusDot(status: AdminEvent["status"]) {
   return "bg-red-500";
 }
 
-export function EventCard({ event, onClick, onQuickApprove, compact = false }: EventCardProps) {
+export function EventCard({
+  event,
+  onClick,
+  onQuickApprove,
+  onContextMenu,
+  compact = false,
+}: EventCardProps) {
   const dt = React.useMemo(() => new Date(event.date), [event.date]);
   const timeLabel = React.useMemo(() => {
     try {
@@ -64,6 +71,12 @@ export function EventCard({ event, onClick, onQuickApprove, compact = false }: E
       role="button"
       tabIndex={0}
       onClick={onClick}
+      onContextMenu={(event) => {
+        if (!onContextMenu) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onContextMenu(event);
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();

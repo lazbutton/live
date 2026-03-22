@@ -7,9 +7,10 @@ import { toDatetimeLocal } from "@/lib/date-utils";
 import { toast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import type { AdminEvent, CategoryOption, LocationData, OrganizerOption, TagOption } from "./types";
+import type { AdminEvent, ArtistOption, CategoryOption, LocationData, OrganizerOption, TagOption } from "./types";
 import { EventFiltersBar } from "./event-filters-bar";
 import { EventsCalendar } from "./events-calendar";
+import { EventArtistsQuickDialog } from "./event-artists-quick-dialog";
 import { EventFormSheet, type EventFormPrefill } from "./event-form-sheet";
 import { EventImportDialog, type ScrapedEventPayload } from "./event-import-dialog";
 
@@ -62,6 +63,7 @@ export function EventsPage() {
   const [events, setEvents] = React.useState<AdminEvent[]>([]);
   const [locations, setLocations] = React.useState<LocationData[]>([]);
   const [organizers, setOrganizers] = React.useState<OrganizerOption[]>([]);
+  const [artists, setArtists] = React.useState<ArtistOption[]>([]);
   const [tags, setTags] = React.useState<TagOption[]>([]);
   const [categories, setCategories] = React.useState<CategoryOption[]>([]);
 
@@ -71,6 +73,8 @@ export function EventsPage() {
 
   const [selectedEvent, setSelectedEvent] = React.useState<AdminEvent | null>(null);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
+  const [artistsDialogEvent, setArtistsDialogEvent] = React.useState<AdminEvent | null>(null);
+  const [isArtistsDialogOpen, setIsArtistsDialogOpen] = React.useState(false);
   const [isImportOpen, setIsImportOpen] = React.useState(false);
   const [defaultDate, setDefaultDate] = React.useState<Date | undefined>(undefined);
   const [prefill, setPrefill] = React.useState<EventFormPrefill | undefined>(undefined);
@@ -108,6 +112,15 @@ export function EventsPage() {
     setTags((data || []) as TagOption[]);
   }, []);
 
+  const loadArtists = React.useCallback(async () => {
+    const { data, error } = await supabase
+      .from("artists")
+      .select("id, name, slug, image_url")
+      .order("name", { ascending: true });
+    if (error) throw error;
+    setArtists((data || []) as ArtistOption[]);
+  }, []);
+
   const loadLocations = React.useCallback(async () => {
     const { data, error } = await supabase
       .from("locations")
@@ -131,6 +144,12 @@ export function EventsPage() {
           organizer:organizers(id, name),
           location:locations(id, name)
         ),
+        event_artists:event_artists(
+          artist_id,
+          role_label,
+          sort_index,
+          artist:artists(id, name, slug, image_url)
+        ),
         major_event_events(
           major_event_id,
           major_event:major_events(id, title, slug)
@@ -146,7 +165,7 @@ export function EventsPage() {
   const loadAll = React.useCallback(async () => {
     setLoading(true);
     try {
-      await Promise.all([loadEvents(), loadLocations(), loadOrganizers(), loadTags(), loadCategories()]);
+      await Promise.all([loadEvents(), loadLocations(), loadOrganizers(), loadArtists(), loadTags(), loadCategories()]);
     } catch (e) {
       console.error("Erreur chargement events:", e);
       toast({
@@ -157,7 +176,7 @@ export function EventsPage() {
     } finally {
       setLoading(false);
     }
-  }, [loadCategories, loadEvents, loadLocations, loadOrganizers, loadTags]);
+  }, [loadArtists, loadCategories, loadEvents, loadLocations, loadOrganizers, loadTags]);
 
   const resolveCategoryId = React.useCallback(
     (rawCategory?: string | null) => {
@@ -372,6 +391,18 @@ export function EventsPage() {
     setIsFormOpen(true);
   }
 
+  function openEditEvent(event: AdminEvent) {
+    setSelectedEvent(event);
+    setPrefill(undefined);
+    setDefaultDate(undefined);
+    setIsFormOpen(true);
+  }
+
+  function openArtistsDialog(event: AdminEvent) {
+    setArtistsDialogEvent(event);
+    setIsArtistsDialogOpen(true);
+  }
+
   async function quickApprove(eventId: string) {
     try {
       // update status
@@ -419,6 +450,81 @@ export function EventsPage() {
       console.error("Erreur bulk approve:", e);
       toast({
         title: "Approbation en lot impossible",
+        description: e?.message || "Une erreur est survenue.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function saveQuickArtists(event: AdminEvent, artistIds: string[]) {
+    try {
+      const { error: deleteError } = await supabase.from("event_artists").delete().eq("event_id", event.id);
+      if (deleteError) throw deleteError;
+
+      if (artistIds.length > 0) {
+        const entries = artistIds.map((artistId, index) => ({
+          event_id: event.id,
+          artist_id: artistId,
+          sort_index: index,
+          role_label: null,
+        }));
+
+        const { error: insertError } = await supabase.from("event_artists").insert(entries);
+        if (insertError) throw insertError;
+      }
+
+      toast({ title: "Artistes mis à jour", variant: "success" });
+      await loadEvents();
+      return true;
+    } catch (e: any) {
+      console.error("Erreur artistes event:", e);
+      toast({
+        title: "Mise à jour impossible",
+        description: e?.message || "Une erreur est survenue.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  }
+
+  async function toggleEventFull(event: AdminEvent) {
+    const nextIsFull = !Boolean(event.is_full);
+
+    try {
+      const { error } = await supabase.from("events").update({ is_full: nextIsFull }).eq("id", event.id);
+      if (error) throw error;
+
+      toast({
+        title: nextIsFull ? "Événement marqué complet" : "Événement rouvert",
+        variant: "success",
+      });
+      await loadEvents();
+    } catch (e: any) {
+      console.error("Erreur is_full:", e);
+      toast({
+        title: "Action impossible",
+        description: e?.message || "Une erreur est survenue.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function toggleEventFeatured(event: AdminEvent) {
+    const nextIsFeatured = !Boolean(event.is_featured);
+
+    try {
+      const { error } = await supabase.from("events").update({ is_featured: nextIsFeatured }).eq("id", event.id);
+      if (error) throw error;
+
+      toast({
+        title: nextIsFeatured ? "Événement mis à la une" : "Événement retiré de la une",
+        variant: "success",
+      });
+      await loadEvents();
+    } catch (e: any) {
+      console.error("Erreur is_featured:", e);
+      toast({
+        title: "Action impossible",
         description: e?.message || "Une erreur est survenue.",
         variant: "destructive",
       });
@@ -533,15 +639,13 @@ export function EventsPage() {
 
       <EventsCalendar
         events={filteredEvents}
-        onEventClick={(ev) => {
-          setSelectedEvent(ev);
-          setPrefill(undefined);
-          setDefaultDate(undefined);
-          setIsFormOpen(true);
-        }}
+        onEventClick={openEditEvent}
         onCreateAtDate={(date) => openCreate(date)}
         onQuickApprove={quickApprove}
         onBulkApprove={bulkApprove}
+        onOpenArtistsDialog={openArtistsDialog}
+        onToggleFull={toggleEventFull}
+        onToggleFeatured={toggleEventFeatured}
       />
 
       <EventFormSheet
@@ -557,6 +661,7 @@ export function EventsPage() {
         }}
         locations={locations}
         organizers={organizers}
+        artists={artists}
         tags={tags}
         categories={categories}
         defaultDate={defaultDate}
@@ -564,6 +669,19 @@ export function EventsPage() {
         onTagCreated={() => void loadTags()}
         onSaved={() => void loadEvents()}
         onDeleted={() => void loadEvents()}
+      />
+
+      <EventArtistsQuickDialog
+        open={isArtistsDialogOpen}
+        onOpenChange={(open) => {
+          setIsArtistsDialogOpen(open);
+          if (!open) {
+            setArtistsDialogEvent(null);
+          }
+        }}
+        event={artistsDialogEvent}
+        artists={artists}
+        onSave={saveQuickArtists}
       />
 
       <EventImportDialog

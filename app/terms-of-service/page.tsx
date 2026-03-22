@@ -221,7 +221,7 @@ export default function TermsOfServicePage() {
             </p>
             <div className="mt-4 p-4 bg-muted rounded-lg">
               <p><strong>Email :</strong> lazbutton@gmail.com</p>
-              <p className="mt-2"><strong>Adresse :</strong> 1 Av. du Champ de Mars, 45100 Orléans, France</p>
+              <p className="mt-2"><strong>Adresse :</strong> 3 Rue de la Cholerie, 45000 Orléans, France</p>
             </div>
           </section>
         </div>

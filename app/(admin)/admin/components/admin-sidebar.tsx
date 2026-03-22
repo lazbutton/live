@@ -14,7 +14,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { Calendar, LayoutDashboard, LogOut, Map, Settings } from "lucide-react";
+import { Calendar, Inbox, LayoutDashboard, LogOut, Map, Music, Settings } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
@@ -40,6 +40,16 @@ const menuItems = [
     title: "Événements",
     icon: Calendar,
     url: "/admin/events",
+  },
+  {
+    title: "Demandes",
+    icon: Inbox,
+    url: "/admin/requests",
+  },
+  {
+    title: "Artistes",
+    icon: Music,
+    url: "/admin/artists",
   },
   {
     title: "Multi-événements",
@@ -85,7 +95,7 @@ export function AdminSidebar() {
                     >
                       <item.icon className="h-6 w-6" />
                       <span className="flex-1">{item.title}</span>
-                      {item.title === "Dashboard" &&
+                      {item.title === "Demandes" &&
                         pendingRequestsCount !== null &&
                         pendingRequestsCount > 0 && (
                           <Badge

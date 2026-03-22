@@ -17,6 +17,7 @@ type EventFormOverviewCardProps = {
   locationLabel?: string;
   majorEventLabel?: string;
   organizerLabels?: string[];
+  artistLabels?: string[];
   tagsCount?: number;
   priceLabel?: string;
   hasImage?: boolean;
@@ -46,6 +47,7 @@ export function EventFormOverviewCard({
   locationLabel,
   majorEventLabel,
   organizerLabels = [],
+  artistLabels = [],
   tagsCount = 0,
   priceLabel,
   hasImage = false,
@@ -141,6 +143,16 @@ export function EventFormOverviewCard({
           </div>
           <div className="mt-1 text-sm font-medium">
             {organizerLabels.length > 0 ? compactList(organizerLabels) : "Non selectionne"}
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-muted/20 p-3">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <Users className="h-3.5 w-3.5" />
+            Artistes
+          </div>
+          <div className="mt-1 text-sm font-medium">
+            {artistLabels.length > 0 ? compactList(artistLabels) : "Aucun"}
           </div>
         </div>
       </div>

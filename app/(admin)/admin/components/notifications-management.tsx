@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -118,6 +117,7 @@ export function NotificationsManagement() {
   const [settings, setSettings] = useState<{
     notification_time: string;
     is_active: boolean;
+    is_password_auth_enabled: boolean;
   } | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -165,6 +165,8 @@ export function NotificationsManagement() {
         setSettings({
           notification_time: `${hours}:${minutes}`,
           is_active: settingsData.is_active ?? true,
+          is_password_auth_enabled:
+            settingsData.is_password_auth_enabled ?? true,
         });
       }
     } catch (error) {
@@ -452,6 +454,32 @@ export function NotificationsManagement() {
                     />
                   </div>
 
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-0.5">
+                      <Label className="text-base font-semibold">
+                        Connexion email / mot de passe
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Active le mode mot de passe dans l&apos;app. Une fois la
+                        vérification Apple terminée, tu peux le couper pour
+                        revenir au flux email par code uniquement.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings.is_password_auth_enabled}
+                      onCheckedChange={(checked) =>
+                        setSettings((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                is_password_auth_enabled: checked,
+                              }
+                            : null,
+                        )
+                      }
+                    />
+                  </div>
+
                   {/* Heure d'envoi */}
                   <div className="space-y-2 p-4 border rounded-lg">
                     <Label htmlFor="notification-time" className="text-base font-semibold">
@@ -498,6 +526,15 @@ export function NotificationsManagement() {
                     <Alert variant="destructive">
                       <AlertDescription>
                         <strong>Les notifications push sont désactivées.</strong> Aucun utilisateur ne recevra de notifications push, même s'ils ont activé les notifications dans leurs préférences.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {!settings.is_password_auth_enabled && (
+                    <Alert>
+                      <AlertDescription>
+                        Le mode mot de passe est masqué dans l&apos;app. Les
+                        utilisateurs reviennent au parcours email par code.
                       </AlertDescription>
                     </Alert>
                   )}

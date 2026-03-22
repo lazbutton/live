@@ -8,7 +8,7 @@ import { createServiceClient } from "@/lib/supabase/service";
  * Récupère les paramètres globaux de notifications
  * Admin uniquement
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Vérifier l'authentification (admin uniquement)
     const supabase = await createClient();
@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
         id: null,
         notification_time: "09:00:00",
         is_active: true,
+        is_password_auth_enabled: true,
         created_at: null,
         updated_at: null,
         updated_by: null,
@@ -83,6 +84,7 @@ export async function GET(request: NextRequest) {
  * {
  *   notification_time?: string - Heure au format HH:MM (ex: "09:00")
  *   is_active?: boolean - Activation globale des notifications
+  *   is_password_auth_enabled?: boolean - Afficher la connexion email / mot de passe dans l'app
  * }
  */
 export async function PUT(request: NextRequest) {
@@ -114,7 +116,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { notification_time, is_active } = body;
+    const { notification_time, is_active, is_password_auth_enabled } = body;
 
     // Validation
     if (notification_time !== undefined) {
@@ -138,6 +140,16 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if (
+      is_password_auth_enabled !== undefined &&
+      typeof is_password_auth_enabled !== "boolean"
+    ) {
+      return NextResponse.json(
+        { error: "is_password_auth_enabled doit être un booléen" },
+        { status: 400 }
+      );
+    }
+
     // Mettre à jour les paramètres
     const serviceClient = createServiceClient();
     
@@ -155,6 +167,10 @@ export async function PUT(request: NextRequest) {
         .update({
           notification_time: body.notification_time,
           is_active: is_active !== undefined ? is_active : undefined,
+          is_password_auth_enabled:
+            is_password_auth_enabled !== undefined
+              ? is_password_auth_enabled
+              : undefined,
           updated_by: user.id,
           updated_at: new Date().toISOString(),
         })
@@ -168,6 +184,10 @@ export async function PUT(request: NextRequest) {
         .insert({
           notification_time: body.notification_time || "09:00:00",
           is_active: is_active !== undefined ? is_active : true,
+          is_password_auth_enabled:
+            is_password_auth_enabled !== undefined
+              ? is_password_auth_enabled
+              : true,
           updated_by: user.id,
         })
         .select()

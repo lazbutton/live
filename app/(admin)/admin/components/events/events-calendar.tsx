@@ -13,6 +13,7 @@ import { enumerateEventDisplayDays, startOfLocalDay, toLocalDayKey } from "@/lib
 
 import type { AdminEvent } from "./types";
 import { EventCard } from "./event-card";
+import { EventContextMenu } from "./event-context-menu";
 
 export type EventsCalendarProps = {
   events: AdminEvent[];
@@ -20,13 +21,30 @@ export type EventsCalendarProps = {
   onCreateAtDate: (date: Date) => void;
   onQuickApprove: (eventId: string) => Promise<void>;
   onBulkApprove: (eventIds: string[]) => Promise<void>;
+  onOpenArtistsDialog: (event: AdminEvent) => void;
+  onToggleFull: (event: AdminEvent) => Promise<void>;
+  onToggleFeatured: (event: AdminEvent) => Promise<void>;
 };
 
-export function EventsCalendar({ events, onEventClick, onCreateAtDate, onQuickApprove, onBulkApprove }: EventsCalendarProps) {
+export function EventsCalendar({
+  events,
+  onEventClick,
+  onCreateAtDate,
+  onQuickApprove,
+  onBulkApprove,
+  onOpenArtistsDialog,
+  onToggleFull,
+  onToggleFeatured,
+}: EventsCalendarProps) {
   const isMobile = useIsMobile();
 
   const [view, setView] = React.useState<"week" | "month">("month");
   const [anchor, setAnchor] = React.useState<Date>(() => startOfLocalDay(new Date()));
+  const [contextMenu, setContextMenu] = React.useState<{
+    event: AdminEvent;
+    x: number;
+    y: number;
+  } | null>(null);
 
   const weekStart = React.useMemo(
     () => startOfWeek(anchor, { weekStartsOn: 1 }), // lundi
@@ -90,6 +108,34 @@ export function EventsCalendar({ events, onEventClick, onCreateAtDate, onQuickAp
       setBulkApproving(false);
     }
   }
+
+  const openContextMenu = React.useCallback(
+    (mouseEvent: React.MouseEvent<HTMLDivElement>, event: AdminEvent) => {
+      const menuWidth = 252;
+      const menuHeight = event.status === "pending" ? 274 : 232;
+      const viewportPadding = 12;
+
+      const nextX = Math.max(
+        viewportPadding,
+        Math.min(mouseEvent.clientX, window.innerWidth - menuWidth - viewportPadding),
+      );
+      const nextY = Math.max(
+        viewportPadding,
+        Math.min(mouseEvent.clientY, window.innerHeight - menuHeight - viewportPadding),
+      );
+
+      setContextMenu({
+        event,
+        x: nextX,
+        y: nextY,
+      });
+    },
+    [],
+  );
+
+  React.useEffect(() => {
+    setContextMenu(null);
+  }, [anchor, view]);
 
   const titleLabel = React.useMemo(() => {
     if (view === "week") {
@@ -213,6 +259,7 @@ export function EventsCalendar({ events, onEventClick, onCreateAtDate, onQuickAp
                             compact={false}
                             onClick={() => onEventClick(ev)}
                             onQuickApprove={ev.status === "pending" ? () => onQuickApprove(ev.id) : undefined}
+                            onContextMenu={(mouseEvent) => openContextMenu(mouseEvent, ev)}
                           />
                         ))
                       )}
@@ -256,6 +303,7 @@ export function EventsCalendar({ events, onEventClick, onCreateAtDate, onQuickAp
                         event={ev}
                         onClick={() => onEventClick(ev)}
                         onQuickApprove={ev.status === "pending" ? () => onQuickApprove(ev.id) : undefined}
+                        onContextMenu={(mouseEvent) => openContextMenu(mouseEvent, ev)}
                       />
                     ))}
                     {list.length === 0 ? (
@@ -313,6 +361,7 @@ export function EventsCalendar({ events, onEventClick, onCreateAtDate, onQuickAp
                       compact
                       onClick={() => onEventClick(ev)}
                       onQuickApprove={ev.status === "pending" ? () => onQuickApprove(ev.id) : undefined}
+                      onContextMenu={(mouseEvent) => openContextMenu(mouseEvent, ev)}
                     />
                   ))}
                   {list.length > 3 ? (
@@ -323,6 +372,21 @@ export function EventsCalendar({ events, onEventClick, onCreateAtDate, onQuickAp
             );
           })}
         </div>
+      ) : null}
+
+      {contextMenu != null ? (
+        <EventContextMenu
+          open
+          event={contextMenu.event}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onEdit={onEventClick}
+          onEditArtists={onOpenArtistsDialog}
+          onToggleFull={onToggleFull}
+          onToggleFeatured={onToggleFeatured}
+          onQuickApprove={(event) => onQuickApprove(event.id)}
+        />
       ) : null}
     </div>
   );

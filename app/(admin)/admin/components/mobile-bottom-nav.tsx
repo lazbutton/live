@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Calendar, Settings } from "lucide-react";
+import { LayoutDashboard, Calendar, Inbox, Music, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePendingRequestsCount } from "@/hooks/use-pending-requests-count";
@@ -20,6 +20,16 @@ const menuItems = [
     title: "Événements",
     icon: Calendar,
     url: "/admin/events",
+  },
+  {
+    title: "Demandes",
+    icon: Inbox,
+    url: "/admin/requests",
+  },
+  {
+    title: "Artistes",
+    icon: Music,
+    url: "/admin/artists",
   },
   {
     title: "Réglages",
@@ -55,7 +65,7 @@ export function MobileBottomNav() {
             >
               <div className="relative">
                 <item.icon className={cn("h-5 w-5", isActive && "scale-110")} />
-                {item.title === "Dashboard" && pendingRequestsCount !== null && pendingRequestsCount > 0 && (
+                {item.title === "Demandes" && pendingRequestsCount !== null && pendingRequestsCount > 0 && (
                   <Badge
                     variant="destructive"
                     className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-[9px] font-bold leading-none flex items-center justify-center tabular-nums"
