@@ -35,8 +35,8 @@ export default function HelpPage() {
             <div className="rounded-lg bg-muted p-4">
               <p>
                 <strong>Email :</strong>{" "}
-                <a href="mailto:lazbutton@gmail.com" className="text-primary hover:underline">
-                  lazbutton@gmail.com
+                <a href="mailto:lazbutton@proton.me" className="text-primary hover:underline">
+                  lazbutton@proton.me
                 </a>
               </p>
               <p className="mt-2">

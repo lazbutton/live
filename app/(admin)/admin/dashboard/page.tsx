@@ -21,6 +21,7 @@ import { KpiCards } from "../components/dashboard/kpi-cards";
 import { WeekTimeline } from "../components/dashboard/week-timeline";
 import { PendingRequestsFeed } from "../components/dashboard/pending-requests-feed";
 import { QuickActions } from "../components/dashboard/quick-actions";
+import { EventArtistsQuickDialog } from "../components/events/event-artists-quick-dialog";
 import { EventFormSheet } from "../components/events/event-form-sheet";
 
 function startOfLocalDay(date: Date) {
@@ -48,6 +49,8 @@ export default function DashboardPage() {
 
   const [selectedEvent, setSelectedEvent] = React.useState<AdminEvent | null>(null);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
+  const [artistsDialogEvent, setArtistsDialogEvent] = React.useState<AdminEvent | null>(null);
+  const [isArtistsDialogOpen, setIsArtistsDialogOpen] = React.useState(false);
 
   const loadRefs = React.useCallback(async () => {
     const [locRes, orgRes, artistRes, tagRes, catRes] = await Promise.all([
@@ -156,6 +159,120 @@ export default function DashboardPage() {
     setIsFormOpen(true);
   }
 
+  function openArtistsDialog(event: AdminEvent) {
+    setArtistsDialogEvent(event);
+    setIsArtistsDialogOpen(true);
+  }
+
+  async function quickApprove(event: AdminEvent) {
+    try {
+      const { data: before } = await supabase.from("events").select("title, status").eq("id", event.id).single();
+
+      const { error } = await supabase.from("events").update({ status: "approved" }).eq("id", event.id);
+      if (error) throw error;
+
+      try {
+        await fetch(`/api/admin/events/${event.id}/notify-organizers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "event_approved",
+            title: "Événement approuvé",
+            message: `Votre événement "${before?.title || "Sans titre"}" a été approuvé et est maintenant visible sur la plateforme.`,
+            metadata: { old_status: before?.status, new_status: "approved" },
+          }),
+        });
+      } catch (notificationError) {
+        console.error("Notif approve (ignored):", notificationError);
+      }
+
+      toast({ title: "Événement approuvé", variant: "success" });
+      await loadDashboardData();
+    } catch (e: any) {
+      console.error("Erreur approve dashboard:", e);
+      toast({
+        title: "Approbation impossible",
+        description: e?.message || "Une erreur est survenue.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function saveQuickArtists(event: AdminEvent, artistIds: string[]) {
+    try {
+      const { error: deleteError } = await supabase.from("event_artists").delete().eq("event_id", event.id);
+      if (deleteError) throw deleteError;
+
+      if (artistIds.length > 0) {
+        const entries = artistIds.map((artistId, index) => ({
+          event_id: event.id,
+          artist_id: artistId,
+          sort_index: index,
+          role_label: null,
+        }));
+
+        const { error: insertError } = await supabase.from("event_artists").insert(entries);
+        if (insertError) throw insertError;
+      }
+
+      toast({ title: "Artistes mis à jour", variant: "success" });
+      await loadDashboardData();
+      return true;
+    } catch (e: any) {
+      console.error("Erreur artistes dashboard:", e);
+      toast({
+        title: "Mise à jour impossible",
+        description: e?.message || "Une erreur est survenue.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  }
+
+  async function toggleEventFull(event: AdminEvent) {
+    const nextIsFull = !Boolean(event.is_full);
+
+    try {
+      const { error } = await supabase.from("events").update({ is_full: nextIsFull }).eq("id", event.id);
+      if (error) throw error;
+
+      toast({
+        title: nextIsFull ? "Événement marqué complet" : "Événement rouvert",
+        variant: "success",
+      });
+      await loadDashboardData();
+    } catch (e: any) {
+      console.error("Erreur is_full dashboard:", e);
+      toast({
+        title: "Action impossible",
+        description: e?.message || "Une erreur est survenue.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function toggleEventFeatured(event: AdminEvent) {
+    const nextIsFeatured = !Boolean(event.is_featured);
+
+    try {
+      const { error } = await supabase.from("events").update({ is_featured: nextIsFeatured }).eq("id", event.id);
+      if (error) throw error;
+
+      toast({
+        title: nextIsFeatured ? "Événement mis à la une" : "Événement retiré de la une",
+        variant: "success",
+      });
+      await loadDashboardData();
+    } catch (e: any) {
+      console.error("Erreur is_featured dashboard:", e);
+      toast({
+        title: "Action impossible",
+        description: e?.message || "Une erreur est survenue.",
+        variant: "destructive",
+      });
+    }
+  }
+
   if (loading) {
     return (
       <AdminLayout title="Dashboard" breadcrumbItems={[{ label: "Dashboard" }]}>
@@ -183,7 +300,14 @@ export default function DashboardPage() {
           onImportFromUrl={() => router.push("/admin/events?import=1")}
         />
 
-        <WeekTimeline events={weekEvents} onEventClick={openEditEvent} />
+        <WeekTimeline
+          events={weekEvents}
+          onEventClick={openEditEvent}
+          onOpenArtistsDialog={openArtistsDialog}
+          onToggleFull={toggleEventFull}
+          onToggleFeatured={toggleEventFeatured}
+          onQuickApprove={quickApprove}
+        />
 
         <PendingRequestsFeed />
 
@@ -204,6 +328,19 @@ export default function DashboardPage() {
           onTagCreated={() => void loadRefs()}
           onSaved={() => void loadDashboardData()}
           onDeleted={() => void loadDashboardData()}
+        />
+
+        <EventArtistsQuickDialog
+          open={isArtistsDialogOpen}
+          onOpenChange={(open) => {
+            setIsArtistsDialogOpen(open);
+            if (!open) {
+              setArtistsDialogEvent(null);
+            }
+          }}
+          event={artistsDialogEvent}
+          artists={artists}
+          onSave={saveQuickArtists}
         />
       </div>
     </AdminLayout>

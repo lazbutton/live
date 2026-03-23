@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { CircleAlert, Loader2, Trash2 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -77,6 +77,17 @@ function toDatetimeLocalFromLocalDate(d: Date) {
   const h = String(d.getHours()).padStart(2, "0");
   const mi = String(d.getMinutes()).padStart(2, "0");
   return `${y}-${m}-${da}T${h}:${mi}`;
+}
+
+function isBeforeToday(dateValue: string) {
+  if (!dateValue) return false;
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return parsed.getTime() < today.getTime();
 }
 
 function emptyForm(): EventFormData {
@@ -182,6 +193,7 @@ export function EventFormSheet({
   const [deleting, setDeleting] = React.useState(false);
 
   const isEdit = Boolean(event && event.id);
+  const showPastEventWarning = !isEdit && isBeforeToday(formData.date);
 
   // init/reset when opening or event changes
   React.useEffect(() => {
@@ -822,6 +834,14 @@ export function EventFormSheet({
                         required
                         disabled={saving || deleting}
                       />
+                      {showPastEventWarning ? (
+                        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                          <span>
+                            Cette date est antérieure à aujourd&apos;hui. L&apos;événement sera ajouté comme un événement déjà passé.
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="space-y-2">

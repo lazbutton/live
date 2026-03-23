@@ -220,7 +220,7 @@ export default function TermsOfServicePage() {
               Pour toute question concernant ces Conditions d'Utilisation, veuillez nous contacter à :
             </p>
             <div className="mt-4 p-4 bg-muted rounded-lg">
-              <p><strong>Email :</strong> lazbutton@gmail.com</p>
+              <p><strong>Email :</strong> lazbutton@proton.me</p>
               <p className="mt-2"><strong>Adresse :</strong> 3 Rue de la Cholerie, 45000 Orléans, France</p>
             </div>
           </section>

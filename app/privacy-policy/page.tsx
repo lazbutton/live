@@ -43,7 +43,7 @@ export default function PrivacyPolicyPage() {
             </p>
             <div className="mt-4 rounded-lg bg-muted p-4">
               <p>
-                <strong>Email :</strong> lazbutton@gmail.com
+                <strong>Email :</strong> lazbutton@proton.me
               </p>
               <p className="mt-2">
                 <strong>Adresse :</strong> 3 Rue de la Cholerie, 45000 Orleans
@@ -360,10 +360,10 @@ export default function PrivacyPolicyPage() {
             <p className="mt-4">
               Pour exercer vos droits, ecrivez-nous a{" "}
               <a
-                href="mailto:lazbutton@gmail.com"
+                href="mailto:lazbutton@proton.me"
                 className="text-primary hover:underline"
               >
-                lazbutton@gmail.com
+                lazbutton@proton.me
               </a>
               .
             </p>

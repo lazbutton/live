@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MultiSelectCreatable } from "@/components/ui/multi-select-creatable";
 import {
   Table,
   TableBody,
@@ -41,6 +42,8 @@ type AdminArtist = {
   id: string;
   name: string;
   slug: string;
+  artist_type_label: string | null;
+  tag_ids: string[] | null;
   short_description: string | null;
   image_url: string | null;
   website_url: string | null;
@@ -53,6 +56,8 @@ type AdminArtist = {
 
 type ArtistFormState = {
   name: string;
+  artist_type_label: string;
+  tag_ids: string[];
   short_description: string;
   image_url: string;
   website_url: string;
@@ -63,6 +68,8 @@ type ArtistFormState = {
 
 const emptyFormState: ArtistFormState = {
   name: "",
+  artist_type_label: "",
+  tag_ids: [],
   short_description: "",
   image_url: "",
   website_url: "",
@@ -97,8 +104,14 @@ function buildArtistLinks(artist: AdminArtist) {
   ].filter(Boolean) as Array<{ label: string; href: string }>;
 }
 
+type TagOption = {
+  id: string;
+  name: string;
+};
+
 export function ArtistsManagement() {
   const [artists, setArtists] = React.useState<AdminArtist[]>([]);
+  const [tags, setTags] = React.useState<TagOption[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -107,17 +120,33 @@ export function ArtistsManagement() {
   const [form, setForm] = React.useState<ArtistFormState>(emptyFormState);
   const [imageFile, setImageFile] = React.useState<File | null>(null);
 
+  const tagNameById = React.useMemo(
+    () => new Map(tags.map((tag) => [tag.id, tag.name])),
+    [tags]
+  );
+
+  const tagOptions = React.useMemo(
+    () => tags.map((tag) => ({ value: tag.id, label: tag.name })),
+    [tags]
+  );
+
   const filteredArtists = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return artists;
     return artists.filter((artist) => {
+      const normalizedTagNames = (artist.tag_ids || [])
+        .map((tagId) => tagNameById.get(tagId) || "")
+        .join(" ")
+        .toLowerCase();
       return (
         artist.name.toLowerCase().includes(query) ||
         artist.slug.toLowerCase().includes(query) ||
-        (artist.short_description || "").toLowerCase().includes(query)
+        (artist.artist_type_label || "").toLowerCase().includes(query) ||
+        (artist.short_description || "").toLowerCase().includes(query) ||
+        normalizedTagNames.includes(query)
       );
     });
-  }, [artists, searchQuery]);
+  }, [artists, searchQuery, tagNameById]);
 
   const loadArtists = React.useCallback(async () => {
     try {
@@ -125,7 +154,7 @@ export function ArtistsManagement() {
       const { data, error } = await supabase
         .from("artists")
         .select(
-          "id, name, slug, short_description, image_url, website_url, instagram_url, soundcloud_url, deezer_url, created_at, updated_at"
+          "id, name, slug, artist_type_label, tag_ids, short_description, image_url, website_url, instagram_url, soundcloud_url, deezer_url, created_at, updated_at"
         )
         .order("name", { ascending: true });
 
@@ -139,9 +168,20 @@ export function ArtistsManagement() {
     }
   }, []);
 
+  const loadTags = React.useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from("tags").select("id, name").order("name", { ascending: true });
+      if (error) throw error;
+      setTags((data || []) as TagOption[]);
+    } catch (error) {
+      console.error("Erreur lors du chargement des tags:", error);
+    }
+  }, []);
+
   React.useEffect(() => {
     loadArtists();
-  }, [loadArtists]);
+    loadTags();
+  }, [loadArtists, loadTags]);
 
   function openCreateDialog() {
     setSelectedArtist(null);
@@ -154,6 +194,8 @@ export function ArtistsManagement() {
     setSelectedArtist(artist);
     setForm({
       name: artist.name || "",
+      artist_type_label: artist.artist_type_label || "",
+      tag_ids: artist.tag_ids || [],
       short_description: artist.short_description || "",
       image_url: artist.image_url || "",
       website_url: artist.website_url || "",
@@ -188,6 +230,19 @@ export function ArtistsManagement() {
     return publicUrl;
   }
 
+  async function handleCreateTag(name: string): Promise<string | null> {
+    try {
+      const { data, error } = await supabase.from("tags").insert([{ name: name.trim() }]).select("id, name").single();
+      if (error) throw error;
+      await loadTags();
+      return data?.id ?? null;
+    } catch (error: any) {
+      console.error("Erreur lors de la creation du tag:", error);
+      alert(error?.message || "Impossible de creer ce tag.");
+      return null;
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!form.name.trim()) {
@@ -200,6 +255,8 @@ export function ArtistsManagement() {
       const imageUrl = await uploadImageIfNeeded();
       const payload = {
         name: form.name.trim(),
+        artist_type_label: normalizeNullable(form.artist_type_label),
+        tag_ids: form.tag_ids,
         short_description: normalizeNullable(form.short_description),
         image_url: imageUrl,
         website_url: normalizeNullable(form.website_url),
@@ -275,7 +332,7 @@ export function ArtistsManagement() {
             <Input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Rechercher par nom, slug ou description"
+              placeholder="Rechercher par nom, slug, type, tag ou description"
               className="pl-9"
             />
           </div>
@@ -298,6 +355,8 @@ export function ArtistsManagement() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Artiste</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Tags</TableHead>
                     <TableHead>Slug</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Liens</TableHead>
@@ -308,6 +367,9 @@ export function ArtistsManagement() {
                 <TableBody>
                   {filteredArtists.map((artist) => {
                     const links = buildArtistLinks(artist);
+                    const artistTags = (artist.tag_ids || [])
+                      .map((tagId) => ({ id: tagId, name: tagNameById.get(tagId) || "" }))
+                      .filter((tag) => tag.name);
                     return (
                       <TableRow key={artist.id}>
                         <TableCell>
@@ -329,6 +391,29 @@ export function ArtistsManagement() {
                               <p className="truncate text-xs text-muted-foreground">{artist.id}</p>
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {artist.artist_type_label ? (
+                            <Badge variant="outline">{artist.artist_type_label}</Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Non renseigne</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-[260px]">
+                          {artistTags.length === 0 ? (
+                            <span className="text-sm text-muted-foreground">Aucun tag</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {artistTags.slice(0, 4).map((tag) => (
+                                <Badge key={tag.id} variant="secondary">
+                                  {tag.name}
+                                </Badge>
+                              ))}
+                              {artistTags.length > 4 ? (
+                                <Badge variant="outline">+{artistTags.length - 4}</Badge>
+                              ) : null}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{artist.slug}</Badge>
@@ -392,7 +477,7 @@ export function ArtistsManagement() {
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2">
                 <Label htmlFor="artist-name">Nom</Label>
                 <Input
                   id="artist-name"
@@ -400,6 +485,31 @@ export function ArtistsManagement() {
                   onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
                   placeholder="Nom de scène / collectif / collaborateur"
                   required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="artist-type-label">Type / denomination</Label>
+                <Input
+                  id="artist-type-label"
+                  value={form.artist_type_label}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, artist_type_label: event.target.value }))
+                  }
+                  placeholder="DJ, Groupe, Plasticien, Musicien..."
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>Tags</Label>
+                <MultiSelectCreatable
+                  options={tagOptions}
+                  selected={form.tag_ids}
+                  onChange={(tagIds) => setForm((prev) => ({ ...prev, tag_ids: tagIds }))}
+                  onCreate={handleCreateTag}
+                  placeholder="Ajouter des tags"
+                  createPlaceholder="Creer ou rechercher un tag..."
+                  disabled={saving}
                 />
               </div>
 

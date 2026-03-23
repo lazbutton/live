@@ -38,7 +38,7 @@ export function EventsCalendar({
 }: EventsCalendarProps) {
   const isMobile = useIsMobile();
 
-  const [view, setView] = React.useState<"week" | "month">("month");
+  const [view, setView] = React.useState<"week" | "month">("week");
   const [anchor, setAnchor] = React.useState<Date>(() => startOfLocalDay(new Date()));
   const [contextMenu, setContextMenu] = React.useState<{
     event: AdminEvent;
