@@ -14,7 +14,16 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { Calendar, Inbox, LayoutDashboard, LogOut, Map, Music, Settings } from "lucide-react";
+import {
+  Calendar,
+  Inbox,
+  LayoutDashboard,
+  LogOut,
+  Map,
+  Music,
+  Settings,
+  ShieldAlert,
+} from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
@@ -28,6 +37,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { usePendingRequestsCount } from "@/hooks/use-pending-requests-count";
 import { usePendingEventsCount } from "@/hooks/use-pending-events-count";
+import { useOpenContentReportsCount } from "@/hooks/use-open-content-reports-count";
 import { Badge } from "@/components/ui/badge";
 
 const menuItems = [
@@ -57,6 +67,11 @@ const menuItems = [
     url: "/admin/major-events",
   },
   {
+    title: "Modération",
+    icon: ShieldAlert,
+    url: "/admin/moderation",
+  },
+  {
     title: "Réglages",
     icon: Settings,
     url: "/admin/settings",
@@ -68,6 +83,7 @@ export function AdminSidebar() {
   const pathname = usePathname();
   const { count: pendingRequestsCount } = usePendingRequestsCount();
   const { count: pendingEventsCount } = usePendingEventsCount();
+  const { count: openContentReportsCount } = useOpenContentReportsCount();
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -113,6 +129,18 @@ export function AdminSidebar() {
                             className="ml-auto h-5 min-w-5 px-1.5 text-xs font-bold tabular-nums"
                           >
                             {pendingEventsCount > 99 ? "99+" : pendingEventsCount}
+                          </Badge>
+                        )}
+                      {item.title === "Modération" &&
+                        openContentReportsCount !== null &&
+                        openContentReportsCount > 0 && (
+                          <Badge
+                            variant="destructive"
+                            className="ml-auto h-5 min-w-5 px-1.5 text-xs font-bold tabular-nums"
+                          >
+                            {openContentReportsCount > 99
+                              ? "99+"
+                              : openContentReportsCount}
                           </Badge>
                         )}
                     </Link>

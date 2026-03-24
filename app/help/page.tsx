@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     "Page d'aide et d'assistance pour l'application OutLive. Contact support, aide rapide et liens utiles.",
 };
 
-const LAST_UPDATED = "21 mars 2026";
+const LAST_UPDATED = "24 mars 2026";
 
 export default function HelpPage() {
   return (
@@ -27,6 +27,12 @@ export default function HelpPage() {
               Si vous rencontrez un probleme avec l&apos;application, les notifications,
               votre compte ou les informations affichees sur un evenement, vous pouvez
               nous contacter directement.
+            </p>
+            <p>
+              Pour les contenus generes par les utilisateurs, vous pouvez aussi
+              signaler un evenement depuis l&apos;application, demander le blocage
+              de son auteur et contacter notre equipe si un contenu vous semble
+              choquant, abusif, frauduleux, haineux ou usurpe.
             </p>
           </section>
 
@@ -76,6 +82,16 @@ export default function HelpPage() {
               <li>si vous ne pouvez plus vous connecter, precisez l&apos;email utilise pour votre compte ;</li>
               <li>si vous etes organisateur, indiquez aussi le nom de la structure concernee.</li>
             </ul>
+
+            <h3 className="mb-3 mt-6 text-xl font-semibold">
+              Signalements et securite communautaire
+            </h3>
+            <ul className="list-disc space-y-2 pl-6">
+              <li>ouvrez la fiche d&apos;un evenement puis utilisez l&apos;action Signaler ce contenu ;</li>
+              <li>vous pouvez demander en meme temps le blocage de l&apos;auteur ;</li>
+              <li>le blocage retire immediatement les contenus de cet auteur de votre feed ;</li>
+              <li>les signalements UGC sont examines par une moderation humaine sous 24h.</li>
+            </ul>
           </section>
 
           <section>
@@ -97,9 +113,10 @@ export default function HelpPage() {
           <section>
             <h2 className="mb-4 mt-8 text-2xl font-semibold">4. Delai de reponse</h2>
             <p>
-              Nous faisons au mieux pour repondre rapidement aux demandes d&apos;assistance.
-              Le delai peut varier selon la nature du probleme, mais nous essayons de
-              traiter les demandes dans les meilleurs delais.
+              Nous faisons au mieux pour repondre rapidement aux demandes
+              d&apos;assistance. Pour les signalements lies a des contenus
+              potentiellement choquants, haineux, frauduleux, usurpes ou abusifs,
+              notre objectif est une revue humaine sous 24h.
             </p>
           </section>
         </div>

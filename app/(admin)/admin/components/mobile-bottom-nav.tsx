@@ -3,11 +3,19 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Calendar, Inbox, Music, Settings } from "lucide-react";
+import {
+  LayoutDashboard,
+  Calendar,
+  Inbox,
+  Music,
+  Settings,
+  ShieldAlert,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePendingRequestsCount } from "@/hooks/use-pending-requests-count";
 import { usePendingEventsCount } from "@/hooks/use-pending-events-count";
+import { useOpenContentReportsCount } from "@/hooks/use-open-content-reports-count";
 import { Badge } from "@/components/ui/badge";
 
 const menuItems = [
@@ -32,6 +40,11 @@ const menuItems = [
     url: "/admin/artists",
   },
   {
+    title: "Modération",
+    icon: ShieldAlert,
+    url: "/admin/moderation",
+  },
+  {
     title: "Réglages",
     icon: Settings,
     url: "/admin/settings",
@@ -43,6 +56,7 @@ export function MobileBottomNav() {
   const isMobile = useIsMobile();
   const { count: pendingRequestsCount } = usePendingRequestsCount();
   const { count: pendingEventsCount } = usePendingEventsCount();
+  const { count: openContentReportsCount } = useOpenContentReportsCount();
 
   if (!isMobile) return null;
 
@@ -81,6 +95,18 @@ export function MobileBottomNav() {
                     {pendingEventsCount > 99 ? "99+" : pendingEventsCount}
                   </Badge>
                 )}
+                {item.title === "Modération" &&
+                  openContentReportsCount !== null &&
+                  openContentReportsCount > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-[9px] font-bold leading-none flex items-center justify-center tabular-nums"
+                    >
+                      {openContentReportsCount > 99
+                        ? "99+"
+                        : openContentReportsCount}
+                    </Badge>
+                  )}
               </div>
               <span className="text-[10px] font-medium leading-tight">{item.title}</span>
               {isActive && (

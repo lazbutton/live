@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { NextResponse } from "next/server";
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const supabase = await createClient();
     
@@ -40,6 +40,8 @@ export async function GET(request: Request) {
       first_name: u.user_metadata?.first_name || u.user_metadata?.firstName || null,
       last_name: u.user_metadata?.last_name || u.user_metadata?.lastName || null,
       full_name: u.user_metadata?.full_name || u.user_metadata?.fullName || null,
+      ugc_suspended: u.user_metadata?.ugc_suspended === true,
+      ugc_suspension_reason: u.user_metadata?.ugc_suspension_reason || null,
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at || null,
     }));

@@ -36,6 +36,7 @@ export default function TermsOfServicePage() {
               <li>Rechercher des événements par date, catégorie, lieu ou organisateur</li>
               <li>Accéder aux informations sur les lieux et organisateurs locaux</li>
               <li>Obtenir des informations pratiques sur les événements (dates, horaires, adresses, tarifs)</li>
+              <li>Soumettre certains contenus ou demandes liés aux événements depuis un compte authentifié</li>
             </ul>
           </section>
 
@@ -60,7 +61,21 @@ export default function TermsOfServicePage() {
               <li>Transmettre des virus, chevaux de Troie ou tout autre code malveillant</li>
               <li>Harceler, menacer ou nuire à d'autres utilisateurs</li>
               <li>Violer les droits de propriété intellectuelle d'autrui</li>
+              <li>Publier ou tenter de publier un contenu haineux, sexuel explicite, violent, choquant, spammeur, frauduleux ou usurpé</li>
             </ul>
+
+            <h3 className="text-xl font-semibold mt-6 mb-3">3.3 Règles communautaires et zéro tolérance</h3>
+            <p>
+              OutLive applique une politique de zéro tolérance pour les contenus et
+              comportements abusifs. Cela inclut notamment les menaces, le harcèlement,
+              les discours haineux, les contenus sexuels explicites, la violence
+              choquante, les arnaques, l'usurpation d'identité et tout contenu illicite.
+            </p>
+            <p className="mt-4">
+              Nous pouvons refuser, masquer ou supprimer un contenu, ainsi que limiter
+              l'accès aux fonctionnalités UGC d'un compte, dès qu'un contenu ou un
+              comportement contrevient à ces règles ou crée un risque pour les autres utilisateurs.
+            </p>
           </section>
 
           <section>
@@ -74,10 +89,40 @@ export default function TermsOfServicePage() {
               <li>Fournir des informations exactes, actuelles et complètes lors de l'inscription</li>
               <li>Nous informer immédiatement de toute utilisation non autorisée de votre compte</li>
             </ul>
-            <p className="mt-4">
-              Nous nous réservons le droit de suspendre ou de résilier votre compte en cas de violation 
-              de ces Conditions d'Utilisation.
+            <h3 className="text-xl font-semibold mt-6 mb-3">4.1 Publication et soumission de contenu</h3>
+            <p>
+              Certaines fonctions UGC exigent un compte réel authentifié et
+              l'acceptation explicite de la version en vigueur de nos Conditions
+              d'Utilisation et règles communautaires.
             </p>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>vous ne devez soumettre que des informations exactes, légitimes et non trompeuses ;</li>
+              <li>nous pouvons bloquer en amont certains termes, liens ou formulations contraires à notre politique ;</li>
+              <li>les contenus soumis doivent respecter la loi, les droits des tiers et les présentes conditions.</li>
+            </ul>
+
+            <h3 className="text-xl font-semibold mt-6 mb-3">4.2 Signalement, blocage et modération humaine</h3>
+            <p>
+              Les utilisateurs peuvent signaler un contenu directement dans
+              l'application et demander le blocage de l'auteur concerné. Le blocage
+              retire immédiatement les contenus de cet auteur du feed de la personne
+              qui l'a déclenché.
+            </p>
+            <p className="mt-4">
+              Chaque signalement est envoyé dans une file de modération dédiée et
+              fait l'objet d'une revue humaine. Notre objectif opérationnel est de
+              traiter les signalements UGC sous 24h.
+            </p>
+
+            <h3 className="text-xl font-semibold mt-6 mb-3">4.3 Sanctions et limitations</h3>
+            <p>
+              En cas de violation de ces règles, nous pouvons notamment :
+            </p>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>masquer un événement des surfaces publiques ;</li>
+              <li>suspendre l'accès d'un utilisateur aux fonctionnalités UGC ;</li>
+              <li>supprimer un compte ou résilier l'accès au service dans les cas les plus graves.</li>
+            </ul>
           </section>
 
           <section>
@@ -223,6 +268,11 @@ export default function TermsOfServicePage() {
               <p><strong>Email :</strong> lazbutton@proton.me</p>
               <p className="mt-2"><strong>Adresse :</strong> 3 Rue de la Cholerie, 45000 Orléans, France</p>
             </div>
+            <p className="mt-4">
+              Pour les contenus problématiques, signalements UGC, demandes de retrait,
+              ou toute question relative à la sécurité communautaire, ce même contact
+              support constitue notre point d'entrée officiel.
+            </p>
           </section>
         </div>
       </div>
