@@ -62,6 +62,7 @@ type AdminArtist = {
   name: string;
   slug: string;
   artist_type_label: string | null;
+  origin_city: string | null;
   tag_ids: string[] | null;
   short_description: string | null;
   image_url: string | null;
@@ -76,6 +77,7 @@ type AdminArtist = {
 type ArtistFormState = {
   name: string;
   artist_type_label: string;
+  origin_city: string;
   tag_ids: string[];
   short_description: string;
   image_url: string;
@@ -88,6 +90,7 @@ type ArtistFormState = {
 const emptyFormState: ArtistFormState = {
   name: "",
   artist_type_label: "",
+  origin_city: "",
   tag_ids: [],
   short_description: "",
   image_url: "",
@@ -170,6 +173,7 @@ export function ArtistsManagement() {
         artist.name.toLowerCase().includes(query) ||
         artist.slug.toLowerCase().includes(query) ||
         (artist.artist_type_label || "").toLowerCase().includes(query) ||
+        (artist.origin_city || "").toLowerCase().includes(query) ||
         (artist.short_description || "").toLowerCase().includes(query) ||
         normalizedTagNames.includes(query)
       );
@@ -182,7 +186,7 @@ export function ArtistsManagement() {
       const { data, error } = await supabase
         .from("artists")
         .select(
-          "id, name, slug, artist_type_label, tag_ids, short_description, image_url, website_url, instagram_url, soundcloud_url, deezer_url, created_at, updated_at"
+          "id, name, slug, artist_type_label, origin_city, tag_ids, short_description, image_url, website_url, instagram_url, soundcloud_url, deezer_url, created_at, updated_at"
         )
         .order("name", { ascending: true });
 
@@ -246,6 +250,7 @@ export function ArtistsManagement() {
     setForm({
       name: artist.name || "",
       artist_type_label: artist.artist_type_label || "",
+      origin_city: artist.origin_city || "",
       tag_ids: artist.tag_ids || [],
       short_description: artist.short_description || "",
       image_url: artist.image_url || "",
@@ -421,6 +426,7 @@ export function ArtistsManagement() {
       const payload = {
         name: form.name.trim(),
         artist_type_label: normalizeNullable(form.artist_type_label),
+        origin_city: normalizeNullable(form.origin_city),
         tag_ids: form.tag_ids,
         short_description: normalizeNullable(form.short_description),
         image_url: imageUrl,
@@ -527,7 +533,7 @@ export function ArtistsManagement() {
               <Input
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Rechercher par nom, slug, type, tag ou description"
+                placeholder="Rechercher par nom, slug, type, ville, tag ou description"
                 className="pl-9"
               />
             </div>
@@ -583,6 +589,11 @@ export function ArtistsManagement() {
                         <p className="mt-1 truncate text-xs text-muted-foreground">
                           {artist.slug}
                         </p>
+                        {artist.origin_city ? (
+                          <p className="mt-1 truncate text-xs text-muted-foreground">
+                            Origine: {artist.origin_city}
+                          </p>
+                        ) : null}
                         <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">
                           {artist.short_description || "Aucune description"}
                         </p>
@@ -689,7 +700,11 @@ export function ArtistsManagement() {
                             </div>
                             <div className="min-w-0">
                               <p className="truncate font-medium">{artist.name}</p>
-                              <p className="truncate text-xs text-muted-foreground">{artist.id}</p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {artist.origin_city
+                                  ? `${artist.origin_city} • ${artist.id}`
+                                  : artist.id}
+                              </p>
                             </div>
                           </div>
                         </TableCell>
@@ -820,6 +835,21 @@ export function ArtistsManagement() {
                     }))
                   }
                   placeholder="DJ, Groupe, Plasticien, Musicien..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="artist-origin-city">Ville d&apos;origine</Label>
+                <Input
+                  id="artist-origin-city"
+                  value={form.origin_city}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      origin_city: event.target.value,
+                    }))
+                  }
+                  placeholder="Paris, Berlin, Lyon..."
                 />
               </div>
 

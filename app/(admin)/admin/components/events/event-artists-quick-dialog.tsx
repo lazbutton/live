@@ -50,7 +50,9 @@ export function EventArtistsQuickDialog({
     () =>
       artists.map((artist) => ({
         value: artist.id,
-        label: artist.name,
+        label: artist.origin_city
+          ? `${artist.name} • ${artist.origin_city}`
+          : artist.name,
       })),
     [artists],
   );

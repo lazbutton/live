@@ -126,6 +126,7 @@ type QuickOrganizerFormState = {
 type QuickArtistFormState = {
   name: string;
   artist_type_label: string;
+  origin_city: string;
   short_description: string;
   instagram_url: string;
   website_url: string;
@@ -146,7 +147,7 @@ function CreateEventContent() {
   const [locations, setLocations] = useState<{ id: string; name: string; address: string | null; capacity: number | null; latitude: number | null; longitude: number | null }[]>([]);
   const [rooms, setRooms] = useState<Array<{ id: string; name: string; location_id: string }>>([]);
   const [organizers, setOrganizers] = useState<Array<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null; type: "organizer" | "location" }>>([]);
-  const [artists, setArtists] = useState<Array<{ id: string; name: string; artist_type_label: string | null }>>([]);
+  const [artists, setArtists] = useState<Array<{ id: string; name: string; artist_type_label: string | null; origin_city: string | null }>>([]);
   const [selectedOrganizerIds, setSelectedOrganizerIds] = useState<string[]>([]);
   const [selectedArtistIds, setSelectedArtistIds] = useState<string[]>([]);
   const [isCreateLocationDialogOpen, setIsCreateLocationDialogOpen] = useState(false);
@@ -169,6 +170,7 @@ function CreateEventContent() {
   const [quickArtistForm, setQuickArtistForm] = useState<QuickArtistFormState>({
     name: "",
     artist_type_label: "",
+    origin_city: "",
     short_description: "",
     instagram_url: "",
     website_url: "",
@@ -293,7 +295,7 @@ function CreateEventContent() {
   async function reloadArtistsList() {
     const { data, error } = await supabase
       .from("artists")
-      .select("id, name, artist_type_label")
+      .select("id, name, artist_type_label, origin_city")
       .order("name");
 
     if (error) {
@@ -331,6 +333,7 @@ function CreateEventContent() {
     setQuickArtistForm({
       name: prefillName,
       artist_type_label: "",
+      origin_city: "",
       short_description: "",
       instagram_url: "",
       website_url: "",
@@ -812,7 +815,7 @@ function CreateEventContent() {
         supabase.from("locations").select("id, name, address, capacity, latitude, longitude").order("name"),
         supabase.from("organizers").select("id, name, instagram_url, facebook_url").order("name"),
         supabase.from("locations").select("id, name, instagram_url, facebook_url").eq("is_organizer", true).order("name"),
-        supabase.from("artists").select("id, name, artist_type_label").order("name"),
+        supabase.from("artists").select("id, name, artist_type_label, origin_city").order("name"),
         supabase.from("categories").select("id, name").eq("is_active", true).order("display_order"),
         supabase.from("tags").select("id, name").order("name"),
       ]);
@@ -1075,13 +1078,14 @@ function CreateEventContent() {
           {
             name: quickArtistForm.name.trim(),
             artist_type_label: quickArtistForm.artist_type_label.trim() || null,
+            origin_city: quickArtistForm.origin_city.trim() || null,
             short_description: quickArtistForm.short_description.trim() || null,
             instagram_url: quickArtistForm.instagram_url.trim() || null,
             website_url: quickArtistForm.website_url.trim() || null,
             created_by: user?.id || null,
           },
         ])
-        .select("id, name, artist_type_label")
+        .select("id, name, artist_type_label, origin_city")
         .single();
 
       if (error) {
@@ -1096,6 +1100,7 @@ function CreateEventContent() {
       setQuickArtistForm({
         name: "",
         artist_type_label: "",
+        origin_city: "",
         short_description: "",
         instagram_url: "",
         website_url: "",
@@ -1792,9 +1797,13 @@ function CreateEventContent() {
                     </Label>
                     <MultiSelect
                       options={artists.map((artist) => ({
-                        label: artist.artist_type_label
-                          ? `${artist.name} (${artist.artist_type_label})`
-                          : artist.name,
+                        label: [
+                          artist.name,
+                          artist.artist_type_label
+                            ? `(${artist.artist_type_label})`
+                            : null,
+                          artist.origin_city ? `• ${artist.origin_city}` : null,
+                        ].filter(Boolean).join(" "),
                         value: artist.id,
                       }))}
                       selected={selectedArtistIds}
@@ -2575,6 +2584,7 @@ function CreateEventContent() {
             setQuickArtistForm({
               name: "",
               artist_type_label: "",
+              origin_city: "",
               short_description: "",
               instagram_url: "",
               website_url: "",
@@ -2619,6 +2629,21 @@ function CreateEventContent() {
                   }))
                 }
                 placeholder="DJ, Groupe, Plasticien..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quick-artist-origin-city">Ville d&apos;origine</Label>
+              <Input
+                id="quick-artist-origin-city"
+                value={quickArtistForm.origin_city}
+                onChange={(event) =>
+                  setQuickArtistForm((prev) => ({
+                    ...prev,
+                    origin_city: event.target.value,
+                  }))
+                }
+                placeholder="Paris, Bruxelles, Berlin..."
               />
             </div>
 

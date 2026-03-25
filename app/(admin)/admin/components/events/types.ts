@@ -42,6 +42,7 @@ export type AdminEvent = {
       name: string;
       slug: string;
       image_url?: string | null;
+      origin_city?: string | null;
     } | null;
     role_label?: string | null;
     sort_index?: number | null;
@@ -79,6 +80,7 @@ export type ArtistOption = {
   name: string;
   slug: string;
   image_url: string | null;
+  origin_city?: string | null;
 };
 
 export type TagOption = { id: string; name: string };

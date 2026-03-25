@@ -64,6 +64,7 @@ type QuickOrganizerFormState = {
 type QuickArtistFormState = {
   name: string;
   artist_type_label: string;
+  origin_city: string;
   short_description: string;
   instagram_url: string;
   website_url: string;
@@ -223,6 +224,7 @@ export function EventFormSheet({
   const [quickArtistForm, setQuickArtistForm] = React.useState<QuickArtistFormState>({
     name: "",
     artist_type_label: "",
+    origin_city: "",
     short_description: "",
     instagram_url: "",
     website_url: "",
@@ -490,6 +492,7 @@ export function EventFormSheet({
     setQuickArtistForm({
       name: prefillName,
       artist_type_label: "",
+      origin_city: "",
       short_description: "",
       instagram_url: "",
       website_url: "",
@@ -655,13 +658,14 @@ export function EventFormSheet({
           {
             name: quickArtistForm.name.trim(),
             artist_type_label: quickArtistForm.artist_type_label.trim() || null,
+            origin_city: quickArtistForm.origin_city.trim() || null,
             short_description: quickArtistForm.short_description.trim() || null,
             instagram_url: quickArtistForm.instagram_url.trim() || null,
             website_url: quickArtistForm.website_url.trim() || null,
             created_by: user?.id || null,
           },
         ])
-        .select("id, name, slug, image_url")
+        .select("id, name, slug, image_url, origin_city")
         .single();
 
       if (error) throw error;
@@ -1003,7 +1007,9 @@ export function EventFormSheet({
     () =>
       availableArtists.map((artist) => ({
         value: artist.id,
-        label: artist.name,
+        label: artist.origin_city
+          ? `${artist.name} • ${artist.origin_city}`
+          : artist.name,
       })),
     [availableArtists],
   );
@@ -1692,6 +1698,20 @@ export function EventFormSheet({
                   }))
                 }
                 placeholder="DJ, Groupe, Plasticien..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quick-event-artist-origin-city">Ville d&apos;origine</Label>
+              <Input
+                id="quick-event-artist-origin-city"
+                value={quickArtistForm.origin_city}
+                onChange={(event) =>
+                  setQuickArtistForm((prev) => ({
+                    ...prev,
+                    origin_city: event.target.value,
+                  }))
+                }
+                placeholder="Paris, Bruxelles, Berlin..."
               />
             </div>
             <div className="space-y-2">

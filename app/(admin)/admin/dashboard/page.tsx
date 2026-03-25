@@ -59,7 +59,7 @@ export default function DashboardPage() {
         supabase.from("organizers").select("id, name, instagram_url, facebook_url").order("name"),
         supabase.from("locations").select("id, name, instagram_url, facebook_url").eq("is_organizer", true).order("name"),
       ]),
-      supabase.from("artists").select("id, name, slug, image_url").order("name"),
+      supabase.from("artists").select("id, name, slug, image_url, origin_city").order("name"),
       supabase.from("tags").select("id, name").order("name"),
       supabase.from("categories").select("id, name").eq("is_active", true).order("name"),
     ]);
@@ -112,7 +112,7 @@ export default function DashboardPage() {
               artist_id,
               role_label,
               sort_index,
-              artist:artists(id, name, slug, image_url)
+              artist:artists(id, name, slug, image_url, origin_city)
             ),
             major_event_events(
               major_event_id,

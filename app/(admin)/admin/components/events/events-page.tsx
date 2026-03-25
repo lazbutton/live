@@ -117,7 +117,7 @@ export function EventsPage() {
   const loadArtists = React.useCallback(async () => {
     const { data, error } = await supabase
       .from("artists")
-      .select("id, name, slug, image_url")
+      .select("id, name, slug, image_url, origin_city")
       .order("name", { ascending: true });
     if (error) throw error;
     setArtists((data || []) as ArtistOption[]);
@@ -150,7 +150,7 @@ export function EventsPage() {
           artist_id,
           role_label,
           sort_index,
-          artist:artists(id, name, slug, image_url)
+          artist:artists(id, name, slug, image_url, origin_city)
         ),
         major_event_events(
           major_event_id,
