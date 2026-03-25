@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink, MapPin, Music4, Users } from "lucide-react";
 

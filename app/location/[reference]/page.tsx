@@ -6,7 +6,6 @@ import {
   ExternalLink,
   Globe,
   Instagram,
-  MapPin,
   Music2,
 } from "lucide-react";
 

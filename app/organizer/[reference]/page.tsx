@@ -7,7 +7,6 @@ import {
   Globe,
   Instagram,
   Music2,
-  Users,
 } from "lucide-react";
 
 import {

@@ -278,6 +278,10 @@ function normalizeLookupValue(value: string) {
     .replace(/[^a-z0-9]+/g, "");
 }
 
+function isPresent<T>(value: T | null | undefined): value is T {
+  return value != null;
+}
+
 function isUuid(value: string | null | undefined) {
   return Boolean(value && UUID_PATTERN.test(value));
 }
@@ -701,7 +705,7 @@ export const getEventSharePageData = cache(
           imageUrl: normalizeText(artist.image_url),
         } satisfies PublicLinkItem;
       })
-      .filter((item): item is PublicLinkItem => Boolean(item))
+      .filter(isPresent)
       .sort((left, right) => left.title.localeCompare(right.title, "fr"));
 
     const organizers = ((event.event_organizers || []) as RawEventOrganizerRow[])
@@ -730,12 +734,12 @@ export const getEventSharePageData = cache(
 
         return null;
       })
-      .filter((item): item is PublicLinkItem => Boolean(item));
+      .filter(isPresent);
 
-    const hub =
-      ((event.major_event_events || []) as RawEventHubLinkRow[])
-        .map((row) => toPublicHubLinkItem(normalizeSingle(row.major_event)))
-        .find((item): item is PublicLinkItem => Boolean(item)) ?? null;
+    const hubLinks = ((event.major_event_events || []) as RawEventHubLinkRow[])
+      .map((row) => toPublicHubLinkItem(normalizeSingle(row.major_event)))
+      .filter(isPresent);
+    const hub = hubLinks.length > 0 ? hubLinks[0] : null;
 
     return {
       id: event.id,
@@ -831,7 +835,7 @@ export const getLocationSharePageData = cache(
     const categoryNameById = await resolveCategoryNames(rawEvents.map((event) => event.category));
     const hubs = ((hubsResult.data || []) as Array<{ major_event?: SingleOrArray<RawMajorEventRelation> }>)
       .map((row) => toPublicHubLinkItem(normalizeSingle(row.major_event)))
-      .filter((item): item is PublicLinkItem => Boolean(item));
+      .filter(isPresent);
 
     return {
       id: location.id,
@@ -934,7 +938,7 @@ export const getOrganizerSharePageData = cache(
     const categoryNameById = await resolveCategoryNames(rawEvents.map((event) => event.category));
     const hubs = ((hubsResult.data || []) as Array<{ major_event?: SingleOrArray<RawMajorEventRelation> }>)
       .map((row) => toPublicHubLinkItem(normalizeSingle(row.major_event)))
-      .filter((item): item is PublicLinkItem => Boolean(item));
+      .filter(isPresent);
 
     return {
       id: organizer.id,
@@ -1071,7 +1075,7 @@ export const getHubSharePageData = cache(
           imageUrl: normalizeText(location.image_url),
         } satisfies PublicLinkItem;
       })
-      .filter((item): item is PublicLinkItem => Boolean(item));
+      .filter(isPresent);
 
     const organizers = ((hub.major_event_organizers || []) as Array<{
       sort_index?: number | null;
@@ -1104,7 +1108,7 @@ export const getHubSharePageData = cache(
 
         return null;
       })
-      .filter((item): item is PublicLinkItem => Boolean(item));
+      .filter(isPresent);
 
     return {
       id: hub.id,
