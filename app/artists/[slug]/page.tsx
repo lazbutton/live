@@ -433,7 +433,7 @@ const getArtistPageData = cache(async (slug: string): Promise<ArtistPageData | n
 
       return {
         id: event.id,
-        title: normalizeText(event.title) ?? "Evenement sans titre",
+        title: normalizeText(event.title) ?? "Événement sans titre",
         date: event.date,
         endDate: event.end_date,
         category: rawCategory ? categoryNameById.get(rawCategory) ?? rawCategory : null,
@@ -483,7 +483,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title: `${data.artist.name} | OutLive`,
     description:
       normalizeText(data.artist.short_description) ||
-      `Retrouvez les evenements passes et a venir de ${data.artist.name} sur OutLive.`,
+      `Retrouvez les événements passés et à venir de ${data.artist.name} sur OutLive.`,
   };
 }
 
@@ -535,7 +535,7 @@ function ArtistEventCard({ event, archived = false }: { event: ArtistEvent; arch
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="truncate text-[11px] uppercase tracking-[0.22em] text-white/45">
-              {event.locationLabel || "Lieu a confirmer"}
+              {event.locationLabel || "Lieu à confirmer"}
             </div>
           </div>
           {event.category ? (
@@ -626,12 +626,6 @@ export default async function ArtistPublicPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen overflow-hidden bg-[#0b0b0c] text-white">
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(circle_at_top,_rgba(222,51,51,0.18),_transparent_55%)]" />
-        <div className="absolute right-[-120px] top-[180px] h-72 w-72 rounded-full bg-[#de3333]/8 blur-3xl" />
-        <div className="absolute left-[-120px] top-[520px] h-80 w-80 rounded-full bg-white/[0.04] blur-3xl" />
-      </div>
-
       <Link
         href="/"
         className="fixed right-4 top-4 z-40 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.03] px-4 py-2 text-sm font-medium text-white/78 backdrop-blur-md transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white sm:right-6 sm:top-6 lg:right-8"
@@ -689,12 +683,12 @@ export default async function ArtistPublicPage({ params }: PageProps) {
 
                   <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
                     <Calendar className="h-4 w-4" />
-                    <span>{upcomingEvents.length} a venir</span>
+                    <span>{upcomingEvents.length} à venir</span>
                   </div>
 
                   <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
                     <Calendar className="h-4 w-4" />
-                    <span>{pastEvents.length} passes</span>
+                    <span>{pastEvents.length} passés</span>
                   </div>
                 </div>
               </div>
@@ -740,14 +734,14 @@ export default async function ArtistPublicPage({ params }: PageProps) {
         <section className="mt-16">
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <div className="text-sm uppercase tracking-[0.28em] text-white/40">Evenements</div>
+              <div className="text-sm uppercase tracking-[0.28em] text-white/40">Événements</div>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                A venir et en cours
+                À venir et en cours
               </h2>
             </div>
 
             <div className="rounded-full border border-white/10 bg-white/[0.035] px-4 py-2 text-sm text-white/70">
-              {upcomingEvents.length} evenement{upcomingEvents.length > 1 ? "s" : ""}
+              {upcomingEvents.length} événement{upcomingEvents.length > 1 ? "s" : ""}
             </div>
           </div>
 
@@ -759,7 +753,7 @@ export default async function ArtistPublicPage({ params }: PageProps) {
             </div>
           ) : (
             <div className="rounded-[28px] border border-dashed border-white/12 bg-white/[0.025] p-8 text-white/60">
-              Aucun evenement a venir n&apos;est actuellement rattache a cet artiste.
+              Aucun événement à venir n&apos;est actuellement rattaché à cet artiste.
             </div>
           )}
         </section>
@@ -767,14 +761,14 @@ export default async function ArtistPublicPage({ params }: PageProps) {
         <section className="mt-16">
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <div className="text-sm uppercase tracking-[0.28em] text-white/40">Memoire</div>
+              <div className="text-sm uppercase tracking-[0.28em] text-white/40">Mémoire</div>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                Evenements passes
+                Événements passés
               </h2>
             </div>
 
             <div className="rounded-full border border-white/10 bg-white/[0.035] px-4 py-2 text-sm text-white/70">
-              {pastEvents.length} evenement{pastEvents.length > 1 ? "s" : ""}
+              {pastEvents.length} événement{pastEvents.length > 1 ? "s" : ""}
             </div>
           </div>
 
@@ -786,7 +780,7 @@ export default async function ArtistPublicPage({ params }: PageProps) {
             </div>
           ) : (
             <div className="rounded-[28px] border border-dashed border-white/12 bg-white/[0.025] p-8 text-white/60">
-              Aucun evenement passe n&apos;est disponible pour cet artiste pour le moment.
+              Aucun événement passé n&apos;est disponible pour cet artiste pour le moment.
             </div>
           )}
         </section>
