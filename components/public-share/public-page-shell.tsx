@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   Calendar,
   Download,
@@ -23,13 +24,13 @@ type PublicPageShellProps = {
   imageUrl?: string | null;
   openInAppPath: string;
   downloadAppPath: string;
-  children: React.ReactNode;
+  children: ReactNode;
 };
 
 type PublicSectionProps = {
   title: string;
   description?: string | null;
-  children: React.ReactNode;
+  children: ReactNode;
 };
 
 function getInitials(value: string) {
@@ -248,7 +249,7 @@ export function PublicLinkCard({
   icon = <MapPin className="h-4 w-4" />,
 }: {
   item: PublicLinkItem;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
 }) {
   return (
     <Link

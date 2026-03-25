@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import {
   CalendarDays,
@@ -36,7 +37,7 @@ function ExternalActionCard({
   href: string;
   label: string;
   caption: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }) {
   return (
     <a
