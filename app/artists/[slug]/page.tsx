@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { ArtistPageLogo } from "@/components/artists/artist-page-logo";
+import { buildPublicMetadata } from "@/lib/metadata";
 import { createClient } from "@/lib/supabase/server";
 
 export const revalidate = 300;
@@ -473,18 +474,34 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const data = await getArtistPageData(slug);
 
   if (!data) {
-    return {
+    return buildPublicMetadata({
       title: "Artiste | OutLive",
       description: "Vitrine publique artiste sur OutLive.",
-    };
+      path: `/artists/${slug}`,
+      type: "profile",
+    });
   }
 
-  return {
-    title: `${data.artist.name} | OutLive`,
-    description:
-      normalizeText(data.artist.short_description) ||
-      `Retrouvez les événements passés et à venir de ${data.artist.name} sur OutLive.`,
-  };
+  const artistDescription =
+    normalizeText(data.artist.short_description) ||
+    `Retrouvez les evenements passes et a venir de ${data.artist.name} sur OutLive.`;
+
+  return buildPublicMetadata({
+    title: data.artist.name,
+    description: artistDescription,
+    path: `/artists/${slug}`,
+    image: normalizeText(data.artist.image_url),
+    imageAlt: `Photo de ${data.artist.name}`,
+    type: "profile",
+    keywords: [
+      data.artist.name,
+      "artiste",
+      "OutLive",
+      "Orleans",
+      "concert",
+      "sorties",
+    ],
+  });
 }
 
 function ArtistEventCard({ event, archived = false }: { event: ArtistEvent; archived?: boolean }) {

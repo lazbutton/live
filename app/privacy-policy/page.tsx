@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "Politique de confidentialite | OutLive",
+import { buildPublicMetadata } from "@/lib/metadata";
+
+export const metadata: Metadata = buildPublicMetadata({
+  title: "Politique de confidentialite",
   description:
     "Politique de confidentialite du site OutLive Admin, des espaces organisateurs et des traitements relies a Supabase, Apple, Firebase et aux integrations associees.",
-};
+  path: "/privacy-policy",
+});
 
 const LAST_UPDATED = "21 mars 2026";
 

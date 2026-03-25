@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "Aide et assistance | OutLive",
+import { buildPublicMetadata } from "@/lib/metadata";
+
+export const metadata: Metadata = buildPublicMetadata({
+  title: "Aide et assistance",
   description:
     "Page d'aide et d'assistance pour l'application OutLive. Contact support, aide rapide et liens utiles.",
-};
+  path: "/help",
+});
 
 const LAST_UPDATED = "24 mars 2026";
 

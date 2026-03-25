@@ -1,3 +1,14 @@
+import type { Metadata } from "next";
+
+import { buildPublicMetadata } from "@/lib/metadata";
+
+export const metadata: Metadata = buildPublicMetadata({
+  title: "Conditions d'utilisation",
+  description:
+    "Conditions d'utilisation de la plateforme OutLive, du site public, des espaces admin et organisateur, et des services associes.",
+  path: "/terms-of-service",
+});
+
 export default function TermsOfServicePage() {
   return (
     <div className="min-h-screen bg-background">
