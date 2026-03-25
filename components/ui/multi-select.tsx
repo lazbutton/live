@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { X, Check, ChevronDown, Search } from "lucide-react";
+import { X, Check, ChevronDown, Plus, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
@@ -24,6 +25,8 @@ interface MultiSelectProps {
   className?: string;
   disabled?: boolean;
   searchPlaceholder?: string;
+  emptyActionLabel?: string;
+  onEmptyAction?: (query: string) => void;
 }
 
 export function MultiSelect({
@@ -34,9 +37,13 @@ export function MultiSelect({
   className,
   disabled = false,
   searchPlaceholder = "Rechercher...",
+  emptyActionLabel,
+  onEmptyAction,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const trimmedSearchQuery = searchQuery.trim();
+  const actionLabel = emptyActionLabel || "Ajouter";
 
   const filteredOptions = React.useMemo(() => {
     if (!searchQuery.trim()) return options;
@@ -160,7 +167,7 @@ export function MultiSelect({
         <div className="max-h-60 overflow-auto p-1" style={{ overscrollBehavior: "contain" }}>
           {filteredOptions.length === 0 ? (
             <div className="py-6 text-center text-sm text-muted-foreground">
-              {searchQuery.trim() ? "Aucun résultat trouvé" : "Aucune option disponible"}
+              <div>{trimmedSearchQuery ? "Aucun résultat trouvé" : "Aucune option disponible"}</div>
             </div>
           ) : (
             filteredOptions.map((option) => {
@@ -195,6 +202,25 @@ export function MultiSelect({
             })
           )}
         </div>
+        {onEmptyAction ? (
+          <div className="border-t p-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              className="w-full justify-center gap-2 border-dashed"
+              onClick={() => {
+                onEmptyAction(trimmedSearchQuery);
+                setOpen(false);
+                setSearchQuery("");
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              {trimmedSearchQuery ? `${actionLabel} : "${trimmedSearchQuery}"` : actionLabel}
+            </Button>
+          </div>
+        ) : null}
       </PopoverContent>
     </Popover>
   );

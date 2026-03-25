@@ -12,6 +12,7 @@ import { useAlertDialog } from "@/hooks/use-alert-dialog";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
@@ -45,6 +46,27 @@ type MajorEventOption = {
   city_name: string | null;
   start_at: string;
   status: string;
+};
+
+type QuickLocationFormState = {
+  name: string;
+  address: string;
+  capacity: string;
+  is_organizer: boolean;
+};
+
+type QuickOrganizerFormState = {
+  name: string;
+  instagram_url: string;
+  facebook_url: string;
+};
+
+type QuickArtistFormState = {
+  name: string;
+  artist_type_label: string;
+  short_description: string;
+  instagram_url: string;
+  website_url: string;
 };
 
 export type EventFormPrefill = Partial<{
@@ -177,6 +199,34 @@ export function EventFormSheet({
   const [selectedOrganizerIds, setSelectedOrganizerIds] = React.useState<string[]>([]);
   const [selectedArtistIds, setSelectedArtistIds] = React.useState<string[]>([]);
   const [selectedTagIds, setSelectedTagIds] = React.useState<string[]>([]);
+  const [createdLocations, setCreatedLocations] = React.useState<LocationData[]>([]);
+  const [createdOrganizers, setCreatedOrganizers] = React.useState<OrganizerOption[]>([]);
+  const [createdArtists, setCreatedArtists] = React.useState<ArtistOption[]>([]);
+
+  const [isCreateLocationDialogOpen, setIsCreateLocationDialogOpen] = React.useState(false);
+  const [isCreateOrganizerDialogOpen, setIsCreateOrganizerDialogOpen] = React.useState(false);
+  const [isCreateArtistDialogOpen, setIsCreateArtistDialogOpen] = React.useState(false);
+  const [isCreatingLocation, setIsCreatingLocation] = React.useState(false);
+  const [isCreatingOrganizer, setIsCreatingOrganizer] = React.useState(false);
+  const [isCreatingArtist, setIsCreatingArtist] = React.useState(false);
+  const [quickLocationForm, setQuickLocationForm] = React.useState<QuickLocationFormState>({
+    name: "",
+    address: "",
+    capacity: "",
+    is_organizer: false,
+  });
+  const [quickOrganizerForm, setQuickOrganizerForm] = React.useState<QuickOrganizerFormState>({
+    name: "",
+    instagram_url: "",
+    facebook_url: "",
+  });
+  const [quickArtistForm, setQuickArtistForm] = React.useState<QuickArtistFormState>({
+    name: "",
+    artist_type_label: "",
+    short_description: "",
+    instagram_url: "",
+    website_url: "",
+  });
 
   const [rooms, setRooms] = React.useState<RoomOption[]>([]);
   const [loadingRooms, setLoadingRooms] = React.useState(false);
@@ -387,26 +437,249 @@ export function EventFormSheet({
     if (!open) return;
     if (!formData.location_id) return;
     if (formData.capacity) return;
-    const loc = locations.find((l) => l.id === formData.location_id);
+    const loc = [...createdLocations, ...locations].find((l) => l.id === formData.location_id);
     if (loc?.capacity != null) {
       setFormData((prev) => ({ ...prev, capacity: String(loc.capacity ?? "") }));
     }
-  }, [formData.location_id, locations, formData.capacity, open]);
+  }, [createdLocations, formData.location_id, locations, formData.capacity, open]);
+
+  const availableLocations = React.useMemo(() => {
+    const map = new Map<string, LocationData>();
+    [...locations, ...createdLocations].forEach((location) => {
+      map.set(location.id, location);
+    });
+    return Array.from(map.values());
+  }, [createdLocations, locations]);
+
+  const availableOrganizers = React.useMemo(() => {
+    const map = new Map<string, OrganizerOption>();
+    [...organizers, ...createdOrganizers].forEach((organizer) => {
+      map.set(organizer.id, organizer);
+    });
+    return Array.from(map.values());
+  }, [createdOrganizers, organizers]);
+
+  const availableArtists = React.useMemo(() => {
+    const map = new Map<string, ArtistOption>();
+    [...artists, ...createdArtists].forEach((artist) => {
+      map.set(artist.id, artist);
+    });
+    return Array.from(map.values());
+  }, [artists, createdArtists]);
+
+  function openCreateLocationDialog(prefillName = "") {
+    setQuickLocationForm({
+      name: prefillName,
+      address: "",
+      capacity: "",
+      is_organizer: false,
+    });
+    setIsCreateLocationDialogOpen(true);
+  }
+
+  function openCreateOrganizerDialog(prefillName = "") {
+    setQuickOrganizerForm({
+      name: prefillName,
+      instagram_url: "",
+      facebook_url: "",
+    });
+    setIsCreateOrganizerDialogOpen(true);
+  }
+
+  function openCreateArtistDialog(prefillName = "") {
+    setQuickArtistForm({
+      name: prefillName,
+      artist_type_label: "",
+      short_description: "",
+      instagram_url: "",
+      website_url: "",
+    });
+    setIsCreateArtistDialogOpen(true);
+  }
+
+  function handleLocationSelection(locationId: string) {
+    if (locationId) {
+      const selectedLocation = availableLocations.find((location) => location.id === locationId);
+      if (selectedLocation) {
+        setFormData((prev) => ({
+          ...prev,
+          location_id: locationId,
+          room_id: "",
+          capacity:
+            selectedLocation.capacity != null
+              ? String(selectedLocation.capacity)
+              : prev.capacity,
+        }));
+        return;
+      }
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      location_id: locationId,
+      room_id: "",
+    }));
+  }
 
   function handleOrganizerChange(newIds: string[]) {
     setSelectedOrganizerIds(newIds);
 
     // UX: si un organisateur est sélectionné, pré-remplir les réseaux sociaux (sans écraser si déjà rempli)
     if (newIds.length > 0) {
-      const first = organizers.find((o) => o.id === newIds[0]);
+      const first = availableOrganizers.find((o) => o.id === newIds[0]);
       if (first) {
         setFormData((prev) => ({
           ...prev,
           instagram_url: prev.instagram_url || first.instagram_url || "",
           facebook_url: prev.facebook_url || first.facebook_url || "",
-          ...(first.type === "location" ? { location_id: first.id } : null),
+          ...(first.type === "location" ? { location_id: first.id, room_id: "" } : null),
         }));
       }
+    }
+  }
+
+  async function handleQuickLocationCreate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!quickLocationForm.name.trim()) {
+      toast({ title: "Nom requis", description: "Renseigne le nom du lieu.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setIsCreatingLocation(true);
+      const { data, error } = await supabase
+        .from("locations")
+        .insert([
+          {
+            name: quickLocationForm.name.trim(),
+            address: quickLocationForm.address.trim() || null,
+            capacity: quickLocationForm.capacity.trim()
+              ? parseInt(quickLocationForm.capacity, 10)
+              : null,
+            is_organizer: quickLocationForm.is_organizer,
+          },
+        ])
+        .select("id, name, address, capacity, latitude, longitude")
+        .single();
+
+      if (error) throw error;
+
+      const createdLocation = data as LocationData;
+      setCreatedLocations((prev) => [...prev, createdLocation]);
+      if (quickLocationForm.is_organizer) {
+        setCreatedOrganizers((prev) => [
+          ...prev,
+          {
+            id: createdLocation.id,
+            name: createdLocation.name,
+            instagram_url: null,
+            facebook_url: null,
+            type: "location",
+          },
+        ]);
+      }
+      handleLocationSelection(createdLocation.id);
+      setIsCreateLocationDialogOpen(false);
+      toast({ title: "Lieu créé", variant: "success" });
+    } catch (e: any) {
+      console.error("Erreur création lieu:", e);
+      toast({
+        title: "Création lieu impossible",
+        description: e?.message || "Une erreur est survenue.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingLocation(false);
+    }
+  }
+
+  async function handleQuickOrganizerCreate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!quickOrganizerForm.name.trim()) {
+      toast({ title: "Nom requis", description: "Renseigne le nom de l'organisateur.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setIsCreatingOrganizer(true);
+      const { data, error } = await supabase
+        .from("organizers")
+        .insert([
+          {
+            name: quickOrganizerForm.name.trim(),
+            instagram_url: quickOrganizerForm.instagram_url.trim() || null,
+            facebook_url: quickOrganizerForm.facebook_url.trim() || null,
+          },
+        ])
+        .select("id, name, instagram_url, facebook_url")
+        .single();
+
+      if (error) throw error;
+
+      const createdOrganizer = { ...(data as Omit<OrganizerOption, "type">), type: "organizer" as const };
+      setCreatedOrganizers((prev) => [...prev, createdOrganizer]);
+      handleOrganizerChange(Array.from(new Set([...selectedOrganizerIds, createdOrganizer.id])));
+      setIsCreateOrganizerDialogOpen(false);
+      toast({ title: "Organisateur créé", variant: "success" });
+    } catch (e: any) {
+      console.error("Erreur création organisateur:", e);
+      toast({
+        title: "Création organisateur impossible",
+        description: e?.message || "Une erreur est survenue.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingOrganizer(false);
+    }
+  }
+
+  async function handleQuickArtistCreate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!quickArtistForm.name.trim()) {
+      toast({ title: "Nom requis", description: "Renseigne le nom de l'artiste.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setIsCreatingArtist(true);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const { data, error } = await supabase
+        .from("artists")
+        .insert([
+          {
+            name: quickArtistForm.name.trim(),
+            artist_type_label: quickArtistForm.artist_type_label.trim() || null,
+            short_description: quickArtistForm.short_description.trim() || null,
+            instagram_url: quickArtistForm.instagram_url.trim() || null,
+            website_url: quickArtistForm.website_url.trim() || null,
+            created_by: user?.id || null,
+          },
+        ])
+        .select("id, name, slug, image_url")
+        .single();
+
+      if (error) throw error;
+
+      const createdArtist = data as ArtistOption;
+      setCreatedArtists((prev) => [...prev, createdArtist]);
+      setSelectedArtistIds((prev) => Array.from(new Set([...prev, createdArtist.id])));
+      setIsCreateArtistDialogOpen(false);
+      toast({ title: "Artiste créé", variant: "success" });
+    } catch (e: any) {
+      console.error("Erreur création artiste:", e);
+      toast({
+        title: "Création artiste impossible",
+        description: e?.message || "Une erreur est survenue.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingArtist(false);
     }
   }
 
@@ -568,7 +841,7 @@ export function EventFormSheet({
 
       const selectedLocation =
         formData.location_id && formData.location_id !== "none"
-          ? locations.find((l) => l.id === formData.location_id) || null
+          ? availableLocations.find((l) => l.id === formData.location_id) || null
           : null;
 
       const statusToSave: EventStatus = forceApproved ? "approved" : formData.status;
@@ -633,7 +906,7 @@ export function EventFormSheet({
 
       if (selectedOrganizerIds.length > 0) {
         const organizerEntries = selectedOrganizerIds.map((id) => {
-          const org = organizers.find((o) => o.id === id);
+          const org = availableOrganizers.find((o) => o.id === id);
           return org?.type === "location"
             ? { event_id: savedEventId, location_id: id, organizer_id: null }
             : { event_id: savedEventId, organizer_id: id, location_id: null };
@@ -707,32 +980,32 @@ export function EventFormSheet({
   const locationOptions = React.useMemo(
     () => [
       { value: "", label: "Aucun lieu" },
-      ...locations.map((location) => ({
+      ...availableLocations.map((location) => ({
         value: location.id,
         label: location.city?.label
             ? `${location.name} • ${location.city.label}`
             : location.name,
       })),
     ],
-    [locations],
+    [availableLocations],
   );
 
   const categoryOptions = React.useMemo(() => categories, [categories]);
   const organizerOptions = React.useMemo(
     () =>
-      organizers.map((o) => ({
+      availableOrganizers.map((o) => ({
         value: o.id,
         label: `${o.name}${o.type === "location" ? " (Lieu)" : ""}`,
       })),
-    [organizers],
+    [availableOrganizers],
   );
   const artistOptions = React.useMemo(
     () =>
-      artists.map((artist) => ({
+      availableArtists.map((artist) => ({
         value: artist.id,
         label: artist.name,
       })),
-    [artists],
+    [availableArtists],
   );
   const tagOptions = React.useMemo(() => tags.map((t) => ({ value: t.id, label: t.name })), [tags]);
   const majorEventOptions = React.useMemo(
@@ -747,15 +1020,15 @@ export function EventFormSheet({
   );
 
   const side = isMobile ? "bottom" : "right";
-  const selectedLocation = locations.find((location) => location.id === formData.location_id) || null;
+  const selectedLocation = availableLocations.find((location) => location.id === formData.location_id) || null;
   const selectedLocationLabel = selectedLocation?.name;
   const selectedCategoryLabel = categories.find((category) => category.id === formData.category)?.name;
   const selectedMajorEvent = majorEvents.find((majorEvent) => majorEvent.id === formData.major_event_id) || null;
   const selectedOrganizerLabels = selectedOrganizerIds
-    .map((id) => organizers.find((organizer) => organizer.id === id)?.name)
+    .map((id) => availableOrganizers.find((organizer) => organizer.id === id)?.name)
     .filter((value): value is string => Boolean(value));
   const selectedArtistLabels = selectedArtistIds
-    .map((id) => artists.find((artist) => artist.id === id)?.name)
+    .map((id) => availableArtists.find((artist) => artist.id === id)?.name)
     .filter((value): value is string => Boolean(value));
   const missingRequired = [
     !formData.title.trim() ? "Titre" : null,
@@ -879,8 +1152,11 @@ export function EventFormSheet({
                     <SelectSearchable
                       options={locationOptions}
                       value={formData.location_id}
-                      onValueChange={(v) => setFormData((p) => ({ ...p, location_id: v, room_id: "" }))}
+                      onValueChange={(v) => handleLocationSelection(v)}
                       placeholder="Sélectionner un lieu"
+                      searchPlaceholder="Rechercher un lieu..."
+                      emptyActionLabel="Ajouter un lieu"
+                      onEmptyAction={openCreateLocationDialog}
                     />
                     {selectedLocation?.city?.label ? (
                       <p className="text-xs text-muted-foreground">
@@ -1024,6 +1300,8 @@ export function EventFormSheet({
                         onChange={handleOrganizerChange}
                         placeholder="Sélectionner…"
                         disabled={saving || deleting}
+                        emptyActionLabel="Ajouter un organisateur"
+                        onEmptyAction={openCreateOrganizerDialog}
                       />
                     </div>
 
@@ -1035,6 +1313,8 @@ export function EventFormSheet({
                         onChange={setSelectedArtistIds}
                         placeholder="Selectionner..."
                         disabled={saving || deleting}
+                        emptyActionLabel="Ajouter un artiste"
+                        onEmptyAction={openCreateArtistDialog}
                       />
                       <p className="text-xs text-muted-foreground">
                         Cette liste alimente la section publique "Artistes" dans la fiche evenement.
@@ -1234,6 +1514,247 @@ export function EventFormSheet({
           </div>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={isCreateLocationDialogOpen} onOpenChange={setIsCreateLocationDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Ajouter un lieu</DialogTitle>
+            <DialogDescription>
+              Crée un lieu sans quitter le formulaire d&apos;événement.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleQuickLocationCreate}>
+            <div className="space-y-2">
+              <Label htmlFor="quick-event-location-name">Nom</Label>
+              <Input
+                id="quick-event-location-name"
+                value={quickLocationForm.name}
+                onChange={(event) =>
+                  setQuickLocationForm((prev) => ({ ...prev, name: event.target.value }))
+                }
+                placeholder="Nom du lieu"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quick-event-location-address">Adresse</Label>
+              <Input
+                id="quick-event-location-address"
+                value={quickLocationForm.address}
+                onChange={(event) =>
+                  setQuickLocationForm((prev) => ({ ...prev, address: event.target.value }))
+                }
+                placeholder="Adresse du lieu"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quick-event-location-capacity">Capacité</Label>
+              <Input
+                id="quick-event-location-capacity"
+                type="number"
+                min="0"
+                value={quickLocationForm.capacity}
+                onChange={(event) =>
+                  setQuickLocationForm((prev) => ({ ...prev, capacity: event.target.value }))
+                }
+                placeholder="Optionnel"
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">Utilisable aussi comme organisateur</p>
+                <p className="text-xs text-muted-foreground">
+                  Le lieu apparaîtra également dans les organisateurs.
+                </p>
+              </div>
+              <Switch
+                checked={quickLocationForm.is_organizer}
+                onCheckedChange={(checked) =>
+                  setQuickLocationForm((prev) => ({ ...prev, is_organizer: checked }))
+                }
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateLocationDialogOpen(false)}
+                disabled={isCreatingLocation}
+              >
+                Annuler
+              </Button>
+              <Button type="submit" disabled={isCreatingLocation}>
+                {isCreatingLocation ? "Création..." : "Créer le lieu"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCreateOrganizerDialogOpen} onOpenChange={setIsCreateOrganizerDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Ajouter un organisateur</DialogTitle>
+            <DialogDescription>
+              Crée un organisateur sans quitter le formulaire d&apos;événement.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleQuickOrganizerCreate}>
+            <div className="space-y-2">
+              <Label htmlFor="quick-event-organizer-name">Nom</Label>
+              <Input
+                id="quick-event-organizer-name"
+                value={quickOrganizerForm.name}
+                onChange={(event) =>
+                  setQuickOrganizerForm((prev) => ({ ...prev, name: event.target.value }))
+                }
+                placeholder="Nom de l'organisateur"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quick-event-organizer-instagram">Instagram</Label>
+              <Input
+                id="quick-event-organizer-instagram"
+                type="url"
+                value={quickOrganizerForm.instagram_url}
+                onChange={(event) =>
+                  setQuickOrganizerForm((prev) => ({
+                    ...prev,
+                    instagram_url: event.target.value,
+                  }))
+                }
+                placeholder="https://instagram.com/..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quick-event-organizer-facebook">Facebook</Label>
+              <Input
+                id="quick-event-organizer-facebook"
+                type="url"
+                value={quickOrganizerForm.facebook_url}
+                onChange={(event) =>
+                  setQuickOrganizerForm((prev) => ({
+                    ...prev,
+                    facebook_url: event.target.value,
+                  }))
+                }
+                placeholder="https://facebook.com/..."
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateOrganizerDialogOpen(false)}
+                disabled={isCreatingOrganizer}
+              >
+                Annuler
+              </Button>
+              <Button type="submit" disabled={isCreatingOrganizer}>
+                {isCreatingOrganizer ? "Création..." : "Créer l'organisateur"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCreateArtistDialogOpen} onOpenChange={setIsCreateArtistDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Ajouter un artiste</DialogTitle>
+            <DialogDescription>
+              Crée un artiste ou collaborateur sans quitter le formulaire d&apos;événement.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleQuickArtistCreate}>
+            <div className="space-y-2">
+              <Label htmlFor="quick-event-artist-name">Nom</Label>
+              <Input
+                id="quick-event-artist-name"
+                value={quickArtistForm.name}
+                onChange={(event) =>
+                  setQuickArtistForm((prev) => ({ ...prev, name: event.target.value }))
+                }
+                placeholder="Nom de scène / collaborateur"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quick-event-artist-type">Type / dénomination</Label>
+              <Input
+                id="quick-event-artist-type"
+                value={quickArtistForm.artist_type_label}
+                onChange={(event) =>
+                  setQuickArtistForm((prev) => ({
+                    ...prev,
+                    artist_type_label: event.target.value,
+                  }))
+                }
+                placeholder="DJ, Groupe, Plasticien..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quick-event-artist-description">Description courte</Label>
+              <Textarea
+                id="quick-event-artist-description"
+                value={quickArtistForm.short_description}
+                onChange={(event) =>
+                  setQuickArtistForm((prev) => ({
+                    ...prev,
+                    short_description: event.target.value,
+                  }))
+                }
+                rows={3}
+                placeholder="Quelques lignes de présentation"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quick-event-artist-instagram">Instagram</Label>
+              <Input
+                id="quick-event-artist-instagram"
+                type="url"
+                value={quickArtistForm.instagram_url}
+                onChange={(event) =>
+                  setQuickArtistForm((prev) => ({
+                    ...prev,
+                    instagram_url: event.target.value,
+                  }))
+                }
+                placeholder="https://instagram.com/..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quick-event-artist-website">Site web</Label>
+              <Input
+                id="quick-event-artist-website"
+                type="url"
+                value={quickArtistForm.website_url}
+                onChange={(event) =>
+                  setQuickArtistForm((prev) => ({
+                    ...prev,
+                    website_url: event.target.value,
+                  }))
+                }
+                placeholder="https://..."
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateArtistDialogOpen(false)}
+                disabled={isCreatingArtist}
+              >
+                Annuler
+              </Button>
+              <Button type="submit" disabled={isCreatingArtist}>
+                {isCreatingArtist ? "Création..." : "Créer l'artiste"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialogComponent />
     </>

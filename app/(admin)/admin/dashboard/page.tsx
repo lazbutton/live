@@ -298,6 +298,7 @@ export default function DashboardPage() {
         <QuickActions
           onCreateEvent={() => router.push("/admin/events?create=1")}
           onImportFromUrl={() => router.push("/admin/events?import=1")}
+          onImportFromFacebook={() => router.push("/admin/events?facebook_import=1")}
         />
 
         <WeekTimeline

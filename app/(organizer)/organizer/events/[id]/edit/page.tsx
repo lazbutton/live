@@ -9,6 +9,7 @@ import { OrganizerLayout } from "../../../components/organizer-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { MultiSelectCreatable } from "@/components/ui/multi-select-creatable";
@@ -897,12 +898,12 @@ function EditEventContent() {
                   )}
 
                   <div className="flex items-center space-x-2 pt-4 border-t mt-4">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       id="is_full"
                       checked={formData.is_full}
-                      onChange={(e) => setFormData({ ...formData, is_full: e.target.checked })}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, is_full: checked === true })
+                      }
                     />
                     <Label htmlFor="is_full" className="text-sm font-normal cursor-pointer flex items-center gap-2">
                       <Users className="h-4 w-4" />

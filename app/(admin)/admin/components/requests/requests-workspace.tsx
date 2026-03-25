@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatDateWithoutTimezone } from "@/lib/date-utils";
+import { isFacebookEventUrl } from "@/lib/facebook/event-url";
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -21,6 +22,7 @@ import {
   getRequestLaneLabel,
   getRequestStatusLabel,
   getRequestTypeLabel,
+  safeDomainFromUrl,
   startOfLocalDay,
 } from "@/lib/admin-requests";
 import { toast } from "@/components/ui/use-toast";
@@ -31,7 +33,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -50,6 +51,7 @@ import {
   SquarePen,
   ThumbsDown,
   Wand2,
+  Download,
 } from "lucide-react";
 
 const REQUEST_LANES: AdminRequestLane[] = ["ready", "to_process", "from_url", "blocked", "processed"];
@@ -69,6 +71,59 @@ function formatEventDate(value: string | null) {
   } catch {
     return value;
   }
+}
+
+type DuplicateEvent = {
+  id: string;
+  title: string;
+  date: string;
+  external_url: string | null;
+  scraping_url: string | null;
+};
+
+function toLocalDayKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function normalizeComparableUrl(value: string | null | undefined) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed);
+    url.hash = "";
+    url.hostname = url.hostname.toLowerCase();
+    url.pathname = url.pathname.replace(/\/+$/, "") || "/";
+    return url.toString();
+  } catch {
+    return trimmed.toLowerCase();
+  }
+}
+
+function buildUrlCandidates(item: AdminRequestItem) {
+  const values = [
+    item.sourceUrl,
+    item.raw.source_url,
+    item.raw.event_data?.external_url as string | null | undefined,
+    item.raw.event_data?.scraping_url as string | null | undefined,
+  ];
+
+  return [...new Set(values.map((value) => normalizeComparableUrl(value)).filter(Boolean))] as string[];
+}
+
+function buildRawUrlCandidates(item: AdminRequestItem) {
+  const values = [
+    item.sourceUrl,
+    item.raw.source_url,
+    item.raw.event_data?.external_url as string | null | undefined,
+    item.raw.event_data?.scraping_url as string | null | undefined,
+  ];
+
+  return [...new Set(values.map((value) => value?.trim()).filter(Boolean))] as string[];
 }
 
 function getLaneBadgeClassName(lane: AdminRequestLane) {
@@ -123,6 +178,26 @@ function SummaryField({ label, value, icon }: { label: string; value: string; ic
       </div>
       <div className="text-sm font-medium leading-snug">{value}</div>
     </div>
+  );
+}
+
+function SectionCard({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="border-border/70 bg-card/80 shadow-sm">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">{title}</CardTitle>
+        {description ? <CardDescription>{description}</CardDescription> : null}
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   );
 }
 
@@ -197,6 +272,9 @@ function RequestListRow({
 
 function RequestDetails({
   item,
+  duplicateEvents,
+  duplicateEventsLoading,
+  similarRequests,
   notesDraft,
   savingNotes,
   processingId,
@@ -206,10 +284,15 @@ function RequestDetails({
   onCopy,
   onConvert,
   onEdit,
+  onEditWithPrefill,
+  onOpenRelatedRequest,
   onReject,
   onViewEvent,
 }: {
   item: AdminRequestItem | null;
+  duplicateEvents: DuplicateEvent[];
+  duplicateEventsLoading: boolean;
+  similarRequests: AdminRequestItem[];
   notesDraft: string;
   savingNotes: boolean;
   processingId: string | null;
@@ -219,6 +302,8 @@ function RequestDetails({
   onCopy: (value: string) => void;
   onConvert: (item: AdminRequestItem) => void;
   onEdit: (item: AdminRequestItem) => void;
+  onEditWithPrefill: (item: AdminRequestItem, mode: "url" | "facebook") => void;
+  onOpenRelatedRequest: (item: AdminRequestItem) => void;
   onReject: (item: AdminRequestItem) => void;
   onViewEvent: (item: AdminRequestItem) => void;
 }) {
@@ -237,122 +322,278 @@ function RequestDetails({
           : item.status === "pending"
             ? "Compléter avant conversion"
             : "Demande déjà traitée";
+  const canUseFacebookPrefill =
+    item.requestType === "event_from_url" &&
+    item.status === "pending" &&
+    Boolean(item.sourceUrl) &&
+    isFacebookEventUrl(item.sourceUrl as string);
+  const sourceDomain = item.sourceUrl ? safeDomainFromUrl(item.sourceUrl) : null;
+  const description =
+    typeof item.raw.event_data?.description === "string"
+      ? item.raw.event_data.description.trim()
+      : "";
+  const showDuplicateSection =
+    duplicateEventsLoading ||
+    duplicateEvents.length > 0 ||
+    similarRequests.length > 0;
 
   return (
-    <div className="space-y-5">
-      <div className="space-y-2">
+    <div className="space-y-3">
+      <div className="rounded-xl border border-border/70 bg-card/90 p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <LaneBadge lane={item.lane} />
-          <Badge variant={item.requestType === "event_from_url" ? "outline" : "secondary"}>
+          <Badge
+            variant={item.requestType === "event_from_url" ? "outline" : "secondary"}
+          >
             {getRequestTypeLabel(item.requestType)}
           </Badge>
           <StatusBadge status={item.status} />
+          {sourceDomain ? <Badge variant="outline">{sourceDomain}</Badge> : null}
         </div>
 
-        <div>
+        <div className="mt-3 space-y-1">
           <h3 className="text-xl font-semibold leading-tight">{item.title}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {formatRequestAgeShort(item.requestedAt)} • {actionLabel}
           </p>
         </div>
-      </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <SummaryField
+            label="Date"
+            value={formatEventDate(item.eventDate)}
+            icon={<CalendarDays className="h-3.5 w-3.5" />}
+          />
+          <SummaryField
+            label="Lieu"
+            value={item.locationSummary || "Non renseigné"}
+            icon={<MapPin className="h-3.5 w-3.5" />}
+          />
+          <SummaryField
+            label="Catégorie"
+            value={item.category || "Non renseignée"}
+            icon={<FileSearch className="h-3.5 w-3.5" />}
+          />
+        </div>
 
-      <div className="flex flex-wrap gap-2">
-        {item.status === "pending" && item.isFastConvertible && (
-          <Button type="button" disabled={isProcessing} onClick={() => onConvert(item)}>
-            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-            Convertir en 1 clic
-          </Button>
-        )}
+        {item.sourceUrl ? (
+          <div className="mt-3 rounded-lg border bg-muted/30 p-3">
+            <div className="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+              URL source
+            </div>
+            <div className="break-all text-sm font-medium">{item.sourceUrl}</div>
+          </div>
+        ) : null}
 
-        {item.status === "pending" && (
-          <Button type="button" variant="outline" onClick={() => onEdit(item)}>
-            <SquarePen className="mr-2 h-4 w-4" />
-            Ouvrir l'édition complète
-          </Button>
-        )}
-
-        {item.status === "pending" && (
-          <Button type="button" variant="destructive" onClick={() => onReject(item)}>
-            <ThumbsDown className="mr-2 h-4 w-4" />
-            Rejeter
-          </Button>
-        )}
-
-        {item.sourceUrl && (
-          <>
-            <Button type="button" variant="outline" onClick={() => onOpenUrl(item.sourceUrl as string)}>
-              <ExternalLink className="mr-2 h-4 w-4" />
-              Ouvrir la source
+        <div className="mt-3 flex flex-wrap gap-2">
+          {item.status === "pending" && item.isFastConvertible ? (
+            <Button
+              type="button"
+              disabled={isProcessing}
+              onClick={() => onConvert(item)}
+            >
+              {isProcessing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Wand2 className="mr-2 h-4 w-4" />
+              )}
+              Convertir en 1 clic
             </Button>
-            <Button type="button" variant="ghost" onClick={() => onCopy(item.sourceUrl as string)}>
-              <Copy className="mr-2 h-4 w-4" />
-              Copier l'URL
+          ) : null}
+
+          {item.status === "pending" ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onEdit(item)}
+            >
+              <SquarePen className="mr-2 h-4 w-4" />
+              Ouvrir l'édition
             </Button>
-          </>
-        )}
+          ) : null}
 
-        {item.status === "converted" && item.convertedEventId && (
-          <Button type="button" variant="outline" onClick={() => onViewEvent(item)}>
-            <ArrowUpRight className="mr-2 h-4 w-4" />
-            Voir dans Événements
-          </Button>
-        )}
+          {item.status === "pending" ? (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => onReject(item)}
+            >
+              <ThumbsDown className="mr-2 h-4 w-4" />
+              Rejeter
+            </Button>
+          ) : null}
+
+          {item.sourceUrl ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenUrl(item.sourceUrl as string)}
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Ouvrir
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => onCopy(item.sourceUrl as string)}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Copier l'URL
+              </Button>
+            </>
+          ) : null}
+
+          {item.requestType === "event_from_url" && item.status === "pending" ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onEditWithPrefill(item, "url")}
+              >
+                <Link2 className="mr-2 h-4 w-4" />
+                Créer depuis l’URL
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onEditWithPrefill(item, "facebook")}
+                disabled={!canUseFacebookPrefill}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Facebook
+              </Button>
+            </>
+          ) : null}
+
+          {item.status === "converted" && item.convertedEventId ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onViewEvent(item)}
+            >
+              <ArrowUpRight className="mr-2 h-4 w-4" />
+              Voir l'événement
+            </Button>
+          ) : null}
+        </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <SummaryField label="Date" value={formatEventDate(item.eventDate)} icon={<CalendarDays className="h-3.5 w-3.5" />} />
-        <SummaryField label="Lieu" value={item.locationSummary || "Non renseigné"} icon={<MapPin className="h-3.5 w-3.5" />} />
-        <SummaryField label="Catégorie" value={item.category || "Non renseignée"} icon={<FileSearch className="h-3.5 w-3.5" />} />
-        <SummaryField label="Organisateurs" value={item.organizerSummary || "Non renseignés"} icon={<Link2 className="h-3.5 w-3.5" />} />
-      </div>
-
-      {item.missingFields.length > 0 && item.status === "pending" && (
-        <Card className="border-amber-500/30 bg-amber-500/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Points à compléter</CardTitle>
-            <CardDescription>La conversion rapide reste bloquée tant que ces champs ne sont pas remplis.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
+      {item.missingFields.length > 0 && item.status === "pending" ? (
+        <Card className="border-amber-500/30 bg-amber-500/5 shadow-sm">
+          <CardContent className="flex flex-wrap items-center gap-2 p-3">
+            <div className="text-sm font-medium text-amber-900 dark:text-amber-100">
+              À compléter
+            </div>
             {item.missingFields.map((field) => (
-              <Badge key={field} variant="outline" className="border-amber-500/30 bg-background">
+              <Badge
+                key={field}
+                variant="outline"
+                className="border-amber-500/30 bg-background"
+              >
                 {field}
               </Badge>
             ))}
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
-      {item.raw.event_data?.description && (
-        <div className="space-y-2">
-          <div className="text-sm font-medium">Description</div>
-          <div className="rounded-xl border bg-card/70 p-4 text-sm leading-relaxed">{item.raw.event_data.description}</div>
-        </div>
-      )}
+      {showDuplicateSection ? (
+        <SectionCard title="Doublons potentiels">
+          <div className="space-y-3">
+            {duplicateEventsLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Recherche…
+              </div>
+            ) : null}
 
-      <Separator />
+            {duplicateEvents.length > 0 ? (
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Événements</div>
+                {duplicateEvents.map((duplicate) => (
+                  <div
+                    key={duplicate.id}
+                    className="rounded-lg border bg-card/60 p-3"
+                  >
+                    <div className="font-medium">{duplicate.title}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {formatEventDate(duplicate.date)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium">Notes admin</div>
-            <div className="text-xs text-muted-foreground">Motif de rejet, contexte, arbitrage ou notes internes.</div>
+            {similarRequests.length > 0 ? (
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Demandes similaires</div>
+                {similarRequests.map((similar) => (
+                  <button
+                    key={similar.id}
+                    type="button"
+                    onClick={() => onOpenRelatedRequest(similar)}
+                    className="w-full rounded-lg border bg-card/60 p-3 text-left transition-colors hover:bg-accent/10"
+                  >
+                    <div className="font-medium">{similar.title}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {formatRequestAgeShort(similar.requestedAt)} •{" "}
+                      {formatEventDate(similar.eventDate)}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
-          <Button type="button" variant="outline" size="sm" disabled={savingNotes} onClick={onSaveNotes}>
-            {savingNotes ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer"}
-          </Button>
-        </div>
+        </SectionCard>
+      ) : null}
 
-        <Textarea
-          rows={5}
-          value={notesDraft}
-          onChange={(event) => onNotesChange(event.target.value)}
-          placeholder="Ajoute une note interne ou un motif explicite."
-        />
-      </div>
+      <Card className="border-border/70 bg-card/80 shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-base">Notes admin</CardTitle>
+              <CardDescription>
+                Motif de rejet, contexte, arbitrage ou notes internes.
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={savingNotes}
+              onClick={onSaveNotes}
+            >
+              {savingNotes ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Enregistrer"
+              )}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            rows={5}
+            value={notesDraft}
+            onChange={(event) => onNotesChange(event.target.value)}
+            placeholder="Ajoute une note interne ou un motif explicite."
+          />
+        </CardContent>
+      </Card>
+
+      {description ? (
+        <details className="rounded-xl border bg-card/70 p-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            Description
+          </summary>
+          <div className="mt-3 text-sm leading-relaxed">{description}</div>
+        </details>
+      ) : null}
 
       <details className="rounded-xl border bg-card/70 p-4">
-        <summary className="cursor-pointer text-sm font-medium">Données brutes</summary>
+        <summary className="cursor-pointer text-sm font-medium">
+          Données brutes
+        </summary>
         <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs">
 {JSON.stringify(
   {
@@ -391,6 +632,8 @@ export function RequestsWorkspace() {
   const [notesDraft, setNotesDraft] = React.useState("");
   const [savingNotes, setSavingNotes] = React.useState(false);
   const [processingId, setProcessingId] = React.useState<string | null>(null);
+  const [duplicateEventsLoading, setDuplicateEventsLoading] = React.useState(false);
+  const [duplicateEvents, setDuplicateEvents] = React.useState<DuplicateEvent[]>([]);
   const [rejectOpen, setRejectOpen] = React.useState(false);
   const [rejectReason, setRejectReason] = React.useState("");
   const [rejectTarget, setRejectTarget] = React.useState<AdminRequestItem | null>(null);
@@ -495,6 +738,121 @@ export function RequestsWorkspace() {
     setNotesDraft(activeItem?.notes || "");
   }, [activeItem?.id, activeItem?.notes]);
 
+  const similarRequests = React.useMemo(() => {
+    if (!activeItem) {
+      return [];
+    }
+
+    const activeUrlCandidates = buildUrlCandidates(activeItem);
+    const activeDayKey =
+      activeItem.eventDate &&
+      !Number.isNaN(new Date(activeItem.eventDate).getTime())
+        ? toLocalDayKey(startOfLocalDay(new Date(activeItem.eventDate)))
+        : null;
+    const normalizedActiveTitle = activeItem.title.trim().toLowerCase();
+
+    return items
+      .filter((item) => item.id !== activeItem.id)
+      .filter((item) => {
+        const otherUrlCandidates = buildUrlCandidates(item);
+        const hasMatchingUrl = otherUrlCandidates.some((candidate) =>
+          activeUrlCandidates.includes(candidate)
+        );
+
+        const hasMatchingTitleAndDay =
+          Boolean(activeDayKey) &&
+          Boolean(item.eventDate) &&
+          !Number.isNaN(new Date(item.eventDate as string).getTime()) &&
+          toLocalDayKey(startOfLocalDay(new Date(item.eventDate as string))) ===
+            activeDayKey &&
+          item.title.trim().toLowerCase() === normalizedActiveTitle;
+
+        return hasMatchingUrl || hasMatchingTitleAndDay;
+      })
+      .sort(
+        (left, right) =>
+          new Date(right.requestedAt).getTime() -
+          new Date(left.requestedAt).getTime()
+      )
+      .slice(0, 6);
+  }, [activeItem, items]);
+
+  const loadDuplicateEvents = React.useCallback(async (item: AdminRequestItem) => {
+    const urlCandidates = buildRawUrlCandidates(item);
+    const title = item.raw.event_data?.title || item.title || "";
+    const dateIso = item.eventDate || item.raw.event_data?.date || "";
+
+    setDuplicateEventsLoading(true);
+    try {
+      const results: DuplicateEvent[] = [];
+
+      for (const candidate of urlCandidates.slice(0, 3)) {
+        const [byExternal, byScraping] = await Promise.all([
+          supabase
+            .from("events")
+            .select("id,title,date,external_url,scraping_url")
+            .eq("external_url", candidate)
+            .limit(10),
+          supabase
+            .from("events")
+            .select("id,title,date,external_url,scraping_url")
+            .eq("scraping_url", candidate)
+            .limit(10),
+        ]);
+
+        if (byExternal.data) {
+          results.push(...(byExternal.data as DuplicateEvent[]));
+        }
+        if (byScraping.data) {
+          results.push(...(byScraping.data as DuplicateEvent[]));
+        }
+      }
+
+      if (title && dateIso && !Number.isNaN(new Date(dateIso).getTime())) {
+        const dayStart = startOfLocalDay(new Date(dateIso));
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+
+        const byTitleAndDay = await supabase
+          .from("events")
+          .select("id,title,date,external_url,scraping_url")
+          .gte("date", dayStart.toISOString())
+          .lt("date", dayEnd.toISOString())
+          .ilike("title", `%${title.slice(0, 60)}%`)
+          .limit(10);
+
+        if (byTitleAndDay.data) {
+          results.push(...(byTitleAndDay.data as DuplicateEvent[]));
+        }
+      }
+
+      const unique = new Map<string, DuplicateEvent>();
+      results.forEach((entry) => {
+        if (entry?.id) {
+          unique.set(entry.id, entry);
+        }
+      });
+      setDuplicateEvents(Array.from(unique.values()));
+    } catch (error) {
+      console.error("Erreur doublons événements:", error);
+      setDuplicateEvents([]);
+    } finally {
+      setDuplicateEventsLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!activeItem) {
+      setDuplicateEvents([]);
+      setDuplicateEventsLoading(false);
+      return;
+    }
+
+    if (!isMobile || detailsOpen) {
+      void loadDuplicateEvents(activeItem);
+    }
+  }, [activeItem, detailsOpen, isMobile, loadDuplicateEvents]);
+
   const refresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
@@ -523,6 +881,13 @@ export function RequestsWorkspace() {
   const openFullReview = React.useCallback(
     (item: AdminRequestItem) => {
       router.push(`/admin/requests/${item.id}/create-event`);
+    },
+    [router]
+  );
+
+  const openFullReviewWithPrefill = React.useCallback(
+    (item: AdminRequestItem, mode: "url" | "facebook") => {
+      router.push(`/admin/requests/${item.id}/create-event?prefill=${mode}`);
     },
     [router]
   );
@@ -807,7 +1172,12 @@ export function RequestsWorkspace() {
         </CardContent>
       </Card>
 
-      <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-[minmax(0,1fr)_420px]")}>
+      <div
+        className={cn(
+          "grid gap-4",
+          isMobile ? "grid-cols-1" : "grid-cols-[minmax(0,1fr)_minmax(460px,560px)]"
+        )}
+      >
         <Card className="min-w-0">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">{filteredItems.length} demande(s)</CardTitle>
@@ -853,6 +1223,9 @@ export function RequestsWorkspace() {
             <CardContent>
               <RequestDetails
                 item={activeItem}
+                duplicateEvents={duplicateEvents}
+                duplicateEventsLoading={duplicateEventsLoading}
+                similarRequests={similarRequests}
                 notesDraft={notesDraft}
                 savingNotes={savingNotes}
                 processingId={processingId}
@@ -862,6 +1235,8 @@ export function RequestsWorkspace() {
                 onCopy={(value) => void copyText(value)}
                 onConvert={(item) => void convertFast(item)}
                 onEdit={openFullReview}
+                onEditWithPrefill={openFullReviewWithPrefill}
+                onOpenRelatedRequest={openItem}
                 onReject={requestReject}
                 onViewEvent={viewEvent}
               />
@@ -880,6 +1255,9 @@ export function RequestsWorkspace() {
 
             <RequestDetails
               item={activeItem}
+              duplicateEvents={duplicateEvents}
+              duplicateEventsLoading={duplicateEventsLoading}
+              similarRequests={similarRequests}
               notesDraft={notesDraft}
               savingNotes={savingNotes}
               processingId={processingId}
@@ -889,6 +1267,8 @@ export function RequestsWorkspace() {
               onCopy={(value) => void copyText(value)}
               onConvert={(item) => void convertFast(item)}
               onEdit={openFullReview}
+              onEditWithPrefill={openFullReviewWithPrefill}
+              onOpenRelatedRequest={openItem}
               onReject={requestReject}
               onViewEvent={viewEvent}
             />

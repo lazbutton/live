@@ -1,5 +1,8 @@
 import * as cheerio from "cheerio";
+import { isValid, parse } from "date-fns";
+import { fr } from "date-fns/locale";
 import OpenAI from "openai";
+import { getZonedDateParts, zonedTimeToUtc } from "@/lib/cron-timezone";
 
 export interface ScrapedEventData {
   title?: string;
@@ -27,6 +30,137 @@ export interface ScrapeEventPageArgs {
   location_id?: string | null;
   /** Supabase client (server/service) used to load scraping configs + ai fields */
   supabase: any;
+}
+
+const DATE_PATTERNS_WITH_YEAR = [
+  "d/M/yyyy HH:mm",
+  "d/M/yyyy H:mm",
+  "d-M-yyyy HH:mm",
+  "d-M-yyyy H:mm",
+  "d.M.yyyy HH:mm",
+  "d.M.yyyy H:mm",
+  "d/M/yyyy",
+  "d-M-yyyy",
+  "d.M.yyyy",
+  "d MMMM yyyy HH:mm",
+  "d MMMM yyyy H:mm",
+  "d MMM yyyy HH:mm",
+  "d MMM yyyy H:mm",
+  "d MMMM yyyy",
+  "d MMM yyyy",
+  "EEEE d MMMM yyyy HH:mm",
+  "EEEE d MMMM yyyy H:mm",
+  "EEEE d MMM yyyy HH:mm",
+  "EEEE d MMM yyyy H:mm",
+  "EEEE d MMMM yyyy",
+  "EEEE d MMM yyyy",
+  "EEE d MMMM yyyy HH:mm",
+  "EEE d MMMM yyyy H:mm",
+  "EEE d MMM yyyy HH:mm",
+  "EEE d MMM yyyy H:mm",
+  "EEE d MMMM yyyy",
+  "EEE d MMM yyyy",
+];
+
+const DATE_PATTERNS_WITHOUT_YEAR = [
+  "d/M HH:mm",
+  "d/M H:mm",
+  "d-M HH:mm",
+  "d-M H:mm",
+  "d.M HH:mm",
+  "d.M H:mm",
+  "d/M",
+  "d-M",
+  "d.M",
+  "d MMMM HH:mm",
+  "d MMMM H:mm",
+  "d MMM HH:mm",
+  "d MMM H:mm",
+  "d MMMM",
+  "d MMM",
+  "EEEE d MMMM HH:mm",
+  "EEEE d MMMM H:mm",
+  "EEEE d MMM HH:mm",
+  "EEEE d MMM H:mm",
+  "EEEE d MMMM",
+  "EEEE d MMM",
+  "EEE d MMMM HH:mm",
+  "EEE d MMMM H:mm",
+  "EEE d MMM HH:mm",
+  "EEE d MMM H:mm",
+  "EEE d MMMM",
+  "EEE d MMM",
+];
+
+function sanitizeScrapedDateValue(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\s*,\s*/g, " ")
+    .replace(/\s+[•–-]\s+/g, " ")
+    .replace(/\s+à\s+/gi, " ")
+    .replace(/\b([a-zàâçéèêëîïôûùüÿœæ]{3,})\./giu, "$1")
+    .replace(/(\d{1,2})\s*h\s*(\d{2})/gi, "$1:$2")
+    .replace(/(\d{1,2})\s*h\b/gi, "$1:00");
+}
+
+function hasExplicitYear(value: string) {
+  return /\b(19|20)\d{2}\b/.test(value);
+}
+
+function parseScrapedDateValue(value: string, referenceDate: Date) {
+  const patterns = hasExplicitYear(value)
+    ? DATE_PATTERNS_WITH_YEAR
+    : DATE_PATTERNS_WITHOUT_YEAR;
+
+  for (const pattern of patterns) {
+    const parsed = parse(value, pattern, referenceDate, { locale: fr });
+    if (isValid(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function normalizeScrapedDate(
+  value: string | undefined,
+  scrapedAt: Date,
+): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const cleaned = sanitizeScrapedDateValue(trimmed);
+  const scrapedParts = getZonedDateParts(scrapedAt);
+  const referenceDate = new Date(
+    Date.UTC(scrapedParts.year, scrapedParts.month - 1, scrapedParts.day, 0, 0, 0),
+  );
+  const parsed = parseScrapedDateValue(cleaned, referenceDate);
+
+  if (!parsed) {
+    return trimmed;
+  }
+
+  const utcDate = zonedTimeToUtc({
+    year: parsed.getFullYear(),
+    month: parsed.getMonth() + 1,
+    day: parsed.getDate(),
+    hour: parsed.getHours(),
+    minute: parsed.getMinutes(),
+    second: parsed.getSeconds(),
+  });
+
+  return utcDate.toISOString();
 }
 
 export async function scrapeEventPage({ url, organizer_id, location_id, supabase }: ScrapeEventPageArgs) {
@@ -278,6 +412,9 @@ export async function scrapeEventPage({ url, organizer_id, location_id, supabase
     ];
   }
 
+  const scrapedAt = new Date();
+  const scrapedYear = getZonedDateParts(scrapedAt).year;
+
   const contextForAI = `
 URL: ${url}
 Titre de la page: ${title}
@@ -376,6 +513,11 @@ FORMAT DE SORTIE JSON ATTENDU:
   ${jsonFields}
 }
 
+RÈGLE IMPORTANTE SUR LES DATES:
+- Si la page mentionne une date sans année explicite, utilise l'année du jour du scraping.
+- Le jour du scraping à utiliser comme référence est ${scrapedYear}.
+- Retourne toujours les champs date/end_date dans un format ISO 8601 complet.
+
 Retourne UNIQUEMENT le JSON valide, sans texte avant ou après, sans commentaires, sans markdown.`;
 
   const completion = await openai.chat.completions.create({
@@ -427,8 +569,14 @@ Retourne UNIQUEMENT le JSON valide, sans texte avant ou après, sans commentaire
       (filteredExtractedData.description as string) ||
       description.trim() ||
       undefined,
-    date: (customScrapingData.date as string) || (filteredExtractedData.date as string) || undefined,
-    end_date: (customScrapingData.end_date as string) || (filteredExtractedData.end_date as string) || undefined,
+    date: normalizeScrapedDate(
+      (customScrapingData.date as string) || (filteredExtractedData.date as string) || undefined,
+      scrapedAt,
+    ),
+    end_date: normalizeScrapedDate(
+      (customScrapingData.end_date as string) || (filteredExtractedData.end_date as string) || undefined,
+      scrapedAt,
+    ),
     price: (customScrapingData.price as string) || (filteredExtractedData.price as string) || undefined,
     presale_price: (customScrapingData.presale_price as string) || (filteredExtractedData.presale_price as string) || undefined,
     subscriber_price: (customScrapingData.subscriber_price as string) || (filteredExtractedData.subscriber_price as string) || undefined,

@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendNotificationToUser } from "@/lib/notifications";
+import {
+  addDaysToLocalDate,
+  getIsoLocalDate,
+  getIsoLocalTime,
+  getZonedDateParts,
+  zonedTimeToUtc,
+} from "@/lib/cron-timezone";
 
 /**
  * Vérifie que la requête vient bien de Vercel Cron
@@ -37,15 +44,31 @@ export async function GET(request: NextRequest) {
     
     console.log("📅 Démarrage du cron de notifications pour les événements du jour");
     
-    // Récupérer la date d'aujourd'hui (début et fin de journée)
     const now = new Date();
-    const today = new Date(now);
-    today.setHours(0, 0, 0, 0);
-    const todayStart = today.toISOString();
-    
-    const todayEnd = new Date(today);
-    todayEnd.setHours(23, 59, 59, 999);
-    const todayEndStr = todayEnd.toISOString();
+    const nowInParis = getZonedDateParts(now);
+    const todayInParis = {
+      year: nowInParis.year,
+      month: nowInParis.month,
+      day: nowInParis.day,
+    };
+    const tomorrowInParis = addDaysToLocalDate(todayInParis, 1);
+    const todayStart = zonedTimeToUtc({
+      ...todayInParis,
+      hour: 0,
+      minute: 0,
+      second: 0,
+    }).toISOString();
+    const tomorrowStart = zonedTimeToUtc({
+      ...tomorrowInParis,
+      hour: 0,
+      minute: 0,
+      second: 0,
+    }).toISOString();
+    const todayLabel = getIsoLocalDate(todayInParis);
+
+    console.log(
+      `🕒 Référence Europe/Paris: ${todayLabel} ${getIsoLocalTime(nowInParis)}`,
+    );
     
     // Récupérer les événements approuvés du jour avec leurs catégories (exclure les événements complets)
     const { data: events, error: eventsError } = await supabase
@@ -54,7 +77,7 @@ export async function GET(request: NextRequest) {
       .eq("status", "approved")
       .or("is_full.is.null,is_full.eq.false") // Exclure les événements complets
       .gte("date", todayStart)
-      .lt("date", todayEndStr)
+      .lt("date", tomorrowStart)
       .order("date", { ascending: true });
     
     if (eventsError) {
@@ -130,8 +153,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Vérifier si l'heure actuelle correspond à l'heure configurée (pour les utilisateurs "daily")
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
+    const currentHour = nowInParis.hour;
+    const currentMinute = nowInParis.minute;
     
     if (globalSettings.notification_time) {
       const [configuredHour, configuredMinute] = globalSettings.notification_time.split(":").map(Number);
@@ -139,7 +162,9 @@ export async function GET(request: NextRequest) {
       const isInTimeWindow = currentHour === configuredHour && Math.abs(currentMinute - configuredMinute) <= 5;
       
       if (!isInTimeWindow) {
-        console.log(`ℹ️ Pas dans la fenêtre d'envoi. Heure actuelle: ${currentHour}:${currentMinute}, Heure configurée: ${configuredHour}:${configuredMinute}`);
+        console.log(
+          `ℹ️ Pas dans la fenêtre d'envoi Paris. Heure actuelle: ${String(currentHour).padStart(2, "0")}:${String(currentMinute).padStart(2, "0")}, Heure configurée: ${String(configuredHour).padStart(2, "0")}:${String(configuredMinute).padStart(2, "0")}`,
+        );
         return NextResponse.json({
           success: true,
           message: "Pas dans la fenêtre d'envoi",
@@ -218,7 +243,7 @@ export async function GET(request: NextRequest) {
           .eq("user_id", userId)
           .eq("title", title)
           .gte("sent_at", todayStart)
-          .lt("sent_at", todayEndStr);
+          .lt("sent_at", tomorrowStart);
 
         if (logCheckError) {
           console.warn(`⚠️ Impossible de vérifier l'anti-doublon daily pour ${userId}:`, logCheckError);
@@ -234,7 +259,7 @@ export async function GET(request: NextRequest) {
           body,
           data: {
             type: "daily_events",
-            date: todayStart.split("T")[0],
+            date: todayLabel,
             event_ids: eventIds,
             events_count: userEvents.length,
             categories,

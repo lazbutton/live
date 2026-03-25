@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Download, Plus, Search } from "lucide-react";
+import { Download, Link2, Plus, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,8 @@ export type EventFiltersBarProps = {
   onHideLongEventsChange: (value: boolean) => void;
   pendingCount: number;
   onCreateClick: () => void;
-  onImportClick: () => void;
+  onImportFromUrlClick: () => void;
+  onImportFromFacebookClick: () => void;
   className?: string;
 };
 
@@ -61,7 +62,8 @@ export function EventFiltersBar({
   onHideLongEventsChange,
   pendingCount,
   onCreateClick,
-  onImportClick,
+  onImportFromUrlClick,
+  onImportFromFacebookClick,
   className,
 }: EventFiltersBarProps) {
   return (
@@ -84,11 +86,20 @@ export function EventFiltersBar({
           <Button
             type="button"
             variant="outline"
-            onClick={onImportClick}
+            onClick={onImportFromUrlClick}
+            className="h-11 gap-2 flex-1 md:flex-none"
+          >
+            <Link2 className="h-4 w-4" />
+            Créer à partir de l’URL
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onImportFromFacebookClick}
             className="h-11 gap-2 flex-1 md:flex-none"
           >
             <Download className="h-4 w-4" />
-            Importer
+            Importer depuis Facebook
           </Button>
         </div>
       </div>

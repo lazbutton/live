@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown, Search, X } from "lucide-react";
+import { Check, ChevronDown, Plus, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,8 @@ interface SelectSearchableProps {
   className?: string;
   searchPlaceholder?: string;
   disabled?: boolean;
+  emptyActionLabel?: string;
+  onEmptyAction?: (query: string) => void;
 }
 
 export function SelectSearchable({
@@ -34,9 +36,13 @@ export function SelectSearchable({
   className,
   searchPlaceholder = "Rechercher...",
   disabled = false,
+  emptyActionLabel,
+  onEmptyAction,
 }: SelectSearchableProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const trimmedSearchQuery = searchQuery.trim();
+  const actionLabel = emptyActionLabel || "Ajouter";
 
   const filteredOptions = React.useMemo(() => {
     if (!searchQuery.trim()) return options;
@@ -47,6 +53,12 @@ export function SelectSearchable({
   }, [options, searchQuery]);
 
   const selectedOption = options.find((opt) => opt.value === value);
+
+  React.useEffect(() => {
+    if (!open) {
+      setSearchQuery("");
+    }
+  }, [open]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -67,7 +79,12 @@ export function SelectSearchable({
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0" align="start" portalled={false}>
+      <PopoverContent
+        className="p-0"
+        align="start"
+        portalled={false}
+        style={{ width: "var(--radix-popover-trigger-width)" }}
+      >
         <div className="p-2">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -86,7 +103,9 @@ export function SelectSearchable({
         >
           {filteredOptions.length === 0 ? (
             <div className="py-6 text-center text-sm text-muted-foreground">
-              Aucun résultat trouvé
+              <div>
+                {trimmedSearchQuery ? "Aucun résultat trouvé" : "Aucune option disponible"}
+              </div>
             </div>
           ) : (
             <div className="p-1">
@@ -115,6 +134,25 @@ export function SelectSearchable({
             </div>
           )}
         </div>
+        {onEmptyAction ? (
+          <div className="border-t p-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              className="w-full justify-center gap-2 border-dashed"
+              onClick={() => {
+                onEmptyAction(trimmedSearchQuery);
+                setOpen(false);
+                setSearchQuery("");
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              {trimmedSearchQuery ? `${actionLabel} : "${trimmedSearchQuery}"` : actionLabel}
+            </Button>
+          </div>
+        ) : null}
       </PopoverContent>
     </Popover>
   );

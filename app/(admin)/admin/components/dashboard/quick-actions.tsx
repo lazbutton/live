@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Plus } from "lucide-react";
+import { Download, Link2, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,14 +8,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export type QuickActionsProps = {
   onCreateEvent: () => void;
   onImportFromUrl: () => void;
+  onImportFromFacebook: () => void;
 };
 
-export function QuickActions({ onCreateEvent, onImportFromUrl }: QuickActionsProps) {
+export function QuickActions({
+  onCreateEvent,
+  onImportFromUrl,
+  onImportFromFacebook,
+}: QuickActionsProps) {
   return (
     <Card>
       <CardHeader className="pb-4">
         <CardTitle className="text-lg">Actions rapides</CardTitle>
-        <CardDescription>Les 2 actions les plus courantes.</CardDescription>
+        <CardDescription>Les actions les plus courantes.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 sm:flex-row">
         <Button type="button" onClick={onCreateEvent} className="gap-2 flex-1">
@@ -23,8 +28,17 @@ export function QuickActions({ onCreateEvent, onImportFromUrl }: QuickActionsPro
           Créer un événement
         </Button>
         <Button type="button" variant="outline" onClick={onImportFromUrl} className="gap-2 flex-1">
+          <Link2 className="h-4 w-4" />
+          Créer à partir de l’URL
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onImportFromFacebook}
+          className="gap-2 flex-1"
+        >
           <Download className="h-4 w-4" />
-          Importer depuis URL
+          Importer depuis Facebook
         </Button>
       </CardContent>
     </Card>

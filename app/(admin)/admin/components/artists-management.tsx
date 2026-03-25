@@ -10,7 +10,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -25,18 +24,38 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ChevronLeft,
   ExternalLink,
   Globe,
   Instagram,
+  LayoutGrid,
+  List as ListIcon,
   Music,
   Pencil,
   Plus,
+  Save,
   Search,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
+import Cropper, { Area } from "react-easy-crop";
 
 type AdminArtist = {
   id: string;
@@ -115,10 +134,19 @@ export function ArtistsManagement() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [viewMode, setViewMode] = React.useState<"list" | "grid">("grid");
+  const [sheetOpen, setSheetOpen] = React.useState(false);
   const [selectedArtist, setSelectedArtist] = React.useState<AdminArtist | null>(null);
   const [form, setForm] = React.useState<ArtistFormState>(emptyFormState);
+  const [imagePreview, setImagePreview] = React.useState<string | null>(null);
   const [imageFile, setImageFile] = React.useState<File | null>(null);
+  const [originalImageSrc, setOriginalImageSrc] = React.useState<string | null>(null);
+  const [showCropper, setShowCropper] = React.useState(false);
+  const [cropImageSrc, setCropImageSrc] = React.useState<string | null>(null);
+  const [crop, setCrop] = React.useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = React.useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = React.useState<Area | null>(null);
+  const [aspectRatio, setAspectRatio] = React.useState<number | undefined>(1);
 
   const tagNameById = React.useMemo(
     () => new Map(tags.map((tag) => [tag.id, tag.name])),
@@ -183,11 +211,34 @@ export function ArtistsManagement() {
     loadTags();
   }, [loadArtists, loadTags]);
 
-  function openCreateDialog() {
+  function resetCropperState() {
+    setShowCropper(false);
+    setCropImageSrc(null);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedAreaPixels(null);
+    setAspectRatio(1);
+  }
+
+  function resetEditorState() {
     setSelectedArtist(null);
     setForm(emptyFormState);
+    setImagePreview(null);
     setImageFile(null);
-    setDialogOpen(true);
+    setOriginalImageSrc(null);
+    resetCropperState();
+  }
+
+  function handleSheetOpenChange(open: boolean) {
+    setSheetOpen(open);
+    if (!open) {
+      resetEditorState();
+    }
+  }
+
+  function openCreateDialog() {
+    resetEditorState();
+    setSheetOpen(true);
   }
 
   function openEditDialog(artist: AdminArtist) {
@@ -203,8 +254,122 @@ export function ArtistsManagement() {
       soundcloud_url: artist.soundcloud_url || "",
       deezer_url: artist.deezer_url || "",
     });
+    setImagePreview(artist.image_url || null);
+    setOriginalImageSrc(artist.image_url || null);
     setImageFile(null);
-    setDialogOpen(true);
+    resetCropperState();
+    setSheetOpen(true);
+  }
+
+  function handleImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      alert("Veuillez sélectionner une image.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      setOriginalImageSrc(dataUrl);
+      setCropImageSrc(dataUrl);
+      setShowCropper(true);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  const onCropComplete = React.useCallback(
+    (_croppedArea: Area, nextCroppedAreaPixels: Area) => {
+      setCroppedAreaPixels(nextCroppedAreaPixels);
+    },
+    [],
+  );
+
+  async function createCroppedImage(imageSrc: string, pixelCrop: Area): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.src = imageSrc;
+
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          reject(new Error("Impossible de créer le contexte canvas"));
+          return;
+        }
+
+        canvas.width = pixelCrop.width;
+        canvas.height = pixelCrop.height;
+
+        ctx.drawImage(
+          image,
+          pixelCrop.x,
+          pixelCrop.y,
+          pixelCrop.width,
+          pixelCrop.height,
+          0,
+          0,
+          pixelCrop.width,
+          pixelCrop.height,
+        );
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("Erreur lors de la création du blob"));
+              return;
+            }
+            resolve(blob);
+          },
+          "image/jpeg",
+          0.9,
+        );
+      };
+
+      image.onerror = () => {
+        reject(new Error("Erreur lors du chargement de l'image"));
+      };
+    });
+  }
+
+  async function handleCropSave() {
+    if (!cropImageSrc || !croppedAreaPixels) {
+      return;
+    }
+
+    try {
+      const croppedImageBlob = await createCroppedImage(
+        cropImageSrc,
+        croppedAreaPixels,
+      );
+      const croppedImageFile = new File(
+        [croppedImageBlob],
+        `cropped-${Date.now()}.jpg`,
+        { type: "image/jpeg" },
+      );
+
+      setImageFile(croppedImageFile);
+      setImagePreview(URL.createObjectURL(croppedImageBlob));
+      resetCropperState();
+    } catch (error) {
+      console.error("Erreur lors du rognage de l'image artiste:", error);
+      alert("Erreur lors du rognage de l'image.");
+    }
+  }
+
+  function handleImagePreviewClick() {
+    if (!originalImageSrc) {
+      return;
+    }
+
+    setCropImageSrc(originalImageSrc);
+    setShowCropper(true);
   }
 
   async function uploadImageIfNeeded() {
@@ -281,10 +446,7 @@ export function ArtistsManagement() {
       }
 
       await loadArtists();
-      setDialogOpen(false);
-      setSelectedArtist(null);
-      setForm(emptyFormState);
-      setImageFile(null);
+      handleSheetOpenChange(false);
     } catch (error: any) {
       console.error("Erreur lors de l'enregistrement de l'artiste:", error);
       alert(error?.message || "Impossible d'enregistrer l'artiste.");
@@ -321,20 +483,54 @@ export function ArtistsManagement() {
               Gerez les profils publics des artistes et collaborateurs relies aux evenements.
             </CardDescription>
           </div>
-          <Button onClick={openCreateDialog}>
-            <Plus className="mr-2 h-4 w-4" />
-            Ajouter un artiste
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 rounded-lg border bg-background p-1">
+              <Button
+                type="button"
+                variant={viewMode === "list" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => setViewMode("list")}
+                title="Vue liste"
+              >
+                <ListIcon className="h-4 w-4" />
+                <span className="hidden md:inline">Liste</span>
+              </Button>
+              <Button
+                type="button"
+                variant={viewMode === "grid" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => setViewMode("grid")}
+                title="Vue grille"
+              >
+                <LayoutGrid className="h-4 w-4" />
+                <span className="hidden md:inline">Grille</span>
+              </Button>
+            </div>
+            <Button onClick={openCreateDialog}>
+              <Plus className="mr-2 h-4 w-4" />
+              Ajouter un artiste
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="relative max-w-md">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Rechercher par nom, slug, type, tag ou description"
-              className="pl-9"
-            />
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-medium">
+                {filteredArtists.length} artiste{filteredArtists.length > 1 ? "s" : ""}
+                {searchQuery && ` sur ${artists.length}`}
+              </p>
+            </div>
+            <div className="relative w-full md:max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Rechercher par nom, slug, type, tag ou description"
+                className="pl-9"
+              />
+            </div>
           </div>
 
           {loading ? (
@@ -348,6 +544,111 @@ export function ArtistsManagement() {
               <p className="max-w-md text-sm text-muted-foreground">
                 Cree un premier profil pour le rattacher ensuite a des evenements dans l&apos;admin.
               </p>
+            </div>
+          ) : viewMode === "grid" ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {filteredArtists.map((artist) => {
+                const links = buildArtistLinks(artist);
+                const artistTags = (artist.tag_ids || [])
+                  .map((tagId) => ({ id: tagId, name: tagNameById.get(tagId) || "" }))
+                  .filter((tag) => tag.name);
+
+                return (
+                  <div
+                    key={artist.id}
+                    className="flex flex-col rounded-xl border bg-card p-4 transition-all duration-200 hover:border-primary/40 hover:shadow-md"
+                  >
+                    <div className="mb-4 flex items-start gap-3">
+                      <div
+                        className="h-14 w-14 shrink-0 rounded-xl border bg-muted bg-cover bg-center"
+                        style={{
+                          backgroundImage: artist.image_url ? `url(${artist.image_url})` : undefined,
+                        }}
+                      >
+                        {!artist.image_url ? (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <Music className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="truncate font-semibold">{artist.name}</h3>
+                          {artist.artist_type_label ? (
+                            <Badge variant="outline" className="shrink-0 text-[10px]">
+                              {artist.artist_type_label}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {artist.slug}
+                        </p>
+                        <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">
+                          {artist.short_description || "Aucune description"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mb-4 min-h-[28px]">
+                      {artistTags.length === 0 ? (
+                        <span className="text-sm text-muted-foreground">Aucun tag</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {artistTags.slice(0, 4).map((tag) => (
+                            <Badge key={tag.id} variant="secondary">
+                              {tag.name}
+                            </Badge>
+                          ))}
+                          {artistTags.length > 4 ? (
+                            <Badge variant="outline">+{artistTags.length - 4}</Badge>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mb-4 flex min-h-[32px] flex-wrap gap-2">
+                      {links.length === 0 ? (
+                        <span className="text-sm text-muted-foreground">Aucun lien</span>
+                      ) : (
+                        links.map((link) => (
+                          <a
+                            key={link.label}
+                            href={link.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            {link.label}
+                          </a>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="mt-auto flex items-center justify-between gap-3 border-t pt-3">
+                      <span className="text-xs text-muted-foreground">
+                        Maj {formatDate(artist.updated_at)}
+                      </span>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => openEditDialog(artist)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => handleDelete(artist)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="overflow-x-auto rounded-lg border">
@@ -466,14 +767,31 @@ export function ArtistsManagement() {
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{selectedArtist ? "Modifier l'artiste" : "Ajouter un artiste"}</DialogTitle>
-            <DialogDescription>
+      <Sheet open={sheetOpen} onOpenChange={handleSheetOpenChange}>
+        <SheetContent
+          side="right"
+          className="w-full overflow-y-auto sm:w-[66.666vw] [@media(min-width:1440px)]:w-[66.666vw] [@media(min-width:1600px)]:max-w-2xl"
+        >
+          <SheetHeader className="mb-6">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="-ml-2 h-9 w-9"
+                onClick={() => handleSheetOpenChange(false)}
+              >
+                <ChevronLeft className="h-5 w-5" />
+                <span className="sr-only">Fermer</span>
+              </Button>
+              <SheetTitle className="text-xl md:text-2xl">
+                {selectedArtist ? "Modifier l'artiste" : "Nouvel artiste"}
+              </SheetTitle>
+            </div>
+            <SheetDescription className="mt-2">
               Renseigne le profil public qui sera affiche dans l&apos;app et rattachable aux evenements.
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="grid gap-4 md:grid-cols-2">
@@ -482,7 +800,9 @@ export function ArtistsManagement() {
                 <Input
                   id="artist-name"
                   value={form.name}
-                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, name: event.target.value }))
+                  }
                   placeholder="Nom de scène / collectif / collaborateur"
                   required
                 />
@@ -494,7 +814,10 @@ export function ArtistsManagement() {
                   id="artist-type-label"
                   value={form.artist_type_label}
                   onChange={(event) =>
-                    setForm((prev) => ({ ...prev, artist_type_label: event.target.value }))
+                    setForm((prev) => ({
+                      ...prev,
+                      artist_type_label: event.target.value,
+                    }))
                   }
                   placeholder="DJ, Groupe, Plasticien, Musicien..."
                 />
@@ -505,7 +828,9 @@ export function ArtistsManagement() {
                 <MultiSelectCreatable
                   options={tagOptions}
                   selected={form.tag_ids}
-                  onChange={(tagIds) => setForm((prev) => ({ ...prev, tag_ids: tagIds }))}
+                  onChange={(tagIds) =>
+                    setForm((prev) => ({ ...prev, tag_ids: tagIds }))
+                  }
                   onCreate={handleCreateTag}
                   placeholder="Ajouter des tags"
                   createPlaceholder="Creer ou rechercher un tag..."
@@ -519,7 +844,10 @@ export function ArtistsManagement() {
                   id="artist-description"
                   value={form.short_description}
                   onChange={(event) =>
-                    setForm((prev) => ({ ...prev, short_description: event.target.value }))
+                    setForm((prev) => ({
+                      ...prev,
+                      short_description: event.target.value,
+                    }))
                   }
                   placeholder="Quelques lignes pour presenter l'artiste"
                   rows={4}
@@ -527,43 +855,83 @@ export function ArtistsManagement() {
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="artist-image-url">Image (URL)</Label>
-                <Input
-                  id="artist-image-url"
-                  value={form.image_url}
-                  onChange={(event) => setForm((prev) => ({ ...prev, image_url: event.target.value }))}
-                  placeholder="https://..."
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="artist-image-file">Image (fichier)</Label>
-                <Input
-                  id="artist-image-file"
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => setImageFile(event.target.files?.[0] || null)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Si un fichier est choisi, il remplacera l&apos;URL saisie apres upload.
-                </p>
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <div
-                  className="h-40 rounded-xl border bg-muted bg-cover bg-center"
-                  style={{
-                    backgroundImage: form.image_url.trim()
-                      ? `url(${form.image_url.trim()})`
-                      : undefined,
-                  }}
-                >
-                  {!form.image_url.trim() ? (
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
-                      <Upload className="h-5 w-5" />
-                      <span className="text-sm">Apercu de l&apos;image</span>
+                <Label htmlFor="artist-image-file" className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Image de l&apos;artiste
+                </Label>
+                {imagePreview && !showCropper ? (
+                  <div
+                    className="group relative w-full max-w-xs cursor-pointer overflow-hidden rounded-lg border aspect-video"
+                    onClick={handleImagePreviewClick}
+                  >
+                    <img
+                      src={imagePreview}
+                      alt="Aperçu"
+                      className="h-full w-full bg-muted/20 object-contain"
+                    />
+                    <div className="admin-overlay absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="text-sm font-medium">Cliquer pour rogner</div>
                     </div>
-                  ) : null}
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute right-2 top-2"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setImagePreview(null);
+                        setImageFile(null);
+                        setOriginalImageSrc(null);
+                        setForm((prev) => ({ ...prev, image_url: "" }));
+                        const fileInput = document.getElementById(
+                          "artist-image-file",
+                        ) as HTMLInputElement | null;
+                        if (fileInput) {
+                          fileInput.value = "";
+                        }
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex h-40 w-full max-w-xs flex-col items-center justify-center rounded-xl border bg-muted text-muted-foreground">
+                    <Upload className="mb-2 h-5 w-5" />
+                    <span className="text-sm">Apercu de l&apos;image</span>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Input
+                    id="artist-image-file"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                  />
+                  <Label
+                    htmlFor="artist-image-url"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Ou entrez une URL
+                  </Label>
+                  <Input
+                    id="artist-image-url"
+                    value={form.image_url}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setForm((prev) => ({ ...prev, image_url: value }));
+                      if (value.trim()) {
+                        setImagePreview(value.trim());
+                        setOriginalImageSrc(value.trim());
+                        setImageFile(null);
+                      } else if (!imageFile) {
+                        setImagePreview(null);
+                        setOriginalImageSrc(null);
+                      }
+                    }}
+                    placeholder="https://..."
+                    disabled={Boolean(imageFile)}
+                  />
                 </div>
               </div>
 
@@ -575,7 +943,12 @@ export function ArtistsManagement() {
                 <Input
                   id="artist-website"
                   value={form.website_url}
-                  onChange={(event) => setForm((prev) => ({ ...prev, website_url: event.target.value }))}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      website_url: event.target.value,
+                    }))
+                  }
                   placeholder="https://..."
                 />
               </div>
@@ -589,7 +962,10 @@ export function ArtistsManagement() {
                   id="artist-instagram"
                   value={form.instagram_url}
                   onChange={(event) =>
-                    setForm((prev) => ({ ...prev, instagram_url: event.target.value }))
+                    setForm((prev) => ({
+                      ...prev,
+                      instagram_url: event.target.value,
+                    }))
                   }
                   placeholder="https://instagram.com/..."
                 />
@@ -604,7 +980,10 @@ export function ArtistsManagement() {
                   id="artist-soundcloud"
                   value={form.soundcloud_url}
                   onChange={(event) =>
-                    setForm((prev) => ({ ...prev, soundcloud_url: event.target.value }))
+                    setForm((prev) => ({
+                      ...prev,
+                      soundcloud_url: event.target.value,
+                    }))
                   }
                   placeholder="https://soundcloud.com/..."
                 />
@@ -618,28 +997,133 @@ export function ArtistsManagement() {
                 <Input
                   id="artist-deezer"
                   value={form.deezer_url}
-                  onChange={(event) => setForm((prev) => ({ ...prev, deezer_url: event.target.value }))}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      deezer_url: event.target.value,
+                    }))
+                  }
                   placeholder="https://deezer.com/..."
                 />
               </div>
             </div>
 
-            <DialogFooter>
+            <div className="flex flex-col gap-2 md:flex-row md:justify-end">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setDialogOpen(false)}
+                onClick={() => handleSheetOpenChange(false)}
                 disabled={saving}
+                className="w-full md:w-auto"
               >
                 Annuler
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={saving} className="w-full md:w-auto">
                 {saving ? "Enregistrement..." : selectedArtist ? "Mettre a jour" : "Creer"}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
-        </DialogContent>
-      </Dialog>
+
+          <Dialog open={showCropper} onOpenChange={setShowCropper}>
+            <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto p-0">
+              <DialogHeader className="px-6 pb-4 pt-6">
+                <DialogTitle>Rogner l&apos;image</DialogTitle>
+                <DialogDescription>
+                  Ajustez la zone de l&apos;image a utiliser.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 px-6 pb-4">
+                <div className="flex items-center gap-4">
+                  <Label htmlFor="artist-aspect-ratio" className="text-sm font-medium">
+                    Format:
+                  </Label>
+                  <Select
+                    value={aspectRatio?.toString() || "none"}
+                    onValueChange={(value) => {
+                      if (value === "none") {
+                        setAspectRatio(undefined);
+                      } else {
+                        setAspectRatio(parseFloat(value));
+                      }
+                    }}
+                  >
+                    <SelectTrigger
+                      id="artist-aspect-ratio"
+                      className="w-[180px]"
+                    >
+                      <SelectValue placeholder="Format" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Libre</SelectItem>
+                      <SelectItem value="1">1:1 (Carre)</SelectItem>
+                      <SelectItem value="1.3333333333333333">4:3</SelectItem>
+                      <SelectItem value="1.5">3:2</SelectItem>
+                      <SelectItem value="1.7777777777777777">16:9</SelectItem>
+                      <SelectItem value="0.75">3:4 (Portrait)</SelectItem>
+                      <SelectItem value="0.5625">9:16 (Portrait)</SelectItem>
+                      <SelectItem value="0.6666666666666666">2:3 (Portrait)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="relative h-[400px] w-full overflow-hidden rounded-lg bg-muted">
+                  {cropImageSrc ? (
+                    <Cropper
+                      image={cropImageSrc}
+                      crop={crop}
+                      zoom={zoom}
+                      aspect={aspectRatio}
+                      onCropChange={setCrop}
+                      onZoomChange={setZoom}
+                      onCropComplete={onCropComplete}
+                      style={{
+                        containerStyle: {
+                          width: "100%",
+                          height: "100%",
+                          position: "relative",
+                        },
+                      }}
+                    />
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Zoom</Label>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min="1"
+                      max="3"
+                      step="0.1"
+                      value={zoom}
+                      onChange={(event) => setZoom(parseFloat(event.target.value))}
+                      className="h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-muted accent-primary"
+                    />
+                    <span className="w-12 text-right text-sm text-muted-foreground">
+                      {Math.round(zoom * 100)}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 border-t pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={resetCropperState}
+                  >
+                    Annuler
+                  </Button>
+                  <Button type="button" onClick={handleCropSave}>
+                    <Save className="mr-2 h-4 w-4" />
+                    Enregistrer
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

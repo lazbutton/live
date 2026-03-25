@@ -73,7 +73,7 @@ export function OrganizersManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingOrganizer, setEditingOrganizer] = useState<Organizer | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
   const [isImporterOpen, setIsImporterOpen] = useState(false);
   const { showAlert, showConfirm, AlertDialogComponent } = useAlertDialog();
 

@@ -13,6 +13,7 @@ import { EventsCalendar } from "./events-calendar";
 import { EventArtistsQuickDialog } from "./event-artists-quick-dialog";
 import { EventFormSheet, type EventFormPrefill } from "./event-form-sheet";
 import { EventImportDialog, type ScrapedEventPayload } from "./event-import-dialog";
+import { FacebookEventImportDialog } from "./facebook-event-import-dialog";
 
 function normalizeSearchValue(value: string) {
   return value
@@ -76,6 +77,7 @@ export function EventsPage() {
   const [artistsDialogEvent, setArtistsDialogEvent] = React.useState<AdminEvent | null>(null);
   const [isArtistsDialogOpen, setIsArtistsDialogOpen] = React.useState(false);
   const [isImportOpen, setIsImportOpen] = React.useState(false);
+  const [isFacebookImportOpen, setIsFacebookImportOpen] = React.useState(false);
   const [defaultDate, setDefaultDate] = React.useState<Date | undefined>(undefined);
   const [prefill, setPrefill] = React.useState<EventFormPrefill | undefined>(undefined);
 
@@ -334,9 +336,11 @@ export function EventsPage() {
 
     const createParam = params.get("create");
     const importParam = params.get("import");
+    const facebookImportParam = params.get("facebook_import");
 
     const shouldOpenCreate = createParam === "1";
     const shouldOpenImport = importParam === "1";
+    const shouldOpenFacebookImport = facebookImportParam === "1";
 
     if (shouldOpenCreate) {
       openCreate();
@@ -346,8 +350,12 @@ export function EventsPage() {
       setIsImportOpen(true);
       params.delete("import");
     }
+    if (shouldOpenFacebookImport) {
+      setIsFacebookImportOpen(true);
+      params.delete("facebook_import");
+    }
 
-    if (shouldOpenCreate || shouldOpenImport) {
+    if (shouldOpenCreate || shouldOpenImport || shouldOpenFacebookImport) {
       const q = params.toString();
       router.replace(q ? `/admin/events?${q}` : "/admin/events");
     }
@@ -597,6 +605,10 @@ export function EventsPage() {
         external_url: (d.external_url || payload.sourceUrl || "").toString(),
         external_url_label: (d.external_url_label || "").toString(),
         scraping_url: payload.sourceUrl,
+        instagram_url:
+          typeof d.instagram_url === "string" ? d.instagram_url : "",
+        facebook_url:
+          typeof d.facebook_url === "string" ? d.facebook_url : "",
         image_url: (d.image_url || "").toString(),
         status: "pending",
       },
@@ -634,7 +646,8 @@ export function EventsPage() {
         onHideLongEventsChange={setHideLongEvents}
         pendingCount={pendingCount}
         onCreateClick={() => openCreate()}
-        onImportClick={() => setIsImportOpen(true)}
+        onImportFromUrlClick={() => setIsImportOpen(true)}
+        onImportFromFacebookClick={() => setIsFacebookImportOpen(true)}
       />
 
       <EventsCalendar
@@ -687,6 +700,13 @@ export function EventsPage() {
       <EventImportDialog
         open={isImportOpen}
         onOpenChange={setIsImportOpen}
+        organizers={organizers}
+        onImported={handleImported}
+      />
+
+      <FacebookEventImportDialog
+        open={isFacebookImportOpen}
+        onOpenChange={setIsFacebookImportOpen}
         organizers={organizers}
         onImported={handleImported}
       />

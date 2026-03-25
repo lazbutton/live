@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { SelectSearchable } from "@/components/ui/select-searchable";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Download, CheckCircle2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -466,11 +467,10 @@ export function FacebookEventsImporter({
                       onClick={() => toggleEventSelection(event.id)}
                     >
                       <div className="flex items-start gap-3">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={isSelected}
-                          onChange={() => toggleEventSelection(event.id)}
-                          className="mt-1 cursor-pointer"
+                          onCheckedChange={() => toggleEventSelection(event.id)}
+                          className="mt-1"
                           onClick={(e) => e.stopPropagation()}
                         />
                         <div className="flex-1 space-y-1">

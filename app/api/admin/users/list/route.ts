@@ -29,7 +29,7 @@ export async function GET() {
       return NextResponse.json({ 
         users: [],
         error: "Impossible de récupérer la liste des utilisateurs" 
-      });
+      }, { status: 500 });
     }
 
     // Transformer les données pour retourner uniquement les informations nécessaires

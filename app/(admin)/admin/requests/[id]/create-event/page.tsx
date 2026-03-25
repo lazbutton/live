@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useEffect, useState, useCallback, Suspense, useRef } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { AdminLayout } from "@/app/(admin)/admin/components/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AddressInput } from "@/components/ui/address-input";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { MultiSelectCreatable } from "@/components/ui/multi-select-creatable";
 import {
@@ -35,7 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Calendar, MapPin, Tag, Euro, Users, Clock, Link as LinkIcon, Image as ImageIcon, Upload, X, Save, Maximize2, Minimize2, RotateCw, LayoutGrid, ExternalLink } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Tag, Euro, Users, Clock, Link as LinkIcon, Image as ImageIcon, Upload, X, Save, Maximize2, Minimize2, RotateCw, LayoutGrid, ExternalLink, Download, Music } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
@@ -43,6 +44,7 @@ import { compressImage } from "@/lib/image-compression";
 import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { checkIsAdmin } from "@/lib/auth";
+import { isFacebookEventUrl } from "@/lib/facebook/event-url";
 
 function addHoursToDatetimeLocal(value: string, hoursToAdd: number) {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
@@ -61,6 +63,15 @@ function addHoursToDatetimeLocal(value: string, hoursToAdd: number) {
   const ho = String(d.getHours()).padStart(2, "0");
   const mi = String(d.getMinutes()).padStart(2, "0");
   return `${y}-${mo}-${da}T${ho}:${mi}`;
+}
+
+function normalizeSearchValue(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 }
 // Import toast from sonner - using alert for now
 
@@ -96,48 +107,76 @@ interface UserRequest {
   requested_by?: string | null;
 }
 
+type QuickLocationFormState = {
+  name: string;
+  address: string;
+  capacity: string;
+  latitude: string;
+  longitude: string;
+  is_organizer: boolean;
+};
+
+type QuickOrganizerFormState = {
+  name: string;
+  instagram_url: string;
+  facebook_url: string;
+  website_url: string;
+};
+
+type QuickArtistFormState = {
+  name: string;
+  artist_type_label: string;
+  short_description: string;
+  instagram_url: string;
+  website_url: string;
+};
+
 function CreateEventContent() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const requestId = params?.id as string;
+  const prefillMode = searchParams.get("prefill");
 
   const [request, setRequest] = useState<UserRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isImportingFromUrl, setIsImportingFromUrl] = useState(false);
+  const [isImportingFromFacebook, setIsImportingFromFacebook] = useState(false);
   const [locations, setLocations] = useState<{ id: string; name: string; address: string | null; capacity: number | null; latitude: number | null; longitude: number | null }[]>([]);
   const [rooms, setRooms] = useState<Array<{ id: string; name: string; location_id: string }>>([]);
   const [organizers, setOrganizers] = useState<Array<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null; type: "organizer" | "location" }>>([]);
+  const [artists, setArtists] = useState<Array<{ id: string; name: string; artist_type_label: string | null }>>([]);
   const [selectedOrganizerIds, setSelectedOrganizerIds] = useState<string[]>([]);
+  const [selectedArtistIds, setSelectedArtistIds] = useState<string[]>([]);
+  const [isCreateLocationDialogOpen, setIsCreateLocationDialogOpen] = useState(false);
+  const [isCreateOrganizerDialogOpen, setIsCreateOrganizerDialogOpen] = useState(false);
+  const [isCreateArtistDialogOpen, setIsCreateArtistDialogOpen] = useState(false);
+  const [quickLocationForm, setQuickLocationForm] = useState<QuickLocationFormState>({
+    name: "",
+    address: "",
+    capacity: "",
+    latitude: "",
+    longitude: "",
+    is_organizer: false,
+  });
+  const [quickOrganizerForm, setQuickOrganizerForm] = useState<QuickOrganizerFormState>({
+    name: "",
+    instagram_url: "",
+    facebook_url: "",
+    website_url: "",
+  });
+  const [quickArtistForm, setQuickArtistForm] = useState<QuickArtistFormState>({
+    name: "",
+    artist_type_label: "",
+    short_description: "",
+    instagram_url: "",
+    website_url: "",
+  });
+  const [isCreatingLocation, setIsCreatingLocation] = useState(false);
+  const [isCreatingOrganizer, setIsCreatingOrganizer] = useState(false);
+  const [isCreatingArtist, setIsCreatingArtist] = useState(false);
 
-  // Fonction pour mettre à jour les réseaux sociaux quand un organisateur est sélectionné
-  const handleOrganizerChange = (newOrganizerIds: string[]) => {
-    setSelectedOrganizerIds(newOrganizerIds);
-    
-    // Si un organisateur est sélectionné, mettre à jour les réseaux sociaux avec ceux du premier organisateur
-    if (newOrganizerIds.length > 0) {
-      const firstOrganizerId = newOrganizerIds[0];
-      const selectedOrganizer = organizers.find((org) => org.id === firstOrganizerId);
-      
-      if (selectedOrganizer) {
-        const updates: any = {
-          instagram_url: selectedOrganizer.instagram_url || formData.instagram_url,
-          facebook_url: selectedOrganizer.facebook_url || formData.facebook_url,
-        };
-        
-        // Si l'organisateur est aussi un lieu, remplir automatiquement le lieu
-        if (selectedOrganizer.type === "location") {
-          updates.location_id = firstOrganizerId;
-          // Charger les salles du lieu-organisateur
-          loadRoomsForLocation(firstOrganizerId);
-        }
-        
-        setFormData({
-          ...formData,
-          ...updates,
-        });
-      }
-    }
-  };
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
@@ -154,6 +193,7 @@ function CreateEventContent() {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [aspectRatio, setAspectRatio] = useState<number | undefined>(3 / 2);
+  const autoPrefillTriggeredRef = useRef<string | null>(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -196,6 +236,164 @@ function CreateEventContent() {
     } catch (error) {
       console.error("Erreur lors du chargement des salles:", error);
       setRooms([]);
+    }
+  }
+
+  async function reloadLocationsList() {
+    const { data, error } = await supabase
+      .from("locations")
+      .select("id, name, address, capacity, latitude, longitude")
+      .order("name");
+
+    if (error) {
+      throw error;
+    }
+
+    const nextLocations = data || [];
+    setLocations(nextLocations);
+    return nextLocations;
+  }
+
+  async function reloadOrganizersList() {
+    const [organizersResult, locationsOrganizersResult] = await Promise.all([
+      supabase
+        .from("organizers")
+        .select("id, name, instagram_url, facebook_url")
+        .order("name"),
+      supabase
+        .from("locations")
+        .select("id, name, instagram_url, facebook_url")
+        .eq("is_organizer", true)
+        .order("name"),
+    ]);
+
+    if (organizersResult.error) {
+      throw organizersResult.error;
+    }
+
+    if (locationsOrganizersResult.error) {
+      throw locationsOrganizersResult.error;
+    }
+
+    const nextOrganizers = [
+      ...(organizersResult.data || []).map((org) => ({
+        ...org,
+        type: "organizer" as const,
+      })),
+      ...(locationsOrganizersResult.data || []).map((loc) => ({
+        ...loc,
+        type: "location" as const,
+      })),
+    ];
+
+    setOrganizers(nextOrganizers);
+    return nextOrganizers;
+  }
+
+  async function reloadArtistsList() {
+    const { data, error } = await supabase
+      .from("artists")
+      .select("id, name, artist_type_label")
+      .order("name");
+
+    if (error) {
+      throw error;
+    }
+
+    const nextArtists = data || [];
+    setArtists(nextArtists);
+    return nextArtists;
+  }
+
+  function openCreateLocationDialog(prefillName = "") {
+    setQuickLocationForm({
+      name: prefillName,
+      address: "",
+      capacity: "",
+      latitude: "",
+      longitude: "",
+      is_organizer: false,
+    });
+    setIsCreateLocationDialogOpen(true);
+  }
+
+  function openCreateOrganizerDialog(prefillName = "") {
+    setQuickOrganizerForm({
+      name: prefillName,
+      instagram_url: "",
+      facebook_url: "",
+      website_url: "",
+    });
+    setIsCreateOrganizerDialogOpen(true);
+  }
+
+  function openCreateArtistDialog(prefillName = "") {
+    setQuickArtistForm({
+      name: prefillName,
+      artist_type_label: "",
+      short_description: "",
+      instagram_url: "",
+      website_url: "",
+    });
+    setIsCreateArtistDialogOpen(true);
+  }
+
+  function handleLocationSelection(
+    locationId: string,
+    availableLocations = locations,
+  ) {
+    if (locationId) {
+      const selectedLocation = availableLocations.find((loc) => loc.id === locationId);
+      if (selectedLocation) {
+        setFormData((prev) => ({
+          ...prev,
+          location_id: locationId,
+          room_id: "",
+          capacity:
+            selectedLocation.capacity != null
+              ? selectedLocation.capacity.toString()
+              : prev.capacity || "",
+        }));
+        void loadRoomsForLocation(locationId);
+        return;
+      }
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      location_id: locationId,
+      room_id: "",
+    }));
+    setRooms([]);
+  }
+
+  function handleOrganizerChange(
+    newOrganizerIds: string[],
+    availableOrganizers = organizers,
+  ) {
+    setSelectedOrganizerIds(newOrganizerIds);
+
+    if (newOrganizerIds.length === 0) {
+      return;
+    }
+
+    const firstOrganizerId = newOrganizerIds[0];
+    const selectedOrganizer = availableOrganizers.find(
+      (organizer) => organizer.id === firstOrganizerId,
+    );
+
+    if (!selectedOrganizer) {
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      instagram_url: selectedOrganizer.instagram_url || prev.instagram_url,
+      facebook_url: selectedOrganizer.facebook_url || prev.facebook_url,
+    }));
+
+    if (selectedOrganizer.type === "location") {
+      handleLocationSelection(firstOrganizerId);
     }
   }
 
@@ -281,6 +479,302 @@ function CreateEventContent() {
     return tagIds;
   }
 
+  function resolveLocationFromImportedData(locationName?: string | null, address?: string | null) {
+    const candidates = [locationName, address]
+      .flatMap((value) => {
+        const raw = (value || "").trim();
+        if (!raw) return [];
+        return [raw, raw.split(",")[0], raw.split(" - ")[0], raw.split(" • ")[0]].map((entry) => entry.trim());
+      })
+      .filter((value, index, array) => Boolean(value) && array.indexOf(value) === index);
+
+    for (const candidate of candidates) {
+      const normalizedCandidate = normalizeSearchValue(candidate);
+      const byName = locations.find((location) => normalizeSearchValue(location.name) === normalizedCandidate);
+      if (byName) return byName;
+    }
+
+    for (const candidate of candidates) {
+      const normalizedCandidate = normalizeSearchValue(candidate);
+      const byPartialName = locations.find((location) => {
+        const normalizedName = normalizeSearchValue(location.name);
+        return normalizedName.includes(normalizedCandidate) || normalizedCandidate.includes(normalizedName);
+      });
+      if (byPartialName) return byPartialName;
+    }
+
+    if (address) {
+      const normalizedAddress = normalizeSearchValue(address);
+      const byAddress = locations.find((location) => {
+        const locationAddress = normalizeSearchValue(location.address || "");
+        return (
+          locationAddress.length > 0 &&
+          (locationAddress.includes(normalizedAddress) || normalizedAddress.includes(locationAddress))
+        );
+      });
+      if (byAddress) return byAddress;
+    }
+
+    return null;
+  }
+
+  function resolveOrganizerFromImportedData(organizerName?: string | null) {
+    const raw = (organizerName || "").trim();
+    if (!raw) return null;
+
+    const candidates = [raw, raw.split(",")[0], raw.split(" / ")[0], raw.split(" - ")[0]]
+      .map((value) => value.trim())
+      .filter((value, index, array) => Boolean(value) && array.indexOf(value) === index);
+
+    for (const candidate of candidates) {
+      const normalizedCandidate = normalizeSearchValue(candidate);
+      const exact = organizers.find((organizer) => normalizeSearchValue(organizer.name) === normalizedCandidate);
+      if (exact) return exact;
+    }
+
+    for (const candidate of candidates) {
+      const normalizedCandidate = normalizeSearchValue(candidate);
+      const partial = organizers.find((organizer) => {
+        const normalizedName = normalizeSearchValue(organizer.name);
+        return normalizedName.includes(normalizedCandidate) || normalizedCandidate.includes(normalizedName);
+      });
+      if (partial) return partial;
+    }
+
+    return null;
+  }
+
+  async function applyImportedEventData(
+    importedData: Record<string, any>,
+    sourceUrl: string,
+    options?: {
+      fallbackCategoryId?: string;
+      fallbackLocationId?: string;
+    }
+  ) {
+    const fallbackCategoryId = options?.fallbackCategoryId || categories[0]?.id || "";
+    const fallbackLocationId = options?.fallbackLocationId || request?.location_id || "";
+
+    const importedCategory =
+      typeof importedData.category === "string" ? importedData.category.trim() : "";
+    const resolvedCategoryId = importedCategory
+      ? (await findCategory(importedCategory)) || fallbackCategoryId
+      : fallbackCategoryId;
+
+    const importedTags = Array.isArray(importedData.tags)
+      ? importedData.tags.map((tag: unknown) => String(tag).trim()).filter(Boolean)
+      : [];
+    if (importedTags.length > 0) {
+      const tagIds = await findOrCreateTags(importedTags);
+      setSelectedTagIds(tagIds);
+    }
+
+    const matchedLocation = resolveLocationFromImportedData(
+      typeof importedData.location === "string" ? importedData.location : undefined,
+      typeof importedData.address === "string" ? importedData.address : undefined,
+    );
+    const resolvedLocationId =
+      (typeof importedData.location_id === "string" && importedData.location_id) ||
+      matchedLocation?.id ||
+      fallbackLocationId ||
+      "";
+    const matchedOrganizer = resolveOrganizerFromImportedData(
+      typeof importedData.organizer === "string" ? importedData.organizer : undefined,
+    );
+    const importedOrganizerIds = [
+      typeof importedData.organizer_id === "string" ? importedData.organizer_id : "",
+      typeof importedData.location_organizer_id === "string"
+        ? importedData.location_organizer_id
+        : "",
+      matchedOrganizer?.id || "",
+    ].filter((value, index, array) => Boolean(value) && array.indexOf(value) === index);
+
+    if (importedOrganizerIds.length > 0) {
+      setSelectedOrganizerIds(importedOrganizerIds);
+    } else if (
+      resolvedLocationId &&
+      organizers.some((organizer) => organizer.id === resolvedLocationId && organizer.type === "location")
+    ) {
+      setSelectedOrganizerIds((prev) => (prev.length > 0 ? prev : [resolvedLocationId]));
+    }
+
+    if (resolvedLocationId) {
+      void loadRoomsForLocation(resolvedLocationId);
+    }
+
+    const importedImageUrl =
+      typeof importedData.image_url === "string" ? importedData.image_url.trim() : "";
+    if (importedImageUrl) {
+      setImagePreview(importedImageUrl);
+      setOriginalImageSrc(importedImageUrl);
+      setImageFile(null);
+    }
+
+    const importedDate =
+      typeof importedData.date === "string" && importedData.date.trim()
+        ? toDatetimeLocal(importedData.date)
+        : "";
+    const importedEndDate =
+      typeof importedData.end_date === "string" && importedData.end_date.trim()
+        ? toDatetimeLocal(importedData.end_date)
+        : "";
+    const importedCapacity =
+      importedData.capacity != null && String(importedData.capacity).trim()
+        ? String(importedData.capacity).trim()
+        : "";
+    const fallbackCapacity =
+      matchedLocation?.capacity != null ? String(matchedLocation.capacity) : "";
+
+    setFormData((prev) => ({
+      ...prev,
+      title:
+        typeof importedData.title === "string" && importedData.title.trim()
+          ? importedData.title
+          : prev.title,
+      description:
+        typeof importedData.description === "string" &&
+        importedData.description.trim()
+          ? importedData.description
+          : prev.description,
+      date: importedDate || prev.date,
+      end_date: importedEndDate || prev.end_date,
+      category: resolvedCategoryId || prev.category || fallbackCategoryId,
+      price:
+        importedData.price != null && String(importedData.price).trim()
+          ? String(importedData.price).trim()
+          : prev.price,
+      presale_price:
+        importedData.presale_price != null &&
+        String(importedData.presale_price).trim()
+          ? String(importedData.presale_price).trim()
+          : prev.presale_price,
+      subscriber_price:
+        importedData.subscriber_price != null &&
+        String(importedData.subscriber_price).trim()
+          ? String(importedData.subscriber_price).trim()
+          : prev.subscriber_price,
+      capacity: importedCapacity || prev.capacity || fallbackCapacity,
+      location_id: resolvedLocationId || prev.location_id,
+      room_id:
+        typeof importedData.room_id === "string" && importedData.room_id.trim()
+          ? importedData.room_id
+          : resolvedLocationId && resolvedLocationId !== prev.location_id
+            ? ""
+            : prev.room_id,
+      door_opening_time:
+        typeof importedData.door_opening_time === "string" &&
+        importedData.door_opening_time.trim()
+          ? importedData.door_opening_time
+          : prev.door_opening_time,
+      external_url:
+        typeof importedData.external_url === "string" &&
+        importedData.external_url.trim()
+          ? importedData.external_url
+          : sourceUrl || prev.external_url,
+      external_url_label:
+        typeof importedData.external_url_label === "string" &&
+        importedData.external_url_label.trim()
+          ? importedData.external_url_label
+          : prev.external_url_label,
+      scraping_url:
+        typeof importedData.scraping_url === "string" &&
+        importedData.scraping_url.trim()
+          ? importedData.scraping_url
+          : sourceUrl || prev.scraping_url,
+      instagram_url:
+        typeof importedData.instagram_url === "string" &&
+        importedData.instagram_url.trim()
+          ? importedData.instagram_url
+          : prev.instagram_url,
+      facebook_url:
+        typeof importedData.facebook_url === "string" &&
+        importedData.facebook_url.trim()
+          ? importedData.facebook_url
+          : prev.facebook_url,
+      image_url: importedImageUrl || prev.image_url,
+      is_full:
+        typeof importedData.is_full === "boolean"
+          ? importedData.is_full
+          : prev.is_full,
+    }));
+  }
+
+  async function importRequestSourceWithUrlScraper() {
+    const sourceUrl = formData.scraping_url.trim() || request?.source_url?.trim() || "";
+    if (!sourceUrl) {
+      alert("Aucun lien source disponible pour cette demande.");
+      return;
+    }
+
+    try {
+      setIsImportingFromUrl(true);
+      const response = await fetch("/api/events/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: sourceUrl,
+          location_id: request?.location_id || formData.location_id || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error || "Erreur lors du scraping");
+      }
+
+      const result = await response.json();
+      await applyImportedEventData(result.data || {}, sourceUrl);
+    } catch (error) {
+      console.error("Erreur import URL:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de l'import depuis l'URL",
+      );
+    } finally {
+      setIsImportingFromUrl(false);
+    }
+  }
+
+  async function importRequestSourceWithFacebookScraper() {
+    const sourceUrl = formData.scraping_url.trim() || request?.source_url?.trim() || "";
+    if (!sourceUrl) {
+      alert("Aucun lien source disponible pour cette demande.");
+      return;
+    }
+
+    if (!isFacebookEventUrl(sourceUrl)) {
+      alert("Le lien source doit être un événement Facebook public.");
+      return;
+    }
+
+    try {
+      setIsImportingFromFacebook(true);
+      const response = await fetch("/api/facebook/events/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: sourceUrl }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error || "Erreur lors de l'import Facebook");
+      }
+
+      const result = await response.json();
+      await applyImportedEventData(result.data || {}, sourceUrl);
+    } catch (error) {
+      console.error("Erreur import Facebook:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de l'import depuis Facebook",
+      );
+    } finally {
+      setIsImportingFromFacebook(false);
+    }
+  }
+
   // Charger les salles quand le lieu change
   useEffect(() => {
     if (formData.location_id) {
@@ -314,10 +808,11 @@ function CreateEventContent() {
       setRequest(requestData);
 
       // Load locations, organizers, categories, tags
-      const [locationsResult, organizersResult, locationsOrganizersResult, categoriesResult, tagsResult] = await Promise.all([
+      const [locationsResult, organizersResult, locationsOrganizersResult, artistsResult, categoriesResult, tagsResult] = await Promise.all([
         supabase.from("locations").select("id, name, address, capacity, latitude, longitude").order("name"),
         supabase.from("organizers").select("id, name, instagram_url, facebook_url").order("name"),
         supabase.from("locations").select("id, name, instagram_url, facebook_url").eq("is_organizer", true).order("name"),
+        supabase.from("artists").select("id, name, artist_type_label").order("name"),
         supabase.from("categories").select("id, name").eq("is_active", true).order("display_order"),
         supabase.from("tags").select("id, name").order("name"),
       ]);
@@ -330,6 +825,7 @@ function CreateEventContent() {
         ...(locationsOrganizersResult.data || []).map((loc) => ({ ...loc, type: "location" as const })),
       ];
       setOrganizers(allOrganizers);
+      if (artistsResult.data) setArtists(artistsResult.data);
       if (categoriesResult.data) setCategories(categoriesResult.data);
       if (tagsResult.data) setTags(tagsResult.data);
 
@@ -409,7 +905,11 @@ function CreateEventContent() {
           if (ed.location_id) {
             loadRoomsForLocation(ed.location_id);
           }
-      } else if (requestData.request_type === "event_from_url" && requestData.source_url) {
+      } else if (
+        requestData.request_type === "event_from_url" &&
+        requestData.source_url &&
+        !prefillMode
+      ) {
         // Pré-remplir via scraping (event_from_url)
         try {
           const response = await fetch("/api/events/scrape", {
@@ -429,71 +929,10 @@ function CreateEventContent() {
           const result = await response.json();
           const scrapedData = result.data || {};
 
-          const formattedDate = scrapedData.date ? toDatetimeLocal(scrapedData.date) : "";
-          const formattedEndDate = scrapedData.end_date ? toDatetimeLocal(scrapedData.end_date) : "";
-          const locId = requestData.location_id || "";
-
-          // Gérer la catégorie scrapée (peut être un nom)
-          let categoryId = "";
-          if (scrapedData.category) {
-            // Seulement trouver la catégorie, ne pas la créer
-            const foundCategoryId = await findCategory(scrapedData.category);
-            categoryId = foundCategoryId || categoriesResult.data?.[0]?.id || "";
-          } else {
-            categoryId = categoriesResult.data?.[0]?.id || "";
-          }
-
-          // Gérer les tags scrapés
-          if (scrapedData.tags && Array.isArray(scrapedData.tags) && scrapedData.tags.length > 0) {
-            const tagIds = await findOrCreateTags(scrapedData.tags);
-            setSelectedTagIds(tagIds);
-          }
-
-          setFormData({
-            title: scrapedData.title || "",
-            description: scrapedData.description || "",
-            date: formattedDate,
-            end_date: formattedEndDate,
-            category: categoryId,
-            price: scrapedData.price ? String(parseFloat(scrapedData.price)) : "",
-            presale_price: scrapedData.presale_price ? String(parseFloat(scrapedData.presale_price)) : "",
-            subscriber_price: scrapedData.subscriber_price ? String(parseFloat(scrapedData.subscriber_price)) : "",
-            capacity: scrapedData.capacity ? String(parseInt(scrapedData.capacity)) : "",
-            location_id: locId,
-            room_id: "",
-            door_opening_time: scrapedData.door_opening_time || "",
-            external_url: scrapedData.external_url || requestData.source_url || "",
-            external_url_label: "",
-            scraping_url: requestData.source_url || "",
-            instagram_url: "",
-            facebook_url: "",
-            image_url: scrapedData.image_url || "",
-            is_full: scrapedData.is_full ?? false,
+          await applyImportedEventData(scrapedData, requestData.source_url || "", {
+            fallbackCategoryId: categoriesResult.data?.[0]?.id || "",
+            fallbackLocationId: requestData.location_id || "",
           });
-
-          if (scrapedData.image_url) {
-            setImagePreview(scrapedData.image_url);
-            setOriginalImageSrc(scrapedData.image_url);
-          }
-
-          if (locId) {
-            loadRoomsForLocation(locId);
-            
-            // Si aucun organisateur n'a été trouvé dans les données scrapées et qu'un lieu est présent,
-            // vérifier si c'est un lieu-organisateur et l'ajouter automatiquement
-            if (!scrapedData.organizer && locId) {
-              const { data: location } = await supabase
-                .from("locations")
-                .select("is_organizer")
-                .eq("id", locId)
-                .maybeSingle();
-              
-              if (location?.is_organizer) {
-                // Le lieu est un organisateur, l'ajouter automatiquement
-                setSelectedOrganizerIds([locId]);
-              }
-            }
-          }
         } catch (error) {
           console.error("Erreur scraping (event_from_url):", error);
         }
@@ -504,6 +943,168 @@ function CreateEventContent() {
       router.push("/admin/requests");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleQuickLocationCreate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!quickLocationForm.name.trim()) {
+      alert("Le nom du lieu est requis.");
+      return;
+    }
+
+    try {
+      setIsCreatingLocation(true);
+
+      const payload = {
+        name: quickLocationForm.name.trim(),
+        address: quickLocationForm.address.trim() || null,
+        capacity: quickLocationForm.capacity.trim()
+          ? parseInt(quickLocationForm.capacity, 10)
+          : null,
+        latitude: quickLocationForm.latitude.trim()
+          ? parseFloat(quickLocationForm.latitude)
+          : null,
+        longitude: quickLocationForm.longitude.trim()
+          ? parseFloat(quickLocationForm.longitude)
+          : null,
+        is_organizer: quickLocationForm.is_organizer,
+      };
+
+      const { data: createdLocation, error } = await supabase
+        .from("locations")
+        .insert([payload])
+        .select("id, name, address, capacity, latitude, longitude")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const nextLocations = await reloadLocationsList();
+      if (quickLocationForm.is_organizer) {
+        await reloadOrganizersList();
+      }
+
+      handleLocationSelection(createdLocation.id, nextLocations);
+      setIsCreateLocationDialogOpen(false);
+      setQuickLocationForm({
+        name: "",
+        address: "",
+        capacity: "",
+        latitude: "",
+        longitude: "",
+        is_organizer: false,
+      });
+    } catch (error: any) {
+      console.error("Erreur lors de la création rapide du lieu:", error);
+      alert(error?.message || "Impossible de créer le lieu.");
+    } finally {
+      setIsCreatingLocation(false);
+    }
+  }
+
+  async function handleQuickOrganizerCreate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!quickOrganizerForm.name.trim()) {
+      alert("Le nom de l'organisateur est requis.");
+      return;
+    }
+
+    try {
+      setIsCreatingOrganizer(true);
+
+      const { data: createdOrganizer, error } = await supabase
+        .from("organizers")
+        .insert([
+          {
+            name: quickOrganizerForm.name.trim(),
+            instagram_url: quickOrganizerForm.instagram_url.trim() || null,
+            facebook_url: quickOrganizerForm.facebook_url.trim() || null,
+            website_url: quickOrganizerForm.website_url.trim() || null,
+          },
+        ])
+        .select("id, name, instagram_url, facebook_url")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const nextOrganizers = await reloadOrganizersList();
+      const nextSelectedOrganizerIds = Array.from(
+        new Set([...selectedOrganizerIds, createdOrganizer.id]),
+      );
+
+      handleOrganizerChange(nextSelectedOrganizerIds, nextOrganizers);
+      setIsCreateOrganizerDialogOpen(false);
+      setQuickOrganizerForm({
+        name: "",
+        instagram_url: "",
+        facebook_url: "",
+        website_url: "",
+      });
+    } catch (error: any) {
+      console.error("Erreur lors de la création rapide de l'organisateur:", error);
+      alert(error?.message || "Impossible de créer l'organisateur.");
+    } finally {
+      setIsCreatingOrganizer(false);
+    }
+  }
+
+  async function handleQuickArtistCreate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!quickArtistForm.name.trim()) {
+      alert("Le nom de l'artiste est requis.");
+      return;
+    }
+
+    try {
+      setIsCreatingArtist(true);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const { data: createdArtist, error } = await supabase
+        .from("artists")
+        .insert([
+          {
+            name: quickArtistForm.name.trim(),
+            artist_type_label: quickArtistForm.artist_type_label.trim() || null,
+            short_description: quickArtistForm.short_description.trim() || null,
+            instagram_url: quickArtistForm.instagram_url.trim() || null,
+            website_url: quickArtistForm.website_url.trim() || null,
+            created_by: user?.id || null,
+          },
+        ])
+        .select("id, name, artist_type_label")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      await reloadArtistsList();
+      setSelectedArtistIds((previous) =>
+        Array.from(new Set([...previous, createdArtist.id])),
+      );
+      setIsCreateArtistDialogOpen(false);
+      setQuickArtistForm({
+        name: "",
+        artist_type_label: "",
+        short_description: "",
+        instagram_url: "",
+        website_url: "",
+      });
+    } catch (error: any) {
+      console.error("Erreur lors de la création rapide de l'artiste:", error);
+      alert(error?.message || "Impossible de créer l'artiste.");
+    } finally {
+      setIsCreatingArtist(false);
     }
   }
 
@@ -771,6 +1372,21 @@ function CreateEventContent() {
         if (orgError) throw orgError;
       }
 
+      if (selectedArtistIds.length > 0) {
+        const artistEntries = selectedArtistIds.map((artistId, index) => ({
+          event_id: newEvent.id,
+          artist_id: artistId,
+          sort_index: index,
+          role_label: null,
+        }));
+
+        const { error: artistError } = await supabase
+          .from("event_artists")
+          .insert(artistEntries);
+
+        if (artistError) throw artistError;
+      }
+
       // Update request (seulement si ce n'est pas un brouillon)
       if (!isDraft) {
         // Note: On ne met à jour que les champs nécessaires pour éviter les conflits RLS
@@ -858,6 +1474,44 @@ function CreateEventContent() {
       setSaving(false);
     }
   }
+
+  const requestSourceUrl =
+    formData.scraping_url.trim() || request?.source_url?.trim() || "";
+  const canImportRequestSourceFromFacebook =
+    Boolean(requestSourceUrl) && isFacebookEventUrl(requestSourceUrl);
+
+  useEffect(() => {
+    if (
+      loading ||
+      !request ||
+      request.request_type !== "event_from_url" ||
+      !requestSourceUrl ||
+      (prefillMode !== "url" && prefillMode !== "facebook")
+    ) {
+      return;
+    }
+
+    const triggerKey = `${request.id}:${prefillMode}`;
+    if (autoPrefillTriggeredRef.current === triggerKey) {
+      return;
+    }
+
+    autoPrefillTriggeredRef.current = triggerKey;
+
+    if (prefillMode === "facebook") {
+      void importRequestSourceWithFacebookScraper();
+      return;
+    }
+
+    void importRequestSourceWithUrlScraper();
+  }, [
+    importRequestSourceWithFacebookScraper,
+    importRequestSourceWithUrlScraper,
+    loading,
+    prefillMode,
+    request,
+    requestSourceUrl,
+  ]);
 
   if (loading) {
     return (
@@ -1109,8 +1763,8 @@ function CreateEventContent() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Lieu et organisateur</CardTitle>
-                  <CardDescription>Associer un lieu et/ou un organisateur</CardDescription>
+                  <CardTitle>Lieu, organisateurs et artistes</CardTitle>
+                  <CardDescription>Associer un lieu, des organisateurs et des artistes</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -1126,8 +1780,32 @@ function CreateEventContent() {
                       selected={selectedOrganizerIds}
                       onChange={handleOrganizerChange}
                       placeholder="Sélectionner des organisateurs ou des lieux..."
-                      disabled={organizers.length === 0}
+                      emptyActionLabel="Ajouter un organisateur"
+                      onEmptyAction={openCreateOrganizerDialog}
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Music className="h-4 w-4" />
+                      Artistes / collaborateurs
+                    </Label>
+                    <MultiSelect
+                      options={artists.map((artist) => ({
+                        label: artist.artist_type_label
+                          ? `${artist.name} (${artist.artist_type_label})`
+                          : artist.name,
+                        value: artist.id,
+                      }))}
+                      selected={selectedArtistIds}
+                      onChange={setSelectedArtistIds}
+                      placeholder="Sélectionner des artistes..."
+                      emptyActionLabel="Ajouter un artiste"
+                      onEmptyAction={openCreateArtistDialog}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Cette liste alimentera la section publique artistes de la fiche événement.
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1147,30 +1825,12 @@ function CreateEventContent() {
                         value={formData.location_id || "none"}
                         onValueChange={(value) => {
                           const locationId = value === "none" ? "" : value;
-                          // Mettre à jour l'adresse et la capacité automatiquement si un lieu est sélectionné
-                          if (locationId) {
-                            const selectedLocation = locations.find((loc) => loc.id === locationId);
-                            if (selectedLocation) {
-                              setFormData((prev) => ({ 
-                                ...prev, 
-                                location_id: locationId,
-                                room_id: "", // Réinitialiser la salle quand le lieu change
-                                capacity: selectedLocation.capacity ? selectedLocation.capacity.toString() : prev.capacity || ""
-                              }));
-                              // Charger les salles du lieu sélectionné
-                              loadRoomsForLocation(locationId);
-                              return;
-                            }
-                          }
-                          setFormData((prev) => ({ 
-                            ...prev, 
-                            location_id: locationId,
-                            room_id: "" // Réinitialiser la salle quand le lieu change
-                          }));
-                          setRooms([]);
+                          handleLocationSelection(locationId);
                         }}
                         placeholder="Sélectionner un lieu"
                         searchPlaceholder="Rechercher un lieu..."
+                        emptyActionLabel="Ajouter un lieu"
+                        onEmptyAction={openCreateLocationDialog}
                       />
                     </div>
 
@@ -1371,6 +2031,49 @@ function CreateEventContent() {
                     <p className="text-xs text-muted-foreground">
                       URL utilisée pour mettre à jour l'événement via scraping
                     </p>
+                    {requestSourceUrl && (
+                      <div className="space-y-2 pt-2">
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="gap-2"
+                            onClick={() => void importRequestSourceWithUrlScraper()}
+                            disabled={isImportingFromUrl || isImportingFromFacebook}
+                          >
+                            {isImportingFromUrl ? (
+                              <RotateCw className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <LinkIcon className="h-4 w-4" />
+                            )}
+                            Créer à partir de l’URL
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="gap-2"
+                            onClick={() => void importRequestSourceWithFacebookScraper()}
+                            disabled={
+                              !canImportRequestSourceFromFacebook ||
+                              isImportingFromUrl ||
+                              isImportingFromFacebook
+                            }
+                          >
+                            {isImportingFromFacebook ? (
+                              <RotateCw className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                            Importer depuis Facebook
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {canImportRequestSourceFromFacebook
+                            ? "Pour un lien Facebook public, l’import dédié récupère mieux les données d’événement."
+                            : "Le bouton Facebook s’active uniquement pour un lien d’événement Facebook public."}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1641,6 +2344,348 @@ function CreateEventContent() {
           </div>
         </form>
       </div>
+
+      <Dialog
+        open={isCreateLocationDialogOpen}
+        onOpenChange={(open) => {
+          setIsCreateLocationDialogOpen(open);
+          if (!open) {
+            setQuickLocationForm({
+              name: "",
+              address: "",
+              capacity: "",
+              latitude: "",
+              longitude: "",
+              is_organizer: false,
+            });
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Ajouter un lieu</DialogTitle>
+            <DialogDescription>
+              Crée rapidement un nouveau lieu sans quitter la création d&apos;événement.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form className="space-y-4" onSubmit={handleQuickLocationCreate}>
+            <div className="space-y-2">
+              <Label htmlFor="quick-location-name">Nom du lieu</Label>
+              <Input
+                id="quick-location-name"
+                value={quickLocationForm.name}
+                onChange={(event) =>
+                  setQuickLocationForm((prev) => ({
+                    ...prev,
+                    name: event.target.value,
+                  }))
+                }
+                placeholder="Nom du lieu"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quick-location-address">Adresse</Label>
+              <AddressInput
+                id="quick-location-address"
+                value={quickLocationForm.address}
+                onChange={(address) =>
+                  setQuickLocationForm((prev) => ({
+                    ...prev,
+                    address,
+                    latitude: "",
+                    longitude: "",
+                  }))
+                }
+                onAddressSelect={(address, coordinates) =>
+                  setQuickLocationForm((prev) => ({
+                    ...prev,
+                    address,
+                    latitude: coordinates?.latitude?.toString() || "",
+                    longitude: coordinates?.longitude?.toString() || "",
+                  }))
+                }
+                placeholder="Commencez à taper une adresse..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quick-location-capacity">Capacité</Label>
+              <Input
+                id="quick-location-capacity"
+                type="number"
+                min="0"
+                value={quickLocationForm.capacity}
+                onChange={(event) =>
+                  setQuickLocationForm((prev) => ({
+                    ...prev,
+                    capacity: event.target.value,
+                  }))
+                }
+                placeholder="Optionnel"
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">Utilisable aussi comme organisateur</p>
+                <p className="text-xs text-muted-foreground">
+                  Le lieu apparaîtra aussi dans la liste des organisateurs.
+                </p>
+              </div>
+              <Switch
+                checked={quickLocationForm.is_organizer}
+                onCheckedChange={(checked) =>
+                  setQuickLocationForm((prev) => ({
+                    ...prev,
+                    is_organizer: checked,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="flex flex-col gap-2 md:flex-row md:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateLocationDialogOpen(false)}
+                disabled={isCreatingLocation}
+              >
+                Annuler
+              </Button>
+              <Button type="submit" disabled={isCreatingLocation}>
+                {isCreatingLocation ? "Création..." : "Créer le lieu"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isCreateOrganizerDialogOpen}
+        onOpenChange={(open) => {
+          setIsCreateOrganizerDialogOpen(open);
+          if (!open) {
+            setQuickOrganizerForm({
+              name: "",
+              instagram_url: "",
+              facebook_url: "",
+              website_url: "",
+            });
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Ajouter un organisateur</DialogTitle>
+            <DialogDescription>
+              Crée rapidement un organisateur sans quitter la création d&apos;événement.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form className="space-y-4" onSubmit={handleQuickOrganizerCreate}>
+            <div className="space-y-2">
+              <Label htmlFor="quick-organizer-name">Nom</Label>
+              <Input
+                id="quick-organizer-name"
+                value={quickOrganizerForm.name}
+                onChange={(event) =>
+                  setQuickOrganizerForm((prev) => ({
+                    ...prev,
+                    name: event.target.value,
+                  }))
+                }
+                placeholder="Nom de l'organisateur"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quick-organizer-instagram">Instagram</Label>
+              <Input
+                id="quick-organizer-instagram"
+                type="url"
+                value={quickOrganizerForm.instagram_url}
+                onChange={(event) =>
+                  setQuickOrganizerForm((prev) => ({
+                    ...prev,
+                    instagram_url: event.target.value,
+                  }))
+                }
+                placeholder="https://instagram.com/..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quick-organizer-facebook">Facebook</Label>
+              <Input
+                id="quick-organizer-facebook"
+                type="url"
+                value={quickOrganizerForm.facebook_url}
+                onChange={(event) =>
+                  setQuickOrganizerForm((prev) => ({
+                    ...prev,
+                    facebook_url: event.target.value,
+                  }))
+                }
+                placeholder="https://facebook.com/..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quick-organizer-website">Site web</Label>
+              <Input
+                id="quick-organizer-website"
+                type="url"
+                value={quickOrganizerForm.website_url}
+                onChange={(event) =>
+                  setQuickOrganizerForm((prev) => ({
+                    ...prev,
+                    website_url: event.target.value,
+                  }))
+                }
+                placeholder="https://..."
+              />
+            </div>
+
+            <div className="flex flex-col gap-2 md:flex-row md:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateOrganizerDialogOpen(false)}
+                disabled={isCreatingOrganizer}
+              >
+                Annuler
+              </Button>
+              <Button type="submit" disabled={isCreatingOrganizer}>
+                {isCreatingOrganizer ? "Création..." : "Créer l'organisateur"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isCreateArtistDialogOpen}
+        onOpenChange={(open) => {
+          setIsCreateArtistDialogOpen(open);
+          if (!open) {
+            setQuickArtistForm({
+              name: "",
+              artist_type_label: "",
+              short_description: "",
+              instagram_url: "",
+              website_url: "",
+            });
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Ajouter un artiste</DialogTitle>
+            <DialogDescription>
+              Crée rapidement un artiste ou collaborateur sans quitter la création d&apos;événement.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form className="space-y-4" onSubmit={handleQuickArtistCreate}>
+            <div className="space-y-2">
+              <Label htmlFor="quick-artist-name">Nom</Label>
+              <Input
+                id="quick-artist-name"
+                value={quickArtistForm.name}
+                onChange={(event) =>
+                  setQuickArtistForm((prev) => ({
+                    ...prev,
+                    name: event.target.value,
+                  }))
+                }
+                placeholder="Nom de scène / collaborateur"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quick-artist-type">Type / dénomination</Label>
+              <Input
+                id="quick-artist-type"
+                value={quickArtistForm.artist_type_label}
+                onChange={(event) =>
+                  setQuickArtistForm((prev) => ({
+                    ...prev,
+                    artist_type_label: event.target.value,
+                  }))
+                }
+                placeholder="DJ, Groupe, Plasticien..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quick-artist-description">Description courte</Label>
+              <Textarea
+                id="quick-artist-description"
+                value={quickArtistForm.short_description}
+                onChange={(event) =>
+                  setQuickArtistForm((prev) => ({
+                    ...prev,
+                    short_description: event.target.value,
+                  }))
+                }
+                placeholder="Quelques lignes de présentation"
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quick-artist-instagram">Instagram</Label>
+              <Input
+                id="quick-artist-instagram"
+                type="url"
+                value={quickArtistForm.instagram_url}
+                onChange={(event) =>
+                  setQuickArtistForm((prev) => ({
+                    ...prev,
+                    instagram_url: event.target.value,
+                  }))
+                }
+                placeholder="https://instagram.com/..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quick-artist-website">Site web</Label>
+              <Input
+                id="quick-artist-website"
+                type="url"
+                value={quickArtistForm.website_url}
+                onChange={(event) =>
+                  setQuickArtistForm((prev) => ({
+                    ...prev,
+                    website_url: event.target.value,
+                  }))
+                }
+                placeholder="https://..."
+              />
+            </div>
+
+            <div className="flex flex-col gap-2 md:flex-row md:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateArtistDialogOpen(false)}
+                disabled={isCreatingArtist}
+              >
+                Annuler
+              </Button>
+              <Button type="submit" disabled={isCreatingArtist}>
+                {isCreatingArtist ? "Création..." : "Créer l'artiste"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Cropper Dialog */}
       <Dialog open={showCropper} onOpenChange={setShowCropper}>

@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendNotificationToUser } from "@/lib/notifications";
+import {
+  addDaysToLocalDate,
+  getIsoLocalDate,
+  getIsoLocalTime,
+  getLocalWeekday,
+  getZonedDateParts,
+  zonedTimeToUtc,
+} from "@/lib/cron-timezone";
 
 /**
  * Vérifie que la requête vient bien de Vercel Cron
@@ -38,7 +46,18 @@ export async function GET(request: NextRequest) {
     console.log("📊 Démarrage du cron de résumé hebdomadaire");
 
     const now = new Date();
-    const weekDay = now.getDay() === 0 ? 7 : now.getDay();
+    const nowInParis = getZonedDateParts(now);
+    const todayInParis = {
+      year: nowInParis.year,
+      month: nowInParis.month,
+      day: nowInParis.day,
+    };
+    const weekDay = getLocalWeekday(todayInParis);
+
+    console.log(
+      `🕒 Référence Europe/Paris: ${getIsoLocalDate(todayInParis)} ${getIsoLocalTime(nowInParis)}`,
+    );
+
     if (weekDay !== 1) {
       return NextResponse.json({
         success: true,
@@ -47,16 +66,21 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const weekStart = new Date(now);
-    weekStart.setHours(0, 0, 0, 0);
-    const weekStartIso = weekStart.toISOString();
-
-    const nextWeekStart = new Date(weekStart);
-    nextWeekStart.setDate(nextWeekStart.getDate() + 7);
-    nextWeekStart.setHours(0, 0, 0, 0);
-    const nextWeekStartIso = nextWeekStart.toISOString();
-
-    const weekEnd = new Date(nextWeekStart.getTime() - 1);
+    const weekStartLocal = addDaysToLocalDate(todayInParis, -(weekDay - 1));
+    const nextWeekStartLocal = addDaysToLocalDate(weekStartLocal, 7);
+    const weekEndLocal = addDaysToLocalDate(nextWeekStartLocal, -1);
+    const weekStartIso = zonedTimeToUtc({
+      ...weekStartLocal,
+      hour: 0,
+      minute: 0,
+      second: 0,
+    }).toISOString();
+    const nextWeekStartIso = zonedTimeToUtc({
+      ...nextWeekStartLocal,
+      hour: 0,
+      minute: 0,
+      second: 0,
+    }).toISOString();
     
     // Récupérer les événements approuvés de la semaine à venir avec leurs catégories (exclure les événements complets)
     const { data: events, error: eventsError } = await supabase
@@ -129,8 +153,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
+    const currentHour = nowInParis.hour;
+    const currentMinute = nowInParis.minute;
 
     if (globalSettings.notification_time) {
       const [configuredHour, configuredMinute] = globalSettings.notification_time.split(":").map(Number);
@@ -138,7 +162,7 @@ export async function GET(request: NextRequest) {
 
       if (!isInTimeWindow) {
         console.log(
-          `ℹ️ Pas dans la fenêtre d'envoi hebdomadaire. Heure actuelle: ${currentHour}:${currentMinute}, Heure configurée: ${configuredHour}:${configuredMinute}`,
+          `ℹ️ Pas dans la fenêtre d'envoi hebdomadaire Paris. Heure actuelle: ${String(currentHour).padStart(2, "0")}:${String(currentMinute).padStart(2, "0")}, Heure configurée: ${String(configuredHour).padStart(2, "0")}:${String(configuredMinute).padStart(2, "0")}`,
         );
         return NextResponse.json({
           success: true,
@@ -243,8 +267,8 @@ export async function GET(request: NextRequest) {
           body,
           data: {
             type: "weekly_summary",
-            start_date: weekStartIso.split("T")[0],
-            end_date: weekEnd.toISOString().split("T")[0],
+            start_date: getIsoLocalDate(weekStartLocal),
+            end_date: getIsoLocalDate(weekEndLocal),
             event_ids: eventIds,
             events_count: userEvents.length,
             days_count: dayCount,
@@ -275,9 +299,7 @@ export async function GET(request: NextRequest) {
     };
     
     console.log(`✅ Résumé hebdomadaire envoyé: ${result.sent} réussis, ${result.failed} échecs`);
-    
-    console.log(`✅ Résumé hebdomadaire envoyé: ${result.sent} réussis, ${result.failed} échecs`);
-    
+
     return NextResponse.json({
       success: result.success,
       message: `Résumé hebdomadaire envoyé pour ${eventsWithCategory.length} événement(s) à ${Object.keys(eventsByUser).length} utilisateur(s)`,

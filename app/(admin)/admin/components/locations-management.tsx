@@ -105,7 +105,7 @@ export function LocationsManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
   const [isRoomsDialogOpen, setIsRoomsDialogOpen] = useState(false);
   const [selectedLocationForRooms, setSelectedLocationForRooms] = useState<Location | null>(null);
 

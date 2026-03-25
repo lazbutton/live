@@ -4,41 +4,23 @@ import * as React from "react";
 import { Download, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SelectSearchable } from "@/components/ui/select-searchable";
 import { toast } from "@/components/ui/use-toast";
+import { isFacebookEventUrl } from "@/lib/facebook/event-url";
 
 import type { OrganizerOption } from "./types";
+import type { ScrapedEventPayload } from "./event-import-dialog";
 
-export type ScrapedEventPayload = {
-  title?: string;
-  description?: string;
-  date?: string;
-  end_date?: string;
-  category?: string;
-  price?: string | number;
-  presale_price?: string | number;
-  subscriber_price?: string | number;
-  capacity?: string | number;
-  door_opening_time?: string;
-  external_url?: string;
-  external_url_label?: string;
-  scraping_url?: string;
-  image_url?: string;
-  is_full?: boolean;
-  location?: string;
-  location_id?: string;
-  location_organizer_id?: string;
-  address?: string;
-  organizer?: string;
-  organizer_id?: string;
-  tags?: string[];
-  [key: string]: unknown;
-};
-
-export type EventImportDialogProps = {
+export type FacebookEventImportDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizers: OrganizerOption[];
@@ -50,7 +32,12 @@ export type EventImportDialogProps = {
   }) => void | Promise<void>;
 };
 
-export function EventImportDialog({ open, onOpenChange, organizers, onImported }: EventImportDialogProps) {
+export function FacebookEventImportDialog({
+  open,
+  onOpenChange,
+  organizers,
+  onImported,
+}: FacebookEventImportDialogProps) {
   const [importUrl, setImportUrl] = React.useState("");
   const [importOwnerId, setImportOwnerId] = React.useState<string>("");
   const [isImporting, setIsImporting] = React.useState(false);
@@ -63,58 +50,86 @@ export function EventImportDialog({ open, onOpenChange, organizers, onImported }
         label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
       })),
     ],
-    [organizers]
+    [organizers],
   );
 
   async function handleImport() {
     if (!importUrl.trim()) {
-      toast({ title: "URL requise", description: "Ajoute une URL pour importer l’événement.", variant: "destructive" });
+      toast({
+        title: "URL requise",
+        description: "Ajoute une URL d'événement Facebook pour importer l'événement.",
+        variant: "destructive",
+      });
       return;
     }
 
     try {
       new URL(importUrl.trim());
     } catch {
-      toast({ title: "URL invalide", description: "Vérifie le format de l’URL.", variant: "destructive" });
+      toast({
+        title: "URL invalide",
+        description: "Vérifie le format de l’URL.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isFacebookEventUrl(importUrl.trim())) {
+      toast({
+        title: "Lien Facebook attendu",
+        description:
+          "L’URL doit pointer vers un événement Facebook public.",
+        variant: "destructive",
+      });
       return;
     }
 
     setIsImporting(true);
     try {
-      const selectedOwner = organizers.find((organizer) => organizer.id === importOwnerId);
-      const response = await fetch("/api/events/scrape", {
+      const selectedOwner = organizers.find(
+        (organizer) => organizer.id === importOwnerId,
+      );
+      const response = await fetch("/api/facebook/events/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           url: importUrl.trim(),
-          organizer_id: selectedOwner?.type === "organizer" ? selectedOwner.id : undefined,
-          location_id: selectedOwner?.type === "location" ? selectedOwner.id : undefined,
+          organizer_id:
+            selectedOwner?.type === "organizer" ? selectedOwner.id : undefined,
+          location_id:
+            selectedOwner?.type === "location" ? selectedOwner.id : undefined,
         }),
       });
 
       if (!response.ok) {
         const json = await response.json().catch(() => ({}));
-        throw new Error(json?.error || "Erreur lors du scraping");
+        throw new Error(json?.error || "Erreur lors de l'import Facebook");
       }
 
-      const result = (await response.json()) as { data?: ScrapedEventPayload; metadata?: Record<string, unknown> };
-      const data = result?.data || {};
+      const result = (await response.json()) as {
+        data?: ScrapedEventPayload;
+        metadata?: Record<string, unknown>;
+      };
 
       await onImported({
         sourceUrl: importUrl.trim(),
         owner: selectedOwner,
-        data,
+        data: result?.data || {},
         metadata: result?.metadata,
       });
 
-      toast({ title: "Import réussi", description: "Les champs ont été pré-remplis.", variant: "success" });
+      toast({
+        title: "Import Facebook réussi",
+        description: "Les champs ont été pré-remplis depuis l’événement Facebook.",
+        variant: "success",
+      });
       setImportUrl("");
       setImportOwnerId("");
       onOpenChange(false);
     } catch (e: any) {
-      console.error("Erreur import URL:", e);
+      console.error("Erreur import Facebook:", e);
       toast({
-        title: "Import impossible",
+        title: "Import Facebook impossible",
         description: e?.message || "Une erreur est survenue.",
         variant: "destructive",
       });
@@ -124,16 +139,24 @@ export function EventImportDialog({ open, onOpenChange, organizers, onImported }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !isImporting && onOpenChange(next)}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => !isImporting && onOpenChange(next)}
+    >
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Créer à partir de l’URL</DialogTitle>
-          <DialogDescription>Renseigne l’URL d’une page événement, et on pré-remplit le formulaire.</DialogDescription>
+          <DialogTitle>Importer depuis Facebook</DialogTitle>
+          <DialogDescription>
+            Renseigne l’URL d’un événement Facebook public pour pré-remplir le
+            formulaire.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="import-organizer">Organisateur ou lieu (optionnel)</Label>
+            <Label htmlFor="facebook-import-organizer">
+              Organisateur ou lieu (optionnel)
+            </Label>
             <SelectSearchable
               options={organizerOptions}
               value={importOwnerId}
@@ -143,16 +166,17 @@ export function EventImportDialog({ open, onOpenChange, organizers, onImported }
               disabled={isImporting}
             />
             <p className="text-xs text-muted-foreground">
-              Si un organisateur ou un lieu est sélectionné, ses réglages de scraping peuvent améliorer la qualité de l’import.
+              Si tu sélectionnes un organisateur ou un lieu, il sera proposé par
+              défaut dans le formulaire.
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="import-url">URL</Label>
+            <Label htmlFor="facebook-import-url">URL de l'événement Facebook</Label>
             <Input
-              id="import-url"
+              id="facebook-import-url"
               type="url"
-              placeholder="https://example.com/event"
+              placeholder="https://www.facebook.com/events/1234567890"
               value={importUrl}
               onChange={(e) => setImportUrl(e.target.value)}
               onKeyDown={(e) => {
@@ -164,6 +188,9 @@ export function EventImportDialog({ open, onOpenChange, organizers, onImported }
               className="min-h-[44px] text-base"
               disabled={isImporting}
             />
+            <p className="text-xs text-muted-foreground">
+              Le scraping fonctionne sur les événements Facebook publics.
+            </p>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
@@ -175,16 +202,20 @@ export function EventImportDialog({ open, onOpenChange, organizers, onImported }
             >
               Annuler
             </Button>
-            <Button type="button" onClick={() => void handleImport()} disabled={isImporting || !importUrl.trim()}>
+            <Button
+              type="button"
+              onClick={() => void handleImport()}
+              disabled={isImporting || !importUrl.trim()}
+            >
               {isImporting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Import...
                 </>
               ) : (
                 <>
-                  <Download className="h-4 w-4 mr-2" />
-                  Créer à partir de l’URL
+                  <Download className="mr-2 h-4 w-4" />
+                  Importer depuis Facebook
                 </>
               )}
             </Button>
@@ -194,4 +225,3 @@ export function EventImportDialog({ open, onOpenChange, organizers, onImported }
     </Dialog>
   );
 }
-

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { Loader2 } from "lucide-react";
@@ -15,18 +15,9 @@ export default function AdminLayout({
   const pathname = usePathname();
   const [isChecking, setIsChecking] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
+  const hasValidatedAccessRef = useRef(false);
 
-  useEffect(() => {
-    // Ne pas vérifier l'accès sur la page de login
-    if (pathname === "/admin/login") {
-      setIsChecking(false);
-      setHasAccess(true);
-      return;
-    }
-    checkAdminAccess();
-  }, [pathname]);
-
-  async function checkAdminAccess() {
+  const checkAdminAccess = useCallback(async () => {
     try {
       setIsChecking(true);
 
@@ -39,12 +30,14 @@ export default function AdminLayout({
 
       // Vérifier que l'utilisateur est admin
       const role = user.user_metadata?.role;
-      
+
       if (role !== "admin") {
+        hasValidatedAccessRef.current = false;
+
         // Si l'utilisateur est organisateur mais pas admin, rediriger vers l'interface organisateur
         const { checkIsOrganizer } = await import("@/lib/auth");
         const isOrganizer = await checkIsOrganizer();
-        
+
         if (isOrganizer) {
           router.push("/organizer");
         } else {
@@ -53,14 +46,57 @@ export default function AdminLayout({
         return;
       }
 
+      hasValidatedAccessRef.current = true;
       setHasAccess(true);
     } catch (error) {
+      hasValidatedAccessRef.current = false;
       console.error("Erreur lors de la vérification d'accès admin:", error);
       router.push("/admin/login");
     } finally {
       setIsChecking(false);
     }
-  }
+  }, [router]);
+
+  useEffect(() => {
+    // Ne pas vérifier l'accès sur la page de login
+    if (pathname === "/admin/login") {
+      setIsChecking(false);
+      setHasAccess(true);
+      return;
+    }
+
+    if (hasValidatedAccessRef.current) {
+      setIsChecking(false);
+      setHasAccess(true);
+      return;
+    }
+
+    void checkAdminAccess();
+  }, [pathname, checkAdminAccess]);
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        hasValidatedAccessRef.current = false;
+        setHasAccess(false);
+        setIsChecking(false);
+        router.push("/admin/login");
+        return;
+      }
+
+      if (pathname === "/admin/login" && session?.user?.user_metadata?.role === "admin") {
+        hasValidatedAccessRef.current = true;
+        setHasAccess(true);
+        setIsChecking(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [pathname, router]);
 
   if (isChecking) {
     return (

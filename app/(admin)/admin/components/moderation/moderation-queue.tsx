@@ -54,7 +54,10 @@ type EventSummary = {
   id: string;
   title: string;
   date: string;
-  location: string;
+  address?: string | null;
+  locations?: {
+    name?: string | null;
+  } | null;
   status: string;
   is_safety_hidden: boolean;
   created_by: string | null;
@@ -165,6 +168,10 @@ function formatRelative(iso?: string | null) {
   return `il y a ${absoluteDays} j`;
 }
 
+function getEventLocationLabel(event?: EventSummary | null) {
+  return event?.locations?.name?.trim() || event?.address?.trim() || "";
+}
+
 function isResolved(status: ModerationStatus) {
   return status === "actioned" || status === "dismissed";
 }
@@ -239,7 +246,7 @@ export function ModerationQueue() {
         ? await supabase
             .from("events")
             .select(
-              "id, title, date, location, status, is_safety_hidden, created_by",
+              "id, title, date, address, status, is_safety_hidden, created_by, locations(name)",
             )
             .in("id", eventIds)
         : { data: [], error: null };
@@ -348,7 +355,7 @@ export function ModerationQueue() {
         reasonLabels[report.reason_code] || report.reason_code,
         report.details || "",
         event?.title || "",
-        event?.location || "",
+        getEventLocationLabel(event),
         reporter?.email || "",
         getUserDisplayName(reporter),
         reportedUser?.email || "",
@@ -640,7 +647,7 @@ export function ModerationQueue() {
                         Événement
                       </div>
                       <div className="mt-2 font-medium">
-                        {event?.location || "Lieu non renseigné"}
+                        {getEventLocationLabel(event) || "Lieu non renseigné"}
                       </div>
                       <div className="mt-1 text-sm text-muted-foreground">
                         {event ? formatDateTime(event.date) : "Événement absent"}
