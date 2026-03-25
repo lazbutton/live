@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.lazbutton.live",
+      "sha256_cert_fingerprints": [
+        "0F:4A:51:B5:A6:2C:6E:BC:4C:D4:F0:69:8D:E2:1F:0A:11:42:24:6E:CC:61:4D:BE:B0:1D:AE:55:4F:25:4E:5B"
+      ]
+    }
+  }
+]

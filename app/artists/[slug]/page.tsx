@@ -3,16 +3,21 @@ import Link from "next/link";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import {
-  ArrowLeft,
   Calendar,
+  Download,
   ExternalLink,
   Globe,
   Instagram,
   MapPin,
+  Smartphone,
 } from "lucide-react";
 
 import { ArtistPageLogo } from "@/components/artists/artist-page-logo";
 import { buildPublicMetadata } from "@/lib/metadata";
+import {
+  buildArtistOpenPath,
+  buildDownloadAppPath,
+} from "@/lib/mobile-app-links";
 import { createClient } from "@/lib/supabase/server";
 
 export const revalidate = 300;
@@ -484,7 +489,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const artistDescription =
     normalizeText(data.artist.short_description) ||
-    `Retrouvez les evenements passes et a venir de ${data.artist.name} sur OutLive.`;
+    `Retrouvez les événements passés et à venir de ${data.artist.name} sur OutLive.`;
 
   return buildPublicMetadata({
     title: data.artist.name,
@@ -640,24 +645,78 @@ export default async function ArtistPublicPage({ params }: PageProps) {
   const artistLinks = buildArtistLinks(artist);
   const description =
     normalizeText(artist.short_description);
+  const artistWebPath = `/artists/${artist.slug}`;
+  const openInAppPath = buildArtistOpenPath(artist.id, {
+    from: artistWebPath,
+    name: artist.name,
+  });
+  const downloadAppPath = buildDownloadAppPath({
+    from: artistWebPath,
+    name: artist.name,
+  });
 
   return (
     <div className="min-h-screen overflow-hidden bg-[#0b0b0c] text-white">
-      <Link
-        href="/"
-        className="fixed right-4 top-4 z-40 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.03] px-4 py-2 text-sm font-medium text-white/78 backdrop-blur-md transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white sm:right-6 sm:top-6 lg:right-8"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Retour
-      </Link>
+      <header className="pointer-events-none fixed inset-x-0 top-0 z-40 hidden sm:block">
+        <div className="mx-auto mt-4 max-w-7xl px-4 sm:mt-6 sm:px-6 lg:px-8">
+          <div className="pointer-events-auto rounded-[24px] bg-[#0b0b0c]/72 px-3 py-3 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:rounded-[28px] sm:px-4 sm:py-4 lg:px-5">
+            <div className="flex items-center justify-center sm:justify-between">
+              <ArtistPageLogo showCompactFloating={false} />
 
-      <header className="relative z-30">
-        <div className="mx-auto flex max-w-7xl items-center px-4 py-4 sm:px-6 lg:px-8">
-          <ArtistPageLogo />
+              <div className="hidden flex-wrap items-center gap-2 sm:flex sm:gap-3">
+                <Link
+                  href={openInAppPath}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(235,235,238,0.92)_100%)] px-4 py-2.5 text-sm font-semibold text-[#0f1012] shadow-[0_14px_34px_rgba(0,0,0,0.24)] transition hover:scale-[1.01] hover:border-white/20 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(244,244,246,0.96)_100%)]"
+                >
+                  <Smartphone className="h-4 w-4" />
+                  Ouvrir dans l&apos;app
+                </Link>
+                <Link
+                  href={downloadAppPath}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.045] px-4 py-2.5 text-sm font-semibold text-white/84 transition hover:border-white/24 hover:bg-white/[0.075] hover:text-white"
+                >
+                  <Download className="h-4 w-4" />
+                  Télécharger l&apos;app
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
-      <main className="relative mx-auto max-w-7xl px-4 pb-20 pt-8 sm:px-6 lg:px-8 lg:pt-12">
+      <header className="pointer-events-none fixed inset-x-0 bottom-0 z-40 sm:hidden">
+        <div className="mx-auto max-w-7xl px-4 pb-4">
+          <div
+            className="pointer-events-auto rounded-[28px] bg-[#0b0b0c]/78 px-3 py-3 shadow-[0_24px_80px_rgba(0,0,0,0.42)] backdrop-blur-2xl"
+            style={{
+              paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)",
+            }}
+          >
+            <div className="flex items-center justify-center">
+              <ArtistPageLogo showCompactFloating={false} />
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Link
+                href={openInAppPath}
+                className="inline-flex min-w-0 items-center justify-center gap-2 rounded-full border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(235,235,238,0.92)_100%)] px-3 py-3 text-[13px] font-semibold text-[#0f1012] shadow-[0_14px_34px_rgba(0,0,0,0.24)] transition hover:scale-[1.01] hover:bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(244,244,246,0.96)_100%)]"
+              >
+                <Smartphone className="h-4 w-4 shrink-0" />
+                <span className="truncate">Ouvrir l&apos;app</span>
+              </Link>
+              <Link
+                href={downloadAppPath}
+                className="inline-flex min-w-0 items-center justify-center gap-2 rounded-full border border-white/12 bg-white/[0.05] px-3 py-3 text-[13px] font-semibold text-white/86 transition hover:border-white/24 hover:bg-white/[0.075] hover:text-white"
+              >
+                <Download className="h-4 w-4 shrink-0" />
+                <span className="truncate">Télécharger</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="relative mx-auto max-w-7xl px-4 pb-48 pt-10 sm:px-6 sm:pb-20 sm:pt-40 lg:px-8 lg:pt-36">
         <section className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
           <div className="relative mx-auto w-full max-w-[280px] overflow-hidden rounded-[32px] border border-white/10 bg-[#141416] sm:max-w-[320px] lg:mx-0">
             {artist.image_url ? (
@@ -681,7 +740,7 @@ export default async function ArtistPublicPage({ params }: PageProps) {
 
           <div className="flex flex-col gap-6">
             <div className="space-y-4">
-              <div className="inline-flex w-fit rounded-full border border-[#de3333]/25 bg-[#de3333]/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.26em] text-[#ff9b9b]">
+              <div className="inline-flex w-fit rounded-full border border-white/12 bg-white/[0.045] px-3 py-1 text-xs font-medium uppercase tracking-[0.26em] text-white/62">
                 Profil artiste
               </div>
 
