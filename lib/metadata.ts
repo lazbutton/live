@@ -5,18 +5,34 @@ export const DEFAULT_METADATA_DESCRIPTION =
   "Decouvrez les evenements, artistes, lieux et sorties a Orleans avec OutLive.";
 
 const DEFAULT_SHARE_IMAGE_PATH = "/opengraph-image";
+const DEFAULT_PUBLIC_SITE_URL = "https://outlive.fr";
 
-export function getSiteUrl() {
-  let baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+function normalizeBaseUrl(rawUrl: string) {
+  let value = rawUrl.trim();
 
-  if (!/^https?:\/\//i.test(baseUrl)) {
-    baseUrl = `https://${baseUrl}`;
+  if (!/^https?:\/\//i.test(value)) {
+    value = `https://${value}`;
   }
 
-  return baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+  return new URL(value).origin;
+}
+
+export function getSiteUrl() {
+  const publicSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (publicSiteUrl) {
+    return normalizeBaseUrl(publicSiteUrl);
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (appUrl) {
+    return normalizeBaseUrl(appUrl);
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    return "http://localhost:3000";
+  }
+
+  return DEFAULT_PUBLIC_SITE_URL;
 }
 
 export function getMetadataBase() {
