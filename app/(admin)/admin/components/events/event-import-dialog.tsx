@@ -4,39 +4,22 @@ import * as React from "react";
 import { Download, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SelectSearchable } from "@/components/ui/select-searchable";
 import { toast } from "@/components/ui/use-toast";
+import type { ImportedEventPayload } from "@/lib/events/imported-event-payload";
 
 import type { OrganizerOption } from "./types";
 
-export type ScrapedEventPayload = {
-  title?: string;
-  description?: string;
-  date?: string;
-  end_date?: string;
-  category?: string;
-  price?: string | number;
-  presale_price?: string | number;
-  subscriber_price?: string | number;
-  capacity?: string | number;
-  door_opening_time?: string;
-  external_url?: string;
-  external_url_label?: string;
-  scraping_url?: string;
-  image_url?: string;
-  is_full?: boolean;
-  location?: string;
-  location_id?: string;
-  location_organizer_id?: string;
-  address?: string;
-  organizer?: string;
-  organizer_id?: string;
-  tags?: string[];
-  [key: string]: unknown;
-};
+export type ScrapedEventPayload = ImportedEventPayload;
 
 export type EventImportDialogProps = {
   open: boolean;
@@ -50,7 +33,12 @@ export type EventImportDialogProps = {
   }) => void | Promise<void>;
 };
 
-export function EventImportDialog({ open, onOpenChange, organizers, onImported }: EventImportDialogProps) {
+export function EventImportDialog({
+  open,
+  onOpenChange,
+  organizers,
+  onImported,
+}: EventImportDialogProps) {
   const [importUrl, setImportUrl] = React.useState("");
   const [importOwnerId, setImportOwnerId] = React.useState<string>("");
   const [isImporting, setIsImporting] = React.useState(false);
@@ -63,32 +51,44 @@ export function EventImportDialog({ open, onOpenChange, organizers, onImported }
         label: `${org.name}${org.type === "location" ? " (Lieu)" : ""}`,
       })),
     ],
-    [organizers]
+    [organizers],
   );
 
   async function handleImport() {
     if (!importUrl.trim()) {
-      toast({ title: "URL requise", description: "Ajoute une URL pour importer l’événement.", variant: "destructive" });
+      toast({
+        title: "URL requise",
+        description: "Ajoute une URL pour importer l’événement.",
+        variant: "destructive",
+      });
       return;
     }
 
     try {
       new URL(importUrl.trim());
     } catch {
-      toast({ title: "URL invalide", description: "Vérifie le format de l’URL.", variant: "destructive" });
+      toast({
+        title: "URL invalide",
+        description: "Vérifie le format de l’URL.",
+        variant: "destructive",
+      });
       return;
     }
 
     setIsImporting(true);
     try {
-      const selectedOwner = organizers.find((organizer) => organizer.id === importOwnerId);
+      const selectedOwner = organizers.find(
+        (organizer) => organizer.id === importOwnerId,
+      );
       const response = await fetch("/api/events/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           url: importUrl.trim(),
-          organizer_id: selectedOwner?.type === "organizer" ? selectedOwner.id : undefined,
-          location_id: selectedOwner?.type === "location" ? selectedOwner.id : undefined,
+          organizer_id:
+            selectedOwner?.type === "organizer" ? selectedOwner.id : undefined,
+          location_id:
+            selectedOwner?.type === "location" ? selectedOwner.id : undefined,
         }),
       });
 
@@ -97,7 +97,10 @@ export function EventImportDialog({ open, onOpenChange, organizers, onImported }
         throw new Error(json?.error || "Erreur lors du scraping");
       }
 
-      const result = (await response.json()) as { data?: ScrapedEventPayload; metadata?: Record<string, unknown> };
+      const result = (await response.json()) as {
+        data?: ScrapedEventPayload;
+        metadata?: Record<string, unknown>;
+      };
       const data = result?.data || {};
 
       await onImported({
@@ -107,7 +110,11 @@ export function EventImportDialog({ open, onOpenChange, organizers, onImported }
         metadata: result?.metadata,
       });
 
-      toast({ title: "Import réussi", description: "Les champs ont été pré-remplis.", variant: "success" });
+      toast({
+        title: "Import réussi",
+        description: "Les champs ont été pré-remplis.",
+        variant: "success",
+      });
       setImportUrl("");
       setImportOwnerId("");
       onOpenChange(false);
@@ -124,16 +131,24 @@ export function EventImportDialog({ open, onOpenChange, organizers, onImported }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !isImporting && onOpenChange(next)}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => !isImporting && onOpenChange(next)}
+    >
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Créer à partir de l’URL</DialogTitle>
-          <DialogDescription>Renseigne l’URL d’une page événement, et on pré-remplit le formulaire.</DialogDescription>
+          <DialogDescription>
+            Renseigne l’URL d’une page événement, et on pré-remplit le
+            formulaire.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="import-organizer">Organisateur ou lieu (optionnel)</Label>
+            <Label htmlFor="import-organizer">
+              Organisateur ou lieu (optionnel)
+            </Label>
             <SelectSearchable
               options={organizerOptions}
               value={importOwnerId}
@@ -143,7 +158,8 @@ export function EventImportDialog({ open, onOpenChange, organizers, onImported }
               disabled={isImporting}
             />
             <p className="text-xs text-muted-foreground">
-              Si un organisateur ou un lieu est sélectionné, ses réglages de scraping peuvent améliorer la qualité de l’import.
+              Si un organisateur ou un lieu est sélectionné, ses réglages de
+              scraping peuvent améliorer la qualité de l’import.
             </p>
           </div>
 
@@ -175,7 +191,11 @@ export function EventImportDialog({ open, onOpenChange, organizers, onImported }
             >
               Annuler
             </Button>
-            <Button type="button" onClick={() => void handleImport()} disabled={isImporting || !importUrl.trim()}>
+            <Button
+              type="button"
+              onClick={() => void handleImport()}
+              disabled={isImporting || !importUrl.trim()}
+            >
               {isImporting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -194,4 +214,3 @@ export function EventImportDialog({ open, onOpenChange, organizers, onImported }
     </Dialog>
   );
 }
-

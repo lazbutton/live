@@ -91,7 +91,7 @@ export function AdminSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon" variant="floating" className="h-screen">
+    <Sidebar collapsible="offcanvas" variant="floating" className="h-screen">
       <SidebarRail />
       <SidebarContent>
         <SidebarGroup>

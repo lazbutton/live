@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getPublicStoreUrls } from "@/lib/mobile-app-links";
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
+  const { appStoreUrl } = getPublicStoreUrls();
 
   useEffect(() => {
     setMounted(true);
@@ -100,36 +102,71 @@ export default function Home() {
                   transitionDelay: '1000ms'
                 }}
               >
-                <button
-                  className="group relative px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl cursor-not-allowed transition-all duration-300 w-full sm:w-auto min-h-[56px] touch-manipulation font-medium opacity-60"
-                  style={{ 
-                    backgroundColor: '#FFFFFF', 
-                    color: '#111111',
-                    boxShadow: '0 4px 20px rgba(255, 255, 255, 0.1)'
-                  }}
-                  disabled
-                  aria-label="Application iOS bientôt disponible"
-                >
-                  <div className="flex items-center justify-center sm:justify-start gap-3">
-                    {/* App Store Icon */}
-                    <svg 
-                      className="w-7 h-7 flex-shrink-0" 
-                      viewBox="0 0 24 24" 
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-                    </svg>
-                    <div className="text-left">
-                      <div className="text-[10px] uppercase tracking-wider opacity-70 leading-tight">
-                        Bientôt disponible sur
-                      </div>
-                      <div className="text-sm sm:text-base font-semibold leading-tight -mt-0.5" style={{ fontFamily: 'var(--font-inter), Inter, sans-serif' }}>
-                        App Store
+                {appStoreUrl ? (
+                  <a
+                    href={appStoreUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl transition-all duration-300 w-full sm:w-auto min-h-[56px] touch-manipulation font-medium"
+                    style={{ 
+                      backgroundColor: '#FFFFFF', 
+                      color: '#111111',
+                      boxShadow: '0 4px 20px rgba(255, 255, 255, 0.1)'
+                    }}
+                    aria-label="Télécharger OutLive sur App Store"
+                  >
+                    <div className="flex items-center justify-center sm:justify-start gap-3">
+                      {/* App Store Icon */}
+                      <svg 
+                        className="w-7 h-7 flex-shrink-0" 
+                        viewBox="0 0 24 24" 
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                      </svg>
+                      <div className="text-left">
+                        <div className="text-[10px] uppercase tracking-wider opacity-70 leading-tight">
+                          Disponible sur
+                        </div>
+                        <div className="text-sm sm:text-base font-semibold leading-tight -mt-0.5" style={{ fontFamily: 'var(--font-inter), Inter, sans-serif' }}>
+                          App Store
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </button>
+                  </a>
+                ) : (
+                  <button
+                    className="group relative px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl cursor-not-allowed transition-all duration-300 w-full sm:w-auto min-h-[56px] touch-manipulation font-medium opacity-60"
+                    style={{ 
+                      backgroundColor: '#FFFFFF', 
+                      color: '#111111',
+                      boxShadow: '0 4px 20px rgba(255, 255, 255, 0.1)'
+                    }}
+                    disabled
+                    aria-label="Application iOS bientôt disponible"
+                  >
+                    <div className="flex items-center justify-center sm:justify-start gap-3">
+                      {/* App Store Icon */}
+                      <svg 
+                        className="w-7 h-7 flex-shrink-0" 
+                        viewBox="0 0 24 24" 
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                      </svg>
+                      <div className="text-left">
+                        <div className="text-[10px] uppercase tracking-wider opacity-70 leading-tight">
+                          Bientôt disponible sur
+                        </div>
+                        <div className="text-sm sm:text-base font-semibold leading-tight -mt-0.5" style={{ fontFamily: 'var(--font-inter), Inter, sans-serif' }}>
+                          App Store
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                )}
 
                 <button
                   className="group relative border px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl cursor-not-allowed transition-all duration-300 w-full sm:w-auto min-h-[56px] touch-manipulation text-white font-medium opacity-60"
@@ -172,12 +209,6 @@ export default function Home() {
                   transitionDelay: '1200ms'
                 }}
               >
-                <p className="text-xs sm:text-sm text-white/70 font-medium mb-1">
-                  Les applications mobile arrivent bientôt !
-                </p>
-                <p className="text-[10px] sm:text-xs text-white/40 max-w-md mx-auto px-4">
-                  Revenez vite pour télécharger OutLive sur iOS et Android.
-                </p>
               </div>
             </div>
           </div>

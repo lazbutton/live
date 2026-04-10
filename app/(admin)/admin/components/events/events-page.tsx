@@ -3,47 +3,125 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import { toDatetimeLocal } from "@/lib/date-utils";
 import { toast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
-import type { AdminEvent, ArtistOption, CategoryOption, LocationData, OrganizerOption, TagOption } from "./types";
+import type {
+  AdminEvent,
+  ArtistOption,
+  CategoryOption,
+  EventFormPrefill,
+  LocationData,
+  OrganizerOption,
+  TagOption,
+} from "./types";
+import {
+  buildEventFormPrefillFromImport,
+  resolveTagIdsForImport,
+} from "./event-import-utils";
 import { EventFiltersBar } from "./event-filters-bar";
 import { EventsCalendar } from "./events-calendar";
+import { EventCard } from "./event-card";
 import { EventArtistsQuickDialog } from "./event-artists-quick-dialog";
-import { EventFormSheet, type EventFormPrefill } from "./event-form-sheet";
-import { EventImportDialog, type ScrapedEventPayload } from "./event-import-dialog";
+import { EventFormSheet } from "./event-form-sheet";
+import {
+  EventImportDialog,
+  type ScrapedEventPayload,
+} from "./event-import-dialog";
+import { EventImageImportDialog } from "./event-image-import-dialog";
 import { FacebookEventImportDialog } from "./facebook-event-import-dialog";
 
-function normalizeSearchValue(value: string) {
+function normalizeSearchText(value: string) {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+function levenshteinDistance(a: string, b: string) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const matrix: number[][] = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => 0),
+  );
+
+  for (let i = 0; i < rows; i += 1) matrix[i][0] = i;
+  for (let j = 0; j < cols; j += 1) matrix[0][j] = j;
+
+  for (let i = 1; i < rows; i += 1) {
+    for (let j = 1; j < cols; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost,
+      );
+    }
+  }
+
+  return matrix[rows - 1][cols - 1];
+}
+
+function isFuzzyTokenMatch(queryToken: string, candidateToken: string) {
+  if (!queryToken || !candidateToken) return false;
+  if (candidateToken.includes(queryToken)) {
+    return true;
+  }
+
+  // Ne pas appliquer de fuzzy sur les mots trop courts (trop de faux positifs)
+  if (queryToken.length < 5) return false;
+
+  // Limiter les différences de longueur entre les tokens comparés
+  if (Math.abs(candidateToken.length - queryToken.length) > 2) return false;
+
+  // Tolérance progressive selon la longueur du mot saisi
+  const maxDistance = queryToken.length >= 9 ? 2 : 1;
+  if (maxDistance === 0) return false;
+
+  // Compare token complet (plus strict que le préfixe)
+  return levenshteinDistance(queryToken, candidateToken) <= maxDistance;
+}
+
 function matchesEventSearch(event: AdminEvent, rawQuery: string) {
-  const query = rawQuery.trim().toLowerCase();
+  const query = normalizeSearchText(rawQuery);
   if (!query) return true;
 
-  const title = event.title?.toLowerCase() || "";
-  const description = event.description?.toLowerCase() || "";
-  const category = event.category?.toLowerCase() || "";
-  const location = event.location?.name?.toLowerCase() || "";
-  const majorEvent = event.major_event_events?.[0]?.major_event?.title?.toLowerCase() || "";
+  const searchableParts = [
+    event.title || "",
+    event.description || "",
+    event.category || "",
+    event.location?.name || "",
+    event.major_event_events?.[0]?.major_event?.title || "",
+  ];
 
-  return (
-    title.includes(query) ||
-    description.includes(query) ||
-    category.includes(query) ||
-    location.includes(query) ||
-    majorEvent.includes(query)
+  const searchableText = normalizeSearchText(searchableParts.join(" "));
+  if (!searchableText) return false;
+  if (searchableText.includes(query)) return true;
+
+  const queryTokens = query.split(" ").filter(Boolean);
+  const candidateTokens = searchableText.split(" ").filter(Boolean);
+  if (queryTokens.length === 0 || candidateTokens.length === 0) return false;
+
+  // Tous les tokens saisis doivent matcher au moins un token candidat (exact/fuzzy)
+  return queryTokens.every((queryToken) =>
+    candidateTokens.some((candidateToken) =>
+      isFuzzyTokenMatch(queryToken, candidateToken),
+    ),
   );
 }
 
-function isEventLongerThan24Hours(event: Pick<AdminEvent, "date" | "end_date">) {
+function isEventLongerThan24Hours(
+  event: Pick<AdminEvent, "date" | "end_date">,
+) {
   if (!event.end_date) return false;
 
   const start = new Date(event.date);
@@ -54,6 +132,15 @@ function isEventLongerThan24Hours(event: Pick<AdminEvent, "date" | "end_date">) 
   }
 
   return end.getTime() - start.getTime() > 24 * 60 * 60 * 1000;
+}
+
+function getEventOrganizerIds(event: AdminEvent) {
+  const rawIds =
+    event.event_organizers?.flatMap((entry) => [
+      entry.organizer?.id,
+      entry.location?.id,
+    ]) ?? [];
+  return Array.from(new Set(rawIds.filter(Boolean) as string[]));
 }
 
 export function EventsPage() {
@@ -69,20 +156,38 @@ export function EventsPage() {
   const [categories, setCategories] = React.useState<CategoryOption[]>([]);
 
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [filterStatus, setFilterStatus] = React.useState<"all" | "pending" | "approved">("all");
+  const [viewMode, setViewMode] = React.useState<"calendar" | "list">("calendar");
+  const [selectedOrganizerIds, setSelectedOrganizerIds] = React.useState<string[]>(
+    [],
+  );
+  const [filterStatus, setFilterStatus] = React.useState<
+    "all" | "pending" | "approved"
+  >("all");
   const [hideLongEvents, setHideLongEvents] = React.useState(false);
 
-  const [selectedEvent, setSelectedEvent] = React.useState<AdminEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = React.useState<AdminEvent | null>(
+    null,
+  );
   const [isFormOpen, setIsFormOpen] = React.useState(false);
-  const [artistsDialogEvent, setArtistsDialogEvent] = React.useState<AdminEvent | null>(null);
+  const [artistsDialogEvent, setArtistsDialogEvent] =
+    React.useState<AdminEvent | null>(null);
   const [isArtistsDialogOpen, setIsArtistsDialogOpen] = React.useState(false);
   const [isImportOpen, setIsImportOpen] = React.useState(false);
+  const [isImageImportOpen, setIsImageImportOpen] = React.useState(false);
   const [isFacebookImportOpen, setIsFacebookImportOpen] = React.useState(false);
-  const [defaultDate, setDefaultDate] = React.useState<Date | undefined>(undefined);
-  const [prefill, setPrefill] = React.useState<EventFormPrefill | undefined>(undefined);
+  const [defaultDate, setDefaultDate] = React.useState<Date | undefined>(
+    undefined,
+  );
+  const [prefill, setPrefill] = React.useState<EventFormPrefill | undefined>(
+    undefined,
+  );
 
   const loadCategories = React.useCallback(async () => {
-    const { data, error } = await supabase.from("categories").select("id, name").eq("is_active", true).order("name");
+    const { data, error } = await supabase
+      .from("categories")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name");
     if (error) throw error;
     setCategories((data || []) as CategoryOption[]);
   }, []);
@@ -102,14 +207,23 @@ export function EventsPage() {
     if (locError) throw locError;
 
     const all: OrganizerOption[] = [
-      ...((organizersData || []) as any[]).map((o) => ({ ...o, type: "organizer" as const })),
-      ...((locationsData || []) as any[]).map((l) => ({ ...l, type: "location" as const })),
+      ...((organizersData || []) as any[]).map((o) => ({
+        ...o,
+        type: "organizer" as const,
+      })),
+      ...((locationsData || []) as any[]).map((l) => ({
+        ...l,
+        type: "location" as const,
+      })),
     ];
     setOrganizers(all);
   }, []);
 
   const loadTags = React.useCallback(async () => {
-    const { data, error } = await supabase.from("tags").select("id, name").order("name");
+    const { data, error } = await supabase
+      .from("tags")
+      .select("id, name")
+      .order("name");
     if (error) throw error;
     setTags((data || []) as TagOption[]);
   }, []);
@@ -126,11 +240,15 @@ export function EventsPage() {
   const loadLocations = React.useCallback(async () => {
     const { data, error } = await supabase
       .from("locations")
-      .select("id, name, address, capacity, latitude, longitude, city_id, city:cities(id, label)");
+      .select(
+        "id, name, address, capacity, latitude, longitude, city_id, city:cities(id, label)",
+      );
     if (error) throw error;
     const normalizedLocations = ((data || []) as any[]).map((location) => ({
       ...location,
-      city: Array.isArray(location.city) ? (location.city[0] ?? null) : (location.city ?? null),
+      city: Array.isArray(location.city)
+        ? (location.city[0] ?? null)
+        : (location.city ?? null),
     }));
     setLocations(normalizedLocations as LocationData[]);
   }, []);
@@ -167,7 +285,14 @@ export function EventsPage() {
   const loadAll = React.useCallback(async () => {
     setLoading(true);
     try {
-      await Promise.all([loadEvents(), loadLocations(), loadOrganizers(), loadArtists(), loadTags(), loadCategories()]);
+      await Promise.all([
+        loadEvents(),
+        loadLocations(),
+        loadOrganizers(),
+        loadArtists(),
+        loadTags(),
+        loadCategories(),
+      ]);
     } catch (e) {
       console.error("Erreur chargement events:", e);
       toast({
@@ -178,140 +303,22 @@ export function EventsPage() {
     } finally {
       setLoading(false);
     }
-  }, [loadArtists, loadCategories, loadEvents, loadLocations, loadOrganizers, loadTags]);
-
-  const resolveCategoryId = React.useCallback(
-    (rawCategory?: string | null) => {
-      const raw = (rawCategory || "").trim();
-      if (!raw) return categories[0]?.id || "";
-
-      const byId = categories.find((category) => category.id === raw);
-      if (byId) return byId.id;
-
-      const normalizedRaw = normalizeSearchValue(raw);
-      const byName = categories.find((category) => normalizeSearchValue(category.name) === normalizedRaw);
-      return byName?.id || categories[0]?.id || "";
-    },
-    [categories],
-  );
-
-  const resolveLocationFromScrapedData = React.useCallback(
-    (locationName?: string | null, address?: string | null) => {
-      const candidates = [locationName, address]
-        .flatMap((value) => {
-          const raw = (value || "").trim();
-          if (!raw) return [];
-          return [raw, raw.split(",")[0], raw.split(" - ")[0], raw.split(" • ")[0]].map((entry) => entry.trim());
-        })
-        .filter((value, index, array) => Boolean(value) && array.indexOf(value) === index);
-
-      for (const candidate of candidates) {
-        const normalizedCandidate = normalizeSearchValue(candidate);
-        const byName = locations.find((location) => normalizeSearchValue(location.name) === normalizedCandidate);
-        if (byName) return byName;
-      }
-
-      for (const candidate of candidates) {
-        const normalizedCandidate = normalizeSearchValue(candidate);
-        const byPartialName = locations.find((location) => {
-          const normalizedName = normalizeSearchValue(location.name);
-          return normalizedName.includes(normalizedCandidate) || normalizedCandidate.includes(normalizedName);
-        });
-        if (byPartialName) return byPartialName;
-      }
-
-      if (address) {
-        const normalizedAddress = normalizeSearchValue(address);
-        const byAddress = locations.find((location) => {
-          const locationAddress = normalizeSearchValue(location.address || "");
-          return (
-            locationAddress.length > 0 &&
-            (locationAddress.includes(normalizedAddress) || normalizedAddress.includes(locationAddress))
-          );
-        });
-        if (byAddress) return byAddress;
-      }
-
-      return null;
-    },
-    [locations],
-  );
-
-  const resolveOrganizerFromName = React.useCallback(
-    (organizerName?: string | null) => {
-      const raw = (organizerName || "").trim();
-      if (!raw) return null;
-
-      const candidates = [raw, raw.split(",")[0], raw.split(" / ")[0], raw.split(" - ")[0]]
-        .map((value) => value.trim())
-        .filter((value, index, array) => Boolean(value) && array.indexOf(value) === index);
-
-      for (const candidate of candidates) {
-        const normalizedCandidate = normalizeSearchValue(candidate);
-        const exact = organizers.find((organizer) => normalizeSearchValue(organizer.name) === normalizedCandidate);
-        if (exact) return exact;
-      }
-
-      for (const candidate of candidates) {
-        const normalizedCandidate = normalizeSearchValue(candidate);
-        const partial = organizers.find((organizer) => {
-          const normalizedName = normalizeSearchValue(organizer.name);
-          return normalizedName.includes(normalizedCandidate) || normalizedCandidate.includes(normalizedName);
-        });
-        if (partial) return partial;
-      }
-
-      return null;
-    },
-    [organizers],
-  );
+  }, [
+    loadArtists,
+    loadCategories,
+    loadEvents,
+    loadLocations,
+    loadOrganizers,
+    loadTags,
+  ]);
 
   const findOrCreateTagIds = React.useCallback(
     async (rawTagNames: string[]) => {
-      if (!Array.isArray(rawTagNames) || rawTagNames.length === 0) return [];
-
-      const normalizedNames = rawTagNames
-        .map((tag) => tag.trim())
-        .filter((tag, index, array) => Boolean(tag) && array.indexOf(tag) === index);
-
-      const resolvedIds: string[] = [];
-      let shouldReloadTags = false;
-
-      for (const tagName of normalizedNames) {
-        const existingLocal = tags.find((tag) => normalizeSearchValue(tag.name) === normalizeSearchValue(tagName));
-        if (existingLocal) {
-          resolvedIds.push(existingLocal.id);
-          continue;
-        }
-
-        const { data: existingRemote } = await supabase
-          .from("tags")
-          .select("id, name")
-          .ilike("name", tagName)
-          .maybeSingle();
-
-        if (existingRemote?.id) {
-          resolvedIds.push(existingRemote.id);
-          continue;
-        }
-
-        const { data: createdTag, error } = await supabase
-          .from("tags")
-          .insert([{ name: tagName }])
-          .select("id")
-          .single();
-
-        if (!error && createdTag?.id) {
-          resolvedIds.push(createdTag.id);
-          shouldReloadTags = true;
-        }
-      }
-
-      if (shouldReloadTags) {
-        await loadTags();
-      }
-
-      return [...new Set(resolvedIds)];
+      return resolveTagIdsForImport({
+        rawTagNames,
+        tags,
+        onTagsChanged: loadTags,
+      });
     },
     [loadTags, tags],
   );
@@ -330,7 +337,11 @@ export function EventsPage() {
     const params = new URLSearchParams(searchParams.toString());
 
     const statusParam = params.get("status");
-    if (statusParam === "pending" || statusParam === "approved" || statusParam === "all") {
+    if (
+      statusParam === "pending" ||
+      statusParam === "approved" ||
+      statusParam === "all"
+    ) {
       setFilterStatus(statusParam);
     }
 
@@ -376,9 +387,18 @@ export function EventsPage() {
       filtered = filtered.filter((ev) => !isEventLongerThan24Hours(ev));
     }
 
-    filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    if (selectedOrganizerIds.length > 0) {
+      filtered = filtered.filter((event) => {
+        const organizerIds = getEventOrganizerIds(event);
+        return organizerIds.some((id) => selectedOrganizerIds.includes(id));
+      });
+    }
+
+    filtered.sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
     return filtered;
-  }, [events, filterStatus, hideLongEvents, searchQuery]);
+  }, [events, filterStatus, hideLongEvents, searchQuery, selectedOrganizerIds]);
 
   const pendingCount = React.useMemo(() => {
     // count pending with current search, independent of status toggle
@@ -389,8 +409,41 @@ export function EventsPage() {
     if (hideLongEvents) {
       base = base.filter((ev) => !isEventLongerThan24Hours(ev));
     }
+    if (selectedOrganizerIds.length > 0) {
+      base = base.filter((event) => {
+        const organizerIds = getEventOrganizerIds(event);
+        return organizerIds.some((id) => selectedOrganizerIds.includes(id));
+      });
+    }
     return base.filter((ev) => ev.status === "pending").length;
-  }, [events, hideLongEvents, searchQuery]);
+  }, [events, hideLongEvents, searchQuery, selectedOrganizerIds]);
+
+  const organizerFilterOptions = React.useMemo(
+    () =>
+      organizers
+        .map((organizer) => ({
+          value: organizer.id,
+          label:
+            organizer.type === "location"
+              ? `${organizer.name} (Lieu)`
+              : organizer.name,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label, "fr")),
+    [organizers],
+  );
+
+  React.useEffect(() => {
+    if (searchQuery.trim()) {
+      setViewMode("list");
+    }
+  }, [searchQuery]);
+
+  function resetFilters() {
+    setSearchQuery("");
+    setFilterStatus("all");
+    setHideLongEvents(false);
+    setSelectedOrganizerIds([]);
+  }
 
   function openCreate(date?: Date) {
     setSelectedEvent(null);
@@ -414,9 +467,16 @@ export function EventsPage() {
   async function quickApprove(eventId: string) {
     try {
       // update status
-      const { data: before } = await supabase.from("events").select("title, status").eq("id", eventId).single();
+      const { data: before } = await supabase
+        .from("events")
+        .select("title, status")
+        .eq("id", eventId)
+        .single();
 
-      const { error } = await supabase.from("events").update({ status: "approved" }).eq("id", eventId);
+      const { error } = await supabase
+        .from("events")
+        .update({ status: "approved" })
+        .eq("id", eventId);
       if (error) throw error;
 
       // notify (best effort)
@@ -450,9 +510,15 @@ export function EventsPage() {
   async function bulkApprove(eventIds: string[]) {
     if (eventIds.length === 0) return;
     try {
-      const { error } = await supabase.from("events").update({ status: "approved" }).in("id", eventIds);
+      const { error } = await supabase
+        .from("events")
+        .update({ status: "approved" })
+        .in("id", eventIds);
       if (error) throw error;
-      toast({ title: `${eventIds.length} événement${eventIds.length > 1 ? "s" : ""} approuvé${eventIds.length > 1 ? "s" : ""}`, variant: "success" });
+      toast({
+        title: `${eventIds.length} événement${eventIds.length > 1 ? "s" : ""} approuvé${eventIds.length > 1 ? "s" : ""}`,
+        variant: "success",
+      });
       await loadEvents();
     } catch (e: any) {
       console.error("Erreur bulk approve:", e);
@@ -466,7 +532,10 @@ export function EventsPage() {
 
   async function saveQuickArtists(event: AdminEvent, artistIds: string[]) {
     try {
-      const { error: deleteError } = await supabase.from("event_artists").delete().eq("event_id", event.id);
+      const { error: deleteError } = await supabase
+        .from("event_artists")
+        .delete()
+        .eq("event_id", event.id);
       if (deleteError) throw deleteError;
 
       if (artistIds.length > 0) {
@@ -477,7 +546,9 @@ export function EventsPage() {
           role_label: null,
         }));
 
-        const { error: insertError } = await supabase.from("event_artists").insert(entries);
+        const { error: insertError } = await supabase
+          .from("event_artists")
+          .insert(entries);
         if (insertError) throw insertError;
       }
 
@@ -499,7 +570,10 @@ export function EventsPage() {
     const nextIsFull = !Boolean(event.is_full);
 
     try {
-      const { error } = await supabase.from("events").update({ is_full: nextIsFull }).eq("id", event.id);
+      const { error } = await supabase
+        .from("events")
+        .update({ is_full: nextIsFull })
+        .eq("id", event.id);
       if (error) throw error;
 
       toast({
@@ -521,11 +595,16 @@ export function EventsPage() {
     const nextIsFeatured = !Boolean(event.is_featured);
 
     try {
-      const { error } = await supabase.from("events").update({ is_featured: nextIsFeatured }).eq("id", event.id);
+      const { error } = await supabase
+        .from("events")
+        .update({ is_featured: nextIsFeatured })
+        .eq("id", event.id);
       if (error) throw error;
 
       toast({
-        title: nextIsFeatured ? "Événement mis à la une" : "Événement retiré de la une",
+        title: nextIsFeatured
+          ? "Événement mis à la une"
+          : "Événement retiré de la une",
         variant: "success",
       });
       await loadEvents();
@@ -544,79 +623,34 @@ export function EventsPage() {
     owner?: OrganizerOption;
     data: ScrapedEventPayload;
   }) {
-    const d = payload.data || {};
-    const rawTags = d.tags as unknown;
-    const scrapedTags = Array.isArray(rawTags)
-      ? rawTags.map((tag) => tag.toString().trim()).filter(Boolean)
-      : [];
-    const tagIds = await findOrCreateTagIds(scrapedTags);
+    const { prefill: importedPrefill } = await buildEventFormPrefillFromImport({
+      data: payload.data || {},
+      sourceUrl: payload.sourceUrl,
+      owner: payload.owner,
+      categories,
+      locations,
+      organizers,
+      findOrCreateTagIds,
+      defaultStatus: "pending",
+    });
 
-    const matchedLocation =
-      (typeof d.location_id === "string" ? locations.find((location) => location.id === d.location_id) || null : null) ||
-      resolveLocationFromScrapedData(d.location, d.address);
+    setPrefill(importedPrefill);
+    setDefaultDate(undefined);
+    setSelectedEvent(null);
+    setIsFormOpen(true);
+  }
 
-    const resolvedLocationId =
-      (typeof d.location_id === "string" && d.location_id) ||
-      matchedLocation?.id ||
-      (payload.owner?.type === "location" ? payload.owner.id : "");
+  async function handleImageImported(payload: { data: ScrapedEventPayload }) {
+    const { prefill: importedPrefill } = await buildEventFormPrefillFromImport({
+      data: payload.data || {},
+      categories,
+      locations,
+      organizers,
+      findOrCreateTagIds,
+      defaultStatus: "pending",
+    });
 
-    const organizerIds: string[] = [];
-    const pushOrganizerId = (value?: string | null) => {
-      if (value && !organizerIds.includes(value)) {
-        organizerIds.push(value);
-      }
-    };
-
-    if (payload.owner) {
-      pushOrganizerId(payload.owner.id);
-    }
-    if (typeof d.organizer_id === "string") {
-      pushOrganizerId(d.organizer_id);
-    }
-    if (typeof d.location_organizer_id === "string") {
-      pushOrganizerId(d.location_organizer_id);
-    }
-
-    const matchedOrganizer = resolveOrganizerFromName(d.organizer);
-    if (matchedOrganizer) {
-      pushOrganizerId(matchedOrganizer.id);
-    }
-
-    const pre: EventFormPrefill = {
-      form: {
-        title: (d.title || "").toString(),
-        description: (d.description || "").toString(),
-        date: d.date ? toDatetimeLocal(String(d.date)) : "",
-        end_date: d.end_date ? toDatetimeLocal(String(d.end_date)) : "",
-        category: resolveCategoryId(typeof d.category === "string" ? d.category : ""),
-        price: d.price != null ? String(d.price) : "",
-        presale_price: d.presale_price != null ? String(d.presale_price) : "",
-        subscriber_price: d.subscriber_price != null ? String(d.subscriber_price) : "",
-        capacity:
-          d.capacity != null
-            ? String(d.capacity)
-            : matchedLocation?.capacity != null
-              ? String(matchedLocation.capacity)
-              : "",
-        is_full: Boolean(d.is_full),
-        location_id: resolvedLocationId,
-        room_id: "",
-        door_opening_time: (d.door_opening_time || "").toString(),
-        external_url: (d.external_url || payload.sourceUrl || "").toString(),
-        external_url_label: (d.external_url_label || "").toString(),
-        scraping_url: payload.sourceUrl,
-        instagram_url:
-          typeof d.instagram_url === "string" ? d.instagram_url : "",
-        facebook_url:
-          typeof d.facebook_url === "string" ? d.facebook_url : "",
-        image_url: (d.image_url || "").toString(),
-        status: "pending",
-      },
-      organizerIds,
-      tagIds,
-    };
-
-    setPrefill(pre);
+    setPrefill(importedPrefill);
     setDefaultDate(undefined);
     setSelectedEvent(null);
     setIsFormOpen(true);
@@ -646,20 +680,74 @@ export function EventsPage() {
         onHideLongEventsChange={setHideLongEvents}
         pendingCount={pendingCount}
         onCreateClick={() => openCreate()}
+        onImportFromImageClick={() => setIsImageImportOpen(true)}
         onImportFromUrlClick={() => setIsImportOpen(true)}
         onImportFromFacebookClick={() => setIsFacebookImportOpen(true)}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        organizerFilterOptions={organizerFilterOptions}
+        selectedOrganizerIds={selectedOrganizerIds}
+        onOrganizerFilterChange={setSelectedOrganizerIds}
+        onResetFilters={resetFilters}
       />
 
-      <EventsCalendar
-        events={filteredEvents}
-        onEventClick={openEditEvent}
-        onCreateAtDate={(date) => openCreate(date)}
-        onQuickApprove={quickApprove}
-        onBulkApprove={bulkApprove}
-        onOpenArtistsDialog={openArtistsDialog}
-        onToggleFull={toggleEventFull}
-        onToggleFeatured={toggleEventFeatured}
-      />
+      {viewMode === "calendar" ? (
+        <EventsCalendar
+          events={filteredEvents}
+          onEventClick={openEditEvent}
+          onCreateAtDate={(date) => openCreate(date)}
+          onQuickApprove={quickApprove}
+          onBulkApprove={bulkApprove}
+          onOpenArtistsDialog={openArtistsDialog}
+          onToggleFull={toggleEventFull}
+          onToggleFeatured={toggleEventFeatured}
+        />
+      ) : (
+        <Card className="p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="text-sm text-muted-foreground">
+              {filteredEvents.length} événement{filteredEvents.length > 1 ? "s" : ""}
+            </div>
+            {filteredEvents.some((event) => event.status === "pending") ? (
+              <Button
+                type="button"
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700"
+                onClick={() =>
+                  void bulkApprove(
+                    filteredEvents
+                      .filter((event) => event.status === "pending")
+                      .map((event) => event.id),
+                  )
+                }
+              >
+                Tout approuver (liste)
+              </Button>
+            ) : null}
+          </div>
+
+          {filteredEvents.length === 0 ? (
+            <div className="rounded-lg border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+              Aucun événement trouvé pour ces filtres.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+              {filteredEvents.map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  onClick={() => openEditEvent(event)}
+                  onQuickApprove={
+                    event.status === "pending"
+                      ? () => quickApprove(event.id)
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
 
       <EventFormSheet
         event={selectedEvent}
@@ -704,6 +792,12 @@ export function EventsPage() {
         onImported={handleImported}
       />
 
+      <EventImageImportDialog
+        open={isImageImportOpen}
+        onOpenChange={setIsImageImportOpen}
+        onImported={({ data }) => handleImageImported({ data })}
+      />
+
       <FacebookEventImportDialog
         open={isFacebookImportOpen}
         onOpenChange={setIsFacebookImportOpen}
@@ -713,4 +807,3 @@ export function EventsPage() {
     </div>
   );
 }
-

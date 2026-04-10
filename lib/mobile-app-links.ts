@@ -5,7 +5,11 @@ export const ANDROID_PACKAGE_NAME = "com.lazbutton.live";
 export const ANDROID_RELEASE_SHA256_FINGERPRINT =
   "0F:4A:51:B5:A6:2C:6E:BC:4C:D4:F0:69:8D:E2:1F:0A:11:42:24:6E:CC:61:4D:BE:B0:1D:AE:55:4F:25:4E:5B";
 
-const appStoreUrl = process.env.NEXT_PUBLIC_APP_STORE_URL?.trim() || null;
+const DEFAULT_APP_STORE_URL =
+  "https://apps.apple.com/fr/app/outlive/id6756211104";
+
+const appStoreUrl =
+  process.env.NEXT_PUBLIC_APP_STORE_URL?.trim() || DEFAULT_APP_STORE_URL;
 const playStoreUrl = process.env.NEXT_PUBLIC_PLAY_STORE_URL?.trim() || null;
 
 const UUID_PATTERN =

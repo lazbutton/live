@@ -9,7 +9,6 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -56,7 +55,6 @@ export function OrganizerSidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const menuItemsRefs = React.useRef<(HTMLAnchorElement | null)[]>([]);
-  const [organizers, setOrganizers] = useState<OrganizerInfo[]>([]);
   const [activeOrganizer, setActiveOrganizer] = useState<OrganizerInfo | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [canManageScraping, setCanManageScraping] = useState(false);
@@ -67,8 +65,6 @@ export function OrganizerSidebar() {
     async function loadOrganizers() {
       try {
         const orgs = await getUserOrganizers();
-        setOrganizers(orgs);
-        
         // Vérifier si l'utilisateur est propriétaire d'au moins un organisateur
         const hasOwnerRole = orgs.some(org => org.role === "owner");
         setIsOwner(hasOwnerRole);
@@ -170,7 +166,7 @@ export function OrganizerSidebar() {
     .toUpperCase();
 
   return (
-    <Sidebar collapsible="icon" variant="floating" className="h-screen">
+    <Sidebar collapsible="offcanvas" variant="floating" className="h-screen">
       <SidebarRail />
       <SidebarContent>
         <SidebarGroup>

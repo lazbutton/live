@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CircleAlert, Loader2, Trash2 } from "lucide-react";
+import { CircleAlert, Loader2, Sparkles, Trash2 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -9,17 +9,43 @@ import { fromDatetimeLocal, toDatetimeLocal } from "@/lib/date-utils";
 import { compressImage } from "@/lib/image-compression";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAlertDialog } from "@/hooks/use-alert-dialog";
+import {
+  IMPORTED_EVENT_FIELD_LABELS,
+  type ImportedEventAnalysisResult,
+  type ImportedEventPayload,
+  type ImportedEventWarning,
+} from "@/lib/events/imported-event-payload";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AddressInput } from "@/components/ui/address-input";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { MultiSelectCreatable } from "@/components/ui/multi-select-creatable";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SelectSearchable } from "@/components/ui/select-searchable";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
@@ -32,6 +58,7 @@ import type {
   ArtistOption,
   CategoryOption,
   EventFormData,
+  EventFormPrefill,
   EventStatus,
   LocationData,
   OrganizerOption,
@@ -51,6 +78,8 @@ type MajorEventOption = {
 type QuickLocationFormState = {
   name: string;
   address: string;
+  latitude: string;
+  longitude: string;
   capacity: string;
   is_organizer: boolean;
 };
@@ -70,12 +99,10 @@ type QuickArtistFormState = {
   website_url: string;
 };
 
-export type EventFormPrefill = Partial<{
-  form: Partial<EventFormData>;
-  organizerIds: string[];
-  artistIds: string[];
-  tagIds: string[];
-}>;
+type AdditionalTimeSlot = {
+  start: string;
+  end: string;
+};
 
 export type EventFormSheetProps = {
   event: AdminEvent | null;
@@ -140,6 +167,260 @@ function emptyForm(): EventFormData {
   };
 }
 
+type ExtractedFieldPreview = {
+  key: string;
+  label: string;
+  extractedValue: string;
+  currentValue: string;
+  willOverwrite: boolean;
+};
+
+function getComparableStringValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => String(entry).trim())
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Oui" : "Non";
+  }
+
+  if (value == null) {
+    return "";
+  }
+
+  return String(value).trim();
+}
+
+function describeFormValue(
+  key: string,
+  value: unknown,
+  options: {
+    locations: LocationData[];
+    organizers: OrganizerOption[];
+    categories: CategoryOption[];
+    tags: TagOption[];
+  },
+) {
+  if (key === "location_id") {
+    const label = options.locations.find(
+      (location) => location.id === value,
+    )?.name;
+    return label || "";
+  }
+
+  if (key === "category") {
+    const label = options.categories.find(
+      (category) => category.id === value,
+    )?.name;
+    return label || "";
+  }
+
+  if (key === "organizerIds") {
+    if (!Array.isArray(value)) return "";
+    return value
+      .map(
+        (id) =>
+          options.organizers.find((organizer) => organizer.id === id)?.name ||
+          "",
+      )
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (key === "tagIds") {
+    if (!Array.isArray(value)) return "";
+    return value
+      .map((id) => options.tags.find((tag) => tag.id === id)?.name || "")
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  return getComparableStringValue(value);
+}
+
+function buildExtractedFieldPreview(args: {
+  extractedData: ImportedEventPayload;
+  prefill: EventFormPrefill;
+  formData: EventFormData;
+  selectedOrganizerIds: string[];
+  selectedTagIds: string[];
+  locations: LocationData[];
+  organizers: OrganizerOption[];
+  categories: CategoryOption[];
+  tags: TagOption[];
+  analysisWarnings: ImportedEventWarning[];
+}) {
+  const {
+    extractedData,
+    prefill,
+    formData,
+    selectedOrganizerIds,
+    selectedTagIds,
+    locations,
+    organizers,
+    categories,
+    tags,
+    analysisWarnings,
+  } = args;
+
+  const result: ExtractedFieldPreview[] = [];
+
+  const pushField = (params: {
+    key: string;
+    sourceValue: unknown;
+    extractedDisplayValue?: string;
+    currentValue: unknown;
+    currentDisplayValue?: string;
+  }) => {
+    const extractedDisplayValue =
+      params.extractedDisplayValue ??
+      getComparableStringValue(params.sourceValue);
+    if (!extractedDisplayValue) return;
+
+    const currentDisplayValue =
+      params.currentDisplayValue ??
+      getComparableStringValue(params.currentValue);
+
+    result.push({
+      key: params.key,
+      label:
+        IMPORTED_EVENT_FIELD_LABELS[
+          params.key as keyof typeof IMPORTED_EVENT_FIELD_LABELS
+        ] || params.key,
+      extractedValue: extractedDisplayValue,
+      currentValue: currentDisplayValue,
+      willOverwrite:
+        Boolean(currentDisplayValue) &&
+        currentDisplayValue !== extractedDisplayValue,
+    });
+  };
+
+  Object.entries(prefill.form || {}).forEach(([key, value]) => {
+    if (value == null || getComparableStringValue(value) === "") return;
+
+    pushField({
+      key,
+      sourceValue:
+        extractedData[key as keyof ImportedEventPayload] !== undefined
+          ? extractedData[key as keyof ImportedEventPayload]
+          : value,
+      extractedDisplayValue: describeFormValue(key, value, {
+        locations,
+        organizers,
+        categories,
+        tags,
+      }),
+      currentValue: formData[key as keyof EventFormData],
+      currentDisplayValue: describeFormValue(
+        key,
+        formData[key as keyof EventFormData],
+        {
+          locations,
+          organizers,
+          categories,
+          tags,
+        },
+      ),
+    });
+  });
+
+  if ((prefill.organizerIds || []).length > 0) {
+    pushField({
+      key: "organizerIds",
+      sourceValue: prefill.organizerIds,
+      extractedDisplayValue: describeFormValue(
+        "organizerIds",
+        prefill.organizerIds,
+        {
+          locations,
+          organizers,
+          categories,
+          tags,
+        },
+      ),
+      currentValue: selectedOrganizerIds,
+      currentDisplayValue: describeFormValue(
+        "organizerIds",
+        selectedOrganizerIds,
+        {
+          locations,
+          organizers,
+          categories,
+          tags,
+        },
+      ),
+    });
+  }
+
+  if ((prefill.tagIds || []).length > 0) {
+    const warnedTags = analysisWarnings
+      .filter((warning) => warning.field === "tags" && warning.value)
+      .map((warning) => warning.value as string);
+
+    pushField({
+      key: "tagIds",
+      sourceValue: prefill.tagIds,
+      extractedDisplayValue:
+        warnedTags.length > 0
+          ? warnedTags.join(", ")
+          : describeFormValue("tagIds", prefill.tagIds, {
+              locations,
+              organizers,
+              categories,
+              tags,
+            }),
+      currentValue: selectedTagIds,
+      currentDisplayValue: describeFormValue("tagIds", selectedTagIds, {
+        locations,
+        organizers,
+        categories,
+        tags,
+      }),
+    });
+  }
+
+  return result;
+}
+
+function mergeFormWithPrefill(
+  current: EventFormData,
+  incoming: Partial<EventFormData>,
+): EventFormData {
+  const next = { ...current };
+
+  for (const [key, rawValue] of Object.entries(incoming)) {
+    const normalizedIncoming =
+      typeof rawValue === "string" ? rawValue.trim() : rawValue;
+    if (normalizedIncoming === "" || normalizedIncoming == null) continue;
+
+    const currentValue = next[key as keyof EventFormData];
+    const normalizedCurrent =
+      typeof currentValue === "string" ? currentValue.trim() : currentValue;
+    const isCurrentEmpty =
+      normalizedCurrent === "" || normalizedCurrent == null;
+
+    if (typeof normalizedIncoming === "boolean") {
+      if (
+        isCurrentEmpty ||
+        normalizedCurrent === false ||
+        normalizedCurrent !== normalizedIncoming
+      ) {
+        (next as Record<string, unknown>)[key] = normalizedIncoming;
+      }
+      continue;
+    }
+
+    if (isCurrentEmpty || normalizedCurrent !== normalizedIncoming) {
+      (next as Record<string, unknown>)[key] = rawValue;
+    }
+  }
+
+  return next;
+}
+
 function StatusPicker({
   value,
   onChange,
@@ -196,39 +477,59 @@ export function EventFormSheet({
   const isMobile = useIsMobile();
   const { showConfirm, AlertDialogComponent } = useAlertDialog();
 
-  const [formData, setFormData] = React.useState<EventFormData>(() => emptyForm());
-  const [selectedOrganizerIds, setSelectedOrganizerIds] = React.useState<string[]>([]);
-  const [selectedArtistIds, setSelectedArtistIds] = React.useState<string[]>([]);
+  const [formData, setFormData] = React.useState<EventFormData>(() =>
+    emptyForm(),
+  );
+  const [selectedOrganizerIds, setSelectedOrganizerIds] = React.useState<
+    string[]
+  >([]);
+  const [selectedArtistIds, setSelectedArtistIds] = React.useState<string[]>(
+    [],
+  );
   const [selectedTagIds, setSelectedTagIds] = React.useState<string[]>([]);
-  const [createdLocations, setCreatedLocations] = React.useState<LocationData[]>([]);
-  const [createdOrganizers, setCreatedOrganizers] = React.useState<OrganizerOption[]>([]);
-  const [createdArtists, setCreatedArtists] = React.useState<ArtistOption[]>([]);
+  const [createdLocations, setCreatedLocations] = React.useState<
+    LocationData[]
+  >([]);
+  const [createdOrganizers, setCreatedOrganizers] = React.useState<
+    OrganizerOption[]
+  >([]);
+  const [createdArtists, setCreatedArtists] = React.useState<ArtistOption[]>(
+    [],
+  );
 
-  const [isCreateLocationDialogOpen, setIsCreateLocationDialogOpen] = React.useState(false);
-  const [isCreateOrganizerDialogOpen, setIsCreateOrganizerDialogOpen] = React.useState(false);
-  const [isCreateArtistDialogOpen, setIsCreateArtistDialogOpen] = React.useState(false);
+  const [isCreateLocationDialogOpen, setIsCreateLocationDialogOpen] =
+    React.useState(false);
+  const [isCreateOrganizerDialogOpen, setIsCreateOrganizerDialogOpen] =
+    React.useState(false);
+  const [isCreateArtistDialogOpen, setIsCreateArtistDialogOpen] =
+    React.useState(false);
   const [isCreatingLocation, setIsCreatingLocation] = React.useState(false);
   const [isCreatingOrganizer, setIsCreatingOrganizer] = React.useState(false);
   const [isCreatingArtist, setIsCreatingArtist] = React.useState(false);
-  const [quickLocationForm, setQuickLocationForm] = React.useState<QuickLocationFormState>({
-    name: "",
-    address: "",
-    capacity: "",
-    is_organizer: false,
-  });
-  const [quickOrganizerForm, setQuickOrganizerForm] = React.useState<QuickOrganizerFormState>({
-    name: "",
-    instagram_url: "",
-    facebook_url: "",
-  });
-  const [quickArtistForm, setQuickArtistForm] = React.useState<QuickArtistFormState>({
-    name: "",
-    artist_type_label: "",
-    origin_city: "",
-    short_description: "",
-    instagram_url: "",
-    website_url: "",
-  });
+  const [quickLocationForm, setQuickLocationForm] =
+    React.useState<QuickLocationFormState>({
+      name: "",
+      address: "",
+      latitude: "",
+      longitude: "",
+      capacity: "",
+      is_organizer: false,
+    });
+  const [quickOrganizerForm, setQuickOrganizerForm] =
+    React.useState<QuickOrganizerFormState>({
+      name: "",
+      instagram_url: "",
+      facebook_url: "",
+    });
+  const [quickArtistForm, setQuickArtistForm] =
+    React.useState<QuickArtistFormState>({
+      name: "",
+      artist_type_label: "",
+      origin_city: "",
+      short_description: "",
+      instagram_url: "",
+      website_url: "",
+    });
 
   const [rooms, setRooms] = React.useState<RoomOption[]>([]);
   const [loadingRooms, setLoadingRooms] = React.useState(false);
@@ -236,13 +537,26 @@ export function EventFormSheet({
   const [loadingMajorEvents, setLoadingMajorEvents] = React.useState(false);
 
   const [showEndDate, setShowEndDate] = React.useState(false);
+  const [additionalTimeSlots, setAdditionalTimeSlots] = React.useState<
+    AdditionalTimeSlot[]
+  >([]);
 
   const [imageFile, setImageFile] = React.useState<File | null>(null);
-  const [imagePreview, setImagePreview] = React.useState<string | null>(event?.image_url || null);
+  const [imagePreview, setImagePreview] = React.useState<string | null>(
+    event?.image_url || null,
+  );
   const [imageWasCleared, setImageWasCleared] = React.useState(false);
+  const [imageAnalysis, setImageAnalysis] =
+    React.useState<ImportedEventAnalysisResult | null>(null);
+  const [analysisPrefill, setAnalysisPrefill] =
+    React.useState<EventFormPrefill | null>(null);
+  const [analysisWarnings, setAnalysisWarnings] = React.useState<
+    ImportedEventWarning[]
+  >([]);
 
   const [saving, setSaving] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const previousImageSignatureRef = React.useRef<string | null>(null);
 
   const isEdit = Boolean(event && event.id);
   const showPastEventWarning = !isEdit && isBeforeToday(formData.date);
@@ -257,6 +571,10 @@ export function EventFormSheet({
     setLoadingRooms(false);
     setImageFile(null);
     setImageWasCleared(false);
+    setImageAnalysis(null);
+    setAnalysisPrefill(null);
+    setAnalysisWarnings([]);
+    setAdditionalTimeSlots([]);
 
     if (event) {
       setFormData({
@@ -266,8 +584,10 @@ export function EventFormSheet({
         end_date: event.end_date ? toDatetimeLocal(event.end_date) : "",
         category: event.category || "",
         price: event.price != null ? String(event.price) : "",
-        presale_price: event.presale_price != null ? String(event.presale_price) : "",
-        subscriber_price: event.subscriber_price != null ? String(event.subscriber_price) : "",
+        presale_price:
+          event.presale_price != null ? String(event.presale_price) : "",
+        subscriber_price:
+          event.subscriber_price != null ? String(event.subscriber_price) : "",
         capacity: event.capacity != null ? String(event.capacity) : "",
         is_full: Boolean(event.is_full),
         location_id: event.location_id || "",
@@ -327,6 +647,33 @@ export function EventFormSheet({
     setImagePreview(merged.image_url ? merged.image_url : null);
     setShowEndDate(Boolean(merged.end_date));
   }, [defaultDate, event, open, prefill]);
+
+  React.useEffect(() => {
+    if (!open) return;
+
+    const nextSignature = `${imageFile?.name || ""}::${formData.image_url.trim()}`;
+    if (previousImageSignatureRef.current == null) {
+      previousImageSignatureRef.current = nextSignature;
+      return;
+    }
+
+    if (previousImageSignatureRef.current === nextSignature) {
+      return;
+    }
+
+    previousImageSignatureRef.current = nextSignature;
+
+    if (imageAnalysis || analysisPrefill || analysisWarnings.length > 0) {
+      dismissImageAnalysis();
+    }
+  }, [
+    analysisPrefill,
+    analysisWarnings.length,
+    formData.image_url,
+    imageAnalysis,
+    imageFile,
+    open,
+  ]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -439,11 +786,22 @@ export function EventFormSheet({
     if (!open) return;
     if (!formData.location_id) return;
     if (formData.capacity) return;
-    const loc = [...createdLocations, ...locations].find((l) => l.id === formData.location_id);
+    const loc = [...createdLocations, ...locations].find(
+      (l) => l.id === formData.location_id,
+    );
     if (loc?.capacity != null) {
-      setFormData((prev) => ({ ...prev, capacity: String(loc.capacity ?? "") }));
+      setFormData((prev) => ({
+        ...prev,
+        capacity: String(loc.capacity ?? ""),
+      }));
     }
-  }, [createdLocations, formData.location_id, locations, formData.capacity, open]);
+  }, [
+    createdLocations,
+    formData.location_id,
+    locations,
+    formData.capacity,
+    open,
+  ]);
 
   const availableLocations = React.useMemo(() => {
     const map = new Map<string, LocationData>();
@@ -469,10 +827,42 @@ export function EventFormSheet({
     return Array.from(map.values());
   }, [artists, createdArtists]);
 
+  const extractedFieldPreview = React.useMemo(
+    () =>
+      imageAnalysis && analysisPrefill
+        ? buildExtractedFieldPreview({
+            extractedData: imageAnalysis.data,
+            prefill: analysisPrefill,
+            formData,
+            selectedOrganizerIds,
+            selectedTagIds,
+            locations: availableLocations,
+            organizers: availableOrganizers,
+            categories,
+            tags,
+            analysisWarnings,
+          })
+        : [],
+    [
+      analysisWarnings,
+      analysisPrefill,
+      availableLocations,
+      availableOrganizers,
+      categories,
+      formData,
+      imageAnalysis,
+      selectedOrganizerIds,
+      selectedTagIds,
+      tags,
+    ],
+  );
+
   function openCreateLocationDialog(prefillName = "") {
     setQuickLocationForm({
       name: prefillName,
       address: "",
+      latitude: "",
+      longitude: "",
       capacity: "",
       is_organizer: false,
     });
@@ -502,7 +892,9 @@ export function EventFormSheet({
 
   function handleLocationSelection(locationId: string) {
     if (locationId) {
-      const selectedLocation = availableLocations.find((location) => location.id === locationId);
+      const selectedLocation = availableLocations.find(
+        (location) => location.id === locationId,
+      );
       if (selectedLocation) {
         setFormData((prev) => ({
           ...prev,
@@ -535,17 +927,25 @@ export function EventFormSheet({
           ...prev,
           instagram_url: prev.instagram_url || first.instagram_url || "",
           facebook_url: prev.facebook_url || first.facebook_url || "",
-          ...(first.type === "location" ? { location_id: first.id, room_id: "" } : null),
+          ...(first.type === "location"
+            ? { location_id: first.id, room_id: "" }
+            : null),
         }));
       }
     }
   }
 
-  async function handleQuickLocationCreate(event: React.FormEvent<HTMLFormElement>) {
+  async function handleQuickLocationCreate(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     if (!quickLocationForm.name.trim()) {
-      toast({ title: "Nom requis", description: "Renseigne le nom du lieu.", variant: "destructive" });
+      toast({
+        title: "Nom requis",
+        description: "Renseigne le nom du lieu.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -557,6 +957,12 @@ export function EventFormSheet({
           {
             name: quickLocationForm.name.trim(),
             address: quickLocationForm.address.trim() || null,
+            latitude: quickLocationForm.latitude.trim()
+              ? Number.parseFloat(quickLocationForm.latitude.trim())
+              : null,
+            longitude: quickLocationForm.longitude.trim()
+              ? Number.parseFloat(quickLocationForm.longitude.trim())
+              : null,
             capacity: quickLocationForm.capacity.trim()
               ? parseInt(quickLocationForm.capacity, 10)
               : null,
@@ -597,11 +1003,17 @@ export function EventFormSheet({
     }
   }
 
-  async function handleQuickOrganizerCreate(event: React.FormEvent<HTMLFormElement>) {
+  async function handleQuickOrganizerCreate(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     if (!quickOrganizerForm.name.trim()) {
-      toast({ title: "Nom requis", description: "Renseigne le nom de l'organisateur.", variant: "destructive" });
+      toast({
+        title: "Nom requis",
+        description: "Renseigne le nom de l'organisateur.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -621,9 +1033,14 @@ export function EventFormSheet({
 
       if (error) throw error;
 
-      const createdOrganizer = { ...(data as Omit<OrganizerOption, "type">), type: "organizer" as const };
+      const createdOrganizer = {
+        ...(data as Omit<OrganizerOption, "type">),
+        type: "organizer" as const,
+      };
       setCreatedOrganizers((prev) => [...prev, createdOrganizer]);
-      handleOrganizerChange(Array.from(new Set([...selectedOrganizerIds, createdOrganizer.id])));
+      handleOrganizerChange(
+        Array.from(new Set([...selectedOrganizerIds, createdOrganizer.id])),
+      );
       setIsCreateOrganizerDialogOpen(false);
       toast({ title: "Organisateur créé", variant: "success" });
     } catch (e: any) {
@@ -638,11 +1055,17 @@ export function EventFormSheet({
     }
   }
 
-  async function handleQuickArtistCreate(event: React.FormEvent<HTMLFormElement>) {
+  async function handleQuickArtistCreate(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     if (!quickArtistForm.name.trim()) {
-      toast({ title: "Nom requis", description: "Renseigne le nom de l'artiste.", variant: "destructive" });
+      toast({
+        title: "Nom requis",
+        description: "Renseigne le nom de l'artiste.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -672,7 +1095,9 @@ export function EventFormSheet({
 
       const createdArtist = data as ArtistOption;
       setCreatedArtists((prev) => [...prev, createdArtist]);
-      setSelectedArtistIds((prev) => Array.from(new Set([...prev, createdArtist.id])));
+      setSelectedArtistIds((prev) =>
+        Array.from(new Set([...prev, createdArtist.id])),
+      );
       setIsCreateArtistDialogOpen(false);
       toast({ title: "Artiste créé", variant: "success" });
     } catch (e: any) {
@@ -689,7 +1114,11 @@ export function EventFormSheet({
 
   async function handleCreateTag(name: string): Promise<string | null> {
     try {
-      const { data, error } = await supabase.from("tags").insert([{ name: name.trim() }]).select("id").single();
+      const { data, error } = await supabase
+        .from("tags")
+        .insert([{ name: name.trim() }])
+        .select("id")
+        .single();
       if (error) throw error;
       onTagCreated?.();
       toast({ title: "Tag créé", description: name, variant: "success" });
@@ -705,6 +1134,51 @@ export function EventFormSheet({
     }
   }
 
+  function dismissImageAnalysis() {
+    setImageAnalysis(null);
+    setAnalysisPrefill(null);
+    setAnalysisWarnings([]);
+  }
+
+  function applyImageAnalysisToForm() {
+    if (!analysisPrefill) return;
+
+    setFormData((previous) =>
+      mergeFormWithPrefill(previous, analysisPrefill.form || {}),
+    );
+
+    if ((analysisPrefill.organizerIds || []).length > 0) {
+      setSelectedOrganizerIds((previous) =>
+        Array.from(
+          new Set([...previous, ...(analysisPrefill.organizerIds || [])]),
+        ),
+      );
+    }
+
+    if ((analysisPrefill.tagIds || []).length > 0) {
+      setSelectedTagIds((previous) =>
+        Array.from(new Set([...previous, ...(analysisPrefill.tagIds || [])])),
+      );
+    }
+
+    if ((analysisPrefill.artistIds || []).length > 0) {
+      setSelectedArtistIds((previous) =>
+        Array.from(
+          new Set([...previous, ...(analysisPrefill.artistIds || [])]),
+        ),
+      );
+    }
+
+    toast({
+      title: "Champs fusionnes",
+      description:
+        "Les informations detectees ont ete appliquees au formulaire ouvert.",
+      variant: "success",
+    });
+
+    dismissImageAnalysis();
+  }
+
   async function uploadImageIfNeeded(): Promise<string | null> {
     if (!imageFile) return null;
     try {
@@ -712,10 +1186,12 @@ export function EventFormSheet({
       const fileExt = compressedFile.name.split(".").pop() || "jpg";
       const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
 
-      const { data, error } = await supabase.storage.from("event-images").upload(fileName, compressedFile, {
-        cacheControl: "3600",
-        upsert: false,
-      });
+      const { data, error } = await supabase.storage
+        .from("event-images")
+        .upload(fileName, compressedFile, {
+          cacheControl: "3600",
+          upsert: false,
+        });
 
       if (error) throw error;
 
@@ -744,7 +1220,10 @@ export function EventFormSheet({
     return value.trim() ? value.trim() : null;
   }
 
-  async function syncMajorEventLink(savedEventId: string, nextMajorEventId: string) {
+  async function syncMajorEventLink(
+    savedEventId: string,
+    nextMajorEventId: string,
+  ) {
     const normalizedMajorEventId = nextMajorEventId.trim();
 
     const { data: existingLinks, error: existingError } = await supabase
@@ -792,12 +1271,14 @@ export function EventFormSheet({
 
     const nextSortIndex = (lastLink?.[0]?.sort_index ?? -1) + 1;
 
-    const { error: insertError } = await supabase.from("major_event_events").insert({
-      major_event_id: normalizedMajorEventId,
-      event_id: savedEventId,
-      sort_index: nextSortIndex,
-      is_featured: false,
-    });
+    const { error: insertError } = await supabase
+      .from("major_event_events")
+      .insert({
+        major_event_id: normalizedMajorEventId,
+        event_id: savedEventId,
+        sort_index: nextSortIndex,
+        is_featured: false,
+      });
 
     if (insertError) throw insertError;
   }
@@ -806,28 +1287,56 @@ export function EventFormSheet({
     if (saving) return;
 
     if (!formData.title.trim()) {
-      toast({ title: "Titre requis", description: "Renseigne un titre.", variant: "destructive" });
+      toast({
+        title: "Titre requis",
+        description: "Renseigne un titre.",
+        variant: "destructive",
+      });
       return;
     }
     if (!formData.date) {
-      toast({ title: "Date requise", description: "Choisis une date de début.", variant: "destructive" });
+      toast({
+        title: "Date requise",
+        description: "Choisis une date de début.",
+        variant: "destructive",
+      });
       return;
     }
     if (!formData.category.trim()) {
-      toast({ title: "Catégorie requise", description: "Choisis une catégorie.", variant: "destructive" });
+      toast({
+        title: "Catégorie requise",
+        description: "Choisis une catégorie.",
+        variant: "destructive",
+      });
       return;
     }
 
-    if (formData.end_date && formData.date) {
-      const startIso = fromDatetimeLocal(formData.date);
-      const endIso = fromDatetimeLocal(formData.end_date);
+    const allSlots: AdditionalTimeSlot[] = [
+      { start: formData.date, end: formData.end_date || "" },
+      ...additionalTimeSlots,
+    ]
+      .map((slot) => ({
+        start: slot.start.trim(),
+        end: slot.end.trim(),
+      }))
+      .filter((slot) => Boolean(slot.start));
+
+    for (const slot of allSlots) {
+      if (!slot.end) continue;
+      const startIso = fromDatetimeLocal(slot.start);
+      const endIso = fromDatetimeLocal(slot.end);
       if (startIso && endIso) {
         const start = new Date(startIso);
         const end = new Date(endIso);
-        if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end < start) {
+        if (
+          !Number.isNaN(start.getTime()) &&
+          !Number.isNaN(end.getTime()) &&
+          end < start
+        ) {
           toast({
             title: "Date de fin invalide",
-            description: "La date de fin ne peut pas être antérieure à la date de début.",
+            description:
+              "La date de fin ne peut pas être antérieure à la date de début.",
             variant: "destructive",
           });
           return;
@@ -845,20 +1354,29 @@ export function EventFormSheet({
 
       const selectedLocation =
         formData.location_id && formData.location_id !== "none"
-          ? availableLocations.find((l) => l.id === formData.location_id) || null
+          ? availableLocations.find((l) => l.id === formData.location_id) ||
+            null
           : null;
 
-      const statusToSave: EventStatus = forceApproved ? "approved" : formData.status;
+      const statusToSave: EventStatus = forceApproved
+        ? "approved"
+        : formData.status;
 
       const baseData: any = {
         title: formData.title.trim(),
         description: normalizeNullable(formData.description || ""),
         date: fromDatetimeLocal(formData.date) || formData.date,
-        end_date: formData.end_date ? fromDatetimeLocal(formData.end_date) || null : null,
+        end_date: formData.end_date
+          ? fromDatetimeLocal(formData.end_date) || null
+          : null,
         category: formData.category,
         price: formData.price ? parseFloat(formData.price) : null,
-        presale_price: formData.presale_price ? parseFloat(formData.presale_price) : null,
-        subscriber_price: formData.subscriber_price ? parseFloat(formData.subscriber_price) : null,
+        presale_price: formData.presale_price
+          ? parseFloat(formData.presale_price)
+          : null,
+        subscriber_price: formData.subscriber_price
+          ? parseFloat(formData.subscriber_price)
+          : null,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         is_full: Boolean(formData.is_full),
         location_id: normalizeUuid(formData.location_id),
@@ -889,10 +1407,55 @@ export function EventFormSheet({
       const { data: auth } = await supabase.auth.getUser();
       const userId = auth?.user?.id || null;
 
+      async function syncEventRelations(savedEventId: string) {
+        await supabase
+          .from("event_organizers")
+          .delete()
+          .eq("event_id", savedEventId);
+
+        if (selectedOrganizerIds.length > 0) {
+          const organizerEntries = selectedOrganizerIds.map((id) => {
+            const org = availableOrganizers.find((o) => o.id === id);
+            return org?.type === "location"
+              ? { event_id: savedEventId, location_id: id, organizer_id: null }
+              : { event_id: savedEventId, organizer_id: id, location_id: null };
+          });
+
+          const { error: orgError } = await supabase
+            .from("event_organizers")
+            .insert(organizerEntries);
+          if (orgError) throw orgError;
+        }
+
+        await supabase
+          .from("event_artists")
+          .delete()
+          .eq("event_id", savedEventId);
+
+        if (selectedArtistIds.length > 0) {
+          const artistEntries = selectedArtistIds.map((artistId, index) => ({
+            event_id: savedEventId,
+            artist_id: artistId,
+            sort_index: index,
+            role_label: null,
+          }));
+
+          const { error: artistError } = await supabase
+            .from("event_artists")
+            .insert(artistEntries);
+          if (artistError) throw artistError;
+        }
+
+        await syncMajorEventLink(savedEventId, formData.major_event_id);
+      }
+
       let savedEventId: string;
 
       if (isEdit && event) {
-        const { error } = await supabase.from("events").update(baseData).eq("id", event.id);
+        const { error } = await supabase
+          .from("events")
+          .update(baseData)
+          .eq("id", event.id);
         if (error) throw error;
         savedEventId = event.id;
       } else {
@@ -905,36 +1468,31 @@ export function EventFormSheet({
         savedEventId = newEvent.id;
       }
 
-      // organizers: delete + insert (keeps constraint exactly-one)
-      await supabase.from("event_organizers").delete().eq("event_id", savedEventId);
+      await syncEventRelations(savedEventId);
 
-      if (selectedOrganizerIds.length > 0) {
-        const organizerEntries = selectedOrganizerIds.map((id) => {
-          const org = availableOrganizers.find((o) => o.id === id);
-          return org?.type === "location"
-            ? { event_id: savedEventId, location_id: id, organizer_id: null }
-            : { event_id: savedEventId, organizer_id: id, location_id: null };
-        });
+      const additionalUniqueSlots = allSlots.slice(1).filter((slot) => {
+        return !(slot.start === formData.date && (slot.end || "") === (formData.end_date || ""));
+      });
 
-        const { error: orgError } = await supabase.from("event_organizers").insert(organizerEntries);
-        if (orgError) throw orgError;
+      if (additionalUniqueSlots.length > 0) {
+        for (const slot of additionalUniqueSlots) {
+          const slotData = {
+            ...baseData,
+            date: fromDatetimeLocal(slot.start) || slot.start,
+            end_date: slot.end ? fromDatetimeLocal(slot.end) || slot.end : null,
+            created_by: userId,
+          };
+
+          const { data: extraEvent, error: extraError } = await supabase
+            .from("events")
+            .insert([slotData])
+            .select("id")
+            .single();
+          if (extraError) throw extraError;
+
+          await syncEventRelations(extraEvent.id);
+        }
       }
-
-      await supabase.from("event_artists").delete().eq("event_id", savedEventId);
-
-      if (selectedArtistIds.length > 0) {
-        const artistEntries = selectedArtistIds.map((artistId, index) => ({
-          event_id: savedEventId,
-          artist_id: artistId,
-          sort_index: index,
-          role_label: null,
-        }));
-
-        const { error: artistError } = await supabase.from("event_artists").insert(artistEntries);
-        if (artistError) throw artistError;
-      }
-
-      await syncMajorEventLink(savedEventId, formData.major_event_id);
 
       toast({ title: "Événement enregistré", variant: "success" });
       onOpenChange(false);
@@ -962,7 +1520,10 @@ export function EventFormSheet({
       onConfirm: async () => {
         setDeleting(true);
         try {
-          const { error } = await supabase.from("events").delete().eq("id", event.id);
+          const { error } = await supabase
+            .from("events")
+            .delete()
+            .eq("id", event.id);
           if (error) throw error;
           toast({ title: "Événement supprimé", variant: "success" });
           onOpenChange(false);
@@ -987,8 +1548,8 @@ export function EventFormSheet({
       ...availableLocations.map((location) => ({
         value: location.id,
         label: location.city?.label
-            ? `${location.name} • ${location.city.label}`
-            : location.name,
+          ? `${location.name} • ${location.city.label}`
+          : location.name,
       })),
     ],
     [availableLocations],
@@ -1013,7 +1574,10 @@ export function EventFormSheet({
       })),
     [availableArtists],
   );
-  const tagOptions = React.useMemo(() => tags.map((t) => ({ value: t.id, label: t.name })), [tags]);
+  const tagOptions = React.useMemo(
+    () => tags.map((t) => ({ value: t.id, label: t.name })),
+    [tags],
+  );
   const majorEventOptions = React.useMemo(
     () => [
       { value: "", label: "Aucun Multi-événements" },
@@ -1026,12 +1590,23 @@ export function EventFormSheet({
   );
 
   const side = isMobile ? "bottom" : "right";
-  const selectedLocation = availableLocations.find((location) => location.id === formData.location_id) || null;
+  const selectedLocation =
+    availableLocations.find(
+      (location) => location.id === formData.location_id,
+    ) || null;
   const selectedLocationLabel = selectedLocation?.name;
-  const selectedCategoryLabel = categories.find((category) => category.id === formData.category)?.name;
-  const selectedMajorEvent = majorEvents.find((majorEvent) => majorEvent.id === formData.major_event_id) || null;
+  const selectedCategoryLabel = categories.find(
+    (category) => category.id === formData.category,
+  )?.name;
+  const selectedMajorEvent =
+    majorEvents.find(
+      (majorEvent) => majorEvent.id === formData.major_event_id,
+    ) || null;
   const selectedOrganizerLabels = selectedOrganizerIds
-    .map((id) => availableOrganizers.find((organizer) => organizer.id === id)?.name)
+    .map(
+      (id) =>
+        availableOrganizers.find((organizer) => organizer.id === id)?.name,
+    )
     .filter((value): value is string => Boolean(value));
   const selectedArtistLabels = selectedArtistIds
     .map((id) => availableArtists.find((artist) => artist.id === id)?.name)
@@ -1041,7 +1616,9 @@ export function EventFormSheet({
     !formData.date ? "Date" : null,
     !formData.category ? "Categorie" : null,
   ].filter((value): value is string => Boolean(value));
-  const priceSummary = formData.price.trim() ? `${formData.price.trim()} EUR` : undefined;
+  const priceSummary = formData.price.trim()
+    ? `${formData.price.trim()} EUR`
+    : undefined;
 
   return (
     <>
@@ -1057,9 +1634,13 @@ export function EventFormSheet({
           <div className="flex h-full flex-col">
             <div className="px-5 pt-5 pb-4 border-b">
               <SheetHeader className="space-y-1">
-                <SheetTitle>{isEdit ? "Modifier l’événement" : "Créer un événement"}</SheetTitle>
+                <SheetTitle>
+                  {isEdit ? "Modifier l’événement" : "Créer un événement"}
+                </SheetTitle>
                 <SheetDescription>
-                  {isEdit ? "Modifie les informations, puis enregistre." : "Crée un événement en quelques champs, le reste est optionnel."}
+                  {isEdit
+                    ? "Modifie les informations, puis enregistre."
+                    : "Crée un événement en quelques champs, le reste est optionnel."}
                 </SheetDescription>
               </SheetHeader>
             </div>
@@ -1095,7 +1676,9 @@ export function EventFormSheet({
                     <Input
                       id="event-title"
                       value={formData.title}
-                      onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))}
+                      onChange={(e) =>
+                        setFormData((p) => ({ ...p, title: e.target.value }))
+                      }
                       placeholder="Nom de l’événement"
                       required
                       className="h-11"
@@ -1108,7 +1691,9 @@ export function EventFormSheet({
                       <Label>Date de début</Label>
                       <DateTimePicker
                         value={formData.date}
-                        onChange={(v) => setFormData((p) => ({ ...p, date: v }))}
+                        onChange={(v) =>
+                          setFormData((p) => ({ ...p, date: v }))
+                        }
                         placeholder="Choisir une date"
                         required
                         disabled={saving || deleting}
@@ -1117,7 +1702,9 @@ export function EventFormSheet({
                         <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
                           <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                           <span>
-                            Cette date est antérieure à aujourd&apos;hui. L&apos;événement sera ajouté comme un événement déjà passé.
+                            Cette date est antérieure à aujourd&apos;hui.
+                            L&apos;événement sera ajouté comme un événement déjà
+                            passé.
                           </span>
                         </div>
                       ) : null}
@@ -1142,7 +1729,9 @@ export function EventFormSheet({
                       {showEndDate ? (
                         <DateTimePicker
                           value={formData.end_date}
-                          onChange={(v) => setFormData((p) => ({ ...p, end_date: v }))}
+                          onChange={(v) =>
+                            setFormData((p) => ({ ...p, end_date: v }))
+                          }
                           placeholder="Optionnel"
                           disabled={saving || deleting}
                           allowClear
@@ -1175,7 +1764,12 @@ export function EventFormSheet({
                     <Label>Catégorie</Label>
                     <Select
                       value={formData.category || "none"}
-                      onValueChange={(v) => setFormData((p) => ({ ...p, category: v === "none" ? "" : v }))}
+                      onValueChange={(v) =>
+                        setFormData((p) => ({
+                          ...p,
+                          category: v === "none" ? "" : v,
+                        }))
+                      }
                       disabled={saving || deleting}
                     >
                       <SelectTrigger className="h-11">
@@ -1210,7 +1804,8 @@ export function EventFormSheet({
                       }
                     />
                     <p className="text-xs text-muted-foreground">
-                      Raccourci principal pour lier cet événement à une programmation commune.
+                      Raccourci principal pour lier cet événement à une
+                      programmation commune.
                       {selectedMajorEvent != null
                         ? ` Actuellement : ${selectedMajorEvent.title}.`
                         : ""}
@@ -1242,13 +1837,122 @@ export function EventFormSheet({
                       }}
                       disabled={saving || deleting}
                     />
+                    {imageAnalysis && analysisPrefill ? (
+                      <Card className="border-primary/20 bg-primary/5 p-4">
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2 text-sm font-semibold">
+                                <Sparkles className="h-4 w-4" />
+                                Relecture avant fusion
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Les champs ci-dessous ont ete detectes depuis
+                                l'image. Ils ne seront appliques qu'apres
+                                validation.
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={dismissImageAnalysis}
+                              >
+                                Ignorer
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={applyImageAnalysisToForm}
+                              >
+                                Appliquer
+                              </Button>
+                            </div>
+                          </div>
+
+                          {analysisWarnings.length > 0 ? (
+                            <Alert>
+                              <CircleAlert className="h-4 w-4" />
+                              <AlertTitle>Points a verifier</AlertTitle>
+                              <AlertDescription>
+                                <div className="space-y-1">
+                                  {analysisWarnings.map((warning, index) => (
+                                    <div key={`${warning.field}-${index}`}>
+                                      {warning.message}
+                                      {warning.value ? ` ${warning.value}` : ""}
+                                    </div>
+                                  ))}
+                                </div>
+                              </AlertDescription>
+                            </Alert>
+                          ) : null}
+
+                          {extractedFieldPreview.length > 0 ? (
+                            <div className="grid gap-2">
+                              {extractedFieldPreview.map((field) => (
+                                <div
+                                  key={field.key}
+                                  className="rounded-lg border bg-background/80 p-3"
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="text-sm font-medium">
+                                      {field.label}
+                                    </div>
+                                    {field.willOverwrite ? (
+                                      <span className="text-[11px] font-medium text-amber-600">
+                                        Remplacera la valeur actuelle
+                                      </span>
+                                    ) : (
+                                      <span className="text-[11px] font-medium text-emerald-600">
+                                        Ajout ou confirmation
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="mt-2 grid gap-2 md:grid-cols-2">
+                                    <div>
+                                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                        Detecte
+                                      </div>
+                                      <div className="mt-1 text-sm">
+                                        {field.extractedValue}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                        Actuel
+                                      </div>
+                                      <div className="mt-1 text-sm">
+                                        {field.currentValue || "Vide"}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <Alert>
+                              <CircleAlert className="h-4 w-4" />
+                              <AlertTitle>Extraction limitee</AlertTitle>
+                              <AlertDescription>
+                                L'image a ete analysee, mais peu de champs
+                                exploitables ont ete detectes. Tu peux reessayer
+                                avec une image plus lisible.
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                        </div>
+                      </Card>
+                    ) : null}
                   </div>
 
                   <div className="space-y-2">
                     <Label>Statut</Label>
                     <StatusPicker
                       value={formData.status}
-                      onChange={(s) => setFormData((p) => ({ ...p, status: s }))}
+                      onChange={(s) =>
+                        setFormData((p) => ({ ...p, status: s }))
+                      }
                       disabled={saving || deleting}
                     />
                   </div>
@@ -1256,22 +1960,114 @@ export function EventFormSheet({
                   <div className="space-y-2">
                     <Label>Mise en avant</Label>
                     <div className="flex items-center justify-between rounded-lg border px-4 h-11">
-                      <span className="text-sm text-muted-foreground">Afficher dans les surfaces “A la une”</span>
+                      <span className="text-sm text-muted-foreground">
+                        Afficher dans les surfaces “A la une”
+                      </span>
                       <Switch
                         checked={formData.is_featured}
-                        onCheckedChange={(v) => setFormData((p) => ({ ...p, is_featured: v }))}
+                        onCheckedChange={(v) =>
+                          setFormData((p) => ({ ...p, is_featured: v }))
+                        }
                         disabled={saving || deleting}
                       />
                     </div>
                   </div>
                 </div>
 
+                <div className="space-y-3 rounded-lg border p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Créneaux supplémentaires</Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Ajoute d&apos;autres dates/heures pour ce même événement.
+                        Chaque créneau supplémentaire crée une occurrence dédiée.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={saving || deleting}
+                      onClick={() =>
+                        setAdditionalTimeSlots((prev) => [
+                          ...prev,
+                          { start: "", end: "" },
+                        ])
+                      }
+                    >
+                      Ajouter un créneau
+                    </Button>
+                  </div>
+
+                  {additionalTimeSlots.length > 0 ? (
+                    <div className="space-y-3">
+                      {additionalTimeSlots.map((slot, index) => (
+                        <div
+                          key={`${index}-${slot.start}-${slot.end}`}
+                          className="grid gap-2 md:grid-cols-[1fr_1fr_auto]"
+                        >
+                          <DateTimePicker
+                            value={slot.start}
+                            onChange={(value) =>
+                              setAdditionalTimeSlots((prev) =>
+                                prev.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...item, start: value }
+                                    : item,
+                                ),
+                              )
+                            }
+                            placeholder="Début"
+                            disabled={saving || deleting}
+                          />
+                          <DateTimePicker
+                            value={slot.end}
+                            onChange={(value) =>
+                              setAdditionalTimeSlots((prev) =>
+                                prev.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...item, end: value }
+                                    : item,
+                                ),
+                              )
+                            }
+                            placeholder="Fin (optionnel)"
+                            disabled={saving || deleting}
+                            allowClear
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            title="Supprimer ce créneau"
+                            disabled={saving || deleting}
+                            onClick={() =>
+                              setAdditionalTimeSlots((prev) =>
+                                prev.filter((_, itemIndex) => itemIndex !== index),
+                              )
+                            }
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Aucun créneau supplémentaire.
+                    </p>
+                  )}
+                </div>
+
                 {/* Détails complémentaires */}
                 <Card className="p-4">
                   <div className="space-y-0.5">
-                    <div className="text-sm font-semibold">Détails complémentaires</div>
+                    <div className="text-sm font-semibold">
+                      Détails complémentaires
+                    </div>
                     <div className="text-xs text-muted-foreground">
-                      Description, tags, organisateurs, prix, liens, salle et paramètres complémentaires.
+                      Description, tags, organisateurs, prix, liens, salle et
+                      paramètres complémentaires.
                     </div>
                   </div>
 
@@ -1280,7 +2076,12 @@ export function EventFormSheet({
                       <Label>Description</Label>
                       <Textarea
                         value={formData.description}
-                        onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
+                        onChange={(e) =>
+                          setFormData((p) => ({
+                            ...p,
+                            description: e.target.value,
+                          }))
+                        }
                         placeholder="Détails, lineup, infos utiles…"
                         disabled={saving || deleting}
                       />
@@ -1323,7 +2124,8 @@ export function EventFormSheet({
                         onEmptyAction={openCreateArtistDialog}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Cette liste alimente la section publique "Artistes" dans la fiche evenement.
+                        Cette liste alimente la section publique "Artistes" dans
+                        la fiche evenement.
                       </p>
                     </div>
 
@@ -1334,7 +2136,12 @@ export function EventFormSheet({
                           type="number"
                           inputMode="decimal"
                           value={formData.price}
-                          onChange={(e) => setFormData((p) => ({ ...p, price: e.target.value }))}
+                          onChange={(e) =>
+                            setFormData((p) => ({
+                              ...p,
+                              price: e.target.value,
+                            }))
+                          }
                           disabled={saving || deleting}
                         />
                       </div>
@@ -1344,7 +2151,12 @@ export function EventFormSheet({
                           type="number"
                           inputMode="decimal"
                           value={formData.presale_price}
-                          onChange={(e) => setFormData((p) => ({ ...p, presale_price: e.target.value }))}
+                          onChange={(e) =>
+                            setFormData((p) => ({
+                              ...p,
+                              presale_price: e.target.value,
+                            }))
+                          }
                           disabled={saving || deleting}
                         />
                       </div>
@@ -1354,7 +2166,12 @@ export function EventFormSheet({
                           type="number"
                           inputMode="decimal"
                           value={formData.subscriber_price}
-                          onChange={(e) => setFormData((p) => ({ ...p, subscriber_price: e.target.value }))}
+                          onChange={(e) =>
+                            setFormData((p) => ({
+                              ...p,
+                              subscriber_price: e.target.value,
+                            }))
+                          }
                           disabled={saving || deleting}
                         />
                       </div>
@@ -1367,17 +2184,26 @@ export function EventFormSheet({
                           type="number"
                           inputMode="numeric"
                           value={formData.capacity}
-                          onChange={(e) => setFormData((p) => ({ ...p, capacity: e.target.value }))}
+                          onChange={(e) =>
+                            setFormData((p) => ({
+                              ...p,
+                              capacity: e.target.value,
+                            }))
+                          }
                           disabled={saving || deleting}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label>Complet</Label>
                         <div className="flex items-center justify-between rounded-lg border px-4 h-11">
-                          <span className="text-sm text-muted-foreground">Sold out</span>
+                          <span className="text-sm text-muted-foreground">
+                            Sold out
+                          </span>
                           <Switch
                             checked={formData.is_full}
-                            onCheckedChange={(v) => setFormData((p) => ({ ...p, is_full: v }))}
+                            onCheckedChange={(v) =>
+                              setFormData((p) => ({ ...p, is_full: v }))
+                            }
                             disabled={saving || deleting}
                           />
                         </div>
@@ -1390,7 +2216,12 @@ export function EventFormSheet({
                         <Input
                           type="url"
                           value={formData.external_url}
-                          onChange={(e) => setFormData((p) => ({ ...p, external_url: e.target.value }))}
+                          onChange={(e) =>
+                            setFormData((p) => ({
+                              ...p,
+                              external_url: e.target.value,
+                            }))
+                          }
                           disabled={saving || deleting}
                         />
                       </div>
@@ -1398,7 +2229,12 @@ export function EventFormSheet({
                         <Label>Label URL</Label>
                         <Input
                           value={formData.external_url_label}
-                          onChange={(e) => setFormData((p) => ({ ...p, external_url_label: e.target.value }))}
+                          onChange={(e) =>
+                            setFormData((p) => ({
+                              ...p,
+                              external_url_label: e.target.value,
+                            }))
+                          }
                           disabled={saving || deleting}
                         />
                       </div>
@@ -1410,7 +2246,12 @@ export function EventFormSheet({
                         <Input
                           type="url"
                           value={formData.instagram_url}
-                          onChange={(e) => setFormData((p) => ({ ...p, instagram_url: e.target.value }))}
+                          onChange={(e) =>
+                            setFormData((p) => ({
+                              ...p,
+                              instagram_url: e.target.value,
+                            }))
+                          }
                           disabled={saving || deleting}
                         />
                       </div>
@@ -1419,7 +2260,12 @@ export function EventFormSheet({
                         <Input
                           type="url"
                           value={formData.facebook_url}
-                          onChange={(e) => setFormData((p) => ({ ...p, facebook_url: e.target.value }))}
+                          onChange={(e) =>
+                            setFormData((p) => ({
+                              ...p,
+                              facebook_url: e.target.value,
+                            }))
+                          }
                           disabled={saving || deleting}
                         />
                       </div>
@@ -1430,11 +2276,25 @@ export function EventFormSheet({
                         <Label>Salle</Label>
                         <Select
                           value={formData.room_id || "none"}
-                          onValueChange={(v) => setFormData((p) => ({ ...p, room_id: v === "none" ? "" : v }))}
-                          disabled={saving || deleting || !formData.location_id || loadingRooms}
+                          onValueChange={(v) =>
+                            setFormData((p) => ({
+                              ...p,
+                              room_id: v === "none" ? "" : v,
+                            }))
+                          }
+                          disabled={
+                            saving ||
+                            deleting ||
+                            !formData.location_id ||
+                            loadingRooms
+                          }
                         >
                           <SelectTrigger className="h-11">
-                            <SelectValue placeholder={loadingRooms ? "Chargement..." : "Optionnel"} />
+                            <SelectValue
+                              placeholder={
+                                loadingRooms ? "Chargement..." : "Optionnel"
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">Aucune</SelectItem>
@@ -1452,7 +2312,12 @@ export function EventFormSheet({
                           type="time"
                           step={60}
                           value={formData.door_opening_time}
-                          onChange={(e) => setFormData((p) => ({ ...p, door_opening_time: e.target.value }))}
+                          onChange={(e) =>
+                            setFormData((p) => ({
+                              ...p,
+                              door_opening_time: e.target.value,
+                            }))
+                          }
                           disabled={saving || deleting}
                           className="h-11"
                         />
@@ -1464,7 +2329,12 @@ export function EventFormSheet({
                       <Input
                         type="url"
                         value={formData.scraping_url}
-                        onChange={(e) => setFormData((p) => ({ ...p, scraping_url: e.target.value }))}
+                        onChange={(e) =>
+                          setFormData((p) => ({
+                            ...p,
+                            scraping_url: e.target.value,
+                          }))
+                        }
                         disabled={saving || deleting}
                         className="h-11"
                       />
@@ -1475,7 +2345,12 @@ export function EventFormSheet({
             </div>
 
             {/* actions sticky */}
-            <div className={cn("border-t bg-background p-4", isMobile && "pb-[calc(1rem+env(safe-area-inset-bottom))]")}>
+            <div
+              className={cn(
+                "border-t bg-background p-4",
+                isMobile && "pb-[calc(1rem+env(safe-area-inset-bottom))]",
+              )}
+            >
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 {isEdit ? (
                   <Button
@@ -1485,7 +2360,11 @@ export function EventFormSheet({
                     onClick={() => void confirmDelete()}
                     disabled={saving || deleting}
                   >
-                    {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    {deleting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
                     Supprimer
                   </Button>
                 ) : (
@@ -1501,8 +2380,14 @@ export function EventFormSheet({
                   >
                     Fermer
                   </Button>
-                  <Button type="button" onClick={() => void save({ forceApproved: false })} disabled={saving || deleting}>
-                    {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  <Button
+                    type="button"
+                    onClick={() => void save({ forceApproved: false })}
+                    disabled={saving || deleting}
+                  >
+                    {saving ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : null}
                     Enregistrer
                   </Button>
                   <Button
@@ -1511,7 +2396,9 @@ export function EventFormSheet({
                     onClick={() => void save({ forceApproved: true })}
                     disabled={saving || deleting}
                   >
-                    {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    {saving ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : null}
                     Enregistrer & Approuver
                   </Button>
                 </div>
@@ -1521,7 +2408,10 @@ export function EventFormSheet({
         </SheetContent>
       </Sheet>
 
-      <Dialog open={isCreateLocationDialogOpen} onOpenChange={setIsCreateLocationDialogOpen}>
+      <Dialog
+        open={isCreateLocationDialogOpen}
+        onOpenChange={setIsCreateLocationDialogOpen}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Ajouter un lieu</DialogTitle>
@@ -1536,7 +2426,10 @@ export function EventFormSheet({
                 id="quick-event-location-name"
                 value={quickLocationForm.name}
                 onChange={(event) =>
-                  setQuickLocationForm((prev) => ({ ...prev, name: event.target.value }))
+                  setQuickLocationForm((prev) => ({
+                    ...prev,
+                    name: event.target.value,
+                  }))
                 }
                 placeholder="Nom du lieu"
                 required
@@ -1544,14 +2437,29 @@ export function EventFormSheet({
             </div>
             <div className="space-y-2">
               <Label htmlFor="quick-event-location-address">Adresse</Label>
-              <Input
+              <AddressInput
                 id="quick-event-location-address"
                 value={quickLocationForm.address}
-                onChange={(event) =>
-                  setQuickLocationForm((prev) => ({ ...prev, address: event.target.value }))
+                onChange={(address) =>
+                  setQuickLocationForm((prev) => ({
+                    ...prev,
+                    address,
+                  }))
                 }
-                placeholder="Adresse du lieu"
+                onAddressSelect={(address, coordinates) =>
+                  setQuickLocationForm((prev) => ({
+                    ...prev,
+                    address,
+                    latitude: coordinates?.latitude?.toString() || "",
+                    longitude: coordinates?.longitude?.toString() || "",
+                  }))
+                }
+                placeholder="Commencez à taper une adresse..."
               />
+              <p className="text-xs text-muted-foreground">
+                Suggestions automatiques d&apos;adresse (comme dans la création de
+                lieu).
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="quick-event-location-capacity">Capacité</Label>
@@ -1561,14 +2469,19 @@ export function EventFormSheet({
                 min="0"
                 value={quickLocationForm.capacity}
                 onChange={(event) =>
-                  setQuickLocationForm((prev) => ({ ...prev, capacity: event.target.value }))
+                  setQuickLocationForm((prev) => ({
+                    ...prev,
+                    capacity: event.target.value,
+                  }))
                 }
                 placeholder="Optionnel"
               />
             </div>
             <div className="flex items-center justify-between rounded-lg border px-4 py-3">
               <div className="space-y-0.5">
-                <p className="text-sm font-medium">Utilisable aussi comme organisateur</p>
+                <p className="text-sm font-medium">
+                  Utilisable aussi comme organisateur
+                </p>
                 <p className="text-xs text-muted-foreground">
                   Le lieu apparaîtra également dans les organisateurs.
                 </p>
@@ -1576,7 +2489,10 @@ export function EventFormSheet({
               <Switch
                 checked={quickLocationForm.is_organizer}
                 onCheckedChange={(checked) =>
-                  setQuickLocationForm((prev) => ({ ...prev, is_organizer: checked }))
+                  setQuickLocationForm((prev) => ({
+                    ...prev,
+                    is_organizer: checked,
+                  }))
                 }
               />
             </div>
@@ -1597,7 +2513,10 @@ export function EventFormSheet({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isCreateOrganizerDialogOpen} onOpenChange={setIsCreateOrganizerDialogOpen}>
+      <Dialog
+        open={isCreateOrganizerDialogOpen}
+        onOpenChange={setIsCreateOrganizerDialogOpen}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Ajouter un organisateur</DialogTitle>
@@ -1612,7 +2531,10 @@ export function EventFormSheet({
                 id="quick-event-organizer-name"
                 value={quickOrganizerForm.name}
                 onChange={(event) =>
-                  setQuickOrganizerForm((prev) => ({ ...prev, name: event.target.value }))
+                  setQuickOrganizerForm((prev) => ({
+                    ...prev,
+                    name: event.target.value,
+                  }))
                 }
                 placeholder="Nom de l'organisateur"
                 required
@@ -1665,12 +2587,16 @@ export function EventFormSheet({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isCreateArtistDialogOpen} onOpenChange={setIsCreateArtistDialogOpen}>
+      <Dialog
+        open={isCreateArtistDialogOpen}
+        onOpenChange={setIsCreateArtistDialogOpen}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Ajouter un artiste</DialogTitle>
             <DialogDescription>
-              Crée un artiste ou collaborateur sans quitter le formulaire d&apos;événement.
+              Crée un artiste ou collaborateur sans quitter le formulaire
+              d&apos;événement.
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleQuickArtistCreate}>
@@ -1680,14 +2606,19 @@ export function EventFormSheet({
                 id="quick-event-artist-name"
                 value={quickArtistForm.name}
                 onChange={(event) =>
-                  setQuickArtistForm((prev) => ({ ...prev, name: event.target.value }))
+                  setQuickArtistForm((prev) => ({
+                    ...prev,
+                    name: event.target.value,
+                  }))
                 }
                 placeholder="Nom de scène / collaborateur"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="quick-event-artist-type">Type / dénomination</Label>
+              <Label htmlFor="quick-event-artist-type">
+                Type / dénomination
+              </Label>
               <Input
                 id="quick-event-artist-type"
                 value={quickArtistForm.artist_type_label}
@@ -1701,7 +2632,9 @@ export function EventFormSheet({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="quick-event-artist-origin-city">Ville d&apos;origine</Label>
+              <Label htmlFor="quick-event-artist-origin-city">
+                Ville d&apos;origine
+              </Label>
               <Input
                 id="quick-event-artist-origin-city"
                 value={quickArtistForm.origin_city}
@@ -1715,7 +2648,9 @@ export function EventFormSheet({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="quick-event-artist-description">Description courte</Label>
+              <Label htmlFor="quick-event-artist-description">
+                Description courte
+              </Label>
               <Textarea
                 id="quick-event-artist-description"
                 value={quickArtistForm.short_description}
@@ -1780,4 +2715,3 @@ export function EventFormSheet({
     </>
   );
 }
-

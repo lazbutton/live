@@ -4,6 +4,12 @@ import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { AdminLayout } from "@/app/(admin)/admin/components/admin-layout";
+import { buildEventFormPrefillFromImport } from "@/app/(admin)/admin/components/events/event-import-utils";
+import type {
+  EventFormData,
+  EventFormPrefill,
+} from "@/app/(admin)/admin/components/events/types";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,15 +42,48 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Calendar, MapPin, Tag, Euro, Users, Clock, Link as LinkIcon, Image as ImageIcon, Upload, X, Save, Maximize2, Minimize2, RotateCw, LayoutGrid, ExternalLink, Download, Music } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  CircleAlert,
+  Clock,
+  Download,
+  Euro,
+  ExternalLink,
+  Image as ImageIcon,
+  LayoutGrid,
+  Link as LinkIcon,
+  MapPin,
+  Maximize2,
+  Minimize2,
+  Music,
+  RotateCw,
+  Save,
+  ScanText,
+  Sparkles,
+  Tag,
+  Upload,
+  Users,
+  X,
+} from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
 import { compressImage } from "@/lib/image-compression";
-import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
+import {
+  formatDateWithoutTimezone,
+  toDatetimeLocal,
+  fromDatetimeLocal,
+} from "@/lib/date-utils";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { checkIsAdmin } from "@/lib/auth";
 import { isFacebookEventUrl } from "@/lib/facebook/event-url";
+import {
+  IMPORTED_EVENT_FIELD_LABELS,
+  type ImportedEventAnalysisResult,
+  type ImportedEventPayload,
+  type ImportedEventWarning,
+} from "@/lib/events/imported-event-payload";
 
 function addHoursToDatetimeLocal(value: string, hoursToAdd: number) {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
@@ -74,6 +113,288 @@ function normalizeSearchValue(value: string) {
     .trim();
 }
 // Import toast from sonner - using alert for now
+
+type RequestEventFormData = Pick<
+  EventFormData,
+  | "title"
+  | "description"
+  | "date"
+  | "end_date"
+  | "category"
+  | "price"
+  | "presale_price"
+  | "subscriber_price"
+  | "capacity"
+  | "location_id"
+  | "room_id"
+  | "door_opening_time"
+  | "external_url"
+  | "external_url_label"
+  | "scraping_url"
+  | "instagram_url"
+  | "facebook_url"
+  | "image_url"
+  | "is_full"
+>;
+
+type RequestFieldPreview = {
+  key: string;
+  label: string;
+  extractedValue: string;
+  currentValue: string;
+  willOverwrite: boolean;
+};
+
+function getComparableStringValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => String(entry).trim())
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Oui" : "Non";
+  }
+
+  if (value == null) {
+    return "";
+  }
+
+  return String(value).trim();
+}
+
+function getPreviewLabel(key: string) {
+  if (key === "organizerIds") return "Organisateurs";
+  if (key === "tagIds") return "Tags";
+
+  return (
+    IMPORTED_EVENT_FIELD_LABELS[
+      key as keyof typeof IMPORTED_EVENT_FIELD_LABELS
+    ] || key
+  );
+}
+
+function describeRequestFieldValue(
+  key: string,
+  value: unknown,
+  options: {
+    locations: Array<{ id: string; name: string }>;
+    organizers: Array<{ id: string; name: string }>;
+    categories: Array<{ id: string; name: string }>;
+    tags: Array<{ id: string; name: string }>;
+  },
+) {
+  if (key === "location_id") {
+    return (
+      options.locations.find((location) => location.id === value)?.name || ""
+    );
+  }
+
+  if (key === "category") {
+    return (
+      options.categories.find((category) => category.id === value)?.name || ""
+    );
+  }
+
+  if (key === "organizerIds") {
+    if (!Array.isArray(value)) return "";
+    return value
+      .map(
+        (id) =>
+          options.organizers.find((organizer) => organizer.id === id)?.name ||
+          "",
+      )
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (key === "tagIds") {
+    if (!Array.isArray(value)) return "";
+    return value
+      .map((id) => options.tags.find((tag) => tag.id === id)?.name || "")
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  return getComparableStringValue(value);
+}
+
+function buildRequestFieldPreview(args: {
+  extractedData: ImportedEventPayload;
+  prefill: EventFormPrefill;
+  formData: RequestEventFormData;
+  selectedOrganizerIds: string[];
+  selectedTagIds: string[];
+  locations: Array<{ id: string; name: string }>;
+  organizers: Array<{ id: string; name: string }>;
+  categories: Array<{ id: string; name: string }>;
+  tags: Array<{ id: string; name: string }>;
+}) {
+  const {
+    extractedData,
+    prefill,
+    formData,
+    selectedOrganizerIds,
+    selectedTagIds,
+    locations,
+    organizers,
+    categories,
+    tags,
+  } = args;
+
+  const result: RequestFieldPreview[] = [];
+
+  const pushField = (params: {
+    key: string;
+    extractedValue: string;
+    currentValue: string;
+  }) => {
+    if (!params.extractedValue) return;
+
+    result.push({
+      key: params.key,
+      label: getPreviewLabel(params.key),
+      extractedValue: params.extractedValue,
+      currentValue: params.currentValue,
+      willOverwrite:
+        Boolean(params.currentValue) &&
+        params.currentValue !== params.extractedValue,
+    });
+  };
+
+  Object.entries(prefill.form || {}).forEach(([key, value]) => {
+    if (value == null || getComparableStringValue(value) === "") return;
+
+    let extractedValue = describeRequestFieldValue(key, value, {
+      locations,
+      organizers,
+      categories,
+      tags,
+    });
+
+    if (key === "category" && typeof extractedData.category === "string") {
+      extractedValue = extractedData.category.trim() || extractedValue;
+    } else if (key === "location_id") {
+      extractedValue =
+        (typeof extractedData.location === "string" &&
+          extractedData.location.trim()) ||
+        (typeof extractedData.address === "string" &&
+          extractedData.address.trim()) ||
+        extractedValue;
+    } else if (
+      key in extractedData &&
+      getComparableStringValue(extractedData[key as keyof ImportedEventPayload])
+    ) {
+      extractedValue = getComparableStringValue(
+        extractedData[key as keyof ImportedEventPayload],
+      );
+    }
+
+    pushField({
+      key,
+      extractedValue,
+      currentValue: describeRequestFieldValue(
+        key,
+        formData[key as keyof RequestEventFormData],
+        {
+          locations,
+          organizers,
+          categories,
+          tags,
+        },
+      ),
+    });
+  });
+
+  if ((prefill.organizerIds || []).length > 0) {
+    pushField({
+      key: "organizerIds",
+      extractedValue:
+        (typeof extractedData.organizer === "string" &&
+          extractedData.organizer.trim()) ||
+        describeRequestFieldValue("organizerIds", prefill.organizerIds, {
+          locations,
+          organizers,
+          categories,
+          tags,
+        }),
+      currentValue: describeRequestFieldValue(
+        "organizerIds",
+        selectedOrganizerIds,
+        {
+          locations,
+          organizers,
+          categories,
+          tags,
+        },
+      ),
+    });
+  }
+
+  if ((prefill.tagIds || []).length > 0) {
+    pushField({
+      key: "tagIds",
+      extractedValue: Array.isArray(extractedData.tags)
+        ? extractedData.tags
+            .map((tag) => String(tag).trim())
+            .filter(Boolean)
+            .join(", ")
+        : describeRequestFieldValue("tagIds", prefill.tagIds, {
+            locations,
+            organizers,
+            categories,
+            tags,
+          }),
+      currentValue: describeRequestFieldValue("tagIds", selectedTagIds, {
+        locations,
+        organizers,
+        categories,
+        tags,
+      }),
+    });
+  }
+
+  return result;
+}
+
+function mergeRequestFormWithPrefill(
+  current: RequestEventFormData,
+  incoming: Partial<EventFormData>,
+): RequestEventFormData {
+  const next: RequestEventFormData = { ...current };
+
+  for (const [key, rawValue] of Object.entries(incoming)) {
+    if (!(key in next)) continue;
+
+    const normalizedIncoming =
+      typeof rawValue === "string" ? rawValue.trim() : rawValue;
+    if (normalizedIncoming === "" || normalizedIncoming == null) continue;
+
+    const currentValue = next[key as keyof RequestEventFormData];
+    const normalizedCurrent =
+      typeof currentValue === "string" ? currentValue.trim() : currentValue;
+    const isCurrentEmpty =
+      normalizedCurrent === "" || normalizedCurrent == null;
+
+    if (typeof normalizedIncoming === "boolean") {
+      if (
+        isCurrentEmpty ||
+        normalizedCurrent === false ||
+        normalizedCurrent !== normalizedIncoming
+      ) {
+        (next as Record<string, unknown>)[key] = normalizedIncoming;
+      }
+      continue;
+    }
+
+    if (isCurrentEmpty || normalizedCurrent !== normalizedIncoming) {
+      (next as Record<string, unknown>)[key] = rawValue;
+    }
+  }
+
+  return next;
+}
 
 interface UserRequest {
   id: string;
@@ -144,29 +465,62 @@ function CreateEventContent() {
   const [saving, setSaving] = useState(false);
   const [isImportingFromUrl, setIsImportingFromUrl] = useState(false);
   const [isImportingFromFacebook, setIsImportingFromFacebook] = useState(false);
-  const [locations, setLocations] = useState<{ id: string; name: string; address: string | null; capacity: number | null; latitude: number | null; longitude: number | null }[]>([]);
-  const [rooms, setRooms] = useState<Array<{ id: string; name: string; location_id: string }>>([]);
-  const [organizers, setOrganizers] = useState<Array<{ id: string; name: string; instagram_url: string | null; facebook_url: string | null; type: "organizer" | "location" }>>([]);
-  const [artists, setArtists] = useState<Array<{ id: string; name: string; artist_type_label: string | null; origin_city: string | null }>>([]);
-  const [selectedOrganizerIds, setSelectedOrganizerIds] = useState<string[]>([]);
+  const [locations, setLocations] = useState<
+    {
+      id: string;
+      name: string;
+      address: string | null;
+      capacity: number | null;
+      latitude: number | null;
+      longitude: number | null;
+    }[]
+  >([]);
+  const [rooms, setRooms] = useState<
+    Array<{ id: string; name: string; location_id: string }>
+  >([]);
+  const [organizers, setOrganizers] = useState<
+    Array<{
+      id: string;
+      name: string;
+      instagram_url: string | null;
+      facebook_url: string | null;
+      type: "organizer" | "location";
+    }>
+  >([]);
+  const [artists, setArtists] = useState<
+    Array<{
+      id: string;
+      name: string;
+      artist_type_label: string | null;
+      origin_city: string | null;
+    }>
+  >([]);
+  const [selectedOrganizerIds, setSelectedOrganizerIds] = useState<string[]>(
+    [],
+  );
   const [selectedArtistIds, setSelectedArtistIds] = useState<string[]>([]);
-  const [isCreateLocationDialogOpen, setIsCreateLocationDialogOpen] = useState(false);
-  const [isCreateOrganizerDialogOpen, setIsCreateOrganizerDialogOpen] = useState(false);
-  const [isCreateArtistDialogOpen, setIsCreateArtistDialogOpen] = useState(false);
-  const [quickLocationForm, setQuickLocationForm] = useState<QuickLocationFormState>({
-    name: "",
-    address: "",
-    capacity: "",
-    latitude: "",
-    longitude: "",
-    is_organizer: false,
-  });
-  const [quickOrganizerForm, setQuickOrganizerForm] = useState<QuickOrganizerFormState>({
-    name: "",
-    instagram_url: "",
-    facebook_url: "",
-    website_url: "",
-  });
+  const [isCreateLocationDialogOpen, setIsCreateLocationDialogOpen] =
+    useState(false);
+  const [isCreateOrganizerDialogOpen, setIsCreateOrganizerDialogOpen] =
+    useState(false);
+  const [isCreateArtistDialogOpen, setIsCreateArtistDialogOpen] =
+    useState(false);
+  const [quickLocationForm, setQuickLocationForm] =
+    useState<QuickLocationFormState>({
+      name: "",
+      address: "",
+      capacity: "",
+      latitude: "",
+      longitude: "",
+      is_organizer: false,
+    });
+  const [quickOrganizerForm, setQuickOrganizerForm] =
+    useState<QuickOrganizerFormState>({
+      name: "",
+      instagram_url: "",
+      facebook_url: "",
+      website_url: "",
+    });
   const [quickArtistForm, setQuickArtistForm] = useState<QuickArtistFormState>({
     name: "",
     artist_type_label: "",
@@ -179,7 +533,9 @@ function CreateEventContent() {
   const [isCreatingOrganizer, setIsCreatingOrganizer] = useState(false);
   const [isCreatingArtist, setIsCreatingArtist] = useState(false);
 
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>(
+    [],
+  );
   const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [categoryError, setCategoryError] = useState<string | null>(null);
@@ -195,7 +551,16 @@ function CreateEventContent() {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [aspectRatio, setAspectRatio] = useState<number | undefined>(3 / 2);
+  const [imageAnalysis, setImageAnalysis] =
+    useState<ImportedEventAnalysisResult | null>(null);
+  const [analysisPrefill, setAnalysisPrefill] =
+    useState<EventFormPrefill | null>(null);
+  const [analysisWarnings, setAnalysisWarnings] = useState<
+    ImportedEventWarning[]
+  >([]);
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const autoPrefillTriggeredRef = useRef<string | null>(null);
+  const previousImageSignatureRef = useRef<string | null>(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -225,7 +590,7 @@ function CreateEventContent() {
       setRooms([]);
       return;
     }
-    
+
     try {
       const { data, error } = await supabase
         .from("rooms")
@@ -346,7 +711,9 @@ function CreateEventContent() {
     availableLocations = locations,
   ) {
     if (locationId) {
-      const selectedLocation = availableLocations.find((loc) => loc.id === locationId);
+      const selectedLocation = availableLocations.find(
+        (loc) => loc.id === locationId,
+      );
       if (selectedLocation) {
         setFormData((prev) => ({
           ...prev,
@@ -406,12 +773,12 @@ function CreateEventContent() {
 
     const trimmedName = categoryName.trim();
     const normalizedName = trimmedName.toLowerCase();
-    
+
     // Chercher une catégorie existante (active ou inactive) - recherche insensible à la casse
     const { data: allCategories, error: fetchError } = await supabase
       .from("categories")
       .select("id, name");
-    
+
     if (fetchError) {
       console.error("Erreur lors de la récupération des catégories:", {
         message: fetchError.message,
@@ -424,7 +791,7 @@ function CreateEventContent() {
 
     // Rechercher une correspondance insensible à la casse
     const existing = allCategories?.find(
-      (cat) => cat.name.toLowerCase() === normalizedName
+      (cat) => cat.name.toLowerCase() === normalizedName,
     );
 
     if (existing) {
@@ -445,7 +812,7 @@ function CreateEventContent() {
       if (!tagName || !tagName.trim()) continue;
 
       const normalizedName = tagName.trim().toLowerCase();
-      
+
       // Chercher un tag existant
       const { data: existing } = await supabase
         .from("tags")
@@ -474,7 +841,7 @@ function CreateEventContent() {
       .from("tags")
       .select("id, name")
       .order("name");
-    
+
     if (updatedTags) {
       setTags(updatedTags);
     }
@@ -482,18 +849,36 @@ function CreateEventContent() {
     return tagIds;
   }
 
-  function resolveLocationFromImportedData(locationName?: string | null, address?: string | null) {
+  async function findOrCreateTagIdsForImport(rawTagNames: string[]) {
+    return findOrCreateTags(rawTagNames);
+  }
+
+  function resolveLocationFromImportedData(
+    locationName?: string | null,
+    address?: string | null,
+  ) {
     const candidates = [locationName, address]
       .flatMap((value) => {
         const raw = (value || "").trim();
         if (!raw) return [];
-        return [raw, raw.split(",")[0], raw.split(" - ")[0], raw.split(" • ")[0]].map((entry) => entry.trim());
+        return [
+          raw,
+          raw.split(",")[0],
+          raw.split(" - ")[0],
+          raw.split(" • ")[0],
+        ].map((entry) => entry.trim());
       })
-      .filter((value, index, array) => Boolean(value) && array.indexOf(value) === index);
+      .filter(
+        (value, index, array) =>
+          Boolean(value) && array.indexOf(value) === index,
+      );
 
     for (const candidate of candidates) {
       const normalizedCandidate = normalizeSearchValue(candidate);
-      const byName = locations.find((location) => normalizeSearchValue(location.name) === normalizedCandidate);
+      const byName = locations.find(
+        (location) =>
+          normalizeSearchValue(location.name) === normalizedCandidate,
+      );
       if (byName) return byName;
     }
 
@@ -501,7 +886,10 @@ function CreateEventContent() {
       const normalizedCandidate = normalizeSearchValue(candidate);
       const byPartialName = locations.find((location) => {
         const normalizedName = normalizeSearchValue(location.name);
-        return normalizedName.includes(normalizedCandidate) || normalizedCandidate.includes(normalizedName);
+        return (
+          normalizedName.includes(normalizedCandidate) ||
+          normalizedCandidate.includes(normalizedName)
+        );
       });
       if (byPartialName) return byPartialName;
     }
@@ -512,7 +900,8 @@ function CreateEventContent() {
         const locationAddress = normalizeSearchValue(location.address || "");
         return (
           locationAddress.length > 0 &&
-          (locationAddress.includes(normalizedAddress) || normalizedAddress.includes(locationAddress))
+          (locationAddress.includes(normalizedAddress) ||
+            normalizedAddress.includes(locationAddress))
         );
       });
       if (byAddress) return byAddress;
@@ -525,13 +914,24 @@ function CreateEventContent() {
     const raw = (organizerName || "").trim();
     if (!raw) return null;
 
-    const candidates = [raw, raw.split(",")[0], raw.split(" / ")[0], raw.split(" - ")[0]]
+    const candidates = [
+      raw,
+      raw.split(",")[0],
+      raw.split(" / ")[0],
+      raw.split(" - ")[0],
+    ]
       .map((value) => value.trim())
-      .filter((value, index, array) => Boolean(value) && array.indexOf(value) === index);
+      .filter(
+        (value, index, array) =>
+          Boolean(value) && array.indexOf(value) === index,
+      );
 
     for (const candidate of candidates) {
       const normalizedCandidate = normalizeSearchValue(candidate);
-      const exact = organizers.find((organizer) => normalizeSearchValue(organizer.name) === normalizedCandidate);
+      const exact = organizers.find(
+        (organizer) =>
+          normalizeSearchValue(organizer.name) === normalizedCandidate,
+      );
       if (exact) return exact;
     }
 
@@ -539,7 +939,10 @@ function CreateEventContent() {
       const normalizedCandidate = normalizeSearchValue(candidate);
       const partial = organizers.find((organizer) => {
         const normalizedName = normalizeSearchValue(organizer.name);
-        return normalizedName.includes(normalizedCandidate) || normalizedCandidate.includes(normalizedName);
+        return (
+          normalizedName.includes(normalizedCandidate) ||
+          normalizedCandidate.includes(normalizedName)
+        );
       });
       if (partial) return partial;
     }
@@ -553,19 +956,25 @@ function CreateEventContent() {
     options?: {
       fallbackCategoryId?: string;
       fallbackLocationId?: string;
-    }
+    },
   ) {
-    const fallbackCategoryId = options?.fallbackCategoryId || categories[0]?.id || "";
-    const fallbackLocationId = options?.fallbackLocationId || request?.location_id || "";
+    const fallbackCategoryId =
+      options?.fallbackCategoryId || categories[0]?.id || "";
+    const fallbackLocationId =
+      options?.fallbackLocationId || request?.location_id || "";
 
     const importedCategory =
-      typeof importedData.category === "string" ? importedData.category.trim() : "";
+      typeof importedData.category === "string"
+        ? importedData.category.trim()
+        : "";
     const resolvedCategoryId = importedCategory
       ? (await findCategory(importedCategory)) || fallbackCategoryId
       : fallbackCategoryId;
 
     const importedTags = Array.isArray(importedData.tags)
-      ? importedData.tags.map((tag: unknown) => String(tag).trim()).filter(Boolean)
+      ? importedData.tags
+          .map((tag: unknown) => String(tag).trim())
+          .filter(Boolean)
       : [];
     if (importedTags.length > 0) {
       const tagIds = await findOrCreateTags(importedTags);
@@ -573,32 +982,48 @@ function CreateEventContent() {
     }
 
     const matchedLocation = resolveLocationFromImportedData(
-      typeof importedData.location === "string" ? importedData.location : undefined,
-      typeof importedData.address === "string" ? importedData.address : undefined,
+      typeof importedData.location === "string"
+        ? importedData.location
+        : undefined,
+      typeof importedData.address === "string"
+        ? importedData.address
+        : undefined,
     );
     const resolvedLocationId =
-      (typeof importedData.location_id === "string" && importedData.location_id) ||
+      (typeof importedData.location_id === "string" &&
+        importedData.location_id) ||
       matchedLocation?.id ||
       fallbackLocationId ||
       "";
     const matchedOrganizer = resolveOrganizerFromImportedData(
-      typeof importedData.organizer === "string" ? importedData.organizer : undefined,
+      typeof importedData.organizer === "string"
+        ? importedData.organizer
+        : undefined,
     );
     const importedOrganizerIds = [
-      typeof importedData.organizer_id === "string" ? importedData.organizer_id : "",
+      typeof importedData.organizer_id === "string"
+        ? importedData.organizer_id
+        : "",
       typeof importedData.location_organizer_id === "string"
         ? importedData.location_organizer_id
         : "",
       matchedOrganizer?.id || "",
-    ].filter((value, index, array) => Boolean(value) && array.indexOf(value) === index);
+    ].filter(
+      (value, index, array) => Boolean(value) && array.indexOf(value) === index,
+    );
 
     if (importedOrganizerIds.length > 0) {
       setSelectedOrganizerIds(importedOrganizerIds);
     } else if (
       resolvedLocationId &&
-      organizers.some((organizer) => organizer.id === resolvedLocationId && organizer.type === "location")
+      organizers.some(
+        (organizer) =>
+          organizer.id === resolvedLocationId && organizer.type === "location",
+      )
     ) {
-      setSelectedOrganizerIds((prev) => (prev.length > 0 ? prev : [resolvedLocationId]));
+      setSelectedOrganizerIds((prev) =>
+        prev.length > 0 ? prev : [resolvedLocationId],
+      );
     }
 
     if (resolvedLocationId) {
@@ -606,7 +1031,9 @@ function CreateEventContent() {
     }
 
     const importedImageUrl =
-      typeof importedData.image_url === "string" ? importedData.image_url.trim() : "";
+      typeof importedData.image_url === "string"
+        ? importedData.image_url.trim()
+        : "";
     if (importedImageUrl) {
       setImagePreview(importedImageUrl);
       setOriginalImageSrc(importedImageUrl);
@@ -703,7 +1130,8 @@ function CreateEventContent() {
   }
 
   async function importRequestSourceWithUrlScraper() {
-    const sourceUrl = formData.scraping_url.trim() || request?.source_url?.trim() || "";
+    const sourceUrl =
+      formData.scraping_url.trim() || request?.source_url?.trim() || "";
     if (!sourceUrl) {
       alert("Aucun lien source disponible pour cette demande.");
       return;
@@ -740,7 +1168,8 @@ function CreateEventContent() {
   }
 
   async function importRequestSourceWithFacebookScraper() {
-    const sourceUrl = formData.scraping_url.trim() || request?.source_url?.trim() || "";
+    const sourceUrl =
+      formData.scraping_url.trim() || request?.source_url?.trim() || "";
     if (!sourceUrl) {
       alert("Aucun lien source disponible pour cette demande.");
       return;
@@ -802,7 +1231,11 @@ function CreateEventContent() {
         .single();
 
       if (requestError) throw requestError;
-      if (!requestData || (requestData.request_type !== "event_creation" && requestData.request_type !== "event_from_url")) {
+      if (
+        !requestData ||
+        (requestData.request_type !== "event_creation" &&
+          requestData.request_type !== "event_from_url")
+      ) {
         alert("Demande invalide ou non trouvée");
         router.push("/admin/requests");
         return;
@@ -811,103 +1244,141 @@ function CreateEventContent() {
       setRequest(requestData);
 
       // Load locations, organizers, categories, tags
-      const [locationsResult, organizersResult, locationsOrganizersResult, artistsResult, categoriesResult, tagsResult] = await Promise.all([
-        supabase.from("locations").select("id, name, address, capacity, latitude, longitude").order("name"),
-        supabase.from("organizers").select("id, name, instagram_url, facebook_url").order("name"),
-        supabase.from("locations").select("id, name, instagram_url, facebook_url").eq("is_organizer", true).order("name"),
-        supabase.from("artists").select("id, name, artist_type_label, origin_city").order("name"),
-        supabase.from("categories").select("id, name").eq("is_active", true).order("display_order"),
+      const [
+        locationsResult,
+        organizersResult,
+        locationsOrganizersResult,
+        artistsResult,
+        categoriesResult,
+        tagsResult,
+      ] = await Promise.all([
+        supabase
+          .from("locations")
+          .select("id, name, address, capacity, latitude, longitude")
+          .order("name"),
+        supabase
+          .from("organizers")
+          .select("id, name, instagram_url, facebook_url")
+          .order("name"),
+        supabase
+          .from("locations")
+          .select("id, name, instagram_url, facebook_url")
+          .eq("is_organizer", true)
+          .order("name"),
+        supabase
+          .from("artists")
+          .select("id, name, artist_type_label, origin_city")
+          .order("name"),
+        supabase
+          .from("categories")
+          .select("id, name")
+          .eq("is_active", true)
+          .order("display_order"),
         supabase.from("tags").select("id, name").order("name"),
       ]);
 
       if (locationsResult.data) setLocations(locationsResult.data);
-      
+
       // Combiner les organisateurs classiques et les lieux-organisateurs
       const allOrganizers = [
-        ...(organizersResult.data || []).map((org) => ({ ...org, type: "organizer" as const })),
-        ...(locationsOrganizersResult.data || []).map((loc) => ({ ...loc, type: "location" as const })),
+        ...(organizersResult.data || []).map((org) => ({
+          ...org,
+          type: "organizer" as const,
+        })),
+        ...(locationsOrganizersResult.data || []).map((loc) => ({
+          ...loc,
+          type: "location" as const,
+        })),
       ];
       setOrganizers(allOrganizers);
       if (artistsResult.data) setArtists(artistsResult.data);
       if (categoriesResult.data) setCategories(categoriesResult.data);
       if (tagsResult.data) setTags(tagsResult.data);
 
-        // Populate form from request data
-        if (requestData.event_data) {
-          const ed = requestData.event_data;
-          const formattedDate = ed.date ? toDatetimeLocal(ed.date) : "";
-          const formattedEndDate = ed.end_date ? toDatetimeLocal(ed.end_date) : "";
+      // Populate form from request data
+      if (requestData.event_data) {
+        const ed = requestData.event_data;
+        const formattedDate = ed.date ? toDatetimeLocal(ed.date) : "";
+        const formattedEndDate = ed.end_date
+          ? toDatetimeLocal(ed.end_date)
+          : "";
 
-          // Gérer la catégorie (peut être un nom de catégorie scrapé)
-          let categoryId = "";
-          if (ed.category) {
-            // Si c'est déjà un ID (UUID), l'utiliser directement
-            if (ed.category.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-              categoryId = ed.category;
-            } else {
-              // Sinon, c'est un nom de catégorie, seulement trouver (ne pas créer)
-              const foundCategoryId = await findCategory(ed.category);
-              categoryId = foundCategoryId || "";
-            }
+        // Gérer la catégorie (peut être un nom de catégorie scrapé)
+        let categoryId = "";
+        if (ed.category) {
+          // Si c'est déjà un ID (UUID), l'utiliser directement
+          if (
+            ed.category.match(
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+            )
+          ) {
+            categoryId = ed.category;
+          } else {
+            // Sinon, c'est un nom de catégorie, seulement trouver (ne pas créer)
+            const foundCategoryId = await findCategory(ed.category);
+            categoryId = foundCategoryId || "";
           }
+        }
 
-          // Gérer les tags (peut être un tableau de noms de tags scrapés)
-          if (ed.tags && Array.isArray(ed.tags) && ed.tags.length > 0) {
-            const tagIds = await findOrCreateTags(ed.tags);
-            setSelectedTagIds(tagIds);
+        // Gérer les tags (peut être un tableau de noms de tags scrapés)
+        if (ed.tags && Array.isArray(ed.tags) && ed.tags.length > 0) {
+          const tagIds = await findOrCreateTags(ed.tags);
+          setSelectedTagIds(tagIds);
+        }
+
+        setFormData({
+          title: ed.title || "",
+          description: ed.description || "",
+          date: formattedDate,
+          end_date: formattedEndDate,
+          category: categoryId,
+          price: ed.price != null ? ed.price.toString() : "",
+          presale_price:
+            ed.presale_price != null ? ed.presale_price.toString() : "",
+          subscriber_price:
+            ed.subscriber_price != null ? ed.subscriber_price.toString() : "",
+          capacity: ed.capacity != null ? ed.capacity.toString() : "",
+          location_id: ed.location_id || "",
+          room_id: ed.room_id || "",
+          door_opening_time: ed.door_opening_time || "",
+          external_url: ed.external_url || "",
+          external_url_label: ed.external_url_label || "",
+          scraping_url: requestData.source_url || "",
+          instagram_url: ed.instagram_url || "",
+          facebook_url: ed.facebook_url || "",
+          image_url: ed.image_url || "",
+          is_full: ed.is_full ?? false,
+        });
+
+        if (ed.image_url) {
+          setImagePreview(ed.image_url);
+          setOriginalImageSrc(ed.image_url); // Conserver l'URL originale
+        }
+
+        // Charger les organisateurs si un organizer_id est présent
+        if (ed.organizer_id) {
+          setSelectedOrganizerIds([ed.organizer_id]);
+        } else if (ed.location_organizer_id) {
+          // Si un lieu-organisateur a été détecté automatiquement lors de l'enrichissement
+          setSelectedOrganizerIds([ed.location_organizer_id]);
+        } else if (ed.location_id) {
+          // Si aucun organisateur n'a été trouvé mais qu'un lieu est présent, vérifier si c'est un lieu-organisateur
+          const { data: location } = await supabase
+            .from("locations")
+            .select("is_organizer")
+            .eq("id", ed.location_id)
+            .maybeSingle();
+
+          if (location?.is_organizer) {
+            // Le lieu est un organisateur, l'ajouter automatiquement
+            setSelectedOrganizerIds([ed.location_id]);
           }
+        }
 
-          setFormData({
-            title: ed.title || "",
-            description: ed.description || "",
-            date: formattedDate,
-            end_date: formattedEndDate,
-            category: categoryId,
-            price: ed.price != null ? ed.price.toString() : "",
-            presale_price: ed.presale_price != null ? ed.presale_price.toString() : "",
-            subscriber_price: ed.subscriber_price != null ? ed.subscriber_price.toString() : "",
-            capacity: ed.capacity != null ? ed.capacity.toString() : "",
-            location_id: ed.location_id || "",
-            room_id: ed.room_id || "",
-            door_opening_time: ed.door_opening_time || "",
-            external_url: ed.external_url || "",
-            external_url_label: ed.external_url_label || "",
-            scraping_url: requestData.source_url || "",
-            instagram_url: ed.instagram_url || "",
-            facebook_url: ed.facebook_url || "",
-            image_url: ed.image_url || "",
-            is_full: ed.is_full ?? false,
-          });
-
-          if (ed.image_url) {
-            setImagePreview(ed.image_url);
-            setOriginalImageSrc(ed.image_url); // Conserver l'URL originale
-          }
-
-          // Charger les organisateurs si un organizer_id est présent
-          if (ed.organizer_id) {
-            setSelectedOrganizerIds([ed.organizer_id]);
-          } else if (ed.location_organizer_id) {
-            // Si un lieu-organisateur a été détecté automatiquement lors de l'enrichissement
-            setSelectedOrganizerIds([ed.location_organizer_id]);
-          } else if (ed.location_id) {
-            // Si aucun organisateur n'a été trouvé mais qu'un lieu est présent, vérifier si c'est un lieu-organisateur
-            const { data: location } = await supabase
-              .from("locations")
-              .select("is_organizer")
-              .eq("id", ed.location_id)
-              .maybeSingle();
-            
-            if (location?.is_organizer) {
-              // Le lieu est un organisateur, l'ajouter automatiquement
-              setSelectedOrganizerIds([ed.location_id]);
-            }
-          }
-
-          // Charger les salles si un lieu est déjà sélectionné
-          if (ed.location_id) {
-            loadRoomsForLocation(ed.location_id);
-          }
+        // Charger les salles si un lieu est déjà sélectionné
+        if (ed.location_id) {
+          loadRoomsForLocation(ed.location_id);
+        }
       } else if (
         requestData.request_type === "event_from_url" &&
         requestData.source_url &&
@@ -932,10 +1403,14 @@ function CreateEventContent() {
           const result = await response.json();
           const scrapedData = result.data || {};
 
-          await applyImportedEventData(scrapedData, requestData.source_url || "", {
-            fallbackCategoryId: categoriesResult.data?.[0]?.id || "",
-            fallbackLocationId: requestData.location_id || "",
-          });
+          await applyImportedEventData(
+            scrapedData,
+            requestData.source_url || "",
+            {
+              fallbackCategoryId: categoriesResult.data?.[0]?.id || "",
+              fallbackLocationId: requestData.location_id || "",
+            },
+          );
         } catch (error) {
           console.error("Erreur scraping (event_from_url):", error);
         }
@@ -949,7 +1424,9 @@ function CreateEventContent() {
     }
   }
 
-  async function handleQuickLocationCreate(event: React.FormEvent<HTMLFormElement>) {
+  async function handleQuickLocationCreate(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     if (!quickLocationForm.name.trim()) {
@@ -1008,7 +1485,9 @@ function CreateEventContent() {
     }
   }
 
-  async function handleQuickOrganizerCreate(event: React.FormEvent<HTMLFormElement>) {
+  async function handleQuickOrganizerCreate(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     if (!quickOrganizerForm.name.trim()) {
@@ -1050,14 +1529,19 @@ function CreateEventContent() {
         website_url: "",
       });
     } catch (error: any) {
-      console.error("Erreur lors de la création rapide de l'organisateur:", error);
+      console.error(
+        "Erreur lors de la création rapide de l'organisateur:",
+        error,
+      );
       alert(error?.message || "Impossible de créer l'organisateur.");
     } finally {
       setIsCreatingOrganizer(false);
     }
   }
 
-  async function handleQuickArtistCreate(event: React.FormEvent<HTMLFormElement>) {
+  async function handleQuickArtistCreate(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     if (!quickArtistForm.name.trim()) {
@@ -1136,11 +1620,17 @@ function CreateEventContent() {
     }
   }
 
-  const onCropComplete = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  }, []);
+  const onCropComplete = useCallback(
+    (croppedArea: Area, croppedAreaPixels: Area) => {
+      setCroppedAreaPixels(croppedAreaPixels);
+    },
+    [],
+  );
 
-  async function createCroppedImage(imageSrc: string, pixelCrop: Area): Promise<Blob> {
+  async function createCroppedImage(
+    imageSrc: string,
+    pixelCrop: Area,
+  ): Promise<Blob> {
     return new Promise((resolve, reject) => {
       const image = new Image();
       image.crossOrigin = "anonymous";
@@ -1167,7 +1657,7 @@ function CreateEventContent() {
           0,
           0,
           pixelCrop.width,
-          pixelCrop.height
+          pixelCrop.height,
         );
 
         canvas.toBlob(
@@ -1179,7 +1669,7 @@ function CreateEventContent() {
             resolve(blob);
           },
           "image/jpeg",
-          0.9
+          0.9,
         );
       };
 
@@ -1193,10 +1683,17 @@ function CreateEventContent() {
     if (!cropImageSrc || !croppedAreaPixels) return;
 
     try {
-      const croppedImageBlob = await createCroppedImage(cropImageSrc, croppedAreaPixels);
-      const croppedImageFile = new File([croppedImageBlob], `cropped-${Date.now()}.jpg`, {
-        type: "image/jpeg",
-      });
+      const croppedImageBlob = await createCroppedImage(
+        cropImageSrc,
+        croppedAreaPixels,
+      );
+      const croppedImageFile = new File(
+        [croppedImageBlob],
+        `cropped-${Date.now()}.jpg`,
+        {
+          type: "image/jpeg",
+        },
+      );
 
       setImageFile(croppedImageFile);
       setImagePreview(URL.createObjectURL(croppedImageBlob));
@@ -1220,7 +1717,7 @@ function CreateEventContent() {
     try {
       // Compresser l'image avant l'upload pour qu'elle fasse moins de 10 Mo
       const compressedFile = await compressImage(imageFile, 2);
-      
+
       const fileExt = compressedFile.name.split(".").pop() || "jpg";
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
@@ -1232,28 +1729,153 @@ function CreateEventContent() {
         });
 
       if (error) {
-        if (error.message?.includes("Bucket not found") || (error as any).statusCode === 404) {
-          alert("Le bucket 'event-images' n'existe pas. Veuillez le créer dans Supabase Storage.");
+        if (
+          error.message?.includes("Bucket not found") ||
+          (error as any).statusCode === 404
+        ) {
+          alert(
+            "Le bucket 'event-images' n'existe pas. Veuillez le créer dans Supabase Storage.",
+          );
         } else {
           throw error;
         }
         return null;
       }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("event-images")
-        .getPublicUrl(data.path);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("event-images").getPublicUrl(data.path);
 
       return publicUrl;
     } catch (error: any) {
       console.error("Erreur upload:", error);
-      if (error.message?.includes("Bucket not found") || error.statusCode === 404) {
-        alert("Le bucket 'event-images' n'existe pas. Veuillez le créer dans Supabase Storage.");
+      if (
+        error.message?.includes("Bucket not found") ||
+        error.statusCode === 404
+      ) {
+        alert(
+          "Le bucket 'event-images' n'existe pas. Veuillez le créer dans Supabase Storage.",
+        );
       } else {
-        alert("Erreur lors de l'upload de l'image: " + (error.message || "Erreur inconnue"));
+        alert(
+          "Erreur lors de l'upload de l'image: " +
+            (error.message || "Erreur inconnue"),
+        );
       }
       return null;
     }
+  }
+
+  function dismissImageAnalysis() {
+    setImageAnalysis(null);
+    setAnalysisPrefill(null);
+    setAnalysisWarnings([]);
+  }
+
+  async function analyzeCurrentImage() {
+    const currentImageUrl = formData.image_url.trim();
+
+    if (!imageFile && !currentImageUrl) {
+      alert(
+        "Ajoute une image ou une URL d'image avant de lancer l'extraction.",
+      );
+      return;
+    }
+
+    try {
+      setIsAnalyzingImage(true);
+      dismissImageAnalysis();
+
+      const payload = new FormData();
+      if (imageFile) {
+        payload.append("image", imageFile);
+      }
+      if (currentImageUrl) {
+        payload.append("imageUrl", currentImageUrl);
+      }
+
+      const response = await fetch("/api/events/extract-from-image", {
+        method: "POST",
+        body: payload,
+      });
+
+      const result = (await response.json().catch(() => ({}))) as {
+        data?: ImportedEventPayload;
+        metadata?: Record<string, unknown>;
+        warnings?: ImportedEventWarning[];
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(
+          result?.error || "Impossible d'analyser l'image de l'evenement.",
+        );
+      }
+
+      const analysisResult: ImportedEventAnalysisResult = {
+        data: result.data || {},
+        metadata: result.metadata,
+        warnings: result.warnings || [],
+      };
+
+      const built = await buildEventFormPrefillFromImport({
+        data: analysisResult.data,
+        categories,
+        locations,
+        organizers,
+        findOrCreateTagIds: findOrCreateTagIdsForImport,
+      });
+
+      setImageAnalysis(analysisResult);
+      setAnalysisPrefill(built.prefill);
+      setAnalysisWarnings([
+        ...(analysisResult.warnings || []),
+        ...built.warnings,
+      ]);
+    } catch (error) {
+      console.error("Erreur analyse image evenement:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de l'analyse de l'image",
+      );
+    } finally {
+      setIsAnalyzingImage(false);
+    }
+  }
+
+  function applyImageAnalysisToRequestForm() {
+    if (!analysisPrefill) return;
+
+    setFormData((previous) =>
+      mergeRequestFormWithPrefill(previous, analysisPrefill.form || {}),
+    );
+
+    if ((analysisPrefill.organizerIds || []).length > 0) {
+      const nextOrganizerIds = Array.from(
+        new Set([
+          ...selectedOrganizerIds,
+          ...(analysisPrefill.organizerIds || []),
+        ]),
+      );
+      handleOrganizerChange(nextOrganizerIds);
+    }
+
+    if ((analysisPrefill.tagIds || []).length > 0) {
+      setSelectedTagIds((previous) =>
+        Array.from(new Set([...previous, ...(analysisPrefill.tagIds || [])])),
+      );
+    }
+
+    if ((analysisPrefill.artistIds || []).length > 0) {
+      setSelectedArtistIds((previous) =>
+        Array.from(
+          new Set([...previous, ...(analysisPrefill.artistIds || [])]),
+        ),
+      );
+    }
+
+    dismissImageAnalysis();
   }
 
   async function handleSubmit(e: React.FormEvent, isDraft: boolean = false) {
@@ -1272,8 +1894,14 @@ function CreateEventContent() {
       if (formData.end_date && formData.date) {
         const startDate = new Date(formData.date);
         const endDate = new Date(formData.end_date);
-        if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()) && endDate < startDate) {
-          alert("La date et heure de fin ne peut pas être antérieure à la date et heure de début");
+        if (
+          !Number.isNaN(startDate.getTime()) &&
+          !Number.isNaN(endDate.getTime()) &&
+          endDate < startDate
+        ) {
+          alert(
+            "La date et heure de fin ne peut pas être antérieure à la date et heure de début",
+          );
           setSaving(false);
           return;
         }
@@ -1296,27 +1924,38 @@ function CreateEventContent() {
       } = await supabase.auth.getUser();
 
       // Récupérer l'adresse et les coordonnées du lieu sélectionné si un lieu est sélectionné
-      const selectedLocation = formData.location_id && formData.location_id !== "none" 
-        ? locations.find((loc) => loc.id === formData.location_id)
-        : null;
+      const selectedLocation =
+        formData.location_id && formData.location_id !== "none"
+          ? locations.find((loc) => loc.id === formData.location_id)
+          : null;
 
       // Create event
       const eventData: any = {
         title: formData.title,
         description: formData.description || null,
         date: fromDatetimeLocal(formData.date) || formData.date,
-        end_date: formData.end_date ? fromDatetimeLocal(formData.end_date) : null,
+        end_date: formData.end_date
+          ? fromDatetimeLocal(formData.end_date)
+          : null,
         category: formData.category,
         price: formData.price ? parseFloat(formData.price) : null,
-        presale_price: formData.presale_price ? parseFloat(formData.presale_price) : null,
-        subscriber_price: formData.subscriber_price ? parseFloat(formData.subscriber_price) : null,
+        presale_price: formData.presale_price
+          ? parseFloat(formData.presale_price)
+          : null,
+        subscriber_price: formData.subscriber_price
+          ? parseFloat(formData.subscriber_price)
+          : null,
         address: selectedLocation?.address || null,
         latitude: selectedLocation?.latitude || null,
         longitude: selectedLocation?.longitude || null,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         is_full: formData.is_full || false,
-        location_id: formData.location_id === "none" ? null : formData.location_id || null,
-        room_id: formData.room_id === "none" || formData.room_id === "" ? null : formData.room_id || null,
+        location_id:
+          formData.location_id === "none" ? null : formData.location_id || null,
+        room_id:
+          formData.room_id === "none" || formData.room_id === ""
+            ? null
+            : formData.room_id || null,
         door_opening_time: formData.door_opening_time || null,
         external_url: formData.external_url || null,
         external_url_label: formData.external_url_label || null,
@@ -1369,7 +2008,7 @@ function CreateEventContent() {
             };
           }
         });
-        
+
         const { error: orgError } = await supabase
           .from("event_organizers")
           .insert(organizerEntries);
@@ -1409,14 +2048,17 @@ function CreateEventContent() {
           .select(); // Ajouter select() pour forcer l'exécution et vérifier les permissions
 
         if (updateError) {
-          console.error("Erreur détaillée lors de la mise à jour de la demande:", {
-            message: updateError.message,
-            details: updateError.details,
-            hint: updateError.hint,
-            code: updateError.code,
-            requestId,
-            user: user?.id,
-          });
+          console.error(
+            "Erreur détaillée lors de la mise à jour de la demande:",
+            {
+              message: updateError.message,
+              details: updateError.details,
+              hint: updateError.hint,
+              code: updateError.code,
+              requestId,
+              user: user?.id,
+            },
+          );
           throw updateError;
         }
 
@@ -1432,7 +2074,10 @@ function CreateEventContent() {
           .eq("id", requestId);
 
         if (updateError) {
-          console.error("Erreur lors de la mise à jour de la demande (brouillon):", updateError);
+          console.error(
+            "Erreur lors de la mise à jour de la demande (brouillon):",
+            updateError,
+          );
           // Ne pas bloquer si la mise à jour de la demande échoue pour un brouillon
         }
 
@@ -1449,21 +2094,38 @@ function CreateEventContent() {
         statusCode: error?.statusCode,
         stack: error?.stack,
       });
-      
+
       // Messages d'erreur plus explicites
       let errorMessage = "Erreur lors de la création de l'événement";
-      
-      if (error?.message?.includes("Bucket not found") || error?.code === "404") {
+
+      if (
+        error?.message?.includes("Bucket not found") ||
+        error?.code === "404"
+      ) {
         errorMessage = `Bucket manquant: ${error.message}. Veuillez créer les buckets dans Supabase Storage (event-images, locations-images, organizers-images).`;
-      } else if (error?.code === "42501" || error?.message?.includes("permission denied") || error?.message?.includes("new row violates")) {
-        if (error?.message?.includes("storage") || error?.message?.includes("bucket")) {
-          errorMessage = "Erreur de permission sur le bucket de stockage. Vérifiez que les politiques RLS pour les buckets sont configurées (migration 020).";
-        } else if (error?.message?.includes("user_requests") || error?.hint?.includes("user_requests")) {
-          errorMessage = "Vous n'avez pas la permission de mettre à jour cette demande. Vérifiez vos droits d'administration et exécutez la migration 019.";
+      } else if (
+        error?.code === "42501" ||
+        error?.message?.includes("permission denied") ||
+        error?.message?.includes("new row violates")
+      ) {
+        if (
+          error?.message?.includes("storage") ||
+          error?.message?.includes("bucket")
+        ) {
+          errorMessage =
+            "Erreur de permission sur le bucket de stockage. Vérifiez que les politiques RLS pour les buckets sont configurées (migration 020).";
+        } else if (
+          error?.message?.includes("user_requests") ||
+          error?.hint?.includes("user_requests")
+        ) {
+          errorMessage =
+            "Vous n'avez pas la permission de mettre à jour cette demande. Vérifiez vos droits d'administration et exécutez la migration 019.";
         } else if (error?.message?.includes("events")) {
-          errorMessage = "Vous n'avez pas la permission de créer un événement. Vérifiez vos droits d'administration.";
+          errorMessage =
+            "Vous n'avez pas la permission de créer un événement. Vérifiez vos droits d'administration.";
         } else {
-          errorMessage = "Vous n'avez pas la permission d'effectuer cette action. Vérifiez vos droits d'administration.";
+          errorMessage =
+            "Vous n'avez pas la permission d'effectuer cette action. Vérifiez vos droits d'administration.";
         }
       } else if (error?.message) {
         errorMessage = `Erreur: ${error.message}`;
@@ -1473,7 +2135,7 @@ function CreateEventContent() {
       } else if (error?.details) {
         errorMessage = `Erreur: ${error.details}`;
       }
-      
+
       alert(errorMessage);
     } finally {
       setSaving(false);
@@ -1484,6 +2146,46 @@ function CreateEventContent() {
     formData.scraping_url.trim() || request?.source_url?.trim() || "";
   const canImportRequestSourceFromFacebook =
     Boolean(requestSourceUrl) && isFacebookEventUrl(requestSourceUrl);
+  const extractedFieldPreview =
+    analysisPrefill && imageAnalysis
+      ? buildRequestFieldPreview({
+          extractedData: imageAnalysis.data,
+          prefill: analysisPrefill,
+          formData,
+          selectedOrganizerIds,
+          selectedTagIds,
+          locations,
+          organizers,
+          categories,
+          tags,
+        })
+      : [];
+
+  useEffect(() => {
+    const nextSignature = `${imageFile?.name || ""}::${formData.image_url.trim()}::${imagePreview || ""}`;
+
+    if (previousImageSignatureRef.current == null) {
+      previousImageSignatureRef.current = nextSignature;
+      return;
+    }
+
+    if (previousImageSignatureRef.current === nextSignature) {
+      return;
+    }
+
+    previousImageSignatureRef.current = nextSignature;
+
+    if (imageAnalysis || analysisPrefill || analysisWarnings.length > 0) {
+      dismissImageAnalysis();
+    }
+  }, [
+    analysisPrefill,
+    analysisWarnings.length,
+    formData.image_url,
+    imageAnalysis,
+    imageFile,
+    imagePreview,
+  ]);
 
   useEffect(() => {
     if (
@@ -1520,7 +2222,13 @@ function CreateEventContent() {
 
   if (loading) {
     return (
-      <AdminLayout title="Créer un événement" breadcrumbItems={[{ label: "Demandes", href: "/admin/requests" }, { label: "Créer événement" }]}>
+      <AdminLayout
+        title="Créer un événement"
+        breadcrumbItems={[
+          { label: "Demandes", href: "/admin/requests" },
+          { label: "Créer événement" },
+        ]}
+      >
         <div className="flex min-h-[400px] items-center justify-center">
           <div className="text-center">
             <p className="text-muted-foreground">Chargement...</p>
@@ -1532,11 +2240,16 @@ function CreateEventContent() {
 
   if (!request) {
     return (
-      <AdminLayout title="Erreur" breadcrumbItems={[{ label: "Demandes", href: "/admin/requests" }]}>
+      <AdminLayout
+        title="Erreur"
+        breadcrumbItems={[{ label: "Demandes", href: "/admin/requests" }]}
+      >
         <Card>
           <CardHeader>
             <CardTitle>Demande non trouvée</CardTitle>
-            <CardDescription>La demande sélectionnée n'existe pas ou n'est pas valide.</CardDescription>
+            <CardDescription>
+              La demande sélectionnée n'existe pas ou n'est pas valide.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild>
@@ -1586,16 +2299,23 @@ function CreateEventContent() {
                     <Input
                       id="title"
                       value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, title: e.target.value })
+                      }
                       required
                       placeholder="Nom de l'événement"
                       className="cursor-pointer"
                     />
                   </div>
 
-                  <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
+                  <div
+                    className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}
+                  >
                     <div className="space-y-2">
-                      <Label htmlFor="category" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="category"
+                        className="flex items-center gap-2"
+                      >
                         <Tag className="h-4 w-4" />
                         Catégorie *
                       </Label>
@@ -1612,14 +2332,20 @@ function CreateEventContent() {
                         </SelectTrigger>
                         <SelectContent>
                           {categories.map((cat) => (
-                            <SelectItem key={cat.id} value={cat.id} className="cursor-pointer">
+                            <SelectItem
+                              key={cat.id}
+                              value={cat.id}
+                              className="cursor-pointer"
+                            >
                               {cat.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       {categoryError && (
-                        <p className="text-sm text-destructive">{categoryError}</p>
+                        <p className="text-sm text-destructive">
+                          {categoryError}
+                        </p>
                       )}
                     </div>
 
@@ -1644,36 +2370,56 @@ function CreateEventContent() {
                               .single();
 
                             if (error) {
-                              console.error("Erreur détaillée lors de la création du tag:", {
-                                message: error.message,
-                                details: error.details,
-                                hint: error.hint,
-                                code: error.code,
-                              });
-                              
+                              console.error(
+                                "Erreur détaillée lors de la création du tag:",
+                                {
+                                  message: error.message,
+                                  details: error.details,
+                                  hint: error.hint,
+                                  code: error.code,
+                                },
+                              );
+
                               // Messages d'erreur plus explicites
                               if (error.code === "23505") {
-                                alert(`Un tag avec le nom "${name}" existe déjà.`);
-                              } else if (error.message?.includes("permission denied") || error.code === "42501") {
-                                alert("Vous n'avez pas la permission de créer un tag. Vérifiez vos droits d'administration.");
-                              } else if (error.message?.includes("relation") && error.message?.includes("does not exist")) {
-                                alert("La table 'tags' n'existe pas. Veuillez exécuter la migration 014_add_tags_to_events.sql");
+                                alert(
+                                  `Un tag avec le nom "${name}" existe déjà.`,
+                                );
+                              } else if (
+                                error.message?.includes("permission denied") ||
+                                error.code === "42501"
+                              ) {
+                                alert(
+                                  "Vous n'avez pas la permission de créer un tag. Vérifiez vos droits d'administration.",
+                                );
+                              } else if (
+                                error.message?.includes("relation") &&
+                                error.message?.includes("does not exist")
+                              ) {
+                                alert(
+                                  "La table 'tags' n'existe pas. Veuillez exécuter la migration 014_add_tags_to_events.sql",
+                                );
                               } else {
-                                alert(`Erreur lors de la création du tag: ${error.message || "Erreur inconnue"}`);
+                                alert(
+                                  `Erreur lors de la création du tag: ${error.message || "Erreur inconnue"}`,
+                                );
                               }
                               throw error;
                             }
-                            
+
                             // Recharger la liste des tags
                             const { data: tagsData } = await supabase
                               .from("tags")
                               .select("id, name")
                               .order("name");
                             if (tagsData) setTags(tagsData);
-                            
+
                             return data?.id || null;
                           } catch (error) {
-                            console.error("Erreur lors de la création du tag:", error);
+                            console.error(
+                              "Erreur lors de la création du tag:",
+                              error,
+                            );
                             return null;
                           }
                         }}
@@ -1688,7 +2434,12 @@ function CreateEventContent() {
                     <Textarea
                       id="description"
                       value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          description: e.target.value,
+                        })
+                      }
                       rows={6}
                       placeholder="Description détaillée de l'événement"
                       className="cursor-pointer resize-none"
@@ -1706,19 +2457,32 @@ function CreateEventContent() {
                         value={formData.date}
                         onChange={(newStartDate) => {
                           setFormData((prev) => {
-                            const next: typeof prev = { ...prev, date: newStartDate };
+                            const next: typeof prev = {
+                              ...prev,
+                              date: newStartDate,
+                            };
 
                             // Si la date de fin n'est pas remplie, la définir à début + 1 heure
                             if (!prev.end_date && newStartDate) {
-                              next.end_date = addHoursToDatetimeLocal(newStartDate, 1);
+                              next.end_date = addHoursToDatetimeLocal(
+                                newStartDate,
+                                1,
+                              );
                             }
 
                             // Si la date de fin est antérieure à la nouvelle date de début, la corriger
                             if (next.end_date && newStartDate) {
                               const start = new Date(newStartDate);
                               const end = new Date(next.end_date);
-                              if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end < start) {
-                                next.end_date = addHoursToDatetimeLocal(newStartDate, 1);
+                              if (
+                                !Number.isNaN(start.getTime()) &&
+                                !Number.isNaN(end.getTime()) &&
+                                end < start
+                              ) {
+                                next.end_date = addHoursToDatetimeLocal(
+                                  newStartDate,
+                                  1,
+                                );
                               }
                             }
 
@@ -1732,7 +2496,10 @@ function CreateEventContent() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="end_date" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="end_date"
+                        className="flex items-center gap-2"
+                      >
                         <Calendar className="h-4 w-4" />
                         Date et heure de fin
                       </Label>
@@ -1740,7 +2507,10 @@ function CreateEventContent() {
                         id="end_date"
                         value={formData.end_date}
                         onChange={(newEndDate) => {
-                          setFormData((prev) => ({ ...prev, end_date: newEndDate }));
+                          setFormData((prev) => ({
+                            ...prev,
+                            end_date: newEndDate,
+                          }));
                         }}
                         placeholder="Optionnel"
                         allowClear
@@ -1749,7 +2519,10 @@ function CreateEventContent() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="door_opening_time" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="door_opening_time"
+                        className="flex items-center gap-2"
+                      >
                         <Clock className="h-4 w-4" />
                         Heure d'ouverture des portes
                       </Label>
@@ -1758,7 +2531,12 @@ function CreateEventContent() {
                         type="time"
                         step={60}
                         value={formData.door_opening_time}
-                        onChange={(e) => setFormData({ ...formData, door_opening_time: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            door_opening_time: e.target.value,
+                          })
+                        }
                         className="h-11"
                       />
                     </div>
@@ -1769,7 +2547,9 @@ function CreateEventContent() {
               <Card>
                 <CardHeader>
                   <CardTitle>Lieu, organisateurs et artistes</CardTitle>
-                  <CardDescription>Associer un lieu, des organisateurs et des artistes</CardDescription>
+                  <CardDescription>
+                    Associer un lieu, des organisateurs et des artistes
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -1803,7 +2583,9 @@ function CreateEventContent() {
                             ? `(${artist.artist_type_label})`
                             : null,
                           artist.origin_city ? `• ${artist.origin_city}` : null,
-                        ].filter(Boolean).join(" "),
+                        ]
+                          .filter(Boolean)
+                          .join(" "),
                         value: artist.id,
                       }))}
                       selected={selectedArtistIds}
@@ -1813,13 +2595,17 @@ function CreateEventContent() {
                       onEmptyAction={openCreateArtistDialog}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Cette liste alimentera la section publique artistes de la fiche événement.
+                      Cette liste alimentera la section publique artistes de la
+                      fiche événement.
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="location_id" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="location_id"
+                        className="flex items-center gap-2"
+                      >
                         <MapPin className="h-4 w-4" />
                         Lieu
                       </Label>
@@ -1844,7 +2630,10 @@ function CreateEventContent() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="room_id" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="room_id"
+                        className="flex items-center gap-2"
+                      >
                         <LayoutGrid className="h-4 w-4" />
                         Salle
                       </Label>
@@ -1856,15 +2645,31 @@ function CreateEventContent() {
                         }}
                         disabled={!formData.location_id || rooms.length === 0}
                       >
-                        <SelectTrigger className={!formData.location_id || rooms.length === 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer"}>
-                          <SelectValue placeholder={rooms.length === 0 ? "Aucune salle disponible" : "Sélectionner une salle (optionnel)"} />
+                        <SelectTrigger
+                          className={
+                            !formData.location_id || rooms.length === 0
+                              ? "cursor-not-allowed opacity-50"
+                              : "cursor-pointer"
+                          }
+                        >
+                          <SelectValue
+                            placeholder={
+                              rooms.length === 0
+                                ? "Aucune salle disponible"
+                                : "Sélectionner une salle (optionnel)"
+                            }
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none" className="cursor-pointer">
                             Aucune salle spécifique
                           </SelectItem>
                           {rooms.map((room) => (
-                            <SelectItem key={room.id} value={room.id} className="cursor-pointer">
+                            <SelectItem
+                              key={room.id}
+                              value={room.id}
+                              className="cursor-pointer"
+                            >
                               {room.name}
                             </SelectItem>
                           ))}
@@ -1872,19 +2677,23 @@ function CreateEventContent() {
                       </Select>
                     </div>
                   </div>
-
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
                   <CardTitle>Détails supplémentaires</CardTitle>
-                  <CardDescription>Prix, capacité et autres informations</CardDescription>
+                  <CardDescription>
+                    Prix, capacité et autres informations
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="price" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="price"
+                        className="flex items-center gap-2"
+                      >
                         <Euro className="h-4 w-4" />
                         Prix (€)
                       </Label>
@@ -1893,14 +2702,22 @@ function CreateEventContent() {
                         type="number"
                         step="0.01"
                         value={formData.price}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, price: e.target.value }))}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            price: e.target.value,
+                          }))
+                        }
                         placeholder="0.00"
                         className="cursor-pointer"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="presale_price" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="presale_price"
+                        className="flex items-center gap-2"
+                      >
                         <Euro className="h-4 w-4" />
                         Tarif prévente (€)
                       </Label>
@@ -1909,14 +2726,22 @@ function CreateEventContent() {
                         type="number"
                         step="0.01"
                         value={formData.presale_price}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, presale_price: e.target.value }))}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            presale_price: e.target.value,
+                          }))
+                        }
                         placeholder="Optionnel"
                         className="cursor-pointer"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="subscriber_price" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="subscriber_price"
+                        className="flex items-center gap-2"
+                      >
                         <Euro className="h-4 w-4" />
                         Tarif abonné (€)
                       </Label>
@@ -1925,7 +2750,12 @@ function CreateEventContent() {
                         type="number"
                         step="0.01"
                         value={formData.subscriber_price}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, subscriber_price: e.target.value }))}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            subscriber_price: e.target.value,
+                          }))
+                        }
                         placeholder="Optionnel"
                         className="cursor-pointer"
                       />
@@ -1934,7 +2764,10 @@ function CreateEventContent() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="capacity" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="capacity"
+                        className="flex items-center gap-2"
+                      >
                         <Users className="h-4 w-4" />
                         Capacité
                       </Label>
@@ -1942,34 +2775,55 @@ function CreateEventContent() {
                         id="capacity"
                         type="number"
                         value={formData.capacity}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, capacity: e.target.value }))}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            capacity: e.target.value,
+                          }))
+                        }
                         placeholder="Nombre de places"
                         className="cursor-pointer"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="is_full" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="is_full"
+                        className="flex items-center gap-2"
+                      >
                         Disponibilité
                       </Label>
                       <div className="flex items-center gap-3 p-4 rounded-lg border bg-card">
                         <div className="flex items-center gap-3 flex-1">
                           {formData.is_full ? (
                             <>
-                              <span className="font-medium text-destructive">Événement complet</span>
-                              <p className="text-sm text-muted-foreground">Plus de places disponibles (sold out)</p>
+                              <span className="font-medium text-destructive">
+                                Événement complet
+                              </span>
+                              <p className="text-sm text-muted-foreground">
+                                Plus de places disponibles (sold out)
+                              </p>
                             </>
                           ) : (
                             <>
-                              <span className="font-medium text-success">Places disponibles</span>
-                              <p className="text-sm text-muted-foreground">L'événement accepte encore des réservations</p>
+                              <span className="font-medium text-success">
+                                Places disponibles
+                              </span>
+                              <p className="text-sm text-muted-foreground">
+                                L'événement accepte encore des réservations
+                              </p>
                             </>
                           )}
                         </div>
                         <Switch
                           id="is_full"
                           checked={formData.is_full}
-                          onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, is_full: checked }))}
+                          onCheckedChange={(checked) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              is_full: checked,
+                            }))
+                          }
                           className="shrink-0"
                         />
                       </div>
@@ -1978,7 +2832,10 @@ function CreateEventContent() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="external_url" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="external_url"
+                        className="flex items-center gap-2"
+                      >
                         <LinkIcon className="h-4 w-4" />
                         URL externe
                       </Label>
@@ -1986,14 +2843,22 @@ function CreateEventContent() {
                         id="external_url"
                         type="url"
                         value={formData.external_url}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, external_url: e.target.value }))}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            external_url: e.target.value,
+                          }))
+                        }
                         placeholder="https://..."
                         className="cursor-pointer"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="external_url_label" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="external_url_label"
+                        className="flex items-center gap-2"
+                      >
                         <LinkIcon className="h-4 w-4" />
                         Label du lien externe
                       </Label>
@@ -2001,7 +2866,12 @@ function CreateEventContent() {
                         id="external_url_label"
                         type="text"
                         value={formData.external_url_label}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, external_url_label: e.target.value }))}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            external_url_label: e.target.value,
+                          }))
+                        }
                         placeholder="Réserver des billets"
                         className="cursor-pointer"
                       />
@@ -2009,7 +2879,10 @@ function CreateEventContent() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="scraping_url" className="flex items-center gap-2">
+                    <Label
+                      htmlFor="scraping_url"
+                      className="flex items-center gap-2"
+                    >
                       <LinkIcon className="h-4 w-4" />
                       URL de scraping
                     </Label>
@@ -2018,24 +2891,34 @@ function CreateEventContent() {
                         id="scraping_url"
                         type="url"
                         value={formData.scraping_url}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, scraping_url: e.target.value }))}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            scraping_url: e.target.value,
+                          }))
+                        }
                         placeholder="https://..."
                         className="cursor-pointer flex-1"
                       />
-                      {formData.scraping_url && formData.scraping_url.trim() && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          asChild
-                          className="cursor-pointer"
-                          title="Ouvrir l'URL dans un nouvel onglet"
-                        >
-                          <a href={formData.scraping_url} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        </Button>
-                      )}
+                      {formData.scraping_url &&
+                        formData.scraping_url.trim() && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            asChild
+                            className="cursor-pointer"
+                            title="Ouvrir l'URL dans un nouvel onglet"
+                          >
+                            <a
+                              href={formData.scraping_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        )}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       URL utilisée pour mettre à jour l'événement via scraping
@@ -2047,8 +2930,31 @@ function CreateEventContent() {
                             type="button"
                             variant="outline"
                             className="gap-2"
-                            onClick={() => void importRequestSourceWithUrlScraper()}
-                            disabled={isImportingFromUrl || isImportingFromFacebook}
+                            onClick={() => void analyzeCurrentImage()}
+                            disabled={
+                              saving ||
+                              isImportingFromUrl ||
+                              isImportingFromFacebook ||
+                              isAnalyzingImage
+                            }
+                          >
+                            {isAnalyzingImage ? (
+                              <RotateCw className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <ScanText className="h-4 w-4" />
+                            )}
+                            Créer à partir d’une image
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="gap-2"
+                            onClick={() =>
+                              void importRequestSourceWithUrlScraper()
+                            }
+                            disabled={
+                              isImportingFromUrl || isImportingFromFacebook
+                            }
                           >
                             {isImportingFromUrl ? (
                               <RotateCw className="h-4 w-4 animate-spin" />
@@ -2061,7 +2967,9 @@ function CreateEventContent() {
                             type="button"
                             variant="outline"
                             className="gap-2"
-                            onClick={() => void importRequestSourceWithFacebookScraper()}
+                            onClick={() =>
+                              void importRequestSourceWithFacebookScraper()
+                            }
                             disabled={
                               !canImportRequestSourceFromFacebook ||
                               isImportingFromUrl ||
@@ -2087,7 +2995,10 @@ function CreateEventContent() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="instagram_url" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="instagram_url"
+                        className="flex items-center gap-2"
+                      >
                         <LinkIcon className="h-4 w-4" />
                         Instagram
                       </Label>
@@ -2095,14 +3006,22 @@ function CreateEventContent() {
                         id="instagram_url"
                         type="url"
                         value={formData.instagram_url}
-                        onChange={(e) => setFormData({ ...formData, instagram_url: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            instagram_url: e.target.value,
+                          })
+                        }
                         placeholder="https://instagram.com/..."
                         className="cursor-pointer"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="facebook_url" className="flex items-center gap-2">
+                      <Label
+                        htmlFor="facebook_url"
+                        className="flex items-center gap-2"
+                      >
                         <LinkIcon className="h-4 w-4" />
                         Facebook
                       </Label>
@@ -2110,7 +3029,12 @@ function CreateEventContent() {
                         id="facebook_url"
                         type="url"
                         value={formData.facebook_url}
-                        onChange={(e) => setFormData({ ...formData, facebook_url: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            facebook_url: e.target.value,
+                          })
+                        }
                         placeholder="https://facebook.com/..."
                         className="cursor-pointer"
                       />
@@ -2129,73 +3053,108 @@ function CreateEventContent() {
                     <CardTitle className="text-base flex items-center gap-2">
                       <Badge variant="default">Données de la demande</Badge>
                     </CardTitle>
-                    <CardDescription>Informations pré-remplies depuis la demande</CardDescription>
+                    <CardDescription>
+                      Informations pré-remplies depuis la demande
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3 text-sm">
                       {request.event_data.title && (
                         <div className="flex items-start gap-2">
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Titre:</span>
-                          <span className="break-words">{request.event_data.title}</span>
+                          <span className="font-medium text-muted-foreground min-w-[80px]">
+                            Titre:
+                          </span>
+                          <span className="break-words">
+                            {request.event_data.title}
+                          </span>
                         </div>
                       )}
                       {request.event_data.category && (
                         <div className="flex items-start gap-2">
                           <Tag className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Catégorie:</span>
+                          <span className="font-medium text-muted-foreground min-w-[80px]">
+                            Catégorie:
+                          </span>
                           <span>{request.event_data.category}</span>
                         </div>
                       )}
                       {request.event_data.date && (
                         <div className="flex items-start gap-2">
                           <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Début:</span>
+                          <span className="font-medium text-muted-foreground min-w-[80px]">
+                            Début:
+                          </span>
                           <span className="break-words">
-                            {formatDateWithoutTimezone(request.event_data.date, "PPpp")}
+                            {formatDateWithoutTimezone(
+                              request.event_data.date,
+                              "PPpp",
+                            )}
                           </span>
                         </div>
                       )}
                       {request.event_data.end_date && (
                         <div className="flex items-start gap-2">
                           <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Fin:</span>
+                          <span className="font-medium text-muted-foreground min-w-[80px]">
+                            Fin:
+                          </span>
                           <span className="break-words">
-                            {formatDateWithoutTimezone(request.event_data.end_date, "PPpp")}
+                            {formatDateWithoutTimezone(
+                              request.event_data.end_date,
+                              "PPpp",
+                            )}
                           </span>
                         </div>
                       )}
                       {request.event_data.price != null && (
                         <div className="flex items-start gap-2">
                           <Euro className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Prix:</span>
+                          <span className="font-medium text-muted-foreground min-w-[80px]">
+                            Prix:
+                          </span>
                           <span>{request.event_data.price}€</span>
                         </div>
                       )}
                       {request.event_data.address && (
                         <div className="flex items-start gap-2">
                           <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Adresse:</span>
-                          <span className="break-words">{request.event_data.address}</span>
+                          <span className="font-medium text-muted-foreground min-w-[80px]">
+                            Adresse:
+                          </span>
+                          <span className="break-words">
+                            {request.event_data.address}
+                          </span>
                         </div>
                       )}
                       {request.event_data.location_name && (
                         <div className="flex items-start gap-2">
                           <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Lieu:</span>
-                          <span className="break-words">{request.event_data.location_name}</span>
+                          <span className="font-medium text-muted-foreground min-w-[80px]">
+                            Lieu:
+                          </span>
+                          <span className="break-words">
+                            {request.event_data.location_name}
+                          </span>
                         </div>
                       )}
-                      {request.event_data.organizer_names && request.event_data.organizer_names.length > 0 && (
-                        <div className="flex items-start gap-2">
-                          <Users className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Organisateurs:</span>
-                          <span className="break-words">{request.event_data.organizer_names.join(", ")}</span>
-                        </div>
-                      )}
+                      {request.event_data.organizer_names &&
+                        request.event_data.organizer_names.length > 0 && (
+                          <div className="flex items-start gap-2">
+                            <Users className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                            <span className="font-medium text-muted-foreground min-w-[80px]">
+                              Organisateurs:
+                            </span>
+                            <span className="break-words">
+                              {request.event_data.organizer_names.join(", ")}
+                            </span>
+                          </div>
+                        )}
                       {request.email && (
                         <div className="flex items-start gap-2">
                           <Users className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium text-muted-foreground min-w-[80px]">Demandeur:</span>
+                          <span className="font-medium text-muted-foreground min-w-[80px]">
+                            Demandeur:
+                          </span>
                           <span className="break-words">{request.email}</span>
                         </div>
                       )}
@@ -2210,7 +3169,9 @@ function CreateEventContent() {
                     <ImageIcon className="h-5 w-5" />
                     Image de l'événement
                   </CardTitle>
-                  <CardDescription>Ajoutez une image pour l'événement</CardDescription>
+                  <CardDescription>
+                    Ajoutez une image pour l'événement
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {imagePreview && !showCropper && (
@@ -2253,7 +3214,9 @@ function CreateEventContent() {
                           setImageFile(null);
                           setOriginalImageSrc(null); // Réinitialiser aussi l'originale
                           setFormData({ ...formData, image_url: "" });
-                          const fileInput = document.getElementById("image-upload") as HTMLInputElement;
+                          const fileInput = document.getElementById(
+                            "image-upload",
+                          ) as HTMLInputElement;
                           if (fileInput) fileInput.value = "";
                         }}
                       >
@@ -2286,13 +3249,18 @@ function CreateEventContent() {
                     <Separator />
 
                     <div className="space-y-2">
-                      <Label htmlFor="image_url">Ou entrez une URL d'image</Label>
+                      <Label htmlFor="image_url">
+                        Ou entrez une URL d'image
+                      </Label>
                       <Input
                         id="image_url"
                         type="url"
                         value={formData.image_url}
                         onChange={(e) => {
-                          setFormData({ ...formData, image_url: e.target.value });
+                          setFormData({
+                            ...formData,
+                            image_url: e.target.value,
+                          });
                           if (e.target.value) {
                             setImagePreview(e.target.value);
                             setOriginalImageSrc(e.target.value); // Conserver l'URL originale
@@ -2304,13 +3272,135 @@ function CreateEventContent() {
                         className="cursor-pointer"
                       />
                     </div>
+
+                    {imageAnalysis && analysisPrefill ? (
+                      <Card className="border-primary/20 bg-primary/5">
+                        <CardContent className="space-y-4 p-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <div className="flex items-center gap-2 text-sm font-semibold">
+                                <Sparkles className="h-4 w-4" />
+                                Relecture avant fusion
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Les champs detectes depuis l'image ne seront
+                                appliques qu'apres validation.
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={dismissImageAnalysis}
+                                disabled={isAnalyzingImage}
+                              >
+                                Ignorer
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void analyzeCurrentImage()}
+                                disabled={isAnalyzingImage}
+                              >
+                                Réessayer
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={applyImageAnalysisToRequestForm}
+                              >
+                                Appliquer
+                              </Button>
+                            </div>
+                          </div>
+
+                          {analysisWarnings.length > 0 ? (
+                            <Alert>
+                              <CircleAlert className="h-4 w-4" />
+                              <AlertTitle>Points à vérifier</AlertTitle>
+                              <AlertDescription>
+                                <div className="space-y-1">
+                                  {analysisWarnings.map((warning, index) => (
+                                    <div key={`${warning.field}-${index}`}>
+                                      {warning.message}
+                                      {warning.value ? ` ${warning.value}` : ""}
+                                    </div>
+                                  ))}
+                                </div>
+                              </AlertDescription>
+                            </Alert>
+                          ) : null}
+
+                          {extractedFieldPreview.length > 0 ? (
+                            <div className="grid gap-2">
+                              {extractedFieldPreview.map((field) => (
+                                <div
+                                  key={field.key}
+                                  className="rounded-lg border bg-background/80 p-3"
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="text-sm font-medium">
+                                      {field.label}
+                                    </div>
+                                    {field.willOverwrite ? (
+                                      <span className="text-[11px] font-medium text-amber-600">
+                                        Remplacera la valeur actuelle
+                                      </span>
+                                    ) : (
+                                      <span className="text-[11px] font-medium text-emerald-600">
+                                        Ajout ou confirmation
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="mt-2 grid gap-2 md:grid-cols-2">
+                                    <div>
+                                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                        Detecte
+                                      </div>
+                                      <div className="mt-1 text-sm">
+                                        {field.extractedValue}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                        Actuel
+                                      </div>
+                                      <div className="mt-1 text-sm">
+                                        {field.currentValue || "Vide"}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <Alert>
+                              <CircleAlert className="h-4 w-4" />
+                              <AlertTitle>Extraction limitée</AlertTitle>
+                              <AlertDescription>
+                                L'image a ete analysee, mais peu de champs
+                                exploitables ont ete detectes. Tu peux reessayer
+                                avec une image plus lisible.
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ) : null}
                   </div>
                 </CardContent>
               </Card>
 
               {/* Action buttons */}
               <div className="flex flex-col gap-2 sticky top-4">
-                <Button type="submit" size="lg" disabled={saving} className="w-full cursor-pointer">
+                <Button
+                  type="submit"
+                  size="lg"
+                  disabled={saving}
+                  className="w-full cursor-pointer"
+                >
                   {saving ? (
                     <>Création en cours...</>
                   ) : (
@@ -2344,9 +3434,7 @@ function CreateEventContent() {
                   asChild
                   className="w-full cursor-pointer"
                 >
-                  <Link href="/admin/requests">
-                    Annuler
-                  </Link>
+                  <Link href="/admin/requests">Annuler</Link>
                 </Button>
               </div>
             </div>
@@ -2374,7 +3462,8 @@ function CreateEventContent() {
           <DialogHeader>
             <DialogTitle>Ajouter un lieu</DialogTitle>
             <DialogDescription>
-              Crée rapidement un nouveau lieu sans quitter la création d&apos;événement.
+              Crée rapidement un nouveau lieu sans quitter la création
+              d&apos;événement.
             </DialogDescription>
           </DialogHeader>
 
@@ -2439,7 +3528,9 @@ function CreateEventContent() {
 
             <div className="flex items-center justify-between rounded-lg border px-4 py-3">
               <div className="space-y-0.5">
-                <p className="text-sm font-medium">Utilisable aussi comme organisateur</p>
+                <p className="text-sm font-medium">
+                  Utilisable aussi comme organisateur
+                </p>
                 <p className="text-xs text-muted-foreground">
                   Le lieu apparaîtra aussi dans la liste des organisateurs.
                 </p>
@@ -2490,7 +3581,8 @@ function CreateEventContent() {
           <DialogHeader>
             <DialogTitle>Ajouter un organisateur</DialogTitle>
             <DialogDescription>
-              Crée rapidement un organisateur sans quitter la création d&apos;événement.
+              Crée rapidement un organisateur sans quitter la création
+              d&apos;événement.
             </DialogDescription>
           </DialogHeader>
 
@@ -2596,7 +3688,8 @@ function CreateEventContent() {
           <DialogHeader>
             <DialogTitle>Ajouter un artiste</DialogTitle>
             <DialogDescription>
-              Crée rapidement un artiste ou collaborateur sans quitter la création d&apos;événement.
+              Crée rapidement un artiste ou collaborateur sans quitter la
+              création d&apos;événement.
             </DialogDescription>
           </DialogHeader>
 
@@ -2633,7 +3726,9 @@ function CreateEventContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="quick-artist-origin-city">Ville d&apos;origine</Label>
+              <Label htmlFor="quick-artist-origin-city">
+                Ville d&apos;origine
+              </Label>
               <Input
                 id="quick-artist-origin-city"
                 value={quickArtistForm.origin_city}
@@ -2648,7 +3743,9 @@ function CreateEventContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="quick-artist-description">Description courte</Label>
+              <Label htmlFor="quick-artist-description">
+                Description courte
+              </Label>
               <Textarea
                 id="quick-artist-description"
                 value={quickArtistForm.short_description}
@@ -2724,7 +3821,8 @@ function CreateEventContent() {
                   Rogner l'image
                 </DialogTitle>
                 <DialogDescription className="text-sm text-muted-foreground mt-1">
-                  Ajustez la zone de sélection en la déplaçant, changez le zoom et le format selon vos besoins
+                  Ajustez la zone de sélection en la déplaçant, changez le zoom
+                  et le format selon vos besoins
                 </DialogDescription>
               </DialogHeader>
             </div>
@@ -2751,12 +3849,19 @@ function CreateEventContent() {
               <div className="space-y-4">
                 {/* Format Selection */}
                 <div className="space-y-2">
-                  <Label htmlFor="aspect-ratio" className="text-sm font-medium flex items-center gap-2">
+                  <Label
+                    htmlFor="aspect-ratio"
+                    className="text-sm font-medium flex items-center gap-2"
+                  >
                     <LayoutGrid className="h-4 w-4" />
                     Format de sélection
                   </Label>
                   <Select
-                    value={aspectRatio === undefined ? "libre" : aspectRatio.toString()}
+                    value={
+                      aspectRatio === undefined
+                        ? "libre"
+                        : aspectRatio.toString()
+                    }
                     onValueChange={(value) => {
                       if (value === "libre") {
                         setAspectRatio(undefined);
@@ -2776,28 +3881,49 @@ function CreateEventContent() {
                           Libre (pas de contrainte)
                         </div>
                       </SelectItem>
-                      <SelectItem value={(1 / 1).toString()} className="cursor-pointer">
+                      <SelectItem
+                        value={(1 / 1).toString()}
+                        className="cursor-pointer"
+                      >
                         <div className="flex items-center gap-2">
                           <div className="w-4 h-4 border border-current rounded" />
                           Carré (1:1)
                         </div>
                       </SelectItem>
-                      <SelectItem value={(4 / 3).toString()} className="cursor-pointer">
+                      <SelectItem
+                        value={(4 / 3).toString()}
+                        className="cursor-pointer"
+                      >
                         Paysage 4:3
                       </SelectItem>
-                      <SelectItem value={(16 / 9).toString()} className="cursor-pointer">
+                      <SelectItem
+                        value={(16 / 9).toString()}
+                        className="cursor-pointer"
+                      >
                         Paysage 16:9
                       </SelectItem>
-                      <SelectItem value={(3 / 2).toString()} className="cursor-pointer">
+                      <SelectItem
+                        value={(3 / 2).toString()}
+                        className="cursor-pointer"
+                      >
                         Paysage 3:2
                       </SelectItem>
-                      <SelectItem value={(3 / 4).toString()} className="cursor-pointer">
+                      <SelectItem
+                        value={(3 / 4).toString()}
+                        className="cursor-pointer"
+                      >
                         Portrait 3:4
                       </SelectItem>
-                      <SelectItem value={(9 / 16).toString()} className="cursor-pointer">
+                      <SelectItem
+                        value={(9 / 16).toString()}
+                        className="cursor-pointer"
+                      >
                         Portrait 9:16
                       </SelectItem>
-                      <SelectItem value={(2 / 3).toString()} className="cursor-pointer">
+                      <SelectItem
+                        value={(2 / 3).toString()}
+                        className="cursor-pointer"
+                      >
                         Portrait 2:3
                       </SelectItem>
                     </SelectContent>
@@ -2807,7 +3933,10 @@ function CreateEventContent() {
                 {/* Zoom Control */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="zoom" className="text-sm font-medium flex items-center gap-2">
+                    <Label
+                      htmlFor="zoom"
+                      className="text-sm font-medium flex items-center gap-2"
+                    >
                       <Maximize2 className="h-4 w-4" />
                       Zoom
                     </Label>
@@ -2847,16 +3976,18 @@ function CreateEventContent() {
                       setCrop({ x: 0, y: 0 });
                       setZoom(1);
                       setAspectRatio(3 / 2); // Reset to default
-                      const fileInput = document.getElementById("image-upload") as HTMLInputElement;
+                      const fileInput = document.getElementById(
+                        "image-upload",
+                      ) as HTMLInputElement;
                       if (fileInput) fileInput.value = "";
                     }}
                     className="cursor-pointer"
                   >
                     Annuler
                   </Button>
-                  <Button 
-                    type="button" 
-                    onClick={handleCropComplete} 
+                  <Button
+                    type="button"
+                    onClick={handleCropComplete}
                     className="cursor-pointer min-w-[140px]"
                   >
                     <Save className="mr-2 h-4 w-4" />
@@ -2889,4 +4020,3 @@ export default function CreateEventPage() {
     </Suspense>
   );
 }
-

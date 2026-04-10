@@ -436,15 +436,28 @@ export function LocationsManagement() {
                         <Users className="h-3.5 w-3.5" />
                       </Link>
                     )}
-                    <Link
-                      href={`/admin/events?location=${location.id}`}
-                      target="_blank"
-                      className="p-1.5 rounded hover:bg-accent transition-colors"
-                      title="Voir les événements"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </Link>
+                    {location.scraping_example_url ? (
+                      <a
+                        href={location.scraping_example_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded hover:bg-accent transition-colors"
+                        title="Ouvrir l'URL d'exemple de scraping"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        className="p-1.5 rounded opacity-50 cursor-not-allowed"
+                        title="Aucune URL d'exemple de scraping"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     {location.scraping_example_url && (
                       <button
                         onClick={(e) => {
@@ -600,16 +613,30 @@ export function LocationsManagement() {
                             </Link>
                           </Button>
                         )}
-                        <Button asChild variant="ghost" size="icon">
-                          <Link
-                            href={`/admin/events?location=${location.id}`}
-                            target="_blank"
-                            title="Événements"
+                        {location.scraping_example_url ? (
+                          <Button asChild variant="ghost" size="icon">
+                            <a
+                              href={location.scraping_example_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="URL d'exemple de scraping"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled
+                            title="Aucune URL d'exemple de scraping"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <ExternalLink className="h-4 w-4" />
-                          </Link>
-                        </Button>
+                          </Button>
+                        )}
                         <Button
                           type="button"
                           variant="ghost"

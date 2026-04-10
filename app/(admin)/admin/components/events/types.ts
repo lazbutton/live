@@ -112,3 +112,9 @@ export type EventFormData = {
   major_event_id: string;
 };
 
+export type EventFormPrefill = Partial<{
+  form: Partial<EventFormData>;
+  organizerIds: string[];
+  artistIds: string[];
+  tagIds: string[];
+}>;
