@@ -85,7 +85,6 @@ function isFuzzyTokenMatch(queryToken: string, candidateToken: string) {
 
   // Tolérance progressive selon la longueur du mot saisi
   const maxDistance = queryToken.length >= 9 ? 2 : 1;
-  if (maxDistance === 0) return false;
 
   // Compare token complet (plus strict que le préfixe)
   return levenshteinDistance(queryToken, candidateToken) <= maxDistance;
