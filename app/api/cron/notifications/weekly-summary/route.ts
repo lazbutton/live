@@ -3,10 +3,12 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { sendNotificationToUser } from "@/lib/notifications";
 import {
   addDaysToLocalDate,
+  formatHourMinute,
   getIsoLocalDate,
   getIsoLocalTime,
   getLocalWeekday,
   getZonedDateParts,
+  isWithinScheduledWindow,
   zonedTimeToUtc,
 } from "@/lib/cron-timezone";
 
@@ -158,11 +160,18 @@ export async function GET(request: NextRequest) {
 
     if (globalSettings.notification_time) {
       const [configuredHour, configuredMinute] = globalSettings.notification_time.split(":").map(Number);
-      const isInTimeWindow = currentHour === configuredHour && Math.abs(currentMinute - configuredMinute) <= 5;
+      const sendWindowMinutes = Number(process.env.CRON_SEND_WINDOW_MINUTES ?? 15);
+      const isInTimeWindow = isWithinScheduledWindow({
+        currentHour,
+        currentMinute,
+        scheduledHour: configuredHour,
+        scheduledMinute: configuredMinute,
+        windowMinutes: sendWindowMinutes,
+      });
 
       if (!isInTimeWindow) {
         console.log(
-          `ℹ️ Pas dans la fenêtre d'envoi hebdomadaire Paris. Heure actuelle: ${String(currentHour).padStart(2, "0")}:${String(currentMinute).padStart(2, "0")}, Heure configurée: ${String(configuredHour).padStart(2, "0")}:${String(configuredMinute).padStart(2, "0")}`,
+          `ℹ️ Pas dans la fenêtre d'envoi hebdomadaire Paris. Heure actuelle: ${formatHourMinute(currentHour, currentMinute)}, Heure configurée: ${formatHourMinute(configuredHour, configuredMinute)}, Fenêtre: ±${sendWindowMinutes} min`,
         );
         return NextResponse.json({
           success: true,

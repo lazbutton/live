@@ -114,3 +114,30 @@ export function getLocalWeekday(parts: LocalDateParts): number {
   const day = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
   return day === 0 ? 7 : day;
 }
+
+function normalizeMinutesOfDay(hour: number, minute: number): number {
+  return hour * 60 + minute;
+}
+
+export function formatHourMinute(hour: number, minute: number): string {
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+/**
+ * Compare deux horaires HH:mm avec une fenêtre tolérante, en gérant aussi
+ * correctement le passage à minuit (ex: 23:58 vs 00:02).
+ */
+export function isWithinScheduledWindow(args: {
+  currentHour: number;
+  currentMinute: number;
+  scheduledHour: number;
+  scheduledMinute: number;
+  windowMinutes: number;
+}): boolean {
+  const current = normalizeMinutesOfDay(args.currentHour, args.currentMinute);
+  const scheduled = normalizeMinutesOfDay(args.scheduledHour, args.scheduledMinute);
+  const rawDiff = Math.abs(current - scheduled);
+  const wrappedDiff = 24 * 60 - rawDiff;
+  const shortestDiff = Math.min(rawDiff, wrappedDiff);
+  return shortestDiff <= args.windowMinutes;
+}
