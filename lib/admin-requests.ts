@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabase/client";
 export {
+  type AdminModerationReason,
   type AdminRequestEventData,
   type AdminRawRequest,
   type AdminRequestItem,
@@ -18,6 +19,7 @@ export {
   formatRequestAgeShort,
   getAdminRequestMissingFields,
   getRequestLaneLabel,
+  getModerationReasonLabel,
   getRequestStatusLabel,
   getRequestTypeLabel,
   safeDomainFromUrl,

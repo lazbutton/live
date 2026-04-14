@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +41,7 @@ import {
   AlertDescription,
 } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { Bell, CheckCircle2, XCircle, Clock, Send, User, Smartphone, Globe, Loader2, RefreshCw, Settings, Save } from "lucide-react";
+import { Bell, CheckCircle2, XCircle, Clock, Send, User, Smartphone, Globe, Loader2, RefreshCw, Settings, Save, Upload } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -118,8 +119,17 @@ export function NotificationsManagement() {
     notification_time: string;
     is_active: boolean;
     is_password_auth_enabled: boolean;
+    in_app_popup_enabled: boolean;
+    in_app_popup_title: string;
+    in_app_popup_message: string;
+    in_app_popup_image_url: string;
+    in_app_popup_cta_label: string;
+    in_app_popup_cta_url: string;
+    in_app_popup_badge: string;
+    in_app_popup_theme: string;
   } | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [uploadingPopupImage, setUploadingPopupImage] = useState(false);
 
   const isMobile = useIsMobile();
 
@@ -167,6 +177,14 @@ export function NotificationsManagement() {
           is_active: settingsData.is_active ?? true,
           is_password_auth_enabled:
             settingsData.is_password_auth_enabled ?? true,
+          in_app_popup_enabled: settingsData.in_app_popup_enabled ?? false,
+          in_app_popup_title: settingsData.in_app_popup_title ?? "",
+          in_app_popup_message: settingsData.in_app_popup_message ?? "",
+          in_app_popup_image_url: settingsData.in_app_popup_image_url ?? "",
+          in_app_popup_cta_label: settingsData.in_app_popup_cta_label ?? "",
+          in_app_popup_cta_url: settingsData.in_app_popup_cta_url ?? "",
+          in_app_popup_badge: settingsData.in_app_popup_badge ?? "",
+          in_app_popup_theme: settingsData.in_app_popup_theme ?? "default",
         });
       }
     } catch (error) {
@@ -201,6 +219,44 @@ export function NotificationsManagement() {
       alert(`Erreur: ${error?.message || "Erreur inconnue"}`);
     } finally {
       setSavingSettings(false);
+    }
+  }
+
+  async function uploadPopupImage(file: File) {
+    if (!settings || !file) return;
+    setUploadingPopupImage(true);
+    try {
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const fileName = `in-app-popup-${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${extension}`;
+      const filePath = `admin-popups/${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from("event-images")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("event-images").getPublicUrl(data.path);
+
+      setSettings((prev) =>
+        prev
+          ? {
+              ...prev,
+              in_app_popup_image_url: publicUrl,
+            }
+          : prev,
+      );
+    } catch (error: any) {
+      alert(`Erreur lors de l'upload de l'image: ${error?.message || "Erreur inconnue"}`);
+    } finally {
+      setUploadingPopupImage(false);
     }
   }
 
@@ -498,6 +554,169 @@ export function NotificationsManagement() {
                       }
                       className="h-11 w-full max-w-xs"
                     />
+                  </div>
+
+                  <div className="space-y-4 p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label className="text-base font-semibold">Popup in-app</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Affiche une popup légère dans l&apos;app (facile à fermer) quand l&apos;utilisateur est actif.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={settings.in_app_popup_enabled}
+                        onCheckedChange={(checked) =>
+                          setSettings((prev) =>
+                            prev ? { ...prev, in_app_popup_enabled: checked } : null,
+                          )
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="in-app-popup-title">Titre</Label>
+                      <Input
+                        id="in-app-popup-title"
+                        value={settings.in_app_popup_title}
+                        onChange={(e) =>
+                          setSettings((prev) =>
+                            prev ? { ...prev, in_app_popup_title: e.target.value } : null,
+                          )
+                        }
+                        placeholder="Ex: Nouveau programme du week-end"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="in-app-popup-message">Message</Label>
+                      <Textarea
+                        id="in-app-popup-message"
+                        rows={3}
+                        value={settings.in_app_popup_message}
+                        onChange={(e) =>
+                          setSettings((prev) =>
+                            prev ? { ...prev, in_app_popup_message: e.target.value } : null,
+                          )
+                        }
+                        placeholder="Texte court, clair, et non intrusif."
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="in-app-popup-badge">Badge (optionnel)</Label>
+                      <Input
+                        id="in-app-popup-badge"
+                        value={settings.in_app_popup_badge}
+                        onChange={(e) =>
+                          setSettings((prev) =>
+                            prev ? { ...prev, in_app_popup_badge: e.target.value } : null,
+                          )
+                        }
+                        placeholder="Ex: Nouveau, En ce moment"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Ambiance visuelle</Label>
+                      <Select
+                        value={settings.in_app_popup_theme}
+                        onValueChange={(value) =>
+                          setSettings((prev) =>
+                            prev ? { ...prev, in_app_popup_theme: value } : null,
+                          )
+                        }
+                      >
+                        <SelectTrigger className="max-w-xs">
+                          <SelectValue placeholder="Choisir un thème" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Default</SelectItem>
+                          <SelectItem value="highlight">Highlight</SelectItem>
+                          <SelectItem value="update">Update</SelectItem>
+                          <SelectItem value="warning">Warning</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="in-app-popup-image-url">Image (URL)</Label>
+                      <Input
+                        id="in-app-popup-image-url"
+                        value={settings.in_app_popup_image_url}
+                        onChange={(e) =>
+                          setSettings((prev) =>
+                            prev ? { ...prev, in_app_popup_image_url: e.target.value } : null,
+                          )
+                        }
+                        placeholder="https://..."
+                      />
+                      <div className="space-y-2">
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          disabled={uploadingPopupImage}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) {
+                              uploadPopupImage(file);
+                            }
+                            event.target.value = "";
+                          }}
+                        />
+                        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                          {uploadingPopupImage ? (
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Upload en cours...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-3 w-3" />
+                              Tu peux soit coller une URL, soit uploader directement une image.
+                            </>
+                          )}
+                        </p>
+                      </div>
+                      {settings.in_app_popup_image_url ? (
+                        <div className="overflow-hidden rounded-md border">
+                          <img
+                            src={settings.in_app_popup_image_url}
+                            alt="Aperçu popup"
+                            className="h-36 w-full object-cover"
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="in-app-popup-cta-label">Bouton (optionnel)</Label>
+                        <Input
+                          id="in-app-popup-cta-label"
+                          value={settings.in_app_popup_cta_label}
+                          onChange={(e) =>
+                            setSettings((prev) =>
+                              prev ? { ...prev, in_app_popup_cta_label: e.target.value } : null,
+                            )
+                          }
+                          placeholder="Ex: Voir le programme"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="in-app-popup-cta-url">URL bouton (optionnel)</Label>
+                        <Input
+                          id="in-app-popup-cta-url"
+                          value={settings.in_app_popup_cta_url}
+                          onChange={(e) =>
+                            setSettings((prev) =>
+                              prev ? { ...prev, in_app_popup_cta_url: e.target.value } : null,
+                            )
+                          }
+                          placeholder="https://..."
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Bouton de sauvegarde */}

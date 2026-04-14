@@ -59,6 +59,10 @@ export type MobileAdminRequestItem = {
   locationSummary: string | null;
   sourceUrl: string | null;
   notes: string | null;
+  internalNotes: string | null;
+  moderationReason: AdminRequestItem["moderationReason"];
+  contributorMessage: string | null;
+  allowUserResubmission: boolean;
   missingFields: string[];
   isFastConvertible: boolean;
   isPast: boolean;
@@ -165,6 +169,10 @@ function serializeRequest(item: AdminRequestItem): MobileAdminRequestItem {
     locationSummary: item.locationSummary,
     sourceUrl: item.sourceUrl,
     notes: item.notes,
+    internalNotes: item.internalNotes,
+    moderationReason: item.moderationReason,
+    contributorMessage: item.contributorMessage,
+    allowUserResubmission: item.allowUserResubmission,
     missingFields: item.missingFields,
     isFastConvertible: item.isFastConvertible,
     isPast: item.isPast,
@@ -590,22 +598,33 @@ export async function rejectMobileAdminRequest(
   requestId: string,
   {
     reviewedBy,
-    reason,
+    internalNotes,
+    moderationReason,
+    contributorMessage,
+    allowUserResubmission,
   }: {
     reviewedBy: string;
-    reason: string;
+    internalNotes: string;
+    moderationReason: NonNullable<AdminRequestItem["moderationReason"]>;
+    contributorMessage: string;
+    allowUserResubmission: boolean;
   }
 ) {
-  const normalizedReason = reason.trim();
-  if (!normalizedReason) {
-    throw new Error("Le motif de rejet est obligatoire");
+  const normalizedInternalNotes = internalNotes.trim();
+  const normalizedContributorMessage = contributorMessage.trim();
+  if (!normalizedContributorMessage) {
+    throw new Error("Le message contributeur est obligatoire");
   }
 
   const { error } = await supabase
     .from("user_requests")
     .update({
       status: "rejected",
-      notes: normalizedReason,
+      notes: normalizedInternalNotes || null,
+      internal_notes: normalizedInternalNotes || null,
+      moderation_reason: moderationReason,
+      contributor_message: normalizedContributorMessage,
+      allow_user_resubmission: allowUserResubmission,
       reviewed_by: reviewedBy,
       reviewed_at: new Date().toISOString(),
     })

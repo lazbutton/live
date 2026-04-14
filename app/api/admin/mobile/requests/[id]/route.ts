@@ -21,10 +21,23 @@ export async function PATCH(
       );
     }
 
-    const reason = typeof body.reason === "string" ? body.reason : "";
+    const internalNotes =
+      typeof body.internalNotes === "string"
+        ? body.internalNotes
+        : typeof body.reason === "string"
+          ? body.reason
+          : "";
+    const moderationReason =
+      typeof body.moderationReason === "string" ? body.moderationReason : null;
+    const contributorMessage =
+      typeof body.contributorMessage === "string" ? body.contributorMessage : "";
+    const allowUserResubmission = body.allowUserResubmission === true;
     const item = await rejectMobileAdminRequest(auth.supabase, id, {
       reviewedBy: auth.user.id,
-      reason,
+      internalNotes,
+      moderationReason,
+      contributorMessage,
+      allowUserResubmission,
     });
 
     return NextResponse.json({ item });

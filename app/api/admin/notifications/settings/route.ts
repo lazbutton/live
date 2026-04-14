@@ -58,6 +58,14 @@ export async function GET() {
         notification_time: "09:00:00",
         is_active: true,
         is_password_auth_enabled: true,
+        in_app_popup_enabled: false,
+        in_app_popup_title: null,
+        in_app_popup_message: null,
+        in_app_popup_image_url: null,
+        in_app_popup_cta_label: null,
+        in_app_popup_cta_url: null,
+        in_app_popup_badge: null,
+        in_app_popup_theme: "default",
         created_at: null,
         updated_at: null,
         updated_by: null,
@@ -116,7 +124,19 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { notification_time, is_active, is_password_auth_enabled } = body;
+    const {
+      notification_time,
+      is_active,
+      is_password_auth_enabled,
+      in_app_popup_enabled,
+      in_app_popup_title,
+      in_app_popup_message,
+      in_app_popup_image_url,
+      in_app_popup_cta_label,
+      in_app_popup_cta_url,
+      in_app_popup_badge,
+      in_app_popup_theme,
+    } = body;
 
     // Validation
     if (notification_time !== undefined) {
@@ -150,6 +170,66 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if (
+      in_app_popup_enabled !== undefined &&
+      typeof in_app_popup_enabled !== "boolean"
+    ) {
+      return NextResponse.json(
+        { error: "in_app_popup_enabled doit être un booléen" },
+        { status: 400 }
+      );
+    }
+
+    const normalizeNullableText = (value: unknown): string | null | undefined => {
+      if (value === undefined) return undefined;
+      if (value === null) return null;
+      const text = String(value).trim();
+      return text.length > 0 ? text : null;
+    };
+
+    const normalizedPopupTitle = normalizeNullableText(in_app_popup_title);
+    const normalizedPopupMessage = normalizeNullableText(in_app_popup_message);
+    const normalizedPopupImageUrl = normalizeNullableText(in_app_popup_image_url);
+    const normalizedPopupCtaLabel = normalizeNullableText(in_app_popup_cta_label);
+    const normalizedPopupCtaUrl = normalizeNullableText(in_app_popup_cta_url);
+    const normalizedPopupBadge = normalizeNullableText(in_app_popup_badge);
+
+    const allowedThemes = new Set(["default", "highlight", "update", "warning"]);
+    if (
+      in_app_popup_theme !== undefined &&
+      (typeof in_app_popup_theme !== "string" || !allowedThemes.has(in_app_popup_theme))
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "in_app_popup_theme doit être l'une des valeurs suivantes: default, highlight, update, warning",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (in_app_popup_enabled === true) {
+      if (!normalizedPopupTitle) {
+        return NextResponse.json(
+          { error: "Le titre de la popup est requis lorsqu'elle est activée" },
+          { status: 400 }
+        );
+      }
+      if (!normalizedPopupMessage) {
+        return NextResponse.json(
+          { error: "Le message de la popup est requis lorsqu'elle est activée" },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (normalizedPopupCtaUrl && !normalizedPopupCtaLabel) {
+      return NextResponse.json(
+        { error: "Le libellé du bouton est requis si une URL CTA est définie" },
+        { status: 400 }
+      );
+    }
+
     // Mettre à jour les paramètres
     const serviceClient = createServiceClient();
     
@@ -171,6 +251,17 @@ export async function PUT(request: NextRequest) {
             is_password_auth_enabled !== undefined
               ? is_password_auth_enabled
               : undefined,
+          in_app_popup_enabled:
+            in_app_popup_enabled !== undefined
+              ? in_app_popup_enabled
+              : undefined,
+          in_app_popup_title: normalizedPopupTitle,
+          in_app_popup_message: normalizedPopupMessage,
+          in_app_popup_image_url: normalizedPopupImageUrl,
+          in_app_popup_cta_label: normalizedPopupCtaLabel,
+          in_app_popup_cta_url: normalizedPopupCtaUrl,
+          in_app_popup_badge: normalizedPopupBadge,
+          in_app_popup_theme: in_app_popup_theme ?? undefined,
           updated_by: user.id,
           updated_at: new Date().toISOString(),
         })
@@ -188,6 +279,17 @@ export async function PUT(request: NextRequest) {
             is_password_auth_enabled !== undefined
               ? is_password_auth_enabled
               : true,
+          in_app_popup_enabled:
+            in_app_popup_enabled !== undefined
+              ? in_app_popup_enabled
+              : false,
+          in_app_popup_title: normalizedPopupTitle,
+          in_app_popup_message: normalizedPopupMessage,
+          in_app_popup_image_url: normalizedPopupImageUrl,
+          in_app_popup_cta_label: normalizedPopupCtaLabel,
+          in_app_popup_cta_url: normalizedPopupCtaUrl,
+          in_app_popup_badge: normalizedPopupBadge,
+          in_app_popup_theme: in_app_popup_theme ?? "default",
           updated_by: user.id,
         })
         .select()

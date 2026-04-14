@@ -3,6 +3,12 @@ export type AdminRequestStatus = "pending" | "approved" | "rejected" | "converte
 export type AdminRequestLane = "to_process" | "ready" | "from_url" | "blocked" | "processed";
 export type AdminRequestTypeFilter = "all" | AdminRequestType;
 export type AdminRequestPeriodFilter = "all" | "24h" | "7d" | "30d";
+export type AdminModerationReason =
+  | "duplicate"
+  | "invalid_date"
+  | "insufficient_info"
+  | "unreliable_source"
+  | "out_of_scope";
 
 export interface AdminRequestEventData {
   title?: string | null;
@@ -34,6 +40,12 @@ export interface AdminRawRequest {
   reviewed_by?: string | null;
   reviewed_at?: string | null;
   notes?: string | null;
+  internal_notes?: string | null;
+  moderation_reason?: AdminModerationReason | null;
+  contributor_message?: string | null;
+  allow_user_resubmission?: boolean | null;
+  contributor_display_name?: string | null;
+  community_attribution_opt_in?: boolean | null;
   event_data?: AdminRequestEventData | null;
   source_url?: string | null;
   location_id?: string | null;
@@ -56,6 +68,12 @@ export interface AdminRequestItem {
   convertedAt: string | null;
   convertedEventId: string | null;
   notes: string | null;
+  internalNotes: string | null;
+  moderationReason: AdminModerationReason | null;
+  contributorMessage: string | null;
+  allowUserResubmission: boolean;
+  contributorDisplayName: string | null;
+  communityAttributionOptIn: boolean;
   eventDate: string | null;
   endDate: string | null;
   sourceUrl: string | null;
@@ -78,6 +96,12 @@ export const ADMIN_REQUEST_SELECT = [
   "reviewed_by",
   "reviewed_at",
   "notes",
+  "internal_notes",
+  "moderation_reason",
+  "contributor_message",
+  "allow_user_resubmission",
+  "contributor_display_name",
+  "community_attribution_opt_in",
   "event_data",
   "source_url",
   "location_id",
@@ -180,6 +204,21 @@ export function getRequestStatusLabel(status: AdminRequestStatus) {
   }
 }
 
+export function getModerationReasonLabel(reason: AdminModerationReason) {
+  switch (reason) {
+    case "duplicate":
+      return "Doublon";
+    case "invalid_date":
+      return "Date invalide";
+    case "insufficient_info":
+      return "Informations insuffisantes";
+    case "unreliable_source":
+      return "Source peu fiable";
+    case "out_of_scope":
+      return "Hors périmètre";
+  }
+}
+
 export function getAdminRequestMissingFields(raw: AdminRawRequest) {
   const eventData = raw.event_data ?? {};
   const missing: string[] = [];
@@ -258,6 +297,17 @@ export function buildAdminRequestItem(raw: AdminRawRequest): AdminRequestItem {
     convertedAt: normalizeString(raw.converted_at) ?? null,
     convertedEventId: normalizeString(raw.converted_event_id) ?? null,
     notes: normalizeString(raw.notes) ?? raw.notes ?? null,
+    internalNotes:
+      normalizeString(raw.internal_notes) ??
+      normalizeString(raw.notes) ??
+      raw.internal_notes ??
+      raw.notes ??
+      null,
+    moderationReason: (normalizeString(raw.moderation_reason) as AdminModerationReason | null) ?? null,
+    contributorMessage: normalizeString(raw.contributor_message) ?? raw.contributor_message ?? null,
+    allowUserResubmission: raw.allow_user_resubmission === true,
+    contributorDisplayName: normalizeString(raw.contributor_display_name) ?? raw.contributor_display_name ?? null,
+    communityAttributionOptIn: raw.community_attribution_opt_in === true,
     eventDate,
     endDate: normalizeString(eventData.end_date),
     sourceUrl,
@@ -274,6 +324,9 @@ export function buildAdminRequestItem(raw: AdminRawRequest): AdminRequestItem {
       locationSummary,
       organizerSummary,
       normalizeString(eventData.category),
+      normalizeString(raw.internal_notes),
+      normalizeString(raw.contributor_message),
+      normalizeString(raw.moderation_reason),
       normalizeString(raw.notes),
     ]
       .filter(Boolean)

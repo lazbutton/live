@@ -426,6 +426,12 @@ interface UserRequest {
     room_id?: string;
   };
   requested_by?: string | null;
+  contributor_display_name?: string | null;
+  community_attribution_opt_in?: boolean | null;
+  internal_notes?: string | null;
+  moderation_reason?: string | null;
+  contributor_message?: string | null;
+  allow_user_resubmission?: boolean | null;
 }
 
 type QuickLocationFormState = {
@@ -1965,6 +1971,13 @@ function CreateEventContent() {
         image_url: finalImageUrl || null,
         created_by: request?.requested_by || user?.id || null,
         status: isDraft ? "draft" : "pending",
+        community_submission: true,
+        community_attribution_opt_in:
+          request?.community_attribution_opt_in === true,
+        community_contributor_label:
+          request?.community_attribution_opt_in === true
+            ? request?.contributor_display_name || null
+            : null,
       };
 
       // Ajouter les tags si sélectionnés
@@ -2042,7 +2055,12 @@ function CreateEventContent() {
             converted_at: new Date().toISOString(),
             reviewed_by: user?.id || null,
             reviewed_at: new Date().toISOString(),
-            notes: `Converti en événement ID: ${newEvent.id}`,
+            internal_notes: request?.internal_notes
+              ? `${request.internal_notes}\nConverti en événement ID: ${newEvent.id}`
+              : `Converti en événement ID: ${newEvent.id}`,
+            notes: request?.internal_notes
+              ? `${request.internal_notes}\nConverti en événement ID: ${newEvent.id}`
+              : `Converti en événement ID: ${newEvent.id}`,
           })
           .eq("id", requestId)
           .select(); // Ajouter select() pour forcer l'exécution et vérifier les permissions
@@ -2069,7 +2087,12 @@ function CreateEventContent() {
         const { error: updateError } = await supabase
           .from("user_requests")
           .update({
-            notes: `Brouillon créé - Événement ID: ${newEvent.id}`,
+            internal_notes: request?.internal_notes
+              ? `${request.internal_notes}\nBrouillon créé - Événement ID: ${newEvent.id}`
+              : `Brouillon créé - Événement ID: ${newEvent.id}`,
+            notes: request?.internal_notes
+              ? `${request.internal_notes}\nBrouillon créé - Événement ID: ${newEvent.id}`
+              : `Brouillon créé - Événement ID: ${newEvent.id}`,
           })
           .eq("id", requestId);
 
