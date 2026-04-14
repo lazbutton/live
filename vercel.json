@@ -5,12 +5,12 @@
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/cron/send-notifications",
-      "schedule": "0 9 * * *"
+      "path": "/api/cron/notifications/daily-events",
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/notifications/weekly-summary",
-      "schedule": "0 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/notion-sync",
