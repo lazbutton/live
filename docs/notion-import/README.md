@@ -135,8 +135,10 @@ Colonnes:
 Notion peut se tromper pendant le mapping CSV. Verifier en priorite:
 
 - `Date`, `End date`, `Event date` : type `Date`
+- `Source updated at`, `Last synced at` : type `Date`
 - `Price`, `Presale price`, `Subscriber price`, `Capacity` : type `Number`
 - `Is full`, `Is featured`, `Archived`, `Allow resubmission` : type `Checkbox`
+- `Door opening time` : type `Text`
 - `External URL`, `Source URL`, `Scraping URL`, `Instagram URL`, `Facebook URL`, `Image URL`, `Website URL` : type `URL`
 
 Le reste peut rester en `Text` si besoin.

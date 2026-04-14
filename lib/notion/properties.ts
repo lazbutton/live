@@ -209,6 +209,17 @@ export function getDateValue(page: NotionPage, propertyName: string) {
   return property.date ?? null;
 }
 
+export function getDateStartOrStringValue(page: NotionPage, propertyName: string) {
+  const property = getProperty(page, propertyName);
+  if (!property) return null;
+
+  if (property.type === "date") {
+    return property.date?.start ?? null;
+  }
+
+  return getStringValue(page, propertyName);
+}
+
 export function getRelationIds(page: NotionPage, propertyName: string) {
   const property = getProperty(page, propertyName);
   if (!property || property.type !== "relation") return [];

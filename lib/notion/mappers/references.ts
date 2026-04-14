@@ -1,9 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NOTION_LOCATION_SCHEMA, NOTION_ORGANIZER_SCHEMA } from "@/lib/notion/schema";
 import {
+  buildDateProperty,
   buildRichTextProperty,
   buildTitleProperty,
   buildUrlProperty,
+  getDateStartOrStringValue,
   getRichTextValue,
   getStringValue,
 } from "@/lib/notion/properties";
@@ -146,8 +148,12 @@ export function mapLocationToNotionProperties(location: RawLocation) {
     [schema.imageUrl]: buildUrlProperty(location.image_url),
     [schema.locationId]: buildRichTextProperty(location.id),
     [schema.syncOrigin]: buildRichTextProperty("live"),
-    [schema.sourceUpdatedAt]: buildRichTextProperty(location.updated_at ?? null),
-    [schema.lastSyncedAt]: buildRichTextProperty(new Date().toISOString()),
+    [schema.sourceUpdatedAt]: buildDateProperty(
+      location.updated_at ? { start: location.updated_at } : null
+    ),
+    [schema.lastSyncedAt]: buildDateProperty({
+      start: new Date().toISOString(),
+    }),
     [schema.syncHash]: buildRichTextProperty(
       computeSyncHash({
         id: location.id,
@@ -185,8 +191,12 @@ export function mapOrganizerToNotionProperties(
     [schema.imageUrl]: buildUrlProperty(imageUrl),
     [schema.organizerId]: buildRichTextProperty(organizer.id),
     [schema.syncOrigin]: buildRichTextProperty("live"),
-    [schema.sourceUpdatedAt]: buildRichTextProperty(organizer.updated_at ?? null),
-    [schema.lastSyncedAt]: buildRichTextProperty(new Date().toISOString()),
+    [schema.sourceUpdatedAt]: buildDateProperty(
+      organizer.updated_at ? { start: organizer.updated_at } : null
+    ),
+    [schema.lastSyncedAt]: buildDateProperty({
+      start: new Date().toISOString(),
+    }),
     [schema.syncHash]: buildRichTextProperty(
       computeSyncHash({
         ownerKind,
@@ -211,7 +221,7 @@ export function mapNotionLocationPageToLive(page: NotionPage) {
     imageUrl: getStringValue(page, schema.imageUrl),
     liveLocationId: getRichTextValue(page, schema.locationId),
     syncHash: getRichTextValue(page, schema.syncHash),
-    sourceUpdatedAt: getRichTextValue(page, schema.sourceUpdatedAt),
+    sourceUpdatedAt: getDateStartOrStringValue(page, schema.sourceUpdatedAt),
   };
 }
 
@@ -228,6 +238,6 @@ export function mapNotionOrganizerPageToLive(page: NotionPage) {
     imageUrl: getStringValue(page, schema.imageUrl),
     liveOrganizerId: getRichTextValue(page, schema.organizerId),
     syncHash: getRichTextValue(page, schema.syncHash),
-    sourceUpdatedAt: getRichTextValue(page, schema.sourceUpdatedAt),
+    sourceUpdatedAt: getDateStartOrStringValue(page, schema.sourceUpdatedAt),
   };
 }

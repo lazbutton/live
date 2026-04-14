@@ -9,6 +9,7 @@ import {
   buildTitleProperty,
   buildUrlProperty,
   getCheckboxValue,
+  getDateStartOrStringValue,
   getDateValue,
   getNumberValue,
   getRelationIds,
@@ -254,8 +255,12 @@ export async function mapEventToNotionProperties(
     [schema.tagIds]: buildRichTextProperty(tagIds.join(",")),
     [schema.eventId]: buildRichTextProperty(event.id),
     [schema.syncOrigin]: buildRichTextProperty("live"),
-    [schema.sourceUpdatedAt]: buildRichTextProperty(sourceUpdatedAt),
-    [schema.lastSyncedAt]: buildRichTextProperty(new Date().toISOString()),
+    [schema.sourceUpdatedAt]: buildDateProperty(
+      sourceUpdatedAt ? { start: sourceUpdatedAt } : null
+    ),
+    [schema.lastSyncedAt]: buildDateProperty({
+      start: new Date().toISOString(),
+    }),
     [schema.syncHash]: buildRichTextProperty(computeSyncHash(payloadForHash)),
     [schema.lastAction]: buildRichTextProperty("sync"),
   };
@@ -319,7 +324,7 @@ export async function mapNotionEventPageToLive(
     extractExplicitStatus(statusProperty) ?? getRichTextValue(page, schema.status);
   const dateValue = getDateValue(page, schema.date);
   const endDateValue = getDateValue(page, schema.endDate);
-  const sourceUpdatedAt = getRichTextValue(page, schema.sourceUpdatedAt);
+  const sourceUpdatedAt = getDateStartOrStringValue(page, schema.sourceUpdatedAt);
 
   return {
     liveEventId: getRichTextValue(page, schema.eventId),
