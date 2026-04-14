@@ -1,0 +1,2 @@
+Name,Address,City,Image URL,Live location ID,Sync origin,Source updated at,Last synced at,Sync hash
+Salle Demo,10 Rue Example Paris,Paris,https://example.com/location.jpg,00000000-0000-0000-0000-000000000101,live,2026-04-14T10:00:00Z,2026-04-14T10:05:00Z,schema-seed-location

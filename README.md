@@ -30,6 +30,35 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 Voir `supabase/migrations/README.md` et `supabase/migrations/MIGRATIONS_LOG.md`.
 
+## Synchro Notion
+
+L’intégration Notion vit côté `live-admin`:
+
+- Webhook entrant: `POST /api/notion/webhook`
+- Bootstrap initial: `POST /api/notion/bootstrap`
+- Resync manuel / dry-run: `POST /api/notion/resync`
+- Drain de queue: `GET /api/cron/notion-sync`
+
+Variables d’environnement minimales:
+
+- `NOTION_SYNC_ENABLED`
+- `NOTION_API_KEY`
+- `NOTION_API_VERSION`
+- `NOTION_WEBHOOK_VERIFICATION_TOKEN`
+- `NOTION_EVENTS_DATA_SOURCE_ID`
+- `NOTION_REQUESTS_DATA_SOURCE_ID`
+- `NOTION_LOCATIONS_DATA_SOURCE_ID`
+- `NOTION_ORGANIZERS_DATA_SOURCE_ID`
+- `NOTION_SYNC_ACTOR_USER_ID`
+- `CRON_SECRET`
+
+La synchro repose sur:
+
+- Des tables `notion_*` dans Supabase pour les liens, jobs, erreurs et checkpoints
+- Des triggers DB pour pousser les mutations live vers la queue
+- Des webhooks Notion pour pousser les mutations Notion vers la même queue
+- Une résolution de conflit `last_write_wins` complétée par un `sync_hash` pour éviter les boucles
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

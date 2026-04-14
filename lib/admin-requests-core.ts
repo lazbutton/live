@@ -36,6 +36,7 @@ export interface AdminRawRequest {
   request_type?: AdminRequestType | null;
   status: AdminRequestStatus;
   requested_at: string;
+  updated_at?: string | null;
   requested_by?: string | null;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
