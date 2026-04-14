@@ -15,6 +15,218 @@ export interface NotificationResult {
   errors: string[];
 }
 
+type NotificationPreferenceRow = {
+  user_id: string;
+  is_enabled?: boolean;
+  frequency?: string | null;
+  category_ids?: string[] | null;
+};
+
+type NotificationCategoryPreferenceRow = {
+  user_id?: string;
+  category_id: string | null;
+};
+
+type NotificationTokenRow = {
+  user_id?: string;
+  token: string;
+  platform: string;
+  updated_at?: string | null;
+};
+
+export interface EnabledNotificationUser {
+  user_id: string;
+  is_enabled?: boolean;
+  frequency?: string | null;
+  category_ids?: string[] | null;
+  user_notification_categories?: NotificationCategoryPreferenceRow[] | null;
+  user_push_tokens?: NotificationTokenRow[] | null;
+}
+
+function uniqueStringValues(values: unknown[]): string[] {
+  return [...new Set(
+    values.filter(
+      (value): value is string => typeof value === "string" && value.trim().length > 0,
+    ),
+  )];
+}
+
+function getPayloadCategoryIds(payload: NotificationPayload): string[] {
+  const categories: unknown[] = [];
+
+  if (Array.isArray(payload.data?.categories)) {
+    categories.push(...payload.data.categories);
+  }
+
+  if (typeof payload.data?.category === "string") {
+    categories.push(payload.data.category);
+  }
+
+  return uniqueStringValues(categories);
+}
+
+// Tant que le mobile écrit encore dans `user_notification_categories`, on garde
+// un fallback serveur pour éviter de perdre les envois produit.
+export function getEffectiveNotificationCategoryIds(
+  preferences: Pick<EnabledNotificationUser, "category_ids" | "user_notification_categories">,
+): string[] {
+  const explicitCategoryIds = uniqueStringValues(
+    Array.isArray(preferences.category_ids) ? preferences.category_ids : [],
+  );
+
+  if (explicitCategoryIds.length > 0) {
+    return explicitCategoryIds;
+  }
+
+  return uniqueStringValues(
+    (preferences.user_notification_categories ?? []).map((row) => row?.category_id),
+  );
+}
+
+function payloadMatchesUserNotificationCategories(
+  preferences: Pick<EnabledNotificationUser, "category_ids" | "user_notification_categories">,
+  payload: NotificationPayload,
+): boolean {
+  const payloadCategoryIds = getPayloadCategoryIds(payload);
+  if (payloadCategoryIds.length === 0) {
+    return true;
+  }
+
+  const userCategoryIds = getEffectiveNotificationCategoryIds(preferences);
+  if (userCategoryIds.length === 0) {
+    return false;
+  }
+
+  return payloadCategoryIds.some((categoryId) => userCategoryIds.includes(categoryId));
+}
+
+function buildEnabledNotificationUsers(
+  preferences: NotificationPreferenceRow[],
+  categoryRows: NotificationCategoryPreferenceRow[],
+  tokenRows: NotificationTokenRow[],
+): EnabledNotificationUser[] {
+  const users = new Map<string, EnabledNotificationUser>();
+
+  for (const preference of preferences) {
+    users.set(preference.user_id, {
+      ...preference,
+      user_notification_categories: [],
+      user_push_tokens: [],
+    });
+  }
+
+  for (const categoryRow of categoryRows) {
+    if (!categoryRow.user_id) continue;
+    const user = users.get(categoryRow.user_id);
+    if (!user) continue;
+    user.user_notification_categories?.push({ category_id: categoryRow.category_id });
+  }
+
+  for (const tokenRow of tokenRows) {
+    if (!tokenRow.user_id) continue;
+    const user = users.get(tokenRow.user_id);
+    if (!user) continue;
+    user.user_push_tokens?.push({
+      token: tokenRow.token,
+      platform: tokenRow.platform,
+      updated_at: tokenRow.updated_at,
+    });
+  }
+
+  return [...users.values()];
+}
+
+async function getNotificationPreferencesForUser(
+  userId: string,
+): Promise<Pick<EnabledNotificationUser, "is_enabled" | "category_ids" | "user_notification_categories"> | null> {
+  const supabase = createServiceClient();
+
+  const [{ data: preference, error: preferenceError }, { data: categoryRows, error: categoryError }] =
+    await Promise.all([
+      supabase
+        .from("user_notification_preferences")
+        .select("is_enabled, category_ids")
+        .eq("user_id", userId)
+        .maybeSingle(),
+      supabase
+        .from("user_notification_categories")
+        .select("category_id")
+        .eq("user_id", userId),
+    ]);
+
+  if (preferenceError) {
+    throw preferenceError;
+  }
+
+  if (categoryError) {
+    throw categoryError;
+  }
+
+  if (!preference) {
+    return null;
+  }
+
+  return {
+    is_enabled: preference.is_enabled,
+    category_ids: preference.category_ids,
+    user_notification_categories: (categoryRows ?? []) as NotificationCategoryPreferenceRow[],
+  };
+}
+
+export async function getEnabledNotificationUsers(options: {
+  frequency?: "daily" | "weekly";
+} = {}): Promise<EnabledNotificationUser[]> {
+  const supabase = createServiceClient();
+
+  let query = supabase
+    .from("user_notification_preferences")
+    .select("user_id, is_enabled, frequency, category_ids")
+    .eq("is_enabled", true);
+
+  if (options.frequency) {
+    query = query.eq("frequency", options.frequency);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  const preferences = (data ?? []) as NotificationPreferenceRow[];
+  if (preferences.length === 0) {
+    return [];
+  }
+
+  const userIds = preferences.map((preference) => preference.user_id);
+
+  const [{ data: categoryRows, error: categoryError }, { data: tokenRows, error: tokenError }] =
+    await Promise.all([
+      supabase
+        .from("user_notification_categories")
+        .select("user_id, category_id")
+        .in("user_id", userIds),
+      supabase
+        .from("user_push_tokens")
+        .select("user_id, token, platform, updated_at")
+        .in("user_id", userIds),
+    ]);
+
+  if (categoryError) {
+    throw categoryError;
+  }
+
+  if (tokenError) {
+    throw tokenError;
+  }
+
+  return buildEnabledNotificationUsers(
+    preferences,
+    (categoryRows ?? []) as NotificationCategoryPreferenceRow[],
+    (tokenRows ?? []) as NotificationTokenRow[],
+  );
+}
+
 /**
  * Envoie une notification à un utilisateur spécifique
  * Récupère automatiquement tous les tokens de l'utilisateur et envoie selon la plateforme
@@ -25,14 +237,20 @@ export async function sendNotificationToUser(
 ): Promise<NotificationResult> {
   const supabase = createServiceClient();
 
-  // Vérifier que l'utilisateur a activé les notifications et récupérer ses préférences de catégories
-  const { data: preferences, error: prefsError } = await supabase
-    .from("user_notification_preferences")
-    .select("is_enabled, category_ids")
-    .eq("user_id", userId)
-    .single();
+  let preferences;
 
-  if (prefsError || !preferences || !preferences.is_enabled) {
+  try {
+    preferences = await getNotificationPreferencesForUser(userId);
+  } catch (prefsError: any) {
+    return {
+      success: false,
+      sent: 0,
+      failed: 0,
+      errors: [prefsError?.message || "Impossible de récupérer les préférences utilisateur"],
+    };
+  }
+
+  if (!preferences || !preferences.is_enabled) {
     return {
       success: false,
       sent: 0,
@@ -41,33 +259,30 @@ export async function sendNotificationToUser(
     };
   }
 
-  // Vérifier les préférences de catégories si des catégories sont fournies dans les données
-  // Si payload.data.categories est fourni (tableau de catégories), vérifier qu'au moins une correspond
-  // Si payload.data.category est fourni (catégorie unique), vérifier qu'elle correspond
-  if (preferences.category_ids && preferences.category_ids.length > 0) {
-    if (payload.data?.categories && Array.isArray(payload.data.categories)) {
-      // Plusieurs catégories dans l'événement : vérifier qu'au moins une correspond
-      const matchingCategories = payload.data.categories.filter((cat: string) => 
-        preferences.category_ids.includes(cat)
-      );
-      if (matchingCategories.length === 0) {
-        return {
-          success: false,
-          sent: 0,
-          failed: 0,
-          errors: [`L'utilisateur n'a pas activé les notifications pour ces catégories`],
-        };
-      }
-    } else if (payload.data?.category) {
-      // Catégorie unique : vérifier qu'elle correspond
-      if (!preferences.category_ids.includes(payload.data.category)) {
-        return {
-          success: false,
-          sent: 0,
-          failed: 0,
-          errors: [`L'utilisateur n'a pas activé les notifications pour la catégorie "${payload.data.category}"`],
-        };
-      }
+  const payloadCategoryIds = getPayloadCategoryIds(payload);
+  const userCategoryIds = getEffectiveNotificationCategoryIds(preferences);
+
+  if (payloadCategoryIds.length > 0) {
+    if (userCategoryIds.length === 0) {
+      return {
+        success: false,
+        sent: 0,
+        failed: 0,
+        errors: ["L'utilisateur n'a pas configuré de catégories de notifications"],
+      };
+    }
+
+    const matchingCategories = payloadCategoryIds.filter((categoryId) =>
+      userCategoryIds.includes(categoryId),
+    );
+
+    if (matchingCategories.length === 0) {
+      return {
+        success: false,
+        sent: 0,
+        failed: 0,
+        errors: ["L'utilisateur n'a pas activé les notifications pour ces catégories"],
+      };
     }
   }
 
@@ -184,7 +399,7 @@ export async function sendNotificationToUser(
 
   // Logger la notification
   if (results.sent > 0) {
-    await logNotification(userId, payload, results);
+    await logNotification(userId, payload);
   }
 
   results.success = results.failed === 0;
@@ -222,15 +437,20 @@ export async function sendNotificationToUsers(
 export async function sendNotificationToAll(
   payload: NotificationPayload
 ): Promise<NotificationResult> {
-  const supabase = createServiceClient();
+  let enabledUsers: EnabledNotificationUser[];
 
-  // Récupérer uniquement les utilisateurs qui ont activé les notifications
-  const { data: enabledUsers, error: prefsError } = await supabase
-    .from("user_notification_preferences")
-    .select("user_id")
-    .eq("is_enabled", true);
+  try {
+    enabledUsers = await getEnabledNotificationUsers();
+  } catch (error: any) {
+    return {
+      success: false,
+      sent: 0,
+      failed: 0,
+      errors: [error?.message || "Impossible de récupérer les utilisateurs éligibles"],
+    };
+  }
 
-  if (prefsError || !enabledUsers || enabledUsers.length === 0) {
+  if (enabledUsers.length === 0) {
     return {
       success: false,
       sent: 0,
@@ -246,20 +466,9 @@ export async function sendNotificationToAll(
     errors: [],
   };
 
-  // Filtrer les utilisateurs selon leurs préférences de catégories
-  const eventCategory = payload.data?.category;
-  const usersToNotify = enabledUsers.filter((userData: any) => {
-    // Si l'événement n'a pas de catégorie, ne pas envoyer (on ne peut pas matcher)
-    if (!eventCategory) {
-      return false;
-    }
-    // Si l'utilisateur n'a pas de préférences de catégories (NULL ou vide), il reçoit toutes les notifications
-    if (!userData.category_ids || userData.category_ids.length === 0) {
-      return true;
-    }
-    // Vérifier que la catégorie de l'événement correspond aux préférences de l'utilisateur
-    return userData.category_ids.includes(eventCategory);
-  });
+  const usersToNotify = enabledUsers.filter((userData) =>
+    payloadMatchesUserNotificationCategories(userData, payload),
+  );
 
   console.log(`📊 ${usersToNotify.length} utilisateur(s) éligible(s) sur ${enabledUsers.length} avec notifications activées`);
 
@@ -280,8 +489,7 @@ export async function sendNotificationToAll(
  */
 async function logNotification(
   userId: string,
-  payload: NotificationPayload,
-  result: NotificationResult
+  payload: NotificationPayload
 ): Promise<void> {
   const supabase = createServiceClient();
 

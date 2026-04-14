@@ -1,6 +1,87 @@
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
+type DatePartsWithoutTimezone = {
+  year: number;
+  month: number;
+  day: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+  milliseconds: number;
+};
+
+function extractDatePartsWithoutTimezone(
+  value: string,
+): DatePartsWithoutTimezone | null {
+  const normalized = value.trim();
+  const match = normalized.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2})(?::(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?)?(?:Z|[+-]\d{2}:\d{2})?$/,
+  );
+
+  if (!match) return null;
+
+  const [
+    ,
+    year,
+    month,
+    day,
+    hours = "00",
+    minutes = "00",
+    seconds = "00",
+    milliseconds = "0",
+  ] = match;
+
+  return {
+    year: Number(year),
+    month: Number(month),
+    day: Number(day),
+    hours: Number(hours),
+    minutes: Number(minutes),
+    seconds: Number(seconds),
+    milliseconds: Number(milliseconds.padEnd(3, "0").slice(0, 3)),
+  };
+}
+
+export function parseDateWithoutTimezone(
+  dateInput: string | Date | null | undefined,
+): Date | null {
+  if (!dateInput) return null;
+
+  if (dateInput instanceof Date) {
+    return Number.isNaN(dateInput.getTime()) ? null : new Date(dateInput);
+  }
+
+  const parts = extractDatePartsWithoutTimezone(dateInput);
+  if (parts) {
+    return new Date(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hours,
+      parts.minutes,
+      parts.seconds,
+      parts.milliseconds,
+    );
+  }
+
+  try {
+    const parsed = parseISO(dateInput);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return new Date(
+      parsed.getFullYear(),
+      parsed.getMonth(),
+      parsed.getDate(),
+      parsed.getHours(),
+      parsed.getMinutes(),
+      parsed.getSeconds(),
+      parsed.getMilliseconds(),
+    );
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Formate une date ISO en préservant les heures/minutes exactes de la base de données
  * Évite le décalage de timezone en utilisant directement les valeurs originales
@@ -16,32 +97,9 @@ export function formatDateWithoutTimezone(
   if (!dateString) return "-";
   
   try {
-    // Si la date contient un timezone explicite, extraire directement les composants
-    const timezoneMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})([+-]\d{2}:\d{2}|Z)$/);
-    if (timezoneMatch) {
-      // Date avec timezone explicite : utiliser directement les valeurs sans conversion
-      const [, year, month, day, hours, minutes] = timezoneMatch;
-      const localDate = new Date(
-        parseInt(year),
-        parseInt(month) - 1,
-        parseInt(day),
-        parseInt(hours),
-        parseInt(minutes)
-      );
-      return format(localDate, formatStr, { locale: fr });
-    }
-    
-    // Sinon, parser et utiliser les valeurs locales
-    const date = parseISO(dateString);
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const day = date.getDate();
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    
-    const localDate = new Date(year, month, day, hours, minutes);
-    
-    return format(localDate, formatStr, { locale: fr });
+    const date = parseDateWithoutTimezone(dateString);
+    if (!date) return dateString;
+    return format(date, formatStr, { locale: fr });
   } catch (error) {
     console.error("Erreur lors du formatage de la date:", error, dateString);
     return dateString; // Retourner la valeur originale en cas d'erreur
@@ -59,17 +117,8 @@ export function toDatetimeLocal(dateString: string | null | undefined): string {
   if (!dateString) return "";
   
   try {
-    // Si la date contient un timezone explicite, extraire directement les composants
-    // pour éviter la conversion UTC qui décalerait l'heure
-    const timezoneMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})([+-]\d{2}:\d{2}|Z)$/);
-    if (timezoneMatch) {
-      // Date avec timezone explicite : utiliser directement les valeurs
-      const [, year, month, day, hours, minutes] = timezoneMatch;
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
-    }
-    
-    // Sinon, parser et utiliser les valeurs locales (pas UTC)
-    const date = parseISO(dateString);
+    const date = parseDateWithoutTimezone(dateString);
+    if (!date) return "";
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");

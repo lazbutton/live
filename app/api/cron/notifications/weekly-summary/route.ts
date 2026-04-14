@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { sendNotificationToUser } from "@/lib/notifications";
+import {
+  getEffectiveNotificationCategoryIds,
+  getEnabledNotificationUsers,
+  sendNotificationToUser,
+} from "@/lib/notifications";
 import {
   addDaysToLocalDate,
   formatHourMinute,
@@ -61,10 +65,15 @@ export async function GET(request: NextRequest) {
     );
 
     if (weekDay !== 1) {
+      console.log(`ℹ️ Skip weekly: jour courant=${weekDay}, la passe hebdomadaire reste limitée au lundi`);
       return NextResponse.json({
         success: true,
         message: "La passe hebdomadaire ne s'exécute que le lundi",
         notificationsSent: 0,
+        debug: {
+          timezone: "Europe/Paris",
+          weekday: weekDay,
+        },
       });
     }
 
@@ -178,18 +187,32 @@ export async function GET(request: NextRequest) {
           message: "Pas dans la fenêtre d'envoi hebdomadaire",
           eventsCount: eventsWithCategory.length,
           notificationsSent: 0,
+          debug: {
+            timezone: "Europe/Paris",
+            currentTime: formatHourMinute(currentHour, currentMinute),
+            configuredTime: formatHourMinute(configuredHour, configuredMinute),
+            sendWindowMinutes,
+          },
         });
       }
     }
 
-    // Récupérer tous les utilisateurs avec leurs préférences de catégories et fréquence "weekly"
-    const { data: enabledUsers, error: prefsError } = await supabase
-      .from("user_notification_preferences")
-      .select("user_id, category_ids, frequency")
-      .eq("is_enabled", true)
-      .eq("frequency", "weekly"); // Seulement les utilisateurs avec fréquence "weekly"
+    let enabledUsers;
 
-    if (prefsError || !enabledUsers || enabledUsers.length === 0) {
+    try {
+      enabledUsers = await getEnabledNotificationUsers({ frequency: "weekly" });
+    } catch (prefsError: any) {
+      console.error("❌ Erreur lors de la récupération des préférences notifications weekly:", prefsError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: prefsError?.message || "Impossible de récupérer les utilisateurs éligibles",
+        },
+        { status: 500 },
+      );
+    }
+
+    if (!enabledUsers || enabledUsers.length === 0) {
       console.log("ℹ️ Aucun utilisateur n'a activé les notifications");
       return NextResponse.json({
         success: true,
@@ -201,12 +224,24 @@ export async function GET(request: NextRequest) {
 
     // Grouper les événements par utilisateur selon leurs préférences
     const eventsByUser: Record<string, typeof eventsWithCategory> = {};
-    
-    enabledUsers.forEach((user: any) => {
-      if (!Array.isArray(user.category_ids) || user.category_ids.length === 0) return;
+
+    let usersWithoutCategories = 0;
+    let usersWithoutTokens = 0;
+
+    enabledUsers.forEach((user) => {
+      const userCategoryIds = getEffectiveNotificationCategoryIds(user);
+      if (userCategoryIds.length === 0) {
+        usersWithoutCategories++;
+        return;
+      }
+
+      if (!Array.isArray(user.user_push_tokens) || user.user_push_tokens.length === 0) {
+        usersWithoutTokens++;
+        return;
+      }
 
       const userEvents = eventsWithCategory.filter(
-        (e) => e.category && user.category_ids.includes(e.category),
+        (e) => e.category && userCategoryIds.includes(e.category),
       );
       if (userEvents.length > 0) {
         eventsByUser[user.user_id] = userEvents;
@@ -214,16 +249,26 @@ export async function GET(request: NextRequest) {
     });
 
     if (Object.keys(eventsByUser).length === 0) {
-      console.log("ℹ️ Aucun utilisateur éligible pour les événements de cette semaine");
+      console.log(
+        `ℹ️ Aucun utilisateur éligible pour les événements de cette semaine (users=${enabledUsers.length}, sans_categories=${usersWithoutCategories}, sans_tokens=${usersWithoutTokens})`,
+      );
       return NextResponse.json({
         success: true,
         message: "Aucun utilisateur éligible",
         eventsCount: eventsWithCategory.length,
         notificationsSent: 0,
+        debug: {
+          enabledUsers: enabledUsers.length,
+          usersWithoutCategories,
+          usersWithoutTokens,
+          eligibleUsers: 0,
+        },
       });
     }
 
-    console.log(`📱 ${Object.keys(eventsByUser).length} utilisateur(s) éligible(s)`);
+    console.log(
+      `📱 ${Object.keys(eventsByUser).length} utilisateur(s) éligible(s) sur ${enabledUsers.length} (sans_categories=${usersWithoutCategories}, sans_tokens=${usersWithoutTokens})`,
+    );
 
     // Grouper les événements par jour pour chaque utilisateur
     let totalSent = 0;
@@ -314,6 +359,7 @@ export async function GET(request: NextRequest) {
       message: `Résumé hebdomadaire envoyé pour ${eventsWithCategory.length} événement(s) à ${Object.keys(eventsByUser).length} utilisateur(s)`,
       eventsCount: eventsWithCategory.length,
       usersNotified: Object.keys(eventsByUser).length,
+      enabledUsers: enabledUsers.length,
       notificationsSent: result.sent,
       notificationsFailed: result.failed,
       notificationsSkipped: skippedAlreadySent,

@@ -696,7 +696,7 @@ export function RequestsWorkspaceKanban() {
         className={
           isMobile
             ? "space-y-4"
-            : "grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px]"
+            : "grid gap-4 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_460px]"
         }
       >
         <RequestLaneBoard

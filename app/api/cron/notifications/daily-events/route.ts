@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { sendNotificationToUser } from "@/lib/notifications";
+import {
+  getEffectiveNotificationCategoryIds,
+  getEnabledNotificationUsers,
+  sendNotificationToUser,
+} from "@/lib/notifications";
 import {
   addDaysToLocalDate,
   formatHourMinute,
@@ -113,18 +117,6 @@ export async function GET(request: NextRequest) {
     
     console.log(`📋 ${relevantEvents.length} événement(s) pertinent(s) trouvé(s) pour aujourd'hui`);
     
-    // Préparer le message de notification
-    const eventTitles = relevantEvents.slice(0, 5).map(e => e.title).join(", ");
-    const moreEvents = relevantEvents.length > 5 ? ` et ${relevantEvents.length - 5} autre(s)` : "";
-    
-    const title = "Événements du jour 📅";
-    const body = relevantEvents.length === 1
-      ? `${relevantEvents[0].title} a lieu aujourd'hui !`
-      : `${relevantEvents.length} événement(s) prévu(s) aujourd'hui : ${eventTitles}${moreEvents}`;
-    
-    // Extraire les IDs des événements pour les données de la notification
-    const eventIds = relevantEvents.map(e => e.id);
-    
     // Filtrer les événements avec catégorie
     const eventsWithCategory = relevantEvents.filter(e => e.category);
     
@@ -178,19 +170,32 @@ export async function GET(request: NextRequest) {
           message: "Pas dans la fenêtre d'envoi",
           eventsCount: eventsWithCategory.length,
           notificationsSent: 0,
+          debug: {
+            timezone: "Europe/Paris",
+            currentTime: formatHourMinute(currentHour, currentMinute),
+            configuredTime: formatHourMinute(configuredHour, configuredMinute),
+            sendWindowMinutes,
+          },
         });
       }
     }
 
-    // Récupérer tous les utilisateurs avec leurs préférences de catégories et fréquence
-    // Note: On doit utiliser createServiceClient pour bypass RLS
-    const { data: enabledUsers, error: prefsError } = await supabase
-      .from("user_notification_preferences")
-      .select("user_id, category_ids, frequency")
-      .eq("is_enabled", true)
-      .in("frequency", ["daily"]); // Seulement les utilisateurs avec fréquence "daily"
+    let enabledUsers;
 
-    if (prefsError || !enabledUsers || enabledUsers.length === 0) {
+    try {
+      enabledUsers = await getEnabledNotificationUsers({ frequency: "daily" });
+    } catch (prefsError: any) {
+      console.error("❌ Erreur lors de la récupération des préférences notifications daily:", prefsError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: prefsError?.message || "Impossible de récupérer les utilisateurs éligibles",
+        },
+        { status: 500 },
+      );
+    }
+
+    if (!enabledUsers || enabledUsers.length === 0) {
       console.log("ℹ️ Aucun utilisateur n'a activé les notifications");
       return NextResponse.json({
         success: true,
@@ -202,12 +207,24 @@ export async function GET(request: NextRequest) {
 
     // Grouper les événements par utilisateur selon leurs préférences
     const eventsByUser: Record<string, typeof eventsWithCategory> = {};
-    
-    enabledUsers.forEach((user: any) => {
-      if (!Array.isArray(user.category_ids) || user.category_ids.length === 0) return;
+
+    let usersWithoutCategories = 0;
+    let usersWithoutTokens = 0;
+
+    enabledUsers.forEach((user) => {
+      const userCategoryIds = getEffectiveNotificationCategoryIds(user);
+      if (userCategoryIds.length === 0) {
+        usersWithoutCategories++;
+        return;
+      }
+
+      if (!Array.isArray(user.user_push_tokens) || user.user_push_tokens.length === 0) {
+        usersWithoutTokens++;
+        return;
+      }
 
       const userEvents = eventsWithCategory.filter(
-        (e) => e.category && user.category_ids.includes(e.category),
+        (e) => e.category && userCategoryIds.includes(e.category),
       );
       if (userEvents.length > 0) {
         eventsByUser[user.user_id] = userEvents;
@@ -215,16 +232,26 @@ export async function GET(request: NextRequest) {
     });
 
     if (Object.keys(eventsByUser).length === 0) {
-      console.log("ℹ️ Aucun utilisateur éligible pour les événements d'aujourd'hui");
+      console.log(
+        `ℹ️ Aucun utilisateur éligible pour les événements d'aujourd'hui (users=${enabledUsers.length}, sans_categories=${usersWithoutCategories}, sans_tokens=${usersWithoutTokens})`,
+      );
       return NextResponse.json({
         success: true,
         message: "Aucun utilisateur éligible",
         eventsCount: eventsWithCategory.length,
         notificationsSent: 0,
+        debug: {
+          enabledUsers: enabledUsers.length,
+          usersWithoutCategories,
+          usersWithoutTokens,
+          eligibleUsers: 0,
+        },
       });
     }
 
-    console.log(`📱 ${Object.keys(eventsByUser).length} utilisateur(s) éligible(s)`);
+    console.log(
+      `📱 ${Object.keys(eventsByUser).length} utilisateur(s) éligible(s) sur ${enabledUsers.length} (sans_categories=${usersWithoutCategories}, sans_tokens=${usersWithoutTokens})`,
+    );
 
     let totalSent = 0;
     let totalFailed = 0;
@@ -302,6 +329,8 @@ export async function GET(request: NextRequest) {
       success: result.success,
       message: `Notifications envoyées pour ${eventsWithCategory.length} événement(s)`,
       eventsCount: eventsWithCategory.length,
+      usersEligible: Object.keys(eventsByUser).length,
+      enabledUsers: enabledUsers.length,
       notificationsSent: result.sent,
       notificationsFailed: result.failed,
       notificationsSkipped: skippedAlreadySent,

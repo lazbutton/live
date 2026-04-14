@@ -32,6 +32,7 @@ import {
 } from "./event-import-dialog";
 import { EventImageImportDialog } from "./event-image-import-dialog";
 import { FacebookEventImportDialog } from "./facebook-event-import-dialog";
+import { parseDateWithoutTimezone } from "@/lib/date-utils";
 
 function normalizeSearchText(value: string) {
   return value
@@ -123,10 +124,10 @@ function isEventLongerThan24Hours(
 ) {
   if (!event.end_date) return false;
 
-  const start = new Date(event.date);
-  const end = new Date(event.end_date);
+  const start = parseDateWithoutTimezone(event.date);
+  const end = parseDateWithoutTimezone(event.end_date);
 
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+  if (!start || !end) {
     return false;
   }
 
@@ -394,7 +395,9 @@ export function EventsPage() {
     }
 
     filtered.sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+      (a, b) =>
+        (parseDateWithoutTimezone(a.date)?.getTime() ?? 0) -
+        (parseDateWithoutTimezone(b.date)?.getTime() ?? 0),
     );
     return filtered;
   }, [events, filterStatus, hideLongEvents, searchQuery, selectedOrganizerIds]);

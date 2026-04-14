@@ -1,4 +1,5 @@
 import { addDays } from "date-fns";
+import { parseDateWithoutTimezone } from "@/lib/date-utils";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -16,14 +17,14 @@ export function toLocalDayKey(date: Date) {
 }
 
 export function enumerateEventDisplayDays(startInput: Date | string, endInput?: Date | string | null) {
-  const startDate = new Date(startInput);
-  if (Number.isNaN(startDate.getTime())) return [];
+  const startDate = parseDateWithoutTimezone(startInput);
+  if (!startDate) return [];
 
   const startDay = startOfLocalDay(startDate);
   if (!endInput) return [startDay];
 
-  const endDate = new Date(endInput);
-  if (Number.isNaN(endDate.getTime()) || endDate.getTime() <= startDate.getTime()) {
+  const endDate = parseDateWithoutTimezone(endInput);
+  if (!endDate || endDate.getTime() <= startDate.getTime()) {
     return [startDay];
   }
 

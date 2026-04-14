@@ -277,10 +277,16 @@ Deux crons de notifications produit sont configurés :
 - ✅ Envoient uniquement aux utilisateurs ayant activé les notifications (`user_notification_preferences.is_enabled = true`)
 - ✅ Respectent la fréquence choisie (`daily` ou `weekly`)
 - ✅ Respectent les catégories suivies via `user_notification_preferences.category_ids`
+- ✅ Utilisent temporairement un fallback vers `user_notification_categories` tant que le mobile n'alimente pas encore `category_ids`
 - ✅ Respectent `notification_settings.notification_time`
 - ✅ Évitent les doubles envois sur une même passe grâce à l'anti-doublon
 - ✅ Log les résultats dans `notification_logs`
 - ✅ Gèrent automatiquement les tokens invalides (suppression)
+
+Note de wording produit :
+
+- le flux serveur quotidien actif est `Événements du jour 📅`
+- l'intitulé historique `Événements demain 🔔` correspond à un ancien comportement / à d'anciens logs et ne doit plus servir de référence pour le cron produit actuel
 
 Les anciens crons de rappels individuels par événement sont désormais legacy et ne doivent plus être planifiés dans `vercel.json`.
 

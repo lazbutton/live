@@ -5,6 +5,7 @@ import { CheckCircle2, MapPin, Star } from "lucide-react";
 import { format } from "date-fns";
 
 import { cn } from "@/lib/utils";
+import { parseDateWithoutTimezone } from "@/lib/date-utils";
 import type { AdminEvent } from "./types";
 
 export type EventCardProps = {
@@ -49,10 +50,10 @@ export function EventCard({
   onContextMenu,
   compact = false,
 }: EventCardProps) {
-  const dt = React.useMemo(() => new Date(event.date), [event.date]);
+  const dt = React.useMemo(() => parseDateWithoutTimezone(event.date), [event.date]);
   const timeLabel = React.useMemo(() => {
     try {
-      return format(dt, "HH:mm");
+      return dt ? format(dt, "HH:mm") : "";
     } catch {
       return "";
     }

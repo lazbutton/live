@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { parseDateWithoutTimezone } from "@/lib/date-utils";
 import { enumerateEventDisplayDays, startOfLocalDay, toLocalDayKey } from "@/lib/events/display-days";
 
 import type { AdminEvent } from "./types";
@@ -71,7 +72,11 @@ export function EventsCalendar({
     }
     // tri interne par heure
     for (const [key, list] of map.entries()) {
-      list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      list.sort(
+        (a, b) =>
+          (parseDateWithoutTimezone(a.date)?.getTime() ?? 0) -
+          (parseDateWithoutTimezone(b.date)?.getTime() ?? 0),
+      );
       map.set(key, list);
     }
     return map;
