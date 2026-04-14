@@ -19,7 +19,6 @@ function getWebhookDataSourceId(payload: NotionWebhookPayload) {
 }
 
 export async function POST(request: NextRequest) {
-  const config = getNotionSyncConfig();
   const supabase = createServiceClient();
 
   try {
@@ -27,6 +26,11 @@ export async function POST(request: NextRequest) {
     const payload = JSON.parse(rawBody) as NotionWebhookPayload;
 
     if (isNotionVerificationPayload(payload)) {
+      console.info(
+        "Notion webhook verification token received. Set NOTION_WEBHOOK_VERIFICATION_TOKEN=%s",
+        payload.verification_token
+      );
+
       await upsertNotionCheckpoint(supabase, {
         checkpointKey: "notion:webhook:verification",
         entityKind: "unknown",
@@ -45,6 +49,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const config = getNotionSyncConfig();
     const signature = request.headers.get("x-notion-signature");
     if (!verifyNotionWebhookSignature(rawBody, signature)) {
       return NextResponse.json({ error: "Signature Notion invalide" }, { status: 401 });
