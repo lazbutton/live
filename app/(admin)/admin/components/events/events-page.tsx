@@ -402,6 +402,18 @@ export function EventsPage() {
     return filtered;
   }, [events, filterStatus, hideLongEvents, searchQuery, selectedOrganizerIds]);
 
+  const listViewEvents = React.useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayStartTimestamp = todayStart.getTime();
+
+    return filteredEvents.filter((event) => {
+      const eventDate = parseDateWithoutTimezone(event.date);
+      if (!eventDate) return false;
+      return eventDate.getTime() >= todayStartTimestamp;
+    });
+  }, [filteredEvents]);
+
   const pendingCount = React.useMemo(() => {
     // count pending with current search, independent of status toggle
     let base = [...events];
@@ -708,16 +720,16 @@ export function EventsPage() {
         <Card className="p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div className="text-sm text-muted-foreground">
-              {filteredEvents.length} événement{filteredEvents.length > 1 ? "s" : ""}
+              {listViewEvents.length} événement{listViewEvents.length > 1 ? "s" : ""}
             </div>
-            {filteredEvents.some((event) => event.status === "pending") ? (
+            {listViewEvents.some((event) => event.status === "pending") ? (
               <Button
                 type="button"
                 size="sm"
                 className="bg-amber-600 hover:bg-amber-700"
                 onClick={() =>
                   void bulkApprove(
-                    filteredEvents
+                    listViewEvents
                       .filter((event) => event.status === "pending")
                       .map((event) => event.id),
                   )
@@ -728,13 +740,13 @@ export function EventsPage() {
             ) : null}
           </div>
 
-          {filteredEvents.length === 0 ? (
+          {listViewEvents.length === 0 ? (
             <div className="rounded-lg border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
               Aucun événement trouvé pour ces filtres.
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              {filteredEvents.map((event) => (
+              {listViewEvents.map((event) => (
                 <EventCard
                   key={event.id}
                   event={event}

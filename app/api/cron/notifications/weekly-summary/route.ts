@@ -16,6 +16,17 @@ import {
   zonedTimeToUtc,
 } from "@/lib/cron-timezone";
 
+const WEEKLY_FLOW = {
+  route: "/api/cron/notifications/weekly-summary",
+  path: "cron_weekly_summary",
+  authMode: "cron_secret",
+  sender: "sendNotificationToUser",
+  honorsPreferences: true,
+  honorsCategories: true,
+  latestTokenOnly: true,
+};
+const MAX_ROUTE_DIAGNOSTICS = 25;
+
 /**
  * Vérifie que la requête vient bien de Vercel Cron
  */
@@ -70,6 +81,7 @@ export async function GET(request: NextRequest) {
         success: true,
         message: "La passe hebdomadaire ne s'exécute que le lundi",
         notificationsSent: 0,
+        flow: WEEKLY_FLOW,
         debug: {
           timezone: "Europe/Paris",
           weekday: weekDay,
@@ -130,6 +142,7 @@ export async function GET(request: NextRequest) {
         success: true,
         message: "Aucun événement cette semaine",
         eventsCount: 0,
+        flow: WEEKLY_FLOW,
       });
     }
     
@@ -145,6 +158,7 @@ export async function GET(request: NextRequest) {
         message: "Aucun événement avec catégorie cette semaine",
         eventsCount: 0,
         notificationsSent: 0,
+        flow: WEEKLY_FLOW,
       });
     }
 
@@ -161,6 +175,7 @@ export async function GET(request: NextRequest) {
         message: "Notifications globales désactivées",
         eventsCount: eventsWithCategory.length,
         notificationsSent: 0,
+        flow: WEEKLY_FLOW,
       });
     }
 
@@ -187,6 +202,7 @@ export async function GET(request: NextRequest) {
           message: "Pas dans la fenêtre d'envoi hebdomadaire",
           eventsCount: eventsWithCategory.length,
           notificationsSent: 0,
+          flow: WEEKLY_FLOW,
           debug: {
             timezone: "Europe/Paris",
             currentTime: formatHourMinute(currentHour, currentMinute),
@@ -219,6 +235,7 @@ export async function GET(request: NextRequest) {
         message: "Aucun utilisateur avec notifications activées",
         eventsCount: eventsWithCategory.length,
         notificationsSent: 0,
+        flow: WEEKLY_FLOW,
       });
     }
 
@@ -257,6 +274,7 @@ export async function GET(request: NextRequest) {
         message: "Aucun utilisateur éligible",
         eventsCount: eventsWithCategory.length,
         notificationsSent: 0,
+        flow: WEEKLY_FLOW,
         debug: {
           enabledUsers: enabledUsers.length,
           usersWithoutCategories,
@@ -275,6 +293,7 @@ export async function GET(request: NextRequest) {
     let totalFailed = 0;
     let skippedAlreadySent = 0;
     const errors: string[] = [];
+    const deliveryDiagnostics: Array<Record<string, any>> = [];
 
     // Envoyer une seule notification par utilisateur avec tous ses événements
     for (const [userId, userEvents] of Object.entries(eventsByUser)) {
@@ -313,6 +332,15 @@ export async function GET(request: NextRequest) {
 
         if ((alreadySentCount ?? 0) > 0) {
           skippedAlreadySent++;
+          if (deliveryDiagnostics.length < MAX_ROUTE_DIAGNOSTICS) {
+            deliveryDiagnostics.push({
+              userId,
+              status: "skipped",
+              reason: "Notification hebdomadaire déjà envoyée dans la fenêtre en cours",
+              eventsCount: userEvents.length,
+              categories,
+            });
+          }
           continue;
         }
 
@@ -338,10 +366,27 @@ export async function GET(request: NextRequest) {
             errors.push(`Utilisateur ${userId}: ${result.errors[0]}`);
           }
         }
+
+        if (deliveryDiagnostics.length < MAX_ROUTE_DIAGNOSTICS) {
+          deliveryDiagnostics.push({
+            userId,
+            status: result.success && result.sent > 0 ? "sent" : "failed",
+            eventsCount: userEvents.length,
+            categories,
+            diagnostics: result.diagnostics,
+          });
+        }
       } catch (error: any) {
         console.error(`❌ Erreur lors de l'envoi à l'utilisateur ${userId}:`, error);
         totalFailed++;
         errors.push(`Utilisateur ${userId}: ${error.message}`);
+        if (deliveryDiagnostics.length < MAX_ROUTE_DIAGNOSTICS) {
+          deliveryDiagnostics.push({
+            userId,
+            status: "failed",
+            reason: error.message || "Erreur inconnue",
+          });
+        }
       }
     }
     
@@ -364,6 +409,14 @@ export async function GET(request: NextRequest) {
       notificationsFailed: result.failed,
       notificationsSkipped: skippedAlreadySent,
       errors: result.errors.length > 0 ? result.errors : undefined,
+      flow: WEEKLY_FLOW,
+      debug: {
+        enabledUsers: enabledUsers.length,
+        usersWithoutCategories,
+        usersWithoutTokens,
+        eligibleUsers: Object.keys(eventsByUser).length,
+        deliveryDiagnostics,
+      },
     });
     
   } catch (error: any) {

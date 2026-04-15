@@ -1884,11 +1884,17 @@ function CreateEventContent() {
     dismissImageAnalysis();
   }
 
-  async function handleSubmit(e: React.FormEvent, isDraft: boolean = false) {
+  async function handleSubmit(
+    e: React.FormEvent,
+    mode: "draft" | "pending" | "approved" = "pending",
+  ) {
     e.preventDefault();
     setSaving(true);
 
     try {
+      const isDraft = mode === "draft";
+      const isApproved = mode === "approved";
+
       // Validation : la catégorie est obligatoire (sauf pour les brouillons)
       if (!isDraft && (!formData.category || formData.category.trim() === "")) {
         alert("La catégorie est obligatoire");
@@ -1970,7 +1976,7 @@ function CreateEventContent() {
         facebook_url: formData.facebook_url || null,
         image_url: finalImageUrl || null,
         created_by: request?.requested_by || user?.id || null,
-        status: isDraft ? "draft" : "pending",
+        status: isDraft ? "draft" : isApproved ? "approved" : "pending",
         community_submission: true,
         community_attribution_opt_in:
           request?.community_attribution_opt_in === true,
@@ -2056,11 +2062,23 @@ function CreateEventContent() {
             reviewed_by: user?.id || null,
             reviewed_at: new Date().toISOString(),
             internal_notes: request?.internal_notes
-              ? `${request.internal_notes}\nConverti en événement ID: ${newEvent.id}`
-              : `Converti en événement ID: ${newEvent.id}`,
+              ? `${request.internal_notes}\n${
+                  isApproved
+                    ? `Converti et approuvé - Événement ID: ${newEvent.id}`
+                    : `Converti en événement ID: ${newEvent.id}`
+                }`
+              : isApproved
+                ? `Converti et approuvé - Événement ID: ${newEvent.id}`
+                : `Converti en événement ID: ${newEvent.id}`,
             notes: request?.internal_notes
-              ? `${request.internal_notes}\nConverti en événement ID: ${newEvent.id}`
-              : `Converti en événement ID: ${newEvent.id}`,
+              ? `${request.internal_notes}\n${
+                  isApproved
+                    ? `Converti et approuvé - Événement ID: ${newEvent.id}`
+                    : `Converti en événement ID: ${newEvent.id}`
+                }`
+              : isApproved
+                ? `Converti et approuvé - Événement ID: ${newEvent.id}`
+                : `Converti en événement ID: ${newEvent.id}`,
           })
           .eq("id", requestId)
           .select(); // Ajouter select() pour forcer l'exécution et vérifier les permissions
@@ -2080,7 +2098,11 @@ function CreateEventContent() {
           throw updateError;
         }
 
-        alert("Événement créé avec succès !");
+        alert(
+          isApproved
+            ? "Événement créé et approuvé avec succès !"
+            : "Événement créé avec succès !",
+        );
         router.push("/admin/requests");
       } else {
         // Pour les brouillons, on met juste à jour les notes avec l'ID de l'événement brouillon
@@ -3435,10 +3457,27 @@ function CreateEventContent() {
                 </Button>
                 <Button
                   type="button"
+                  size="lg"
+                  disabled={saving}
+                  variant="secondary"
+                  onClick={(e) => handleSubmit(e, "approved")}
+                  className="w-full cursor-pointer"
+                >
+                  {saving ? (
+                    <>Enregistrement en cours...</>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Enregistrer et approuver
+                    </>
+                  )}
+                </Button>
+                <Button
+                  type="button"
                   variant="outline"
                   size="lg"
                   disabled={saving}
-                  onClick={(e) => handleSubmit(e, true)}
+                  onClick={(e) => handleSubmit(e, "draft")}
                   className="w-full cursor-pointer"
                 >
                   {saving ? (

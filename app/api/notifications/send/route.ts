@@ -30,15 +30,41 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
  */
 export async function POST(request: NextRequest) {
   try {
-    // Vérifier le type d'authentification
     const authHeader = request.headers.get("authorization");
     const apiKey = request.headers.get("x-api-key");
+    const isApiKeyMode = apiKey === process.env.CRON_API_KEY;
+    const authMode =
+      authHeader && authHeader.startsWith("Bearer ")
+        ? "jwt"
+        : isApiKeyMode
+          ? "api_key"
+          : "cookie";
+
+    let parsedBody: Record<string, any>;
+    try {
+      parsedBody = (await request.json()) as Record<string, any>;
+    } catch (parseError: any) {
+      return NextResponse.json(
+        {
+          error: "Body JSON invalide",
+          details: parseError?.message,
+        },
+        { status: 400 },
+      );
+    }
+
+    const {
+      userIds,
+      userId,
+      title,
+      body: notificationBody,
+      data,
+    } = parsedBody;
 
     let user: { id: string; email?: string; user_metadata?: any; app_metadata?: any } | null = null;
     let isAdmin = false;
 
     if (authHeader && authHeader.startsWith("Bearer ")) {
-      // Mode JWT (depuis l'app mobile)
       const token = authHeader.replace("Bearer ", "");
       const supabase = createClient(supabaseUrl, supabaseAnonKey, {
         global: {
@@ -61,17 +87,18 @@ export async function POST(request: NextRequest) {
       }
 
       user = jwtUser;
-      // Pour les JWT, vérifier si l'utilisateur est admin
       isAdmin =
         user.user_metadata?.role === "admin" ||
         user.app_metadata?.role === "admin";
-    } else if (apiKey === process.env.CRON_API_KEY) {
-      // Mode clé API (depuis un cron ou script)
-      // Avec la clé API, on considère que c'est un admin
+    } else if (isApiKeyMode) {
       isAdmin = true;
-      // Le userId sera extrait du body plus tard
+      user = {
+        id:
+          typeof userId === "string" && userId.trim().length > 0
+            ? userId.trim()
+            : "cron-api-key",
+      };
     } else {
-      // Mode cookies (depuis l'interface web admin)
       const supabase = await createServerClient();
       const {
         data: { user: cookieUser },
@@ -98,17 +125,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parser le body (une seule fois)
-    const body = await request.json();
-    const { userIds, userId, title, body: notificationBody, data } = body;
-
-    // Pour le mode clé API, créer l'objet user depuis le body
-    if (apiKey === process.env.CRON_API_KEY && userId) {
-      user = { id: userId };
-    }
-
-    // Pour les requêtes admin (via cookies ou clé API), permettre d'envoyer à tous
-    // Pour les JWT, vérifier si l'utilisateur est admin
     if (!isAdmin) {
       return NextResponse.json(
         { error: "Accès refusé. Admin uniquement." },
@@ -123,25 +139,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Déterminer les destinataires
     let result;
+    let sender:
+      | "sendNotificationToUser"
+      | "sendNotificationToUsers"
+      | "sendNotificationToAll";
 
     if (userId) {
-      // Envoyer à un seul utilisateur
+      sender = "sendNotificationToUser";
       result = await sendNotificationToUser(userId, {
         title,
         body: notificationBody,
         data,
       });
     } else if (userIds && Array.isArray(userIds) && userIds.length > 0) {
-      // Envoyer à plusieurs utilisateurs
+      sender = "sendNotificationToUsers";
       result = await sendNotificationToUsers(userIds, {
         title,
         body: notificationBody,
         data,
       });
     } else {
-      // Envoyer à tous les utilisateurs
+      sender = "sendNotificationToAll";
       result = await sendNotificationToAll({
         title,
         body: notificationBody,
@@ -154,6 +173,18 @@ export async function POST(request: NextRequest) {
       sent: result.sent,
       failed: result.failed,
       errors: result.errors,
+      diagnostics: result.diagnostics,
+      flow: {
+        route: "/api/notifications/send",
+        path: "manual_user_send",
+        authMode,
+        sender,
+        honorsPreferences: true,
+        honorsCategories: true,
+        latestTokenOnly: true,
+        targetUserId: typeof userId === "string" ? userId : null,
+        targetUserCount: Array.isArray(userIds) ? userIds.length : null,
+      },
     });
   } catch (error: any) {
     console.error("❌ Erreur lors de l'envoi de notification:", error);

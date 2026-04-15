@@ -137,6 +137,15 @@ export async function POST(request: NextRequest) {
       sent: result.sent,
       failed: result.failed,
       errors: result.errors,
+      diagnostics: result.diagnostics,
+      flow: {
+        route: "/api/notifications/admin/new-feedback",
+        path: "admin_public_feedback_notification",
+        sender: "sendNotificationToAdmins",
+        honorsPreferences: false,
+        honorsCategories: false,
+        targetsAllAdminTokens: true,
+      },
     });
   } catch (error: any) {
     console.error("❌ Erreur lors de l'envoi de la notification admin:", error);

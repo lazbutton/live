@@ -1,13 +1,45 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createClient } from "@supabase/supabase-js";
+
+async function listAllAuthUsers(adminClient: ReturnType<typeof createClient>) {
+  const users: Array<{
+    id: string;
+    email?: string;
+    user_metadata?: Record<string, any>;
+  }> = [];
+  let page = 1;
+  const perPage = 200;
+
+  while (true) {
+    const { data, error } = await adminClient.auth.admin.listUsers({
+      page,
+      perPage,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const pageUsers = data?.users ?? [];
+    users.push(...pageUsers);
+
+    if (pageUsers.length < perPage) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return users;
+}
 
 /**
  * GET /api/admin/notifications/tokens
  * 
  * Récupère les tokens push des admins pour le diagnostic
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const supabase = createServiceClient();
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -35,9 +67,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Récupérer tous les utilisateurs
-    const { data: allUsers, error: usersError } = await adminClient.auth.admin.listUsers();
-
-    if (usersError) {
+    let allUsers;
+    try {
+      allUsers = await listAllAuthUsers(adminClient);
+    } catch (usersError: any) {
       return NextResponse.json(
         { error: usersError.message },
         { status: 500 }
@@ -48,17 +81,15 @@ export async function GET(request: NextRequest) {
     const adminUserIds = new Set<string>();
     const adminUsers: Array<{ id: string; email: string; role: string }> = [];
     
-    if (allUsers?.users) {
-      for (const user of allUsers.users) {
-        const role = user.user_metadata?.role;
-        if (role === "admin") {
-          adminUserIds.add(user.id);
-          adminUsers.push({
-            id: user.id,
-            email: user.email || "N/A",
-            role: role || "N/A",
-          });
-        }
+    for (const user of allUsers) {
+      const role = user.user_metadata?.role;
+      if (role === "admin") {
+        adminUserIds.add(user.id);
+        adminUsers.push({
+          id: user.id,
+          email: user.email || "N/A",
+          role: role || "N/A",
+        });
       }
     }
 

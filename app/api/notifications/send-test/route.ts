@@ -112,6 +112,17 @@ export async function POST(request: NextRequest) {
         sent: result.sent,
         failed: result.failed,
         errors: result.failed > 0 ? result.errors : undefined,
+        diagnostics: result.diagnostics,
+        flow: {
+          route: "/api/notifications/send-test",
+          path: "mobile_send_test",
+          authMode: "jwt",
+          sender: "sendNotificationToUser",
+          honorsPreferences: true,
+          honorsCategories: true,
+          latestTokenOnly: true,
+          targetUserId: user.id,
+        },
       });
     }
 
@@ -125,6 +136,17 @@ export async function POST(request: NextRequest) {
           sent: result.sent,
           failed: result.failed,
           errors: result.errors,
+          diagnostics: result.diagnostics,
+          flow: {
+            route: "/api/notifications/send-test",
+            path: "mobile_send_test",
+            authMode: "jwt",
+            sender: "sendNotificationToUser",
+            honorsPreferences: true,
+            honorsCategories: true,
+            latestTokenOnly: true,
+            targetUserId: user.id,
+          },
         },
         { status: 500 }
       );
@@ -139,6 +161,17 @@ export async function POST(request: NextRequest) {
       message: "Notification de test envoyée",
       sent: result.sent,
       failed: result.failed,
+      diagnostics: result.diagnostics,
+      flow: {
+        route: "/api/notifications/send-test",
+        path: "mobile_send_test",
+        authMode: "jwt",
+        sender: "sendNotificationToUser",
+        honorsPreferences: true,
+        honorsCategories: true,
+        latestTokenOnly: true,
+        targetUserId: user.id,
+      },
     });
   } catch (error: any) {
     console.error("❌ Erreur inattendue lors de l'envoi de la notification:", error);

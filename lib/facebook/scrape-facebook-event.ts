@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { isFacebookEventUrl } from "./event-url";
+import { getZonedDateParts } from "@/lib/cron-timezone";
 
 export interface FacebookScrapedEventData {
   title?: string;
@@ -18,7 +19,7 @@ export interface FacebookScrapedEventData {
   facebook_url?: string;
 }
 
-function toIsoString(timestamp?: number | null) {
+function toFloatingParisIsoString(timestamp?: number | null) {
   if (!timestamp) {
     return undefined;
   }
@@ -28,7 +29,19 @@ function toIsoString(timestamp?: number | null) {
     return undefined;
   }
 
-  return date.toISOString();
+  const parts = getZonedDateParts(date, "Europe/Paris");
+  const year = String(parts.year);
+  const month = String(parts.month).padStart(2, "0");
+  const day = String(parts.day).padStart(2, "0");
+  const hours = String(parts.hour).padStart(2, "0");
+  const minutes = String(parts.minute).padStart(2, "0");
+  const seconds = String(parts.second).padStart(2, "0");
+
+  // Le back-office manipule les dates d'événements comme des heures "murales"
+  // (sans conversion de timezone à l'affichage). On sérialise donc ici l'heure
+  // Europe/Paris avec les mêmes chiffres dans l'ISO, afin d'éviter le décalage
+  // constaté lors de l'import Facebook.
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000Z`;
 }
 
 function compactText(value?: string | null) {
@@ -196,8 +209,8 @@ export async function scrapeFacebookEvent(url: string) {
     const data: FacebookScrapedEventData = {
       title: compactText(event.name),
       description: compactText(event.description),
-      date: toIsoString(event.startTimestamp),
-      end_date: toIsoString(event.endTimestamp),
+      date: toFloatingParisIsoString(event.startTimestamp),
+      end_date: toFloatingParisIsoString(event.endTimestamp),
       category: categories[0],
       tags: aiTagsResult.tags.length > 0 ? aiTagsResult.tags : undefined,
       external_url: ticketUrl || sourceUrl,

@@ -13,6 +13,7 @@ export interface NotificationResult {
   sent: number;
   failed: number;
   errors: string[];
+  diagnostics?: Record<string, any>;
 }
 
 type NotificationPreferenceRow = {
@@ -41,6 +42,166 @@ export interface EnabledNotificationUser {
   category_ids?: string[] | null;
   user_notification_categories?: NotificationCategoryPreferenceRow[] | null;
   user_push_tokens?: NotificationTokenRow[] | null;
+}
+
+type NotificationTokenPreview = {
+  platform: string;
+  tokenPreview: string;
+  tokenLength: number;
+  updatedAt?: string | null;
+  isPlaceholder: boolean;
+};
+
+type NotificationUserDiagnostic = {
+  userId: string;
+  status: "sent" | "blocked" | "failed";
+  reason?: string;
+  errors: string[];
+  hasPreferences: boolean;
+  preferencesEnabled: boolean;
+  payloadCategoryIds: string[];
+  userCategoryIds: string[];
+  matchedCategoryIds: string[];
+  tokenCount: number;
+  selectedToken?: NotificationTokenPreview | null;
+  tokens: NotificationTokenPreview[];
+};
+
+type NotificationDispatchTotals = {
+  usersEvaluated: number;
+  usersEligible: number;
+  usersBlocked: number;
+  usersSent: number;
+  usersFailed: number;
+  usersWithTokens: number;
+  usersWithoutTokens: number;
+  usersWithoutCategories: number;
+  usersCategoryMismatch: number;
+  usersWithoutPreferences: number;
+  usersWithDisabledPreferences: number;
+};
+
+type NotificationDispatchDiagnostics = {
+  flow: "user";
+  mode: "single" | "multiple" | "broadcast";
+  routeNotes: string[];
+  payload: {
+    title: string;
+    body: string;
+    type: string | null;
+    categoryIds: string[];
+    dataKeys: string[];
+  };
+  totals: NotificationDispatchTotals;
+  users: NotificationUserDiagnostic[];
+  truncatedUsers: number;
+};
+
+const MAX_DIAGNOSTIC_USERS = 25;
+const USER_FLOW_NOTES = [
+  "Flux utilisateur: vérifie user_notification_preferences.is_enabled.",
+  "Flux utilisateur: applique le filtrage par catégories si data.categories ou data.category est présent.",
+  "Flux utilisateur: envoie uniquement vers le token le plus récemment mis à jour.",
+];
+
+function previewToken(tokenRow: NotificationTokenRow): NotificationTokenPreview {
+  return {
+    platform: tokenRow.platform,
+    tokenPreview: `${tokenRow.token.substring(0, 20)}...`,
+    tokenLength: tokenRow.token.length,
+    updatedAt: tokenRow.updated_at,
+    isPlaceholder: tokenRow.token.startsWith("ios_user_"),
+  };
+}
+
+function createNotificationDispatchDiagnostics(
+  mode: NotificationDispatchDiagnostics["mode"],
+  payload: NotificationPayload,
+): NotificationDispatchDiagnostics {
+  return {
+    flow: "user",
+    mode,
+    routeNotes: [...USER_FLOW_NOTES],
+    payload: {
+      title: payload.title,
+      body: payload.body,
+      type: typeof payload.data?.type === "string" ? payload.data.type : null,
+      categoryIds: getPayloadCategoryIds(payload),
+      dataKeys: Object.keys(payload.data ?? {}),
+    },
+    totals: {
+      usersEvaluated: 0,
+      usersEligible: 0,
+      usersBlocked: 0,
+      usersSent: 0,
+      usersFailed: 0,
+      usersWithTokens: 0,
+      usersWithoutTokens: 0,
+      usersWithoutCategories: 0,
+      usersCategoryMismatch: 0,
+      usersWithoutPreferences: 0,
+      usersWithDisabledPreferences: 0,
+    },
+    users: [],
+    truncatedUsers: 0,
+  };
+}
+
+function pushDiagnosticUser(
+  diagnostics: NotificationDispatchDiagnostics,
+  userDiagnostic: NotificationUserDiagnostic,
+) {
+  if (diagnostics.users.length < MAX_DIAGNOSTIC_USERS) {
+    diagnostics.users.push(userDiagnostic);
+  } else {
+    diagnostics.truncatedUsers += 1;
+  }
+}
+
+function mergeDispatchDiagnostics(
+  target: NotificationDispatchDiagnostics,
+  source: NotificationDispatchDiagnostics,
+) {
+  const totalKeys = Object.keys(target.totals) as Array<keyof NotificationDispatchTotals>;
+  for (const key of totalKeys) {
+    target.totals[key] += source.totals[key];
+  }
+
+  for (const userDiagnostic of source.users) {
+    pushDiagnosticUser(target, userDiagnostic);
+  }
+  target.truncatedUsers += source.truncatedUsers;
+}
+
+function recordDiagnosticUser(
+  diagnostics: NotificationDispatchDiagnostics,
+  userDiagnostic: NotificationUserDiagnostic,
+  options: {
+    eligible?: boolean;
+    blocked?: boolean;
+    failed?: boolean;
+    sent?: boolean;
+    withTokens?: boolean;
+    withoutTokens?: boolean;
+    withoutCategories?: boolean;
+    categoryMismatch?: boolean;
+    withoutPreferences?: boolean;
+    disabledPreferences?: boolean;
+  } = {},
+) {
+  diagnostics.totals.usersEvaluated += 1;
+  if (options.eligible) diagnostics.totals.usersEligible += 1;
+  if (options.blocked) diagnostics.totals.usersBlocked += 1;
+  if (options.failed) diagnostics.totals.usersFailed += 1;
+  if (options.sent) diagnostics.totals.usersSent += 1;
+  if (options.withTokens) diagnostics.totals.usersWithTokens += 1;
+  if (options.withoutTokens) diagnostics.totals.usersWithoutTokens += 1;
+  if (options.withoutCategories) diagnostics.totals.usersWithoutCategories += 1;
+  if (options.categoryMismatch) diagnostics.totals.usersCategoryMismatch += 1;
+  if (options.withoutPreferences) diagnostics.totals.usersWithoutPreferences += 1;
+  if (options.disabledPreferences) diagnostics.totals.usersWithDisabledPreferences += 1;
+
+  pushDiagnosticUser(diagnostics, userDiagnostic);
 }
 
 function uniqueStringValues(values: unknown[]): string[] {
@@ -236,101 +397,180 @@ export async function sendNotificationToUser(
   payload: NotificationPayload
 ): Promise<NotificationResult> {
   const supabase = createServiceClient();
+  const diagnostics = createNotificationDispatchDiagnostics("single", payload);
+  const payloadCategoryIds = diagnostics.payload.categoryIds;
+  const userDiagnostic: NotificationUserDiagnostic = {
+    userId,
+    status: "blocked",
+    errors: [],
+    hasPreferences: false,
+    preferencesEnabled: false,
+    payloadCategoryIds,
+    userCategoryIds: [],
+    matchedCategoryIds: [],
+    tokenCount: 0,
+    selectedToken: null,
+    tokens: [],
+  };
 
   let preferences;
 
   try {
     preferences = await getNotificationPreferencesForUser(userId);
   } catch (prefsError: any) {
+    userDiagnostic.status = "failed";
+    userDiagnostic.reason = "Impossible de récupérer les préférences utilisateur";
+    userDiagnostic.errors = [
+      prefsError?.message || "Impossible de récupérer les préférences utilisateur",
+    ];
+
+    recordDiagnosticUser(diagnostics, userDiagnostic, {
+      failed: true,
+    });
+
     return {
       success: false,
       sent: 0,
-      failed: 0,
+      failed: 1,
       errors: [prefsError?.message || "Impossible de récupérer les préférences utilisateur"],
+      diagnostics,
     };
   }
 
-  if (!preferences || !preferences.is_enabled) {
+  if (!preferences) {
+    userDiagnostic.reason = "Aucune préférence de notification trouvée";
+    recordDiagnosticUser(diagnostics, userDiagnostic, {
+      blocked: true,
+      withoutPreferences: true,
+    });
+
     return {
       success: false,
       sent: 0,
-      failed: 0,
-      errors: ["L'utilisateur n'a pas activé les notifications"],
+      failed: 1,
+      errors: ["Aucune préférence de notification trouvée pour cet utilisateur"],
+      diagnostics,
     };
   }
 
-  const payloadCategoryIds = getPayloadCategoryIds(payload);
-  const userCategoryIds = getEffectiveNotificationCategoryIds(preferences);
+  userDiagnostic.hasPreferences = true;
+  userDiagnostic.preferencesEnabled = Boolean(preferences.is_enabled);
+  userDiagnostic.userCategoryIds = getEffectiveNotificationCategoryIds(preferences);
+  userDiagnostic.matchedCategoryIds = payloadCategoryIds.filter((categoryId) =>
+    userDiagnostic.userCategoryIds.includes(categoryId),
+  );
+
+  if (!preferences.is_enabled) {
+    userDiagnostic.reason = "Les notifications sont désactivées pour cet utilisateur";
+    recordDiagnosticUser(diagnostics, userDiagnostic, {
+      blocked: true,
+      disabledPreferences: true,
+    });
+
+    return {
+      success: false,
+      sent: 0,
+      failed: 1,
+      errors: ["L'utilisateur n'a pas activé les notifications"],
+      diagnostics,
+    };
+  }
 
   if (payloadCategoryIds.length > 0) {
-    if (userCategoryIds.length === 0) {
+    if (userDiagnostic.userCategoryIds.length === 0) {
+      userDiagnostic.reason =
+        "Le payload cible des catégories, mais l'utilisateur n'en a configuré aucune";
+      recordDiagnosticUser(diagnostics, userDiagnostic, {
+        blocked: true,
+        withoutCategories: true,
+      });
+
       return {
         success: false,
         sent: 0,
-        failed: 0,
+        failed: 1,
         errors: ["L'utilisateur n'a pas configuré de catégories de notifications"],
+        diagnostics,
       };
     }
 
-    const matchingCategories = payloadCategoryIds.filter((categoryId) =>
-      userCategoryIds.includes(categoryId),
-    );
+    if (userDiagnostic.matchedCategoryIds.length === 0) {
+      userDiagnostic.reason =
+        "Les catégories du payload ne correspondent à aucune catégorie suivie par l'utilisateur";
+      recordDiagnosticUser(diagnostics, userDiagnostic, {
+        blocked: true,
+        categoryMismatch: true,
+      });
 
-    if (matchingCategories.length === 0) {
       return {
         success: false,
         sent: 0,
-        failed: 0,
+        failed: 1,
         errors: ["L'utilisateur n'a pas activé les notifications pour ces catégories"],
+        diagnostics,
       };
     }
   }
 
-  // Récupérer uniquement le dernier token de l'utilisateur (le plus récent)
   const { data: tokens, error } = await supabase
     .from("user_push_tokens")
-    .select("token, platform")
+    .select("token, platform, updated_at")
     .eq("user_id", userId)
-    .order("updated_at", { ascending: false })
-    .limit(1);
+    .order("updated_at", { ascending: false });
 
   if (error) {
     console.error("❌ Erreur lors de la récupération des tokens:", error);
+    userDiagnostic.status = "failed";
+    userDiagnostic.reason = "Impossible de récupérer les tokens push";
+    userDiagnostic.errors = [error.message];
+    recordDiagnosticUser(diagnostics, userDiagnostic, {
+      failed: true,
+    });
+
     return {
       success: false,
       sent: 0,
-      failed: 0,
+      failed: 1,
       errors: [error.message],
+      diagnostics,
     };
   }
 
   if (!tokens || tokens.length === 0) {
+    userDiagnostic.reason = "Aucun token push trouvé pour cet utilisateur";
+    recordDiagnosticUser(diagnostics, userDiagnostic, {
+      blocked: true,
+      withoutTokens: true,
+    });
+
     return {
       success: false,
       sent: 0,
-      failed: 0,
+      failed: 1,
       errors: ["Aucun token trouvé pour cet utilisateur"],
+      diagnostics,
     };
   }
+
+  userDiagnostic.tokenCount = tokens.length;
+  userDiagnostic.tokens = tokens.map((tokenRow) => previewToken(tokenRow));
 
   const results: NotificationResult = {
     success: true,
     sent: 0,
     failed: 0,
     errors: [],
+    diagnostics,
   };
 
-  // Utiliser uniquement le dernier token (le plus récent)
-  // Si plusieurs tokens existent, on prend le plus récemment mis à jour
-  const tokenData = tokens[0]; // On a limité à 1, donc on prend le premier
+  const tokenData = tokens[0];
+  userDiagnostic.selectedToken = previewToken(tokenData);
   
   console.log(`📱 Utilisation du dernier token pour l'utilisateur ${userId}: ${tokenData.platform} (${tokenData.token.substring(0, 20)}...)`);
 
-  // Envoyer la notification au dernier token
   let result;
 
   if (tokenData.platform === "ios") {
-    // Ignorer les tokens qui commencent par "ios_user_" (identifiants, pas de vrais tokens APNs)
     if (tokenData.token.startsWith("ios_user_")) {
       console.warn(
         `⚠️ Token iOS invalide (format identifiant): ${tokenData.token}. L'application mobile doit obtenir et enregistrer le vrai token APNs depuis l'appareil iOS.`
@@ -340,9 +580,13 @@ export async function sendNotificationToUser(
       );
       
       results.failed++;
-      results.errors.push(
-        `Token iOS invalide (format identifiant au lieu d'un vrai token APNs): ${tokenData.token}. L'application doit enregistrer le vrai token APNs obtenu depuis l'appareil iOS.`
-      );
+      userDiagnostic.status = "failed";
+      userDiagnostic.reason =
+        "Le dernier token iOS est un identifiant placeholder, pas un vrai token APNs";
+      userDiagnostic.errors = [
+        `Token iOS invalide (format identifiant au lieu d'un vrai token APNs): ${tokenData.token}. L'application doit enregistrer le vrai token APNs obtenu depuis l'appareil iOS.`,
+      ];
+      results.errors.push(...userDiagnostic.errors);
       results.success = false;
     } else {
       result = await sendAPNsNotification(
@@ -360,25 +604,28 @@ export async function sendNotificationToUser(
       payload.data
     );
   } else {
-    // Web push notifications (à implémenter si nécessaire)
     console.warn(`⚠️ Plateforme "${tokenData.platform}" non supportée`);
     results.failed++;
-    results.errors.push(
-      `Plateforme "${tokenData.platform}" non supportée`
-    );
+    userDiagnostic.status = "failed";
+    userDiagnostic.reason = `Plateforme "${tokenData.platform}" non supportée`;
+    userDiagnostic.errors = [`Plateforme "${tokenData.platform}" non supportée`];
+    results.errors.push(...userDiagnostic.errors);
     results.success = false;
   }
 
-  // Traiter le résultat (seulement si on a un résultat)
   if (result) {
     if (result.success) {
       results.sent++;
+      userDiagnostic.status = "sent";
+      userDiagnostic.reason = "Notification envoyée";
     } else {
       results.failed++;
-      results.errors.push(result.error || "Erreur inconnue");
+      userDiagnostic.status = "failed";
+      userDiagnostic.reason = result.error || "Erreur inconnue";
+      userDiagnostic.errors = [result.error || "Erreur inconnue"];
+      results.errors.push(...userDiagnostic.errors);
       results.success = false;
 
-      // Si le token est invalide, le supprimer de la base
       const shouldDeleteToken =
         result.error?.includes("Token invalide") ||
         result.error?.includes("BadDeviceToken") ||
@@ -397,7 +644,20 @@ export async function sendNotificationToUser(
     }
   }
 
-  // Logger la notification
+  if (results.sent > 0) {
+    recordDiagnosticUser(diagnostics, userDiagnostic, {
+      eligible: true,
+      sent: true,
+      withTokens: true,
+    });
+  } else {
+    recordDiagnosticUser(diagnostics, userDiagnostic, {
+      eligible: true,
+      failed: true,
+      withTokens: true,
+    });
+  }
+
   if (results.sent > 0) {
     await logNotification(userId, payload);
   }
@@ -413,11 +673,13 @@ export async function sendNotificationToUsers(
   userIds: string[],
   payload: NotificationPayload
 ): Promise<NotificationResult> {
+  const diagnostics = createNotificationDispatchDiagnostics("multiple", payload);
   const results: NotificationResult = {
     success: true,
     sent: 0,
     failed: 0,
     errors: [],
+    diagnostics,
   };
 
   for (const userId of userIds) {
@@ -425,6 +687,9 @@ export async function sendNotificationToUsers(
     results.sent += result.sent;
     results.failed += result.failed;
     results.errors.push(...result.errors);
+    if (result.diagnostics) {
+      mergeDispatchDiagnostics(diagnostics, result.diagnostics as NotificationDispatchDiagnostics);
+    }
   }
 
   results.success = results.failed === 0;
@@ -437,6 +702,7 @@ export async function sendNotificationToUsers(
 export async function sendNotificationToAll(
   payload: NotificationPayload
 ): Promise<NotificationResult> {
+  const diagnostics = createNotificationDispatchDiagnostics("broadcast", payload);
   let enabledUsers: EnabledNotificationUser[];
 
   try {
@@ -447,6 +713,7 @@ export async function sendNotificationToAll(
       sent: 0,
       failed: 0,
       errors: [error?.message || "Impossible de récupérer les utilisateurs éligibles"],
+      diagnostics,
     };
   }
 
@@ -456,6 +723,7 @@ export async function sendNotificationToAll(
       sent: 0,
       failed: 0,
       errors: ["Aucun utilisateur n'a activé les notifications"],
+      diagnostics,
     };
   }
 
@@ -464,20 +732,65 @@ export async function sendNotificationToAll(
     sent: 0,
     failed: 0,
     errors: [],
+    diagnostics,
   };
 
-  const usersToNotify = enabledUsers.filter((userData) =>
-    payloadMatchesUserNotificationCategories(userData, payload),
-  );
+  const usersToNotify: EnabledNotificationUser[] = [];
+  const payloadCategoryIds = diagnostics.payload.categoryIds;
+
+  for (const userData of enabledUsers) {
+    const userCategoryIds = getEffectiveNotificationCategoryIds(userData);
+    const matchedCategoryIds = payloadCategoryIds.filter((categoryId) =>
+      userCategoryIds.includes(categoryId),
+    );
+    const tokenCandidates = (userData.user_push_tokens ?? []).map((tokenRow) =>
+      previewToken(tokenRow),
+    );
+
+    if (!payloadMatchesUserNotificationCategories(userData, payload)) {
+      recordDiagnosticUser(
+        diagnostics,
+        {
+          userId: userData.user_id,
+          status: "blocked",
+          reason:
+            userCategoryIds.length === 0
+              ? "Le payload cible des catégories, mais cet utilisateur n'en a configuré aucune"
+              : "Les catégories du payload ne correspondent à aucune catégorie suivie",
+          errors: [],
+          hasPreferences: true,
+          preferencesEnabled: Boolean(userData.is_enabled),
+          payloadCategoryIds,
+          userCategoryIds,
+          matchedCategoryIds,
+          tokenCount: tokenCandidates.length,
+          selectedToken: tokenCandidates[0] ?? null,
+          tokens: tokenCandidates,
+        },
+        {
+          blocked: true,
+          withTokens: tokenCandidates.length > 0,
+          withoutTokens: tokenCandidates.length === 0,
+          withoutCategories: userCategoryIds.length === 0,
+          categoryMismatch: userCategoryIds.length > 0,
+        },
+      );
+      continue;
+    }
+
+    usersToNotify.push(userData);
+  }
 
   console.log(`📊 ${usersToNotify.length} utilisateur(s) éligible(s) sur ${enabledUsers.length} avec notifications activées`);
 
-  // Envoyer à chaque utilisateur éligible (sendNotificationToUser vérifie déjà les préférences et récupère les tokens)
   for (const userData of usersToNotify) {
     const result = await sendNotificationToUser(userData.user_id, payload);
     results.sent += result.sent;
     results.failed += result.failed;
     results.errors.push(...result.errors);
+    if (result.diagnostics) {
+      mergeDispatchDiagnostics(diagnostics, result.diagnostics as NotificationDispatchDiagnostics);
+    }
   }
 
   results.success = results.failed === 0;

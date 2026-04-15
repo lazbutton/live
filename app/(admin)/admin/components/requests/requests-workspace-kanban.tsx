@@ -676,7 +676,7 @@ export function RequestsWorkspaceKanban() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <RequestFiltersBar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -696,12 +696,13 @@ export function RequestsWorkspaceKanban() {
         className={
           isMobile
             ? "space-y-4"
-            : "grid gap-4 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_460px]"
+            : "grid min-h-0 flex-1 items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_460px]"
         }
       >
         <RequestLaneBoard
           board={board}
           activeLane={lane}
+          className={!isMobile ? "min-h-0" : undefined}
           renderCard={(item) => (
             <RequestCard
               key={item.id}
@@ -718,31 +719,34 @@ export function RequestsWorkspaceKanban() {
         />
 
         {!isMobile ? (
-          <RequestInspector
-            item={activeItem}
-            duplicateEvents={duplicateEvents}
-            duplicateEventsLoading={duplicateEventsLoading}
-            similarRequests={similarRequests}
-            internalNotesDraft={internalNotesDraft}
-            contributorMessageDraft={contributorMessageDraft}
-            moderationReasonDraft={moderationReasonDraft}
-            allowUserResubmissionDraft={allowUserResubmissionDraft}
-            savingNotes={savingNotes}
-            processingId={processingId}
-            onInternalNotesChange={setInternalNotesDraft}
-            onContributorMessageChange={setContributorMessageDraft}
-            onModerationReasonChange={setModerationReasonDraft}
-            onAllowUserResubmissionChange={setAllowUserResubmissionDraft}
-            onSaveNotes={() => void saveNotes()}
-            onOpenUrl={openUrl}
-            onCopy={(value) => void copyText(value)}
-            onConvert={(item) => void convertFast(item)}
-            onEdit={openFullReview}
-            onEditWithPrefill={openFullReviewWithPrefill}
-            onOpenRelatedRequest={openItem}
-            onReject={requestReject}
-            onViewEvent={viewEvent}
-          />
+          <div className="min-h-0">
+            <RequestInspector
+              item={activeItem}
+              duplicateEvents={duplicateEvents}
+              duplicateEventsLoading={duplicateEventsLoading}
+              similarRequests={similarRequests}
+              internalNotesDraft={internalNotesDraft}
+              contributorMessageDraft={contributorMessageDraft}
+              moderationReasonDraft={moderationReasonDraft}
+              allowUserResubmissionDraft={allowUserResubmissionDraft}
+              savingNotes={savingNotes}
+              processingId={processingId}
+              panelMode
+              onInternalNotesChange={setInternalNotesDraft}
+              onContributorMessageChange={setContributorMessageDraft}
+              onModerationReasonChange={setModerationReasonDraft}
+              onAllowUserResubmissionChange={setAllowUserResubmissionDraft}
+              onSaveNotes={() => void saveNotes()}
+              onOpenUrl={openUrl}
+              onCopy={(value) => void copyText(value)}
+              onConvert={(item) => void convertFast(item)}
+              onEdit={openFullReview}
+              onEditWithPrefill={openFullReviewWithPrefill}
+              onOpenRelatedRequest={openItem}
+              onReject={requestReject}
+              onViewEvent={viewEvent}
+            />
+          </div>
         ) : null}
       </div>
 

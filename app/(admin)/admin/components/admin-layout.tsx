@@ -30,7 +30,7 @@ export function AdminLayout({ children, title, breadcrumbItems = [] }: AdminLayo
     <TooltipProvider>
       <SidebarProvider defaultOpen={!isMobile} className="flex h-screen">
         <AdminSidebar />
-      <SidebarInset className="flex-1 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0" style={{ minWidth: 0, maxWidth: '100%', width: '100%' }}>
+      <SidebarInset className="min-h-0 flex-1 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0" style={{ minWidth: 0, maxWidth: '100%', width: '100%' }}>
         <header className="sticky top-0 z-10 flex h-14 md:h-16 shrink-0 items-center gap-2 md:gap-4 border-b border-border px-3 md:px-6 bg-background">
           <SidebarTrigger className="cursor-pointer hover:bg-accent/20 rounded-lg transition-all duration-200 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0" />
           <Separator orientation="vertical" className="mr-1 h-5 opacity-20 hidden md:block" />
@@ -59,9 +59,9 @@ export function AdminLayout({ children, title, breadcrumbItems = [] }: AdminLayo
             <ThemeToggle />
           </div>
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-3 md:p-4 lg:p-6 xl:p-8">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 p-3 md:p-4 lg:p-6 xl:p-8">
           {title && (
-            <div className="flex items-center justify-between">
+            <div className="flex shrink-0 items-center justify-between">
               <h1 className="text-xl md:text-2xl font-semibold truncate">{title}</h1>
             </div>
           )}

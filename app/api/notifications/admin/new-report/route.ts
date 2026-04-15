@@ -138,6 +138,15 @@ export async function POST(request: NextRequest) {
       sent: notificationResult.sent,
       failed: notificationResult.failed,
       errors: notificationResult.errors,
+      diagnostics: notificationResult.diagnostics,
+      flow: {
+        route: "/api/notifications/admin/new-report",
+        path: "admin_public_report_notification",
+        sender: "sendNotificationToAdmins",
+        honorsPreferences: false,
+        honorsCategories: false,
+        targetsAllAdminTokens: true,
+      },
     });
   } catch (error: any) {
     console.error(

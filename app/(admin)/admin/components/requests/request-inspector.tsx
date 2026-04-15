@@ -45,7 +45,6 @@ import { Textarea } from "@/components/ui/textarea";
 import type { DuplicateEvent } from "./request-types";
 import {
   formatEventDate,
-  LaneBadge,
   MODERATION_REASONS,
   ReasonBadge,
   StatusBadge,
@@ -182,15 +181,13 @@ function getDecisionCallout(
   collisionCount: number,
 ): {
   title: string;
-  description: string;
+  description?: string;
   toneClassName: string;
   icon: LucideIcon;
 } {
   if (item.status === "converted") {
     return {
       title: "Demande déjà convertie",
-      description:
-        "L’événement a déjà été créé. Vérifie le résultat final ou ouvre l’agenda pour contrôler la publication.",
       toneClassName:
         "border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-950 dark:text-emerald-100",
       icon: CheckCircle2,
@@ -200,9 +197,6 @@ function getDecisionCallout(
   if (item.status === "rejected") {
     return {
       title: "Demande déjà rejetée",
-      description: item.moderationReason
-        ? `Motif retenu: ${getModerationReasonLabel(item.moderationReason)}. Tu peux encore ajuster le feedback si besoin.`
-        : "La décision est déjà prise. Tu peux encore clarifier le feedback si nécessaire.",
       toneClassName:
         "border-rose-500/20 bg-rose-500/[0.07] text-rose-950 dark:text-rose-100",
       icon: AlertTriangle,
@@ -212,7 +206,6 @@ function getDecisionCallout(
   if (collisionCount > 0) {
     return {
       title: "Vérification doublon recommandée",
-      description: `${collisionCount} signal${collisionCount > 1 ? "s" : ""} détecté${collisionCount > 1 ? "s" : ""}. Vérifie les collisions avant de convertir ou de rejeter.`,
       toneClassName:
         "border-amber-500/20 bg-amber-500/[0.08] text-amber-950 dark:text-amber-100",
       icon: AlertTriangle,
@@ -222,8 +215,6 @@ function getDecisionCallout(
   if (item.isPast && item.status === "pending") {
     return {
       title: "Date passée ou imminente",
-      description:
-        "Le créneau semble déjà passé. Vérifie la date avant toute conversion pour éviter un faux positif.",
       toneClassName:
         "border-rose-500/20 bg-rose-500/[0.07] text-rose-950 dark:text-rose-100",
       icon: AlertTriangle,
@@ -233,8 +224,6 @@ function getDecisionCallout(
   if (item.isFastConvertible) {
     return {
       title: "Prête à convertir",
-      description:
-        "Les infos critiques sont déjà là. La conversion rapide devrait fonctionner sans reprise manuelle.",
       toneClassName:
         "border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-950 dark:text-emerald-100",
       icon: Sparkles,
@@ -244,8 +233,6 @@ function getDecisionCallout(
   if (item.requestType === "event_from_url") {
     return {
       title: "À fiabiliser depuis la source",
-      description:
-        "Ouvre la source puis préremplis la fiche pour sécuriser les données avant décision.",
       toneClassName:
         "border-sky-500/20 bg-sky-500/[0.07] text-sky-950 dark:text-sky-100",
       icon: Link2,
@@ -255,7 +242,6 @@ function getDecisionCallout(
   if (item.missingFields.length > 0) {
     return {
       title: "Compléter avant conversion",
-      description: `Champs critiques manquants: ${item.missingFields.join(", ")}.`,
       toneClassName:
         "border-amber-500/20 bg-amber-500/[0.08] text-amber-950 dark:text-amber-100",
       icon: FileSearch,
@@ -264,8 +250,6 @@ function getDecisionCallout(
 
   return {
     title: "Relecture recommandée",
-    description:
-      "Passe rapidement sur le contenu et les actions source pour sécuriser la décision.",
     toneClassName: "border-border/70 bg-muted/30 text-foreground",
     icon: FileSearch,
   };
@@ -282,6 +266,7 @@ export function RequestInspector({
   allowUserResubmissionDraft,
   savingNotes,
   processingId,
+  panelMode = false,
   onInternalNotesChange,
   onContributorMessageChange,
   onModerationReasonChange,
@@ -306,6 +291,7 @@ export function RequestInspector({
   allowUserResubmissionDraft: boolean;
   savingNotes: boolean;
   processingId: string | null;
+  panelMode?: boolean;
   onInternalNotesChange: (value: string) => void;
   onContributorMessageChange: (value: string) => void;
   onModerationReasonChange: (value: AdminModerationReason | "") => void;
@@ -322,8 +308,13 @@ export function RequestInspector({
 }) {
   if (!item) {
     return (
-      <Card className="border-dashed border-border/70 bg-card/60">
-        <CardContent className="p-6 text-sm text-muted-foreground">
+      <Card className={cn("border-dashed border-border/70 bg-card/60", panelMode && "h-full")}>
+        <CardContent
+          className={cn(
+            "p-6 text-sm text-muted-foreground",
+            panelMode && "flex h-full items-center",
+          )}
+        >
           Sélectionne une demande dans la file active pour afficher un panneau de décision plus détaillé.
         </CardContent>
       </Card>
@@ -452,40 +443,106 @@ export function RequestInspector({
   ].filter(Boolean) as string[];
 
   return (
-    <div className="space-y-4">
-      <Card className="sticky top-[8.5rem] overflow-hidden border-border/70 bg-background/95 shadow-sm backdrop-blur">
-        <CardHeader className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <LaneBadge lane={item.lane} />
+    <div className={cn(panelMode && "h-full min-h-0 overflow-y-auto pr-1")}>
+      <div className="space-y-4">
+      <Card
+        className={cn(
+          "border-border/70 bg-background/95 shadow-sm backdrop-blur",
+          panelMode && "sticky top-0 z-10",
+        )}
+      >
+        <CardHeader className="space-y-3 p-4">
+          <div className="flex flex-wrap items-center gap-1.5">
             <StatusBadge status={item.status} />
             <Badge variant={item.requestType === "event_from_url" ? "outline" : "secondary"}>
               {getRequestTypeLabel(item.requestType)}
             </Badge>
-            {sourceDomain ? <Badge variant="outline">{sourceDomain}</Badge> : null}
             {item.moderationReason ? <ReasonBadge reason={item.moderationReason} /> : null}
+            {sourceDomain ? (
+              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                {sourceDomain}
+              </Badge>
+            ) : null}
           </div>
 
-          <div className="space-y-1">
-            <CardTitle className="text-xl leading-tight">{item.title}</CardTitle>
-            <div className="text-sm text-muted-foreground">
+          <div className="space-y-0.5">
+            <CardTitle className="text-lg leading-tight">{item.title}</CardTitle>
+            <div className="text-xs text-muted-foreground">
               {contributor} • demandée {requestedAge || requestedAtLabel}
             </div>
           </div>
 
-          <div className={cn("rounded-2xl border p-4", decisionCallout.toneClassName)}>
-            <div className="flex items-start gap-3">
-              <div className="rounded-full bg-background/70 p-2">
-                <DecisionIcon className="h-4 w-4" />
+          <div className={cn("rounded-xl border px-3 py-2.5", decisionCallout.toneClassName)}>
+            <div className="flex items-start gap-2.5">
+              <div className="rounded-full bg-background/70 p-1.5">
+                <DecisionIcon className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-semibold">{decisionCallout.title}</div>
-                <div className="mt-1 text-sm leading-relaxed opacity-90">
-                  {decisionCallout.description}
-                </div>
+                <div className="text-sm font-semibold leading-tight">{decisionCallout.title}</div>
+                {decisionCallout.description ? (
+                  <div className="mt-0.5 text-xs leading-relaxed opacity-90">
+                    {decisionCallout.description}
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
 
+          <div className="flex flex-wrap gap-1.5">
+            {canConvert ? (
+              <Button type="button" size="sm" disabled={isProcessing} onClick={() => onConvert(item)}>
+                {isProcessing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Wand2 className="mr-2 h-4 w-4" />
+                )}
+                Convertir
+              </Button>
+            ) : null}
+
+            {canEdit ? (
+              <Button
+                type="button"
+                size="sm"
+                variant={canConvert ? "outline" : "default"}
+                onClick={() => onEdit(item)}
+              >
+                <SquarePen className="mr-2 h-4 w-4" />
+                Compléter
+              </Button>
+            ) : null}
+
+            {item.status === "pending" ? (
+              <Button type="button" size="sm" variant="destructive" onClick={() => onReject(item)}>
+                <ThumbsDown className="mr-2 h-4 w-4" />
+                Rejeter
+              </Button>
+            ) : null}
+
+            {item.status === "converted" && item.convertedEventId ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => onViewEvent(item)}>
+                <ArrowUpRight className="mr-2 h-4 w-4" />
+                Voir l’événement
+              </Button>
+            ) : null}
+
+            {item.sourceUrl ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => onOpenUrl(item.sourceUrl as string)}
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Source
+              </Button>
+            ) : null}
+          </div>
+        </CardHeader>
+      </Card>
+
+      <Section title="Résumé rapide">
+        <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
             {item.missingFields.length > 0 ? (
               <Badge
@@ -568,57 +625,8 @@ export function RequestInspector({
               ))}
             </div>
           ) : null}
-
-          <div className="flex flex-wrap gap-2">
-            {canConvert ? (
-              <Button type="button" disabled={isProcessing} onClick={() => onConvert(item)}>
-                {isProcessing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Wand2 className="mr-2 h-4 w-4" />
-                )}
-                Convertir
-              </Button>
-            ) : null}
-
-            {canEdit ? (
-              <Button
-                type="button"
-                variant={canConvert ? "outline" : "default"}
-                onClick={() => onEdit(item)}
-              >
-                <SquarePen className="mr-2 h-4 w-4" />
-                Compléter
-              </Button>
-            ) : null}
-
-            {item.status === "pending" ? (
-              <Button type="button" variant="destructive" onClick={() => onReject(item)}>
-                <ThumbsDown className="mr-2 h-4 w-4" />
-                Rejeter
-              </Button>
-            ) : null}
-
-            {item.status === "converted" && item.convertedEventId ? (
-              <Button type="button" variant="outline" onClick={() => onViewEvent(item)}>
-                <ArrowUpRight className="mr-2 h-4 w-4" />
-                Voir l’événement
-              </Button>
-            ) : null}
-
-            {item.sourceUrl ? (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onOpenUrl(item.sourceUrl as string)}
-              >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Source
-              </Button>
-            ) : null}
-          </div>
-        </CardHeader>
-      </Card>
+        </div>
+      </Section>
 
       {(sourceLinks.length > 0 ||
         (item.requestType === "event_from_url" && item.status === "pending")) ? (
@@ -908,6 +916,7 @@ export function RequestInspector({
 )}
         </pre>
       </FoldSection>
+      </div>
     </div>
   );
 }
