@@ -2,7 +2,27 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createClient } from "@supabase/supabase-js";
 
-async function listAllAuthUsers(adminClient: ReturnType<typeof createClient>) {
+type AuthAdminClient = {
+  auth: {
+    admin: {
+      listUsers: (params: {
+        page: number;
+        perPage: number;
+      }) => Promise<{
+        data: {
+          users?: Array<{
+            id: string;
+            email?: string;
+            user_metadata?: Record<string, any>;
+          }>;
+        } | null;
+        error: { message: string } | null;
+      }>;
+    };
+  };
+};
+
+async function listAllAuthUsers(adminClient: AuthAdminClient) {
   const users: Array<{
     id: string;
     email?: string;

@@ -4,6 +4,27 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { NotificationPayload, NotificationResult } from "./index";
 import { createClient } from "@supabase/supabase-js";
 
+type AuthAdminClient = {
+  auth: {
+    admin: {
+      listUsers: (params: {
+        page: number;
+        perPage: number;
+      }) => Promise<{
+        data: {
+          users?: Array<{
+            id: string;
+            email?: string;
+            user_metadata?: Record<string, any>;
+            app_metadata?: Record<string, any>;
+          }>;
+        } | null;
+        error: { message: string } | null;
+      }>;
+    };
+  };
+};
+
 type AdminAttemptDiagnostic = {
   platform: string;
   tokenPreview: string;
@@ -29,7 +50,7 @@ function previewAdminToken(token: string) {
   return `${token.substring(0, 20)}...`;
 }
 
-async function listAllAuthUsers(adminClient: ReturnType<typeof createClient>) {
+async function listAllAuthUsers(adminClient: AuthAdminClient) {
   const users: Array<{
     id: string;
     email?: string;
