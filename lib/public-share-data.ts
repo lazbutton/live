@@ -594,6 +594,10 @@ async function findOrganizerByReference(reference: string) {
 
 export const getEventSharePageData = cache(
   async (eventId: string): Promise<EventSharePageData | null> => {
+    if (!isUuid(eventId)) {
+      return null;
+    }
+
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("events")
@@ -633,7 +637,6 @@ export const getEventSharePageData = cache(
             )
           ),
           event_organizers:event_organizers(
-            sort_index,
             organizer:organizers(
               id,
               name,
