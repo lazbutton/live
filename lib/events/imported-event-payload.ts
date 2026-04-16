@@ -4,6 +4,7 @@ export type ImportedEventPayload = {
   date?: string;
   end_date?: string;
   category?: string;
+  is_pay_what_you_want?: boolean;
   price?: string | number;
   price_min?: string | number;
   price_max?: string | number;
@@ -23,6 +24,7 @@ export type ImportedEventPayload = {
   instagram_url?: string;
   facebook_url?: string;
   tags?: string[];
+  metadata?: Record<string, unknown>;
   [key: string]: unknown;
 };
 
@@ -46,6 +48,7 @@ export const IMPORTED_EVENT_FIELD_LABELS: Partial<
   date: "Date de début",
   end_date: "Date de fin",
   category: "Catégorie",
+  is_pay_what_you_want: "Prix libre",
   price: "Prix",
   price_min: "Prix min",
   price_max: "Prix max",

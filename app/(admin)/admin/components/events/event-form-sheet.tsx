@@ -187,6 +187,7 @@ function emptyForm(): EventFormData {
     category: "",
     price_min: "",
     price_max: "",
+    is_pay_what_you_want: false,
     capacity: "",
     is_full: false,
     location_id: "",
@@ -714,6 +715,7 @@ export function EventFormSheet({
           derivedPrices.priceMin != null ? String(derivedPrices.priceMin) : "",
         price_max:
           derivedPrices.priceMax != null ? String(derivedPrices.priceMax) : "",
+        is_pay_what_you_want: Boolean(event.is_pay_what_you_want),
         capacity: event.capacity != null ? String(event.capacity) : "",
         is_full: Boolean(event.is_full),
         location_id: event.location_id || "",
@@ -1487,7 +1489,11 @@ export function EventFormSheet({
 
     const normalizedPriceMin = toNullablePrice(formData.price_min);
     const normalizedPriceMax = toNullablePrice(formData.price_max);
-    if (normalizedPriceMin === null && normalizedPriceMax !== null) {
+    if (
+      !formData.is_pay_what_you_want &&
+      normalizedPriceMin === null &&
+      normalizedPriceMax !== null
+    ) {
       toast({
         title: "Prix incomplets",
         description: "Renseigne un prix min avant d’ajouter un prix max.",
@@ -1496,6 +1502,7 @@ export function EventFormSheet({
       return;
     }
     if (
+      !formData.is_pay_what_you_want &&
       normalizedPriceMin !== null &&
       normalizedPriceMax !== null &&
       normalizedPriceMax < normalizedPriceMin
@@ -1558,6 +1565,7 @@ export function EventFormSheet({
       const statusToSave: EventStatus = forceApproved
         ? "approved"
         : formData.status;
+      const isPayWhatYouWant = Boolean(formData.is_pay_what_you_want);
 
       const baseData: any = {
         title: formData.title.trim(),
@@ -1567,14 +1575,17 @@ export function EventFormSheet({
           ? fromDatetimeLocal(formData.end_date) || null
           : null,
         category: formData.category,
-        price: normalizedPriceMin,
-        price_min: normalizedPriceMin,
+        price: isPayWhatYouWant ? null : normalizedPriceMin,
+        price_min: isPayWhatYouWant ? null : normalizedPriceMin,
         price_max:
-          normalizedPriceMax !== null &&
-          normalizedPriceMin !== null &&
-          normalizedPriceMax > normalizedPriceMin
-            ? normalizedPriceMax
-            : null,
+          isPayWhatYouWant
+            ? null
+            : normalizedPriceMax !== null &&
+                normalizedPriceMin !== null &&
+                normalizedPriceMax > normalizedPriceMin
+              ? normalizedPriceMax
+              : null,
+        is_pay_what_you_want: isPayWhatYouWant,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         is_full: Boolean(formData.is_full),
         location_id: normalizeUuid(formData.location_id),
@@ -1827,17 +1838,18 @@ export function EventFormSheet({
     !formData.date ? "Date" : null,
     !formData.category ? "Categorie" : null,
   ].filter((value): value is string => Boolean(value));
-  const priceSummary =
-    formatGenericPriceLabel(
-      {
-        price_min: formData.price_min,
-        price_max: formData.price_max,
-      },
-      {
-        suffix: " EUR",
-        emptyLabel: null,
-      },
-    ) || undefined;
+  const priceSummary = formData.is_pay_what_you_want
+    ? "Prix libre"
+    : (formatGenericPriceLabel(
+        {
+          price_min: formData.price_min,
+          price_max: formData.price_max,
+        },
+        {
+          suffix: " EUR",
+          emptyLabel: null,
+        },
+      ) ?? undefined);
   const hasImageSelected = Boolean(imagePreview || formData.image_url.trim());
   const totalOccurrences =
     1 + additionalTimeSlots.filter((slot) => slot.start.trim()).length;
@@ -2096,6 +2108,28 @@ export function EventFormSheet({
                       </div>
 
                       <div className="space-y-4">
+                        <div className="flex items-start justify-between gap-4 rounded-2xl border border-border/70 bg-muted/20 px-4 py-3">
+                          <div className="space-y-1">
+                            <Label htmlFor="event-price-libre">Prix libre</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Affiche "Prix libre" dans l’app et ignore les montants fixes.
+                            </p>
+                          </div>
+                          <Switch
+                            id="event-price-libre"
+                            checked={formData.is_pay_what_you_want}
+                            onCheckedChange={(checked) =>
+                              setFormData((p) => ({
+                                ...p,
+                                is_pay_what_you_want: checked,
+                                price_min: checked ? "" : p.price_min,
+                                price_max: checked ? "" : p.price_max,
+                              }))
+                            }
+                            disabled={saving || deleting}
+                          />
+                        </div>
+
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="space-y-2">
                             <Label>Prix min</Label>
@@ -2110,7 +2144,16 @@ export function EventFormSheet({
                                   price_min: e.target.value,
                                 }))
                               }
-                              disabled={saving || deleting}
+                              disabled={
+                                saving ||
+                                deleting ||
+                                formData.is_pay_what_you_want
+                              }
+                              placeholder={
+                                formData.is_pay_what_you_want
+                                  ? "Désactivé en prix libre"
+                                  : undefined
+                              }
                               className="h-12 rounded-xl border-border/70 bg-background/90"
                             />
                           </div>
@@ -2127,8 +2170,16 @@ export function EventFormSheet({
                                   price_max: e.target.value,
                                 }))
                               }
-                              placeholder="Optionnel"
-                              disabled={saving || deleting}
+                              placeholder={
+                                formData.is_pay_what_you_want
+                                  ? "Désactivé en prix libre"
+                                  : "Optionnel"
+                              }
+                              disabled={
+                                saving ||
+                                deleting ||
+                                formData.is_pay_what_you_want
+                              }
                               className="h-12 rounded-xl border-border/70 bg-background/90"
                             />
                           </div>

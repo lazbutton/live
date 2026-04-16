@@ -22,6 +22,7 @@ export type MobileAdminEventItem = {
   status: "pending" | "approved" | "rejected";
   category: string | null;
   price: number | null;
+  isPayWhatYouWant: boolean;
   locationId: string | null;
   locationName: string | null;
   locationSummary: string | null;
@@ -78,6 +79,7 @@ type RawMobileEventRow = {
   price: number | null;
   price_min: number | null;
   price_max: number | null;
+  is_pay_what_you_want: boolean | null;
   location_id: string | null;
   address: string | null;
   image_url: string | null;
@@ -112,6 +114,7 @@ const MOBILE_EVENT_SELECT = `
   price,
   price_min,
   price_max,
+  is_pay_what_you_want,
   location_id,
   address,
   image_url,
@@ -197,6 +200,7 @@ function serializeEvent(row: RawMobileEventRow): MobileAdminEventItem {
     status: row.status,
     category: row.category?.trim() || null,
     price: row.price_min ?? row.price,
+    isPayWhatYouWant: Boolean(row.is_pay_what_you_want),
     locationId: row.location_id,
     locationName,
     locationSummary,
@@ -502,6 +506,7 @@ export async function quickEditMobileEvent(
     date?: string;
     locationId?: string | null;
     price?: number | null;
+    isPayWhatYouWant?: boolean;
     externalUrl?: string | null;
     externalUrlLabel?: string | null;
   }
@@ -543,7 +548,19 @@ export async function quickEditMobileEvent(
     updates.location_id = input.locationId;
   }
 
+  if (input.isPayWhatYouWant !== undefined) {
+    updates.is_pay_what_you_want = input.isPayWhatYouWant;
+    if (input.isPayWhatYouWant) {
+      updates.price = null;
+      updates.price_min = null;
+      updates.price_max = null;
+    }
+  }
+
   if (input.price !== undefined) {
+    if (input.isPayWhatYouWant === true) {
+      throw new Error("Impossible de modifier le prix tant que Prix libre est activé");
+    }
     if (input.price !== null) {
       if (!Number.isFinite(input.price) || input.price < 0) {
         throw new Error("Prix invalide");
@@ -551,6 +568,7 @@ export async function quickEditMobileEvent(
       updates.price = input.price;
       updates.price_min = input.price;
       updates.price_max = null;
+      updates.is_pay_what_you_want = false;
     } else {
       updates.price = null;
       updates.price_min = null;

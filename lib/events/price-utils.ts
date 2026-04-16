@@ -6,6 +6,8 @@ export type GenericPriceSource = {
   price_max?: PriceLike;
   presale_price?: PriceLike;
   subscriber_price?: PriceLike;
+  is_pay_what_you_want?: boolean | null | undefined;
+  isPayWhatYouWant?: boolean | null | undefined;
 };
 
 export function toNullablePrice(value: PriceLike): number | null {
@@ -99,6 +101,11 @@ export function formatGenericPriceLabel(
     emptyLabel = null,
     rangeSeparator = " à ",
   } = options ?? {};
+
+  if (source.is_pay_what_you_want === true || source.isPayWhatYouWant === true) {
+    return "Prix libre";
+  }
+
   const { priceMin, priceMax } = deriveGenericPriceRange(source);
 
   if (priceMin === null) {

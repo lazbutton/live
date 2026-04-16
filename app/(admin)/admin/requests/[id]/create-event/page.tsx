@@ -81,6 +81,14 @@ import {
   formatGenericPriceLabel,
   toNullablePrice,
 } from "@/lib/events/price-utils";
+import {
+  isHttpImageUrl,
+  resolveCropSource,
+} from "@/lib/events/remote-image";
+import {
+  extractImportedCategoryLabels,
+  resolveImportedCategory,
+} from "@/lib/events/category-resolution";
 import { PotentialDuplicateAlert } from "@/components/events/potential-duplicate-alert";
 import {
   fetchPotentialDuplicateEvents,
@@ -133,6 +141,7 @@ type RequestEventFormData = Pick<
   | "category"
   | "price_min"
   | "price_max"
+  | "is_pay_what_you_want"
   | "capacity"
   | "location_id"
   | "room_id"
@@ -576,6 +585,7 @@ function CreateEventContent() {
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const autoPrefillTriggeredRef = useRef<string | null>(null);
   const previousImageSignatureRef = useRef<string | null>(null);
+  const [proxyToken, setProxyToken] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -585,6 +595,7 @@ function CreateEventContent() {
     category: "",
     price_min: "",
     price_max: "",
+    is_pay_what_you_want: false,
     capacity: "",
     location_id: "",
     room_id: "",
@@ -602,6 +613,25 @@ function CreateEventContent() {
   >([]);
   const [duplicateCandidatesLoading, setDuplicateCandidatesLoading] =
     useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setProxyToken(data.session?.access_token ?? null);
+    });
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setProxyToken(session?.access_token ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
 
   // Fonction pour charger les salles d'un lieu
   async function loadRoomsForLocation(locationId: string) {
@@ -786,41 +816,6 @@ function CreateEventContent() {
     }
   }
 
-  // Fonction pour trouver une catégorie (ne crée pas de catégorie)
-  async function findCategory(categoryName: string): Promise<string | null> {
-    if (!categoryName || !categoryName.trim()) return null;
-
-    const trimmedName = categoryName.trim();
-    const normalizedName = trimmedName.toLowerCase();
-
-    // Chercher une catégorie existante (active ou inactive) - recherche insensible à la casse
-    const { data: allCategories, error: fetchError } = await supabase
-      .from("categories")
-      .select("id, name");
-
-    if (fetchError) {
-      console.error("Erreur lors de la récupération des catégories:", {
-        message: fetchError.message,
-        details: fetchError.details,
-        hint: fetchError.hint,
-        code: fetchError.code,
-      });
-      return null;
-    }
-
-    // Rechercher une correspondance insensible à la casse
-    const existing = allCategories?.find(
-      (cat) => cat.name.toLowerCase() === normalizedName,
-    );
-
-    if (existing) {
-      return existing.id;
-    }
-
-    // Ne pas créer de catégorie, retourner null si elle n'existe pas
-    return null;
-  }
-
   // Fonction pour trouver ou créer des tags
   async function findOrCreateTags(tagNames: string[]): Promise<string[]> {
     if (!tagNames || tagNames.length === 0) return [];
@@ -977,18 +972,28 @@ function CreateEventContent() {
       fallbackLocationId?: string;
     },
   ) {
-    const fallbackCategoryId =
-      options?.fallbackCategoryId || categories[0]?.id || "";
+    const fallbackCategoryId = options?.fallbackCategoryId || "";
     const fallbackLocationId =
       options?.fallbackLocationId || request?.location_id || "";
-
-    const importedCategory =
-      typeof importedData.category === "string"
-        ? importedData.category.trim()
-        : "";
-    const resolvedCategoryId = importedCategory
-      ? (await findCategory(importedCategory)) || fallbackCategoryId
-      : fallbackCategoryId;
+    const categoryResolution = resolveImportedCategory(
+      categories,
+      extractImportedCategoryLabels({
+        category:
+          typeof importedData.category === "string" ? importedData.category : null,
+        metadata:
+          typeof importedData.metadata === "object" && importedData.metadata != null
+            ? (importedData.metadata as Record<string, unknown>)
+            : undefined,
+      }),
+    );
+    const resolvedCategoryId =
+      categoryResolution.id || formData.category || fallbackCategoryId;
+    setCategoryError(
+      categoryResolution.candidateLabels.length > 0 &&
+              !categoryResolution.matched
+          ? `Catégorie non résolue automatiquement: ${categoryResolution.candidateLabels.join(", ")}`
+          : null,
+    );
 
     const importedTags = Array.isArray(importedData.tags)
       ? importedData.tags
@@ -1074,6 +1079,7 @@ function CreateEventContent() {
     const fallbackCapacity =
       matchedLocation?.capacity != null ? String(matchedLocation.capacity) : "";
     const importedPrices = deriveGenericPriceRange(importedData);
+    const isPayWhatYouWant = importedData.is_pay_what_you_want === true;
 
     setFormData((prev) => ({
       ...prev,
@@ -1090,13 +1096,14 @@ function CreateEventContent() {
       end_date: importedEndDate || prev.end_date,
       category: resolvedCategoryId || prev.category || fallbackCategoryId,
       price_min:
-        importedPrices.priceMin != null
+        !isPayWhatYouWant && importedPrices.priceMin != null
           ? String(importedPrices.priceMin).trim()
           : prev.price_min,
       price_max:
-        importedPrices.priceMax != null
+        !isPayWhatYouWant && importedPrices.priceMax != null
           ? String(importedPrices.priceMax).trim()
           : prev.price_max,
+      is_pay_what_you_want: isPayWhatYouWant || prev.is_pay_what_you_want,
       capacity: importedCapacity || prev.capacity || fallbackCapacity,
       location_id: resolvedLocationId || prev.location_id,
       room_id:
@@ -1362,22 +1369,23 @@ function CreateEventContent() {
           ? toDatetimeLocal(ed.end_date)
           : "";
 
-        // Gérer la catégorie (peut être un nom de catégorie scrapé)
-        let categoryId = "";
-        if (ed.category) {
-          // Si c'est déjà un ID (UUID), l'utiliser directement
-          if (
-            ed.category.match(
-              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-            )
-          ) {
-            categoryId = ed.category;
-          } else {
-            // Sinon, c'est un nom de catégorie, seulement trouver (ne pas créer)
-            const foundCategoryId = await findCategory(ed.category);
-            categoryId = foundCategoryId || "";
-          }
-        }
+        const categoryResolution = resolveImportedCategory(
+          categoriesResult.data || [],
+          extractImportedCategoryLabels({
+            category: ed.category || null,
+            metadata:
+              typeof ed.metadata === "object" && ed.metadata != null
+                ? (ed.metadata as Record<string, unknown>)
+                : undefined,
+          }),
+        );
+        const categoryId = categoryResolution.id || "";
+        setCategoryError(
+          categoryResolution.candidateLabels.length > 0 &&
+                  !categoryResolution.matched
+              ? `Catégorie non résolue automatiquement: ${categoryResolution.candidateLabels.join(", ")}`
+              : null,
+        );
 
         // Gérer les tags (peut être un tableau de noms de tags scrapés)
         if (ed.tags && Array.isArray(ed.tags) && ed.tags.length > 0) {
@@ -1401,6 +1409,7 @@ function CreateEventContent() {
             derivedPrices.priceMax != null
               ? derivedPrices.priceMax.toString()
               : "",
+          is_pay_what_you_want: Boolean(ed.is_pay_what_you_want),
           capacity: ed.capacity != null ? ed.capacity.toString() : "",
           location_id: ed.location_id || "",
           room_id: ed.room_id || "",
@@ -1684,6 +1693,24 @@ function CreateEventContent() {
     }
   }
 
+  function openCropperFromRemoteUrl(rawUrl: string) {
+    if (isHttpImageUrl(rawUrl) && !proxyToken) {
+      alert(
+        "L'image distante est en cours de préparation. Réessaie dans un instant ou remplace-la manuellement.",
+      );
+      return;
+    }
+
+    setOriginalImageSrc(rawUrl);
+    setCropImageSrc(
+      resolveCropSource({
+        source: rawUrl,
+        proxyToken,
+      }),
+    );
+    setShowCropper(true);
+  }
+
   const onCropComplete = useCallback(
     (croppedArea: Area, croppedAreaPixels: Area) => {
       setCroppedAreaPixels(croppedAreaPixels);
@@ -1760,8 +1787,9 @@ function CreateEventContent() {
       );
 
       setImageFile(croppedImageFile);
-      setImagePreview(URL.createObjectURL(croppedImageBlob));
-      // Ne pas effacer originalImageSrc pour pouvoir rogner à nouveau
+      const localPreviewUrl = URL.createObjectURL(croppedImageBlob);
+      setImagePreview(localPreviewUrl);
+      setOriginalImageSrc(localPreviewUrl);
       setShowCropper(false);
       setCropImageSrc(null);
       setCrop({ x: 0, y: 0 });
@@ -1979,12 +2007,17 @@ function CreateEventContent() {
 
       const normalizedPriceMin = toNullablePrice(formData.price_min);
       const normalizedPriceMax = toNullablePrice(formData.price_max);
-      if (normalizedPriceMin === null && normalizedPriceMax !== null) {
+      if (
+        !formData.is_pay_what_you_want &&
+        normalizedPriceMin === null &&
+        normalizedPriceMax !== null
+      ) {
         alert("Renseigne un prix min avant d’ajouter un prix max");
         setSaving(false);
         return;
       }
       if (
+        !formData.is_pay_what_you_want &&
         normalizedPriceMin !== null &&
         normalizedPriceMax !== null &&
         normalizedPriceMax < normalizedPriceMin
@@ -2015,6 +2048,7 @@ function CreateEventContent() {
         formData.location_id && formData.location_id !== "none"
           ? locations.find((loc) => loc.id === formData.location_id)
           : null;
+      const isPayWhatYouWant = Boolean(formData.is_pay_what_you_want);
 
       // Create event
       const eventData: any = {
@@ -2025,14 +2059,17 @@ function CreateEventContent() {
           ? fromDatetimeLocal(formData.end_date)
           : null,
         category: formData.category,
-        price: normalizedPriceMin,
-        price_min: normalizedPriceMin,
+        price: isPayWhatYouWant ? null : normalizedPriceMin,
+        price_min: isPayWhatYouWant ? null : normalizedPriceMin,
         price_max:
-          normalizedPriceMax !== null &&
-          normalizedPriceMin !== null &&
-          normalizedPriceMax > normalizedPriceMin
-            ? normalizedPriceMax
-            : null,
+          isPayWhatYouWant
+            ? null
+            : normalizedPriceMax !== null &&
+                normalizedPriceMin !== null &&
+                normalizedPriceMax > normalizedPriceMin
+              ? normalizedPriceMax
+              : null,
+        is_pay_what_you_want: isPayWhatYouWant,
         address: selectedLocation?.address || null,
         latitude: selectedLocation?.latitude || null,
         longitude: selectedLocation?.longitude || null,
@@ -2804,6 +2841,33 @@ function CreateEventContent() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="flex items-start justify-between gap-4 rounded-lg border bg-muted/20 px-4 py-3">
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="request-event-price-libre"
+                        className="flex items-center gap-2"
+                      >
+                        <Euro className="h-4 w-4" />
+                        Prix libre
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Affiche "Prix libre" sur l’app et vide les montants fixes.
+                      </p>
+                    </div>
+                    <Switch
+                      id="request-event-price-libre"
+                      checked={formData.is_pay_what_you_want}
+                      onCheckedChange={(checked) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          is_pay_what_you_want: checked,
+                          price_min: checked ? "" : prev.price_min,
+                          price_max: checked ? "" : prev.price_max,
+                        }))
+                      }
+                    />
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label
@@ -2825,7 +2889,12 @@ function CreateEventContent() {
                             price_min: e.target.value,
                           }))
                         }
-                        placeholder="0.00"
+                        placeholder={
+                          formData.is_pay_what_you_want
+                            ? "Désactivé en prix libre"
+                            : "0.00"
+                        }
+                        disabled={formData.is_pay_what_you_want}
                         className="cursor-pointer"
                       />
                     </div>
@@ -2850,7 +2919,12 @@ function CreateEventContent() {
                             price_max: e.target.value,
                           }))
                         }
-                        placeholder="Optionnel"
+                        placeholder={
+                          formData.is_pay_what_you_want
+                            ? "Désactivé en prix libre"
+                            : "Optionnel"
+                        }
+                        disabled={formData.is_pay_what_you_want}
                         className="cursor-pointer"
                       />
                     </div>
@@ -3275,10 +3349,18 @@ function CreateEventContent() {
                         alt="Aperçu"
                         className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                         onClick={() => {
-                          // Utiliser l'image originale si disponible, sinon utiliser le preview
-                          if (originalImageSrc) {
-                            setCropImageSrc(originalImageSrc);
+                          if (imageFile) {
+                            const localPreviewUrl = URL.createObjectURL(imageFile);
+                            setOriginalImageSrc(localPreviewUrl);
+                            setCropImageSrc(localPreviewUrl);
                             setShowCropper(true);
+                          } else if (originalImageSrc) {
+                            if (isHttpImageUrl(originalImageSrc)) {
+                              openCropperFromRemoteUrl(originalImageSrc);
+                            } else {
+                              setCropImageSrc(originalImageSrc);
+                              setShowCropper(true);
+                            }
                           } else if (imageFile) {
                             // Fallback: relire le fichier si pas d'originale conservée
                             const reader = new FileReader();
@@ -3290,10 +3372,13 @@ function CreateEventContent() {
                             };
                             reader.readAsDataURL(imageFile);
                           } else if (imagePreview) {
-                            // Si c'est une URL, on l'utilise directement
-                            setOriginalImageSrc(imagePreview); // Conserver l'URL
-                            setCropImageSrc(imagePreview);
-                            setShowCropper(true);
+                            if (isHttpImageUrl(imagePreview)) {
+                              openCropperFromRemoteUrl(imagePreview);
+                            } else {
+                              setOriginalImageSrc(imagePreview);
+                              setCropImageSrc(imagePreview);
+                              setShowCropper(true);
+                            }
                           }
                         }}
                       />
@@ -3360,6 +3445,12 @@ function CreateEventContent() {
                             setOriginalImageSrc(e.target.value); // Conserver l'URL originale
                             setImageFile(null);
                           }
+                        }}
+                        onBlur={(e) => {
+                          const nextUrl = e.target.value.trim();
+                          if (!nextUrl) return;
+                          setImagePreview(nextUrl);
+                          setOriginalImageSrc(nextUrl);
                         }}
                         placeholder="https://..."
                         disabled={!!imageFile}

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { compressImage } from "@/lib/image-compression";
+import { buildAdminProxyImageUrl, isHttpImageUrl } from "@/lib/events/remote-image";
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -67,16 +68,6 @@ async function createCroppedImage(imageSrc: string, pixelCrop: Area): Promise<Bl
   });
 }
 
-function isHttpUrl(url: string) {
-  return /^https?:\/\//i.test(url);
-}
-
-function toProxyImageUrl(url: string, token: string | null) {
-  const base = `/api/admin/images/proxy?url=${encodeURIComponent(url)}`;
-  if (!token) return base;
-  return `${base}&token=${encodeURIComponent(token)}&_cb=${Date.now()}`;
-}
-
 export function EventImageUpload({
   currentImageUrl,
   onImageChange,
@@ -127,7 +118,7 @@ export function EventImageUpload({
   }, []);
 
   function openCropperFromUrl(rawUrl: string) {
-    if (isHttpUrl(rawUrl) && !proxyToken) {
+    if (isHttpImageUrl(rawUrl) && !proxyToken) {
       toast({
         title: "Préparation de l'image",
         description: "Réessaie dans un instant.",
@@ -136,7 +127,9 @@ export function EventImageUpload({
       return;
     }
 
-    const nextCropSrc = isHttpUrl(rawUrl) ? toProxyImageUrl(rawUrl, proxyToken) : rawUrl;
+    const nextCropSrc = isHttpImageUrl(rawUrl)
+      ? buildAdminProxyImageUrl(rawUrl, proxyToken)
+      : rawUrl;
     setCropImageSrc(nextCropSrc);
     setShowCropper(true);
   }

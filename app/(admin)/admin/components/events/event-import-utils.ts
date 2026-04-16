@@ -1,4 +1,8 @@
 import { toDatetimeLocal } from "@/lib/date-utils";
+import {
+  extractImportedCategoryLabels,
+  resolveImportedCategory,
+} from "@/lib/events/category-resolution";
 import { deriveGenericPriceRange } from "@/lib/events/price-utils";
 import {
   type ImportedEventPayload,
@@ -26,11 +30,6 @@ type BuildEventPrefillFromImportArgs = {
   defaultStatus?: EventStatus;
 };
 
-type ResolveCategoryResult = {
-  id: string;
-  matched: boolean;
-};
-
 function normalizeSearchValue(value: string) {
   return value
     .normalize("NFD")
@@ -38,43 +37,6 @@ function normalizeSearchValue(value: string) {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function resolveCategoryId(
-  categories: CategoryOption[],
-  rawCategory?: string | null,
-): ResolveCategoryResult {
-  const raw = (rawCategory || "").trim();
-  if (!raw) {
-    return { id: "", matched: false };
-  }
-
-  const byId = categories.find((category) => category.id === raw);
-  if (byId) {
-    return { id: byId.id, matched: true };
-  }
-
-  const normalizedRaw = normalizeSearchValue(raw);
-
-  const byExactName = categories.find(
-    (category) => normalizeSearchValue(category.name) === normalizedRaw,
-  );
-  if (byExactName) {
-    return { id: byExactName.id, matched: true };
-  }
-
-  const byPartialName = categories.find((category) => {
-    const normalizedName = normalizeSearchValue(category.name);
-    return (
-      normalizedName.includes(normalizedRaw) ||
-      normalizedRaw.includes(normalizedName)
-    );
-  });
-  if (byPartialName) {
-    return { id: byPartialName.id, matched: true };
-  }
-
-  return { id: "", matched: false };
 }
 
 function resolveLocationFromImportedData(
@@ -290,9 +252,19 @@ export async function buildEventFormPrefillFromImport({
     pushOrganizerId(matchedOrganizer.id);
   }
 
-  const resolvedCategory = resolveCategoryId(categories, data.category);
+  const resolvedCategory = resolveImportedCategory(
+    categories,
+    extractImportedCategoryLabels({
+      category: typeof data.category === "string" ? data.category : null,
+      metadata:
+        typeof data.metadata === "object" && data.metadata != null
+          ? (data.metadata as Record<string, unknown>)
+          : undefined,
+    }),
+  );
 
   const warnings: ImportedEventWarning[] = [];
+  const importedCategoryLabels = resolvedCategory.candidateLabels;
 
   if (
     (data.location || data.address) &&
@@ -320,16 +292,16 @@ export async function buildEventFormPrefillFromImport({
     });
   }
 
-  if (data.category && !resolvedCategory.matched) {
+  if (importedCategoryLabels.length > 0 && !resolvedCategory.matched) {
     warnings.push({
       field: "category",
       message: "Categorie detectee mais non rapprochee automatiquement.",
-      value:
-        typeof data.category === "string" ? data.category.trim() : undefined,
+      value: importedCategoryLabels.join(", "),
     });
   }
 
   const derivedPrices = deriveGenericPriceRange(data);
+  const isPayWhatYouWant = data.is_pay_what_you_want === true;
   const prefill: EventFormPrefill = {
     form: {
       title: (data.title || "").toString(),
@@ -338,9 +310,14 @@ export async function buildEventFormPrefillFromImport({
       end_date: data.end_date ? toDatetimeLocal(String(data.end_date)) : "",
       category: resolvedCategory.id,
       price_min:
-        derivedPrices.priceMin != null ? String(derivedPrices.priceMin) : "",
+        !isPayWhatYouWant && derivedPrices.priceMin != null
+          ? String(derivedPrices.priceMin)
+          : "",
       price_max:
-        derivedPrices.priceMax != null ? String(derivedPrices.priceMax) : "",
+        !isPayWhatYouWant && derivedPrices.priceMax != null
+          ? String(derivedPrices.priceMax)
+          : "",
+      is_pay_what_you_want: isPayWhatYouWant,
       capacity:
         data.capacity != null
           ? String(data.capacity)

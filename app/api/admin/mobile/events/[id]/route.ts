@@ -89,6 +89,10 @@ export async function PATCH(
               : body.price === null
                 ? null
                 : undefined,
+          isPayWhatYouWant:
+            typeof body.isPayWhatYouWant === "boolean"
+              ? body.isPayWhatYouWant
+              : undefined,
         });
         break;
       default:

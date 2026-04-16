@@ -13,6 +13,7 @@ export type AdminEvent = {
   price: number | null;
   price_min: number | null;
   price_max: number | null;
+  is_pay_what_you_want: boolean;
   address: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -95,6 +96,7 @@ export type EventFormData = {
   category: string;
   price_min: string;
   price_max: string;
+  is_pay_what_you_want: boolean;
   capacity: string;
   is_full: boolean;
   location_id: string;
