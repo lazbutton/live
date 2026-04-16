@@ -76,6 +76,16 @@ import {
   fromDatetimeLocal,
 } from "@/lib/date-utils";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import {
+  deriveGenericPriceRange,
+  formatGenericPriceLabel,
+  toNullablePrice,
+} from "@/lib/events/price-utils";
+import { PotentialDuplicateAlert } from "@/components/events/potential-duplicate-alert";
+import {
+  fetchPotentialDuplicateEvents,
+  type PotentialDuplicateEvent,
+} from "@/lib/events/potential-duplicates";
 import { checkIsAdmin } from "@/lib/auth";
 import { isFacebookEventUrl } from "@/lib/facebook/event-url";
 import {
@@ -121,9 +131,8 @@ type RequestEventFormData = Pick<
   | "date"
   | "end_date"
   | "category"
-  | "price"
-  | "presale_price"
-  | "subscriber_price"
+  | "price_min"
+  | "price_max"
   | "capacity"
   | "location_id"
   | "room_id"
@@ -574,9 +583,8 @@ function CreateEventContent() {
     date: "",
     end_date: "",
     category: "",
-    price: "",
-    presale_price: "",
-    subscriber_price: "",
+    price_min: "",
+    price_max: "",
     capacity: "",
     location_id: "",
     room_id: "",
@@ -589,6 +597,11 @@ function CreateEventContent() {
     image_url: "",
     is_full: false,
   });
+  const [duplicateCandidates, setDuplicateCandidates] = useState<
+    PotentialDuplicateEvent[]
+  >([]);
+  const [duplicateCandidatesLoading, setDuplicateCandidatesLoading] =
+    useState(false);
 
   // Fonction pour charger les salles d'un lieu
   async function loadRoomsForLocation(locationId: string) {
@@ -1060,6 +1073,7 @@ function CreateEventContent() {
         : "";
     const fallbackCapacity =
       matchedLocation?.capacity != null ? String(matchedLocation.capacity) : "";
+    const importedPrices = deriveGenericPriceRange(importedData);
 
     setFormData((prev) => ({
       ...prev,
@@ -1075,20 +1089,14 @@ function CreateEventContent() {
       date: importedDate || prev.date,
       end_date: importedEndDate || prev.end_date,
       category: resolvedCategoryId || prev.category || fallbackCategoryId,
-      price:
-        importedData.price != null && String(importedData.price).trim()
-          ? String(importedData.price).trim()
-          : prev.price,
-      presale_price:
-        importedData.presale_price != null &&
-        String(importedData.presale_price).trim()
-          ? String(importedData.presale_price).trim()
-          : prev.presale_price,
-      subscriber_price:
-        importedData.subscriber_price != null &&
-        String(importedData.subscriber_price).trim()
-          ? String(importedData.subscriber_price).trim()
-          : prev.subscriber_price,
+      price_min:
+        importedPrices.priceMin != null
+          ? String(importedPrices.priceMin).trim()
+          : prev.price_min,
+      price_max:
+        importedPrices.priceMax != null
+          ? String(importedPrices.priceMax).trim()
+          : prev.price_max,
       capacity: importedCapacity || prev.capacity || fallbackCapacity,
       location_id: resolvedLocationId || prev.location_id,
       room_id:
@@ -1224,6 +1232,51 @@ function CreateEventContent() {
   }, [formData.location_id]);
 
   useEffect(() => {
+    const locationId = formData.location_id.trim();
+    const startValue = formData.date;
+    const endValue = formData.end_date;
+
+    if (!locationId || locationId === "none" || !startValue) {
+      setDuplicateCandidates([]);
+      setDuplicateCandidatesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setDuplicateCandidatesLoading(true);
+
+    void fetchPotentialDuplicateEvents({
+      supabase,
+      locationId,
+      startValue,
+      endValue,
+    })
+      .then((duplicates) => {
+        if (!cancelled) {
+          setDuplicateCandidates(duplicates);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error(
+            "Erreur lors de la vérification des doublons potentiels:",
+            error,
+          );
+          setDuplicateCandidates([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setDuplicateCandidatesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.date, formData.end_date, formData.location_id]);
+
+  useEffect(() => {
     loadData();
   }, [requestId]);
 
@@ -1332,17 +1385,22 @@ function CreateEventContent() {
           setSelectedTagIds(tagIds);
         }
 
+        const derivedPrices = deriveGenericPriceRange(ed);
+
         setFormData({
           title: ed.title || "",
           description: ed.description || "",
           date: formattedDate,
           end_date: formattedEndDate,
           category: categoryId,
-          price: ed.price != null ? ed.price.toString() : "",
-          presale_price:
-            ed.presale_price != null ? ed.presale_price.toString() : "",
-          subscriber_price:
-            ed.subscriber_price != null ? ed.subscriber_price.toString() : "",
+          price_min:
+            derivedPrices.priceMin != null
+              ? derivedPrices.priceMin.toString()
+              : "",
+          price_max:
+            derivedPrices.priceMax != null
+              ? derivedPrices.priceMax.toString()
+              : "",
           capacity: ed.capacity != null ? ed.capacity.toString() : "",
           location_id: ed.location_id || "",
           room_id: ed.room_id || "",
@@ -1919,6 +1977,23 @@ function CreateEventContent() {
         }
       }
 
+      const normalizedPriceMin = toNullablePrice(formData.price_min);
+      const normalizedPriceMax = toNullablePrice(formData.price_max);
+      if (normalizedPriceMin === null && normalizedPriceMax !== null) {
+        alert("Renseigne un prix min avant d’ajouter un prix max");
+        setSaving(false);
+        return;
+      }
+      if (
+        normalizedPriceMin !== null &&
+        normalizedPriceMax !== null &&
+        normalizedPriceMax < normalizedPriceMin
+      ) {
+        alert("Le prix max doit être supérieur ou égal au prix min");
+        setSaving(false);
+        return;
+      }
+
       let finalImageUrl = formData.image_url;
 
       if (imageFile) {
@@ -1950,13 +2025,14 @@ function CreateEventContent() {
           ? fromDatetimeLocal(formData.end_date)
           : null,
         category: formData.category,
-        price: formData.price ? parseFloat(formData.price) : null,
-        presale_price: formData.presale_price
-          ? parseFloat(formData.presale_price)
-          : null,
-        subscriber_price: formData.subscriber_price
-          ? parseFloat(formData.subscriber_price)
-          : null,
+        price: normalizedPriceMin,
+        price_min: normalizedPriceMin,
+        price_max:
+          normalizedPriceMax !== null &&
+          normalizedPriceMin !== null &&
+          normalizedPriceMax > normalizedPriceMin
+            ? normalizedPriceMax
+            : null,
         address: selectedLocation?.address || null,
         latitude: selectedLocation?.latitude || null,
         longitude: selectedLocation?.longitude || null,
@@ -2330,6 +2406,11 @@ function CreateEventContent() {
 
         {/* Main form */}
         <form onSubmit={handleSubmit} className="space-y-6">
+          <PotentialDuplicateAlert
+            duplicates={duplicateCandidates}
+            loading={duplicateCandidatesLoading}
+          />
+
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Left column - Main info */}
             <div className="lg:col-span-2 space-y-6">
@@ -2364,29 +2445,19 @@ function CreateEventContent() {
                         <Tag className="h-4 w-4" />
                         Catégorie *
                       </Label>
-                      <Select
+                      <SelectSearchable
+                        options={categories.map((cat) => ({
+                          value: cat.id,
+                          label: cat.name,
+                        }))}
                         value={formData.category}
                         onValueChange={(value) => {
                           setFormData({ ...formData, category: value });
                           setCategoryError(null);
                         }}
-                        required
-                      >
-                        <SelectTrigger className="cursor-pointer">
-                          <SelectValue placeholder="Sélectionner une catégorie" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map((cat) => (
-                            <SelectItem
-                              key={cat.id}
-                              value={cat.id}
-                              className="cursor-pointer"
-                            >
-                              {cat.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        placeholder="Sélectionner une catégorie"
+                        searchPlaceholder="Rechercher une catégorie..."
+                      />
                       {categoryError && (
                         <p className="text-sm text-destructive">
                           {categoryError}
@@ -2736,21 +2807,22 @@ function CreateEventContent() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label
-                        htmlFor="price"
+                        htmlFor="price_min"
                         className="flex items-center gap-2"
                       >
                         <Euro className="h-4 w-4" />
-                        Prix (€)
+                        Prix min (€)
                       </Label>
                       <Input
-                        id="price"
+                        id="price_min"
                         type="number"
+                        min="0"
                         step="0.01"
-                        value={formData.price}
+                        value={formData.price_min}
                         onChange={(e) =>
                           setFormData((prev) => ({
                             ...prev,
-                            price: e.target.value,
+                            price_min: e.target.value,
                           }))
                         }
                         placeholder="0.00"
@@ -2760,45 +2832,22 @@ function CreateEventContent() {
 
                     <div className="space-y-2">
                       <Label
-                        htmlFor="presale_price"
+                        htmlFor="price_max"
                         className="flex items-center gap-2"
                       >
                         <Euro className="h-4 w-4" />
-                        Tarif prévente (€)
+                        Prix max (€)
                       </Label>
                       <Input
-                        id="presale_price"
+                        id="price_max"
                         type="number"
+                        min="0"
                         step="0.01"
-                        value={formData.presale_price}
+                        value={formData.price_max}
                         onChange={(e) =>
                           setFormData((prev) => ({
                             ...prev,
-                            presale_price: e.target.value,
-                          }))
-                        }
-                        placeholder="Optionnel"
-                        className="cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="subscriber_price"
-                        className="flex items-center gap-2"
-                      >
-                        <Euro className="h-4 w-4" />
-                        Tarif abonné (€)
-                      </Label>
-                      <Input
-                        id="subscriber_price"
-                        type="number"
-                        step="0.01"
-                        value={formData.subscriber_price}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            subscriber_price: e.target.value,
+                            price_max: e.target.value,
                           }))
                         }
                         placeholder="Optionnel"
@@ -3151,13 +3200,13 @@ function CreateEventContent() {
                           </span>
                         </div>
                       )}
-                      {request.event_data.price != null && (
+                      {formatGenericPriceLabel(request.event_data) != null && (
                         <div className="flex items-start gap-2">
                           <Euro className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
                           <span className="font-medium text-muted-foreground min-w-[80px]">
                             Prix:
                           </span>
-                          <span>{request.event_data.price}€</span>
+                          <span>{formatGenericPriceLabel(request.event_data)}</span>
                         </div>
                       )}
                       {request.event_data.address && (

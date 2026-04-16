@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { CheckCircle2, MapPin, Star } from "lucide-react";
-import { format } from "date-fns";
+import { format, isSameDay } from "date-fns";
+import { fr } from "date-fns/locale";
 
 import { cn } from "@/lib/utils";
 import { parseDateWithoutTimezone } from "@/lib/date-utils";
@@ -14,6 +15,7 @@ export type EventCardProps = {
   onQuickApprove?: () => Promise<void>;
   onContextMenu?: (event: React.MouseEvent<HTMLDivElement>) => void;
   compact?: boolean;
+  showDateHeader?: boolean;
 };
 
 function hashToIndex(input: string, modulo: number) {
@@ -49,8 +51,13 @@ export function EventCard({
   onQuickApprove,
   onContextMenu,
   compact = false,
+  showDateHeader = false,
 }: EventCardProps) {
   const dt = React.useMemo(() => parseDateWithoutTimezone(event.date), [event.date]);
+  const endDt = React.useMemo(
+    () => parseDateWithoutTimezone(event.end_date),
+    [event.end_date],
+  );
   const timeLabel = React.useMemo(() => {
     try {
       return dt ? format(dt, "HH:mm") : "";
@@ -58,6 +65,21 @@ export function EventCard({
       return "";
     }
   }, [dt]);
+  const dateHeaderLabel = React.useMemo(() => {
+    try {
+      if (!dt) return "";
+      if (endDt && !isSameDay(dt, endDt)) {
+        return `${format(dt, "EEE d MMM", { locale: fr })} → ${format(
+          endDt,
+          "EEE d MMM",
+          { locale: fr },
+        )}`;
+      }
+      return format(dt, "EEE d MMM", { locale: fr });
+    } catch {
+      return "";
+    }
+  }, [dt, endDt]);
 
   const locationName = event.location?.name || event.event_organizers?.[0]?.location?.name || null;
   const linkedMajorEventTitle = event.major_event_events?.[0]?.major_event?.title || null;
@@ -125,6 +147,32 @@ export function EventCard({
           <div className="min-w-0 flex-1">
             <div className={cn("flex items-start justify-between gap-2")}>
               <div className="min-w-0">
+                {showDateHeader && dateHeaderLabel ? (
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+                        hasImage
+                          ? "border-white/20 bg-black/25 text-white"
+                          : "border-border/70 bg-background/80 text-foreground",
+                      )}
+                    >
+                      {dateHeaderLabel}
+                    </span>
+                    {timeLabel ? (
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-medium tabular-nums",
+                          hasImage
+                            ? "border-white/15 bg-black/20 text-white/90"
+                            : "border-border/60 bg-muted/60 text-muted-foreground",
+                        )}
+                      >
+                        {timeLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div
                   className={cn(
                     "font-semibold leading-snug line-clamp-2",
@@ -165,10 +213,14 @@ export function EventCard({
                     hasImage ? "text-white/80" : "text-muted-foreground",
                   )}
                 >
-                  {timeLabel ? <span className="tabular-nums">{timeLabel}</span> : null}
+                  {!showDateHeader && timeLabel ? (
+                    <span className="tabular-nums">{timeLabel}</span>
+                  ) : null}
                   {locationName ? (
                     <>
-                      <span className="opacity-60">•</span>
+                      {!showDateHeader && timeLabel ? (
+                        <span className="opacity-60">•</span>
+                      ) : null}
                       <span className="min-w-0 truncate inline-flex items-center gap-1">
                         <MapPin className="h-3.5 w-3.5 opacity-80" />
                         <span className="truncate">{locationName}</span>

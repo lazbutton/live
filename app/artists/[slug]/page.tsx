@@ -76,8 +76,8 @@ type RawArtistEventRow = {
   end_date: string | null;
   category: string | null;
   price: number | string | null;
-  presale_price: number | string | null;
-  subscriber_price: number | string | null;
+  price_min: number | string | null;
+  price_max: number | string | null;
   image_url: string | null;
   external_url: string | null;
   external_url_label: string | null;
@@ -195,18 +195,22 @@ function getEventEndMs(dateIso: string, endDateIso: string | null) {
 function formatPriceLabel(event: RawArtistEventRow) {
   if (event.is_full) return "Complet";
 
-  const candidates = [
-    toNumberOrNull(event.subscriber_price),
-    toNumberOrNull(event.presale_price),
-    toNumberOrNull(event.price),
-  ].filter((value): value is number => value !== null && value >= 0);
+  const priceMin = toNumberOrNull(event.price_min) ?? toNumberOrNull(event.price);
+  const priceMax = toNumberOrNull(event.price_max);
 
-  if (candidates.length === 0) return "Gratuit";
+  if (priceMin == null || priceMin == 0) return "Gratuit";
 
-  const minPrice = Math.min(...candidates);
-  if (minPrice === 0) return "Gratuit";
+  if (priceMax != null && priceMax > priceMin) {
+    return `${priceMin.toLocaleString("fr-FR", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })} à ${priceMax.toLocaleString("fr-FR", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })} EUR`;
+  }
 
-  return `Des ${minPrice.toLocaleString("fr-FR", {
+  return `${priceMin.toLocaleString("fr-FR", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   })} EUR`;
@@ -367,8 +371,8 @@ const getArtistPageData = cache(async (slug: string): Promise<ArtistPageData | n
         end_date,
         category,
         price,
-        presale_price,
-        subscriber_price,
+        price_min,
+        price_max,
         image_url,
         external_url,
         external_url_label,

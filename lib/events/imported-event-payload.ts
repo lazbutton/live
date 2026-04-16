@@ -5,8 +5,8 @@ export type ImportedEventPayload = {
   end_date?: string;
   category?: string;
   price?: string | number;
-  presale_price?: string | number;
-  subscriber_price?: string | number;
+  price_min?: string | number;
+  price_max?: string | number;
   capacity?: string | number;
   door_opening_time?: string;
   external_url?: string;
@@ -47,8 +47,8 @@ export const IMPORTED_EVENT_FIELD_LABELS: Partial<
   end_date: "Date de fin",
   category: "Catégorie",
   price: "Prix",
-  presale_price: "Prévente",
-  subscriber_price: "Abonné",
+  price_min: "Prix min",
+  price_max: "Prix max",
   capacity: "Capacité",
   door_opening_time: "Ouverture des portes",
   external_url: "URL externe",

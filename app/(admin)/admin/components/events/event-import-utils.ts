@@ -1,4 +1,5 @@
 import { toDatetimeLocal } from "@/lib/date-utils";
+import { deriveGenericPriceRange } from "@/lib/events/price-utils";
 import {
   type ImportedEventPayload,
   type ImportedEventWarning,
@@ -328,6 +329,7 @@ export async function buildEventFormPrefillFromImport({
     });
   }
 
+  const derivedPrices = deriveGenericPriceRange(data);
   const prefill: EventFormPrefill = {
     form: {
       title: (data.title || "").toString(),
@@ -335,11 +337,10 @@ export async function buildEventFormPrefillFromImport({
       date: data.date ? toDatetimeLocal(String(data.date)) : "",
       end_date: data.end_date ? toDatetimeLocal(String(data.end_date)) : "",
       category: resolvedCategory.id,
-      price: data.price != null ? String(data.price) : "",
-      presale_price:
-        data.presale_price != null ? String(data.presale_price) : "",
-      subscriber_price:
-        data.subscriber_price != null ? String(data.subscriber_price) : "",
+      price_min:
+        derivedPrices.priceMin != null ? String(derivedPrices.priceMin) : "",
+      price_max:
+        derivedPrices.priceMax != null ? String(derivedPrices.priceMax) : "",
       capacity:
         data.capacity != null
           ? String(data.capacity)

@@ -1,7 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { CircleAlert, Loader2, Sparkles, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  CircleAlert,
+  ExternalLink,
+  ImageIcon,
+  Link2,
+  Loader2,
+  Music4,
+  Settings2,
+  Sparkles,
+  Ticket,
+  Trash2,
+} from "lucide-react";
 
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -17,6 +29,7 @@ import {
 } from "@/lib/events/imported-event-payload";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -51,6 +64,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { EventFormOverviewCard } from "@/components/events/event-form-overview-card";
+import { PotentialDuplicateAlert } from "@/components/events/potential-duplicate-alert";
+import {
+  deriveGenericPriceRange,
+  formatGenericPriceLabel,
+  toNullablePrice,
+} from "@/lib/events/price-utils";
+import {
+  fetchPotentialDuplicateEvents,
+  type PotentialDuplicateEvent,
+} from "@/lib/events/potential-duplicates";
 
 import { EventImageUpload } from "./event-image-upload";
 import type {
@@ -140,6 +163,21 @@ function isBeforeToday(dateValue: string) {
   return parsed.getTime() < today.getTime();
 }
 
+function getOpenableExternalUrl(value: string | null | undefined) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return null;
+
+  const withProtocol = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+
+  try {
+    return new URL(withProtocol).toString();
+  } catch {
+    return null;
+  }
+}
+
 function emptyForm(): EventFormData {
   return {
     title: "",
@@ -147,9 +185,8 @@ function emptyForm(): EventFormData {
     date: "",
     end_date: "",
     category: "",
-    price: "",
-    presale_price: "",
-    subscriber_price: "",
+    price_min: "",
+    price_max: "",
     capacity: "",
     is_full: false,
     location_id: "",
@@ -431,9 +468,9 @@ function StatusPicker({
   disabled?: boolean;
 }) {
   const items: Array<{ value: EventStatus; label: string; dot: string }> = [
-    { value: "pending", label: "Pending", dot: "bg-amber-500" },
-    { value: "approved", label: "Approved", dot: "bg-emerald-500" },
-    { value: "rejected", label: "Rejected", dot: "bg-red-500" },
+    { value: "pending", label: "En attente", dot: "bg-amber-500" },
+    { value: "approved", label: "Approuvé", dot: "bg-emerald-500" },
+    { value: "rejected", label: "Refusé", dot: "bg-red-500" },
   ];
 
   return (
@@ -447,7 +484,12 @@ function StatusPicker({
             variant={active ? "default" : "outline"}
             size="sm"
             disabled={disabled}
-            className={cn("h-10 gap-2", !active && "bg-background")}
+            className={cn(
+              "h-10 gap-2 rounded-xl px-4 transition-all",
+              active
+                ? "shadow-sm"
+                : "border-border/70 bg-background/80 hover:bg-muted/60",
+            )}
             onClick={() => onChange(it.value)}
           >
             <span className={cn("h-2.5 w-2.5 rounded-full", it.dot)} />
@@ -455,6 +497,85 @@ function StatusPicker({
           </Button>
         );
       })}
+    </div>
+  );
+}
+
+type FormSectionProps = {
+  icon: React.ReactNode;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  className?: string;
+  contentClassName?: string;
+};
+
+function FormSection({
+  icon,
+  title,
+  description,
+  children,
+  className,
+  contentClassName,
+}: FormSectionProps) {
+  return (
+    <Card
+      className={cn(
+        "overflow-hidden border-border/70 bg-gradient-to-br from-background via-background to-muted/25 shadow-sm",
+        className,
+      )}
+    >
+      <div className="border-b border-border/60 bg-muted/30 px-5 py-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-primary/10 text-primary shadow-sm">
+            {icon}
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold tracking-tight text-foreground">
+              {title}
+            </div>
+            {description ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {description}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className={cn("space-y-4 p-5", contentClassName)}>{children}</div>
+    </Card>
+  );
+}
+
+type SettingToggleProps = {
+  label: string;
+  description: string;
+  checked: boolean;
+  onCheckedChange: (value: boolean) => void;
+  disabled?: boolean;
+};
+
+function SettingToggle({
+  label,
+  description,
+  checked,
+  onCheckedChange,
+  disabled,
+}: SettingToggleProps) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-2xl border border-border/70 bg-background/80 px-4 py-3 shadow-sm">
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-foreground">{label}</div>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      </div>
+      <Switch
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        disabled={disabled}
+      />
     </div>
   );
 }
@@ -556,6 +677,11 @@ export function EventFormSheet({
 
   const [saving, setSaving] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const [duplicateCandidates, setDuplicateCandidates] = React.useState<
+    PotentialDuplicateEvent[]
+  >([]);
+  const [duplicateCandidatesLoading, setDuplicateCandidatesLoading] =
+    React.useState(false);
   const previousImageSignatureRef = React.useRef<string | null>(null);
 
   const isEdit = Boolean(event && event.id);
@@ -577,17 +703,17 @@ export function EventFormSheet({
     setAdditionalTimeSlots([]);
 
     if (event) {
+      const derivedPrices = deriveGenericPriceRange(event);
       setFormData({
         title: event.title || "",
         description: event.description || "",
         date: toDatetimeLocal(event.date),
         end_date: event.end_date ? toDatetimeLocal(event.end_date) : "",
         category: event.category || "",
-        price: event.price != null ? String(event.price) : "",
-        presale_price:
-          event.presale_price != null ? String(event.presale_price) : "",
-        subscriber_price:
-          event.subscriber_price != null ? String(event.subscriber_price) : "",
+        price_min:
+          derivedPrices.priceMin != null ? String(derivedPrices.priceMin) : "",
+        price_max:
+          derivedPrices.priceMax != null ? String(derivedPrices.priceMax) : "",
         capacity: event.capacity != null ? String(event.capacity) : "",
         is_full: Boolean(event.is_full),
         location_id: event.location_id || "",
@@ -647,6 +773,54 @@ export function EventFormSheet({
     setImagePreview(merged.image_url ? merged.image_url : null);
     setShowEndDate(Boolean(merged.end_date));
   }, [defaultDate, event, open, prefill]);
+
+  React.useEffect(() => {
+    if (!open) return;
+
+    const locationId = formData.location_id.trim();
+    const startValue = formData.date;
+    const endValue = formData.end_date;
+
+    if (!locationId || locationId === "none" || !startValue) {
+      setDuplicateCandidates([]);
+      setDuplicateCandidatesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setDuplicateCandidatesLoading(true);
+
+    void fetchPotentialDuplicateEvents({
+      supabase,
+      locationId,
+      startValue,
+      endValue,
+      excludeEventId: event?.id,
+    })
+      .then((duplicates) => {
+        if (!cancelled) {
+          setDuplicateCandidates(duplicates);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error(
+            "Erreur lors de la vérification des doublons potentiels:",
+            error,
+          );
+          setDuplicateCandidates([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setDuplicateCandidatesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [event?.id, formData.date, formData.end_date, formData.location_id, open]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -1311,6 +1485,29 @@ export function EventFormSheet({
       return;
     }
 
+    const normalizedPriceMin = toNullablePrice(formData.price_min);
+    const normalizedPriceMax = toNullablePrice(formData.price_max);
+    if (normalizedPriceMin === null && normalizedPriceMax !== null) {
+      toast({
+        title: "Prix incomplets",
+        description: "Renseigne un prix min avant d’ajouter un prix max.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (
+      normalizedPriceMin !== null &&
+      normalizedPriceMax !== null &&
+      normalizedPriceMax < normalizedPriceMin
+    ) {
+      toast({
+        title: "Prix invalides",
+        description: "Le prix max doit être supérieur ou égal au prix min.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const allSlots: AdditionalTimeSlot[] = [
       { start: formData.date, end: formData.end_date || "" },
       ...additionalTimeSlots,
@@ -1370,13 +1567,14 @@ export function EventFormSheet({
           ? fromDatetimeLocal(formData.end_date) || null
           : null,
         category: formData.category,
-        price: formData.price ? parseFloat(formData.price) : null,
-        presale_price: formData.presale_price
-          ? parseFloat(formData.presale_price)
-          : null,
-        subscriber_price: formData.subscriber_price
-          ? parseFloat(formData.subscriber_price)
-          : null,
+        price: normalizedPriceMin,
+        price_min: normalizedPriceMin,
+        price_max:
+          normalizedPriceMax !== null &&
+          normalizedPriceMin !== null &&
+          normalizedPriceMax > normalizedPriceMin
+            ? normalizedPriceMax
+            : null,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         is_full: Boolean(formData.is_full),
         location_id: normalizeUuid(formData.location_id),
@@ -1555,7 +1753,16 @@ export function EventFormSheet({
     [availableLocations],
   );
 
-  const categoryOptions = React.useMemo(() => categories, [categories]);
+  const categoryOptions = React.useMemo(
+    () => [
+      { value: "", label: "Aucune catégorie" },
+      ...categories.map((category) => ({
+        value: category.id,
+        label: category.name,
+      })),
+    ],
+    [categories],
+  );
   const organizerOptions = React.useMemo(
     () =>
       availableOrganizers.map((o) => ({
@@ -1590,6 +1797,10 @@ export function EventFormSheet({
   );
 
   const side = isMobile ? "bottom" : "right";
+  const externalUrlHref = React.useMemo(
+    () => getOpenableExternalUrl(formData.external_url),
+    [formData.external_url],
+  );
   const selectedLocation =
     availableLocations.find(
       (location) => location.id === formData.location_id,
@@ -1616,9 +1827,37 @@ export function EventFormSheet({
     !formData.date ? "Date" : null,
     !formData.category ? "Categorie" : null,
   ].filter((value): value is string => Boolean(value));
-  const priceSummary = formData.price.trim()
-    ? `${formData.price.trim()} EUR`
-    : undefined;
+  const priceSummary =
+    formatGenericPriceLabel(
+      {
+        price_min: formData.price_min,
+        price_max: formData.price_max,
+      },
+      {
+        suffix: " EUR",
+        emptyLabel: null,
+      },
+    ) || undefined;
+  const hasImageSelected = Boolean(imagePreview || formData.image_url.trim());
+  const totalOccurrences =
+    1 + additionalTimeSlots.filter((slot) => slot.start.trim()).length;
+  const statusMeta = {
+    pending: {
+      label: "En attente",
+      className:
+        "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    },
+    approved: {
+      label: "Approuvé",
+      className:
+        "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    },
+    rejected: {
+      label: "Refusé",
+      className:
+        "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300",
+    },
+  }[formData.status];
 
   return (
     <>
@@ -1628,20 +1867,41 @@ export function EventFormSheet({
           className={cn(
             isMobile
               ? "h-[100dvh] p-0"
-              : "w-full sm:w-[760px] lg:w-[920px] max-w-[100vw] p-0",
+              : "w-full sm:w-[760px] lg:w-[860px] max-w-[100vw] p-0",
           )}
         >
-          <div className="flex h-full flex-col">
-            <div className="px-5 pt-5 pb-4 border-b">
-              <SheetHeader className="space-y-1">
-                <SheetTitle>
-                  {isEdit ? "Modifier l’événement" : "Créer un événement"}
-                </SheetTitle>
-                <SheetDescription>
-                  {isEdit
-                    ? "Modifie les informations, puis enregistre."
-                    : "Crée un événement en quelques champs, le reste est optionnel."}
-                </SheetDescription>
+          <div className="flex h-full flex-col bg-gradient-to-b from-muted/30 via-background to-background">
+            <div className="border-b border-border/70 bg-background/90 px-5 pb-4 pt-5 backdrop-blur">
+              <SheetHeader className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={cn("rounded-full px-3 py-1", statusMeta.className)}
+                  >
+                    {statusMeta.label}
+                  </Badge>
+                  <Badge variant="outline" className="rounded-full px-3 py-1">
+                    {isEdit ? "Edition" : "Creation"}
+                  </Badge>
+                  {formData.is_featured ? (
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-primary/20 bg-primary/10 px-3 py-1 text-primary"
+                    >
+                      A la une
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="space-y-1">
+                  <SheetTitle className="text-xl font-semibold tracking-tight md:text-2xl">
+                    {isEdit ? "Modifier l’événement" : "Créer un événement"}
+                  </SheetTitle>
+                  <SheetDescription className="text-sm leading-relaxed">
+                    {isEdit
+                      ? "Affinez la fiche, ajustez la publication et vérifiez le rendu avant d’enregistrer."
+                      : "Composez une fiche élégante et complète, avec les informations essentielles puis les détails avancés."}
+                  </SheetDescription>
+                </div>
               </SheetHeader>
             </div>
 
@@ -1653,553 +1913,461 @@ export function EventFormSheet({
                   void save({ forceApproved: false });
                 }}
               >
-                <EventFormOverviewCard
-                  title={formData.title}
-                  categoryLabel={selectedCategoryLabel}
-                  startDate={formData.date}
-                  endDate={formData.end_date}
-                  locationLabel={selectedLocationLabel}
-                  majorEventLabel={selectedMajorEvent?.title}
-                  organizerLabels={selectedOrganizerLabels}
-                  artistLabels={selectedArtistLabels}
-                  tagsCount={selectedTagIds.length}
-                  priceLabel={priceSummary}
-                  hasImage={Boolean(imagePreview || formData.image_url.trim())}
-                  isFeatured={formData.is_featured}
-                  missingRequired={missingRequired}
-                />
+                <div className="mx-auto max-w-4xl space-y-6">
+                  <PotentialDuplicateAlert
+                    duplicates={duplicateCandidates}
+                    loading={duplicateCandidatesLoading}
+                  />
 
-                {/* Champs principaux */}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="event-title">Titre</Label>
-                    <Input
-                      id="event-title"
-                      value={formData.title}
-                      onChange={(e) =>
-                        setFormData((p) => ({ ...p, title: e.target.value }))
-                      }
-                      placeholder="Nom de l’événement"
-                      required
-                      className="h-11"
-                      disabled={saving || deleting}
-                    />
-                  </div>
+                  <EventFormOverviewCard
+                    title={formData.title}
+                    categoryLabel={selectedCategoryLabel}
+                    startDate={formData.date}
+                    endDate={formData.end_date}
+                    locationLabel={selectedLocationLabel}
+                    majorEventLabel={selectedMajorEvent?.title}
+                    organizerLabels={selectedOrganizerLabels}
+                    artistLabels={selectedArtistLabels}
+                    tagsCount={selectedTagIds.length}
+                    priceLabel={priceSummary}
+                    hasImage={hasImageSelected}
+                    isFeatured={formData.is_featured}
+                    missingRequired={missingRequired}
+                    className="border-border/70 bg-background/95 shadow-sm"
+                  />
 
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Date de début</Label>
-                      <DateTimePicker
-                        value={formData.date}
-                        onChange={(v) =>
-                          setFormData((p) => ({ ...p, date: v }))
-                        }
-                        placeholder="Choisir une date"
-                        required
-                        disabled={saving || deleting}
-                      />
-                      {showPastEventWarning ? (
-                        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
-                          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                          <span>
-                            Cette date est antérieure à aujourd&apos;hui.
-                            L&apos;événement sera ajouté comme un événement déjà
-                            passé.
-                          </span>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label>Date de fin</Label>
-                        {!showEndDate ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2"
-                            onClick={() => setShowEndDate(true)}
-                            disabled={saving || deleting}
-                          >
-                            Ajouter
-                          </Button>
-                        ) : null}
-                      </div>
-                      {showEndDate ? (
-                        <DateTimePicker
-                          value={formData.end_date}
-                          onChange={(v) =>
-                            setFormData((p) => ({ ...p, end_date: v }))
-                          }
-                          placeholder="Optionnel"
-                          disabled={saving || deleting}
-                          allowClear
-                        />
-                      ) : (
-                        <div className="h-11 rounded-md border bg-muted/20" />
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Lieu</Label>
-                    <SelectSearchable
-                      options={locationOptions}
-                      value={formData.location_id}
-                      onValueChange={(v) => handleLocationSelection(v)}
-                      placeholder="Sélectionner un lieu"
-                      searchPlaceholder="Rechercher un lieu..."
-                      emptyActionLabel="Ajouter un lieu"
-                      onEmptyAction={openCreateLocationDialog}
-                    />
-                    {selectedLocation?.city?.label ? (
-                      <p className="text-xs text-muted-foreground">
-                        Ville détectée : {selectedLocation.city.label}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Catégorie</Label>
-                    <Select
-                      value={formData.category || "none"}
-                      onValueChange={(v) =>
-                        setFormData((p) => ({
-                          ...p,
-                          category: v === "none" ? "" : v,
-                        }))
-                      }
-                      disabled={saving || deleting}
+                  <div className="space-y-6">
+                    <FormSection
+                      icon={<Sparkles className="h-4 w-4" />}
+                      title="Fondations"
+                      description="Renseignez les informations essentielles visibles en priorité dans la fiche."
                     >
-                      <SelectTrigger className="h-11">
-                        <SelectValue placeholder="Choisir une catégorie" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Choisir…</SelectItem>
-                        {categoryOptions.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="event-title">Titre</Label>
+                        <Input
+                          id="event-title"
+                          value={formData.title}
+                          onChange={(e) =>
+                            setFormData((p) => ({ ...p, title: e.target.value }))
+                          }
+                          placeholder="Nom de l’événement"
+                          required
+                          className="h-12 rounded-xl border-border/70 bg-background/90"
+                          disabled={saving || deleting}
+                        />
+                      </div>
 
-                  <div className="space-y-2">
-                    <Label>Multi-événements</Label>
-                    <SelectSearchable
-                      options={majorEventOptions}
-                      value={formData.major_event_id}
-                      onValueChange={(value) =>
-                        setFormData((previous) => ({
-                          ...previous,
-                          major_event_id: value,
-                        }))
-                      }
-                      placeholder={
-                        loadingMajorEvents
-                          ? "Chargement des Multi-événements..."
-                          : "Rattacher à un Multi-événements"
-                      }
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Raccourci principal pour lier cet événement à une
-                      programmation commune.
-                      {selectedMajorEvent != null
-                        ? ` Actuellement : ${selectedMajorEvent.title}.`
-                        : ""}
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Image</Label>
-                    <EventImageUpload
-                      currentImageUrl={imagePreview}
-                      onImageChange={(file, preview) => {
-                        setImageFile(file);
-                        setImagePreview(preview);
-                        if (file) {
-                          setImageWasCleared(false);
-                          setFormData((p) => ({ ...p, image_url: "" }));
-                        } else if (!preview) {
-                          setImageWasCleared(true);
-                          setFormData((p) => ({ ...p, image_url: "" }));
-                        }
-                      }}
-                      onUrlChange={(url) => {
-                        setFormData((p) => ({ ...p, image_url: url }));
-                        setImagePreview(url || null);
-                        if (url) {
-                          setImageWasCleared(false);
-                          setImageFile(null);
-                        }
-                      }}
-                      disabled={saving || deleting}
-                    />
-                    {imageAnalysis && analysisPrefill ? (
-                      <Card className="border-primary/20 bg-primary/5 p-4">
-                        <div className="flex flex-col gap-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="flex items-center gap-2 text-sm font-semibold">
-                                <Sparkles className="h-4 w-4" />
-                                Relecture avant fusion
-                              </div>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                Les champs ci-dessous ont ete detectes depuis
-                                l'image. Ils ne seront appliques qu'apres
-                                validation.
-                              </p>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Date de début</Label>
+                          <DateTimePicker
+                            value={formData.date}
+                            onChange={(v) =>
+                              setFormData((p) => ({ ...p, date: v }))
+                            }
+                            placeholder="Choisir une date"
+                            required
+                            disabled={saving || deleting}
+                          />
+                          {showPastEventWarning ? (
+                            <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-300">
+                              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                              <span>
+                                Cette date est antérieure à aujourd&apos;hui.
+                                L&apos;événement sera ajouté comme déjà passé.
+                              </span>
                             </div>
-                            <div className="flex gap-2">
+                          ) : null}
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label>Date de fin</Label>
+                            {!showEndDate ? (
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                onClick={dismissImageAnalysis}
+                                className="h-8 rounded-lg px-2 text-muted-foreground"
+                                onClick={() => setShowEndDate(true)}
+                                disabled={saving || deleting}
                               >
-                                Ignorer
+                                Ajouter
                               </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={applyImageAnalysisToForm}
-                              >
-                                Appliquer
-                              </Button>
-                            </div>
+                            ) : null}
                           </div>
-
-                          {analysisWarnings.length > 0 ? (
-                            <Alert>
-                              <CircleAlert className="h-4 w-4" />
-                              <AlertTitle>Points a verifier</AlertTitle>
-                              <AlertDescription>
-                                <div className="space-y-1">
-                                  {analysisWarnings.map((warning, index) => (
-                                    <div key={`${warning.field}-${index}`}>
-                                      {warning.message}
-                                      {warning.value ? ` ${warning.value}` : ""}
-                                    </div>
-                                  ))}
-                                </div>
-                              </AlertDescription>
-                            </Alert>
-                          ) : null}
-
-                          {extractedFieldPreview.length > 0 ? (
-                            <div className="grid gap-2">
-                              {extractedFieldPreview.map((field) => (
-                                <div
-                                  key={field.key}
-                                  className="rounded-lg border bg-background/80 p-3"
-                                >
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div className="text-sm font-medium">
-                                      {field.label}
-                                    </div>
-                                    {field.willOverwrite ? (
-                                      <span className="text-[11px] font-medium text-amber-600">
-                                        Remplacera la valeur actuelle
-                                      </span>
-                                    ) : (
-                                      <span className="text-[11px] font-medium text-emerald-600">
-                                        Ajout ou confirmation
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="mt-2 grid gap-2 md:grid-cols-2">
-                                    <div>
-                                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                        Detecte
-                                      </div>
-                                      <div className="mt-1 text-sm">
-                                        {field.extractedValue}
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                        Actuel
-                                      </div>
-                                      <div className="mt-1 text-sm">
-                                        {field.currentValue || "Vide"}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                          {showEndDate ? (
+                            <DateTimePicker
+                              value={formData.end_date}
+                              onChange={(v) =>
+                                setFormData((p) => ({ ...p, end_date: v }))
+                              }
+                              placeholder="Optionnel"
+                              disabled={saving || deleting}
+                              allowClear
+                            />
                           ) : (
-                            <Alert>
-                              <CircleAlert className="h-4 w-4" />
-                              <AlertTitle>Extraction limitee</AlertTitle>
-                              <AlertDescription>
-                                L'image a ete analysee, mais peu de champs
-                                exploitables ont ete detectes. Tu peux reessayer
-                                avec une image plus lisible.
-                              </AlertDescription>
-                            </Alert>
+                            <div className="flex h-12 items-center rounded-xl border border-dashed border-border/70 bg-muted/20 px-4 text-sm text-muted-foreground">
+                              Aucune date de fin
+                            </div>
                           )}
                         </div>
-                      </Card>
-                    ) : null}
-                  </div>
+                      </div>
 
-                  <div className="space-y-2">
-                    <Label>Statut</Label>
-                    <StatusPicker
-                      value={formData.status}
-                      onChange={(s) =>
-                        setFormData((p) => ({ ...p, status: s }))
-                      }
-                      disabled={saving || deleting}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Mise en avant</Label>
-                    <div className="flex items-center justify-between rounded-lg border px-4 h-11">
-                      <span className="text-sm text-muted-foreground">
-                        Afficher dans les surfaces “A la une”
-                      </span>
-                      <Switch
-                        checked={formData.is_featured}
-                        onCheckedChange={(v) =>
-                          setFormData((p) => ({ ...p, is_featured: v }))
-                        }
-                        disabled={saving || deleting}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 rounded-lg border p-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Créneaux supplémentaires</Label>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Ajoute d&apos;autres dates/heures pour ce même événement.
-                        Chaque créneau supplémentaire crée une occurrence dédiée.
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={saving || deleting}
-                      onClick={() =>
-                        setAdditionalTimeSlots((prev) => [
-                          ...prev,
-                          { start: "", end: "" },
-                        ])
-                      }
-                    >
-                      Ajouter un créneau
-                    </Button>
-                  </div>
-
-                  {additionalTimeSlots.length > 0 ? (
-                    <div className="space-y-3">
-                      {additionalTimeSlots.map((slot, index) => (
-                        <div
-                          key={`${index}-${slot.start}-${slot.end}`}
-                          className="grid gap-2 md:grid-cols-[1fr_1fr_auto]"
-                        >
-                          <DateTimePicker
-                            value={slot.start}
-                            onChange={(value) =>
-                              setAdditionalTimeSlots((prev) =>
-                                prev.map((item, itemIndex) =>
-                                  itemIndex === index
-                                    ? { ...item, start: value }
-                                    : item,
-                                ),
-                              )
-                            }
-                            placeholder="Début"
-                            disabled={saving || deleting}
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Lieu</Label>
+                          <SelectSearchable
+                            options={locationOptions}
+                            value={formData.location_id}
+                            onValueChange={(v) => handleLocationSelection(v)}
+                            placeholder="Sélectionner un lieu"
+                            searchPlaceholder="Rechercher un lieu..."
+                            emptyActionLabel="Ajouter un lieu"
+                            onEmptyAction={openCreateLocationDialog}
                           />
-                          <DateTimePicker
-                            value={slot.end}
-                            onChange={(value) =>
-                              setAdditionalTimeSlots((prev) =>
-                                prev.map((item, itemIndex) =>
-                                  itemIndex === index
-                                    ? { ...item, end: value }
-                                    : item,
-                                ),
-                              )
-                            }
-                            placeholder="Fin (optionnel)"
-                            disabled={saving || deleting}
-                            allowClear
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            title="Supprimer ce créneau"
-                            disabled={saving || deleting}
-                            onClick={() =>
-                              setAdditionalTimeSlots((prev) =>
-                                prev.filter((_, itemIndex) => itemIndex !== index),
-                              )
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {selectedLocation?.city?.label ? (
+                            <p className="text-xs text-muted-foreground">
+                              Ville détectée : {selectedLocation.city.label}
+                            </p>
+                          ) : null}
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Aucun créneau supplémentaire.
-                    </p>
-                  )}
-                </div>
 
-                {/* Détails complémentaires */}
-                <Card className="p-4">
-                  <div className="space-y-0.5">
-                    <div className="text-sm font-semibold">
-                      Détails complémentaires
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Description, tags, organisateurs, prix, liens, salle et
-                      paramètres complémentaires.
-                    </div>
-                  </div>
+                        <div className="space-y-2">
+                          <Label>Catégorie</Label>
+                          <SelectSearchable
+                            options={categoryOptions}
+                            value={formData.category}
+                            onValueChange={(value) =>
+                              setFormData((previous) => ({
+                                ...previous,
+                                category: value,
+                              }))
+                            }
+                            placeholder="Choisir une catégorie"
+                            searchPlaceholder="Rechercher une catégorie..."
+                            disabled={saving || deleting}
+                            className="h-12 rounded-xl border-border/70 bg-background/90"
+                          />
+                        </div>
+                      </div>
 
-                  <div className="mt-4 space-y-4">
-                    <div className="space-y-2">
-                      <Label>Description</Label>
-                      <Textarea
-                        value={formData.description}
-                        onChange={(e) =>
-                          setFormData((p) => ({
-                            ...p,
-                            description: e.target.value,
-                          }))
-                        }
-                        placeholder="Détails, lineup, infos utiles…"
-                        disabled={saving || deleting}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Tags</Label>
-                      <MultiSelectCreatable
-                        options={tagOptions}
-                        selected={selectedTagIds}
-                        onChange={setSelectedTagIds}
-                        onCreate={handleCreateTag}
-                        placeholder="Ajouter des tags"
-                        disabled={saving || deleting}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Organisateurs</Label>
-                      <MultiSelect
-                        options={organizerOptions}
-                        selected={selectedOrganizerIds}
-                        onChange={handleOrganizerChange}
-                        placeholder="Sélectionner…"
-                        disabled={saving || deleting}
-                        emptyActionLabel="Ajouter un organisateur"
-                        onEmptyAction={openCreateOrganizerDialog}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Artistes / collaborateurs</Label>
-                      <MultiSelect
-                        options={artistOptions}
-                        selected={selectedArtistIds}
-                        onChange={setSelectedArtistIds}
-                        placeholder="Selectionner..."
-                        disabled={saving || deleting}
-                        emptyActionLabel="Ajouter un artiste"
-                        onEmptyAction={openCreateArtistDialog}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Cette liste alimente la section publique "Artistes" dans
-                        la fiche evenement.
-                      </p>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-3">
                       <div className="space-y-2">
-                        <Label>Prix</Label>
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          value={formData.price}
+                        <Label>Description</Label>
+                        <Textarea
+                          value={formData.description}
                           onChange={(e) =>
                             setFormData((p) => ({
                               ...p,
-                              price: e.target.value,
+                              description: e.target.value,
                             }))
                           }
+                          placeholder="Line-up, ambiance, infos utiles, points forts…"
                           disabled={saving || deleting}
+                          className="min-h-[140px] rounded-2xl border-border/70 bg-background/90"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Prévente</Label>
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          value={formData.presale_price}
-                          onChange={(e) =>
-                            setFormData((p) => ({
-                              ...p,
-                              presale_price: e.target.value,
-                            }))
-                          }
-                          disabled={saving || deleting}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Abonné</Label>
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          value={formData.subscriber_price}
-                          onChange={(e) =>
-                            setFormData((p) => ({
-                              ...p,
-                              subscriber_price: e.target.value,
-                            }))
-                          }
-                          disabled={saving || deleting}
-                        />
-                      </div>
-                    </div>
 
-                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Organisateurs</Label>
+                          <MultiSelect
+                            options={organizerOptions}
+                            selected={selectedOrganizerIds}
+                            onChange={handleOrganizerChange}
+                            placeholder="Sélectionner…"
+                            disabled={saving || deleting}
+                            emptyActionLabel="Ajouter un organisateur"
+                            onEmptyAction={openCreateOrganizerDialog}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Tags</Label>
+                          <MultiSelectCreatable
+                            options={tagOptions}
+                            selected={selectedTagIds}
+                            onChange={setSelectedTagIds}
+                            onCreate={handleCreateTag}
+                            placeholder="Ajouter des tags"
+                            disabled={saving || deleting}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Prix min</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              inputMode="decimal"
+                              value={formData.price_min}
+                              onChange={(e) =>
+                                setFormData((p) => ({
+                                  ...p,
+                                  price_min: e.target.value,
+                                }))
+                              }
+                              disabled={saving || deleting}
+                              className="h-12 rounded-xl border-border/70 bg-background/90"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Prix max</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              inputMode="decimal"
+                              value={formData.price_max}
+                              onChange={(e) =>
+                                setFormData((p) => ({
+                                  ...p,
+                                  price_max: e.target.value,
+                                }))
+                              }
+                              placeholder="Optionnel"
+                              disabled={saving || deleting}
+                              className="h-12 rounded-xl border-border/70 bg-background/90"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <Label>URL externe</Label>
+                              {externalUrlHref ? (
+                                <a
+                                  href={externalUrlHref}
+                                  target="_blank"
+                                  rel="noreferrer noopener"
+                                  className="inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/80 hover:underline"
+                                >
+                                  Ouvrir
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              ) : null}
+                            </div>
+                            <Input
+                              type="url"
+                              value={formData.external_url}
+                              onChange={(e) =>
+                                setFormData((p) => ({
+                                  ...p,
+                                  external_url: e.target.value,
+                                }))
+                              }
+                              disabled={saving || deleting}
+                              className="h-12 rounded-xl border-border/70 bg-background/90"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Label URL</Label>
+                            <Input
+                              value={formData.external_url_label}
+                              onChange={(e) =>
+                                setFormData((p) => ({
+                                  ...p,
+                                  external_url_label: e.target.value,
+                                }))
+                              }
+                              disabled={saving || deleting}
+                              className="h-12 rounded-xl border-border/70 bg-background/90"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </FormSection>
+
+                    <FormSection
+                      icon={<ImageIcon className="h-4 w-4" />}
+                      title="Image"
+                      description="Ajoutez le visuel principal de l’événement et exploitez l’analyse assistée."
+                    >
                       <div className="space-y-2">
-                        <Label>Capacité</Label>
-                        <Input
-                          type="number"
-                          inputMode="numeric"
-                          value={formData.capacity}
-                          onChange={(e) =>
-                            setFormData((p) => ({
-                              ...p,
-                              capacity: e.target.value,
-                            }))
-                          }
+                        <Label>Image</Label>
+                        <EventImageUpload
+                          currentImageUrl={imagePreview}
+                          onImageChange={(file, preview) => {
+                            setImageFile(file);
+                            setImagePreview(preview);
+                            if (file) {
+                              setImageWasCleared(false);
+                              setFormData((p) => ({ ...p, image_url: "" }));
+                            } else if (!preview) {
+                              setImageWasCleared(true);
+                              setFormData((p) => ({ ...p, image_url: "" }));
+                            }
+                          }}
+                          onUrlChange={(url) => {
+                            setFormData((p) => ({ ...p, image_url: url }));
+                            setImagePreview(url || null);
+                            if (url) {
+                              setImageWasCleared(false);
+                              setImageFile(null);
+                            }
+                          }}
                           disabled={saving || deleting}
                         />
                       </div>
+
+                      {imageAnalysis && analysisPrefill ? (
+                        <Card className="border-primary/20 bg-primary/5 p-4 shadow-sm">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="flex items-center gap-2 text-sm font-semibold">
+                                  <Sparkles className="h-4 w-4" />
+                                  Relecture avant fusion
+                                </div>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Les champs détectés depuis l&apos;image seront appliqués seulement après validation.
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={dismissImageAnalysis}
+                                >
+                                  Ignorer
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={applyImageAnalysisToForm}
+                                >
+                                  Appliquer
+                                </Button>
+                              </div>
+                            </div>
+
+                            {analysisWarnings.length > 0 ? (
+                              <Alert>
+                                <CircleAlert className="h-4 w-4" />
+                                <AlertTitle>Points à vérifier</AlertTitle>
+                                <AlertDescription>
+                                  <div className="space-y-1">
+                                    {analysisWarnings.map((warning, index) => (
+                                      <div key={`${warning.field}-${index}`}>
+                                        {warning.message}
+                                        {warning.value ? ` ${warning.value}` : ""}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </AlertDescription>
+                              </Alert>
+                            ) : null}
+
+                            {extractedFieldPreview.length > 0 ? (
+                              <div className="grid gap-2">
+                                {extractedFieldPreview.map((field) => (
+                                  <div
+                                    key={field.key}
+                                    className="rounded-xl border border-border/70 bg-background/80 p-3"
+                                  >
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="text-sm font-medium">
+                                        {field.label}
+                                      </div>
+                                      {field.willOverwrite ? (
+                                        <span className="text-[11px] font-medium text-amber-600">
+                                          Remplacera la valeur actuelle
+                                        </span>
+                                      ) : (
+                                        <span className="text-[11px] font-medium text-emerald-600">
+                                          Ajout ou confirmation
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="mt-2 grid gap-2 md:grid-cols-2">
+                                      <div>
+                                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                          Détecté
+                                        </div>
+                                        <div className="mt-1 text-sm">
+                                          {field.extractedValue}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                          Actuel
+                                        </div>
+                                        <div className="mt-1 text-sm">
+                                          {field.currentValue || "Vide"}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <Alert>
+                                <CircleAlert className="h-4 w-4" />
+                                <AlertTitle>Extraction limitée</AlertTitle>
+                                <AlertDescription>
+                                  L&apos;image a été analysée, mais peu de champs exploitables ont été détectés.
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                          </div>
+                        </Card>
+                      ) : null}
+
+                    </FormSection>
+
+                    <FormSection
+                      icon={<Music4 className="h-4 w-4" />}
+                      title="Artistes / collaborateurs"
+                      description="Reliez les artistes et intervenants associés à l’événement."
+                    >
                       <div className="space-y-2">
-                        <Label>Complet</Label>
-                        <div className="flex items-center justify-between rounded-lg border px-4 h-11">
-                          <span className="text-sm text-muted-foreground">
-                            Sold out
-                          </span>
-                          <Switch
+                        <Label>Artistes / collaborateurs</Label>
+                        <MultiSelect
+                          options={artistOptions}
+                          selected={selectedArtistIds}
+                          onChange={setSelectedArtistIds}
+                          placeholder="Sélectionner..."
+                          disabled={saving || deleting}
+                          emptyActionLabel="Ajouter un artiste"
+                          onEmptyAction={openCreateArtistDialog}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Cette liste alimente la section publique "Artistes" dans la fiche événement.
+                        </p>
+                      </div>
+                    </FormSection>
+
+                    <FormSection
+                      icon={<Ticket className="h-4 w-4" />}
+                      title="Billetterie et accueil"
+                      description="Affinez la capacité et l’expérience sur place."
+                    >
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Capacité</Label>
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            value={formData.capacity}
+                            onChange={(e) =>
+                              setFormData((p) => ({
+                                ...p,
+                                capacity: e.target.value,
+                              }))
+                            }
+                            disabled={saving || deleting}
+                            className="h-12 rounded-xl border-border/70 bg-background/90"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Disponibilité</Label>
+                          <SettingToggle
+                            label="Marquer comme complet"
+                            description="Indique publiquement que la billetterie ou la capacité est épuisée."
                             checked={formData.is_full}
                             onCheckedChange={(v) =>
                               setFormData((p) => ({ ...p, is_full: v }))
@@ -2208,173 +2376,306 @@ export function EventFormSheet({
                           />
                         </div>
                       </div>
-                    </div>
 
-                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Salle</Label>
+                          <Select
+                            value={formData.room_id || "none"}
+                            onValueChange={(v) =>
+                              setFormData((p) => ({
+                                ...p,
+                                room_id: v === "none" ? "" : v,
+                              }))
+                            }
+                            disabled={
+                              saving ||
+                              deleting ||
+                              !formData.location_id ||
+                              loadingRooms
+                            }
+                          >
+                            <SelectTrigger className="h-12 rounded-xl border-border/70 bg-background/90">
+                              <SelectValue
+                                placeholder={
+                                  loadingRooms ? "Chargement..." : "Optionnel"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Aucune</SelectItem>
+                              {rooms.map((r) => (
+                                <SelectItem key={r.id} value={r.id}>
+                                  {r.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Heure ouverture portes</Label>
+                          <Input
+                            type="time"
+                            step={60}
+                            value={formData.door_opening_time}
+                            onChange={(e) =>
+                              setFormData((p) => ({
+                                ...p,
+                                door_opening_time: e.target.value,
+                              }))
+                            }
+                            disabled={saving || deleting}
+                            className="h-12 rounded-xl border-border/70 bg-background/90"
+                          />
+                        </div>
+                      </div>
+                    </FormSection>
+
+                    <FormSection
+                      icon={<Link2 className="h-4 w-4" />}
+                      title="Liens et intégrations"
+                      description="Ajoutez les réseaux sociaux et les URLs utiles à vos workflows d’import."
+                    >
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Instagram</Label>
+                          <Input
+                            type="url"
+                            value={formData.instagram_url}
+                            onChange={(e) =>
+                              setFormData((p) => ({
+                                ...p,
+                                instagram_url: e.target.value,
+                              }))
+                            }
+                            disabled={saving || deleting}
+                            className="h-12 rounded-xl border-border/70 bg-background/90"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Facebook</Label>
+                          <Input
+                            type="url"
+                            value={formData.facebook_url}
+                            onChange={(e) =>
+                              setFormData((p) => ({
+                                ...p,
+                                facebook_url: e.target.value,
+                              }))
+                            }
+                            disabled={saving || deleting}
+                            className="h-12 rounded-xl border-border/70 bg-background/90"
+                          />
+                        </div>
+                      </div>
+
                       <div className="space-y-2">
-                        <Label>URL externe</Label>
+                        <Label>URL scraping</Label>
                         <Input
                           type="url"
-                          value={formData.external_url}
+                          value={formData.scraping_url}
                           onChange={(e) =>
                             setFormData((p) => ({
                               ...p,
-                              external_url: e.target.value,
+                              scraping_url: e.target.value,
                             }))
                           }
                           disabled={saving || deleting}
+                          className="h-12 rounded-xl border-border/70 bg-background/90"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Label URL</Label>
-                        <Input
-                          value={formData.external_url_label}
-                          onChange={(e) =>
-                            setFormData((p) => ({
-                              ...p,
-                              external_url_label: e.target.value,
-                            }))
-                          }
-                          disabled={saving || deleting}
-                        />
-                      </div>
-                    </div>
+                    </FormSection>
 
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <Card className="border-border/70 bg-muted/10 p-4 shadow-sm">
                       <div className="space-y-2">
-                        <Label>Instagram</Label>
-                        <Input
-                          type="url"
-                          value={formData.instagram_url}
-                          onChange={(e) =>
-                            setFormData((p) => ({
-                              ...p,
-                              instagram_url: e.target.value,
+                        <Label>Multi-événements</Label>
+                        <SelectSearchable
+                          options={majorEventOptions}
+                          value={formData.major_event_id}
+                          onValueChange={(value) =>
+                            setFormData((previous) => ({
+                              ...previous,
+                              major_event_id: value,
                             }))
                           }
-                          disabled={saving || deleting}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Facebook</Label>
-                        <Input
-                          type="url"
-                          value={formData.facebook_url}
-                          onChange={(e) =>
-                            setFormData((p) => ({
-                              ...p,
-                              facebook_url: e.target.value,
-                            }))
+                          placeholder={
+                            loadingMajorEvents
+                              ? "Chargement des Multi-événements..."
+                              : "Rattacher à un Multi-événements"
                           }
-                          disabled={saving || deleting}
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Raccourci principal pour lier cet événement à une
+                          programmation commune.
+                          {selectedMajorEvent != null
+                            ? ` Actuellement : ${selectedMajorEvent.title}.`
+                            : ""}
+                        </p>
                       </div>
-                    </div>
+                    </Card>
 
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Salle</Label>
-                        <Select
-                          value={formData.room_id || "none"}
-                          onValueChange={(v) =>
-                            setFormData((p) => ({
-                              ...p,
-                              room_id: v === "none" ? "" : v,
-                            }))
-                          }
-                          disabled={
-                            saving ||
-                            deleting ||
-                            !formData.location_id ||
-                            loadingRooms
+                    <FormSection
+                      icon={<CalendarDays className="h-4 w-4" />}
+                      title="Créneaux supplémentaires"
+                      description="Ajoutez d’autres dates et heures pour créer plusieurs occurrences du même événement."
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm text-muted-foreground">
+                          {totalOccurrences} occurrence{totalOccurrences > 1 ? "s" : ""} au total
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl"
+                          disabled={saving || deleting}
+                          onClick={() =>
+                            setAdditionalTimeSlots((prev) => [
+                              ...prev,
+                              { start: "", end: "" },
+                            ])
                           }
                         >
-                          <SelectTrigger className="h-11">
-                            <SelectValue
-                              placeholder={
-                                loadingRooms ? "Chargement..." : "Optionnel"
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Aucune</SelectItem>
-                            {rooms.map((r) => (
-                              <SelectItem key={r.id} value={r.id}>
-                                {r.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          Ajouter un créneau
+                        </Button>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Heure ouverture portes</Label>
-                        <Input
-                          type="time"
-                          step={60}
-                          value={formData.door_opening_time}
-                          onChange={(e) =>
-                            setFormData((p) => ({
-                              ...p,
-                              door_opening_time: e.target.value,
-                            }))
-                          }
-                          disabled={saving || deleting}
-                          className="h-11"
-                        />
-                      </div>
-                    </div>
 
-                    <div className="space-y-2">
-                      <Label>URL scraping</Label>
-                      <Input
-                        type="url"
-                        value={formData.scraping_url}
-                        onChange={(e) =>
-                          setFormData((p) => ({
-                            ...p,
-                            scraping_url: e.target.value,
-                          }))
-                        }
-                        disabled={saving || deleting}
-                        className="h-11"
-                      />
-                    </div>
+                      {additionalTimeSlots.length > 0 ? (
+                        <div className="space-y-3">
+                          {additionalTimeSlots.map((slot, index) => (
+                            <div
+                              key={`${index}-${slot.start}-${slot.end}`}
+                              className="grid gap-3 rounded-2xl border border-border/70 bg-background/80 p-3 md:grid-cols-[1fr_1fr_auto]"
+                            >
+                              <DateTimePicker
+                                value={slot.start}
+                                onChange={(value) =>
+                                  setAdditionalTimeSlots((prev) =>
+                                    prev.map((item, itemIndex) =>
+                                      itemIndex === index
+                                        ? { ...item, start: value }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                                placeholder="Début"
+                                disabled={saving || deleting}
+                              />
+                              <DateTimePicker
+                                value={slot.end}
+                                onChange={(value) =>
+                                  setAdditionalTimeSlots((prev) =>
+                                    prev.map((item, itemIndex) =>
+                                      itemIndex === index
+                                        ? { ...item, end: value }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                                placeholder="Fin (optionnel)"
+                                disabled={saving || deleting}
+                                allowClear
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="rounded-xl"
+                                title="Supprimer ce créneau"
+                                disabled={saving || deleting}
+                                onClick={() =>
+                                  setAdditionalTimeSlots((prev) =>
+                                    prev.filter((_, itemIndex) => itemIndex !== index),
+                                  )
+                                }
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
+                          Aucun créneau supplémentaire pour le moment.
+                        </div>
+                      )}
+                    </FormSection>
+
+                    <FormSection
+                      icon={<Settings2 className="h-4 w-4" />}
+                      title="Statut et visibilité"
+                      description="Finalisez l’état de publication et la mise en avant éditoriale."
+                    >
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Statut</Label>
+                          <StatusPicker
+                            value={formData.status}
+                            onChange={(s) =>
+                              setFormData((p) => ({ ...p, status: s }))
+                            }
+                            disabled={saving || deleting}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Visibilité</Label>
+                          <SettingToggle
+                            label="Mettre en avant"
+                            description="Afficher cet événement dans les surfaces éditoriales “À la une”."
+                            checked={formData.is_featured}
+                            onCheckedChange={(v) =>
+                              setFormData((p) => ({ ...p, is_featured: v }))
+                            }
+                            disabled={saving || deleting}
+                          />
+                        </div>
+                      </div>
+                    </FormSection>
                   </div>
-                </Card>
+                </div>
               </form>
             </div>
 
-            {/* actions sticky */}
             <div
               className={cn(
-                "border-t bg-background p-4",
+                "border-t border-border/70 bg-background/92 p-4 backdrop-blur",
                 isMobile && "pb-[calc(1rem+env(safe-area-inset-bottom))]",
               )}
             >
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                {isEdit ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    className="gap-2"
-                    onClick={() => void confirmDelete()}
-                    disabled={saving || deleting}
-                  >
-                    {deleting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                    Supprimer
-                  </Button>
-                ) : (
-                  <div />
-                )}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  {missingRequired.length === 0 ? (
+                    <span>Tous les champs essentiels sont remplis.</span>
+                  ) : (
+                    <span>
+                      Champs manquants : {missingRequired.join(", ")}
+                    </span>
+                  )}
+                </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                  {isEdit ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      className="gap-2 sm:order-1"
+                      onClick={() => void confirmDelete()}
+                      disabled={saving || deleting}
+                    >
+                      {deleting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                      Supprimer
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     variant="outline"
+                    className="rounded-xl"
                     onClick={() => onOpenChange(false)}
                     disabled={saving || deleting}
                   >
@@ -2382,22 +2683,23 @@ export function EventFormSheet({
                   </Button>
                   <Button
                     type="button"
+                    className="rounded-xl"
                     onClick={() => void save({ forceApproved: false })}
                     disabled={saving || deleting}
                   >
                     {saving ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : null}
                     Enregistrer
                   </Button>
                   <Button
                     type="button"
-                    className="bg-emerald-600 hover:bg-emerald-700"
+                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700"
                     onClick={() => void save({ forceApproved: true })}
                     disabled={saving || deleting}
                   >
                     {saving ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : null}
                     Enregistrer & Approuver
                   </Button>

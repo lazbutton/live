@@ -11,8 +11,8 @@ export type AdminEvent = {
   is_featured?: boolean | null;
   category: string;
   price: number | null;
-  presale_price: number | null;
-  subscriber_price: number | null;
+  price_min: number | null;
+  price_max: number | null;
   address: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -93,9 +93,8 @@ export type EventFormData = {
   date: string; // datetime-local: YYYY-MM-DDTHH:mm
   end_date: string; // datetime-local ou ""
   category: string;
-  price: string;
-  presale_price: string;
-  subscriber_price: string;
+  price_min: string;
+  price_max: string;
   capacity: string;
   is_full: boolean;
   location_id: string;

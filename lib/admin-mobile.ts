@@ -76,6 +76,8 @@ type RawMobileEventRow = {
   status: "pending" | "approved" | "rejected";
   category: string | null;
   price: number | null;
+  price_min: number | null;
+  price_max: number | null;
   location_id: string | null;
   address: string | null;
   image_url: string | null;
@@ -108,6 +110,8 @@ const MOBILE_EVENT_SELECT = `
   status,
   category,
   price,
+  price_min,
+  price_max,
   location_id,
   address,
   image_url,
@@ -192,7 +196,7 @@ function serializeEvent(row: RawMobileEventRow): MobileAdminEventItem {
     date: row.date,
     status: row.status,
     category: row.category?.trim() || null,
-    price: row.price,
+    price: row.price_min ?? row.price,
     locationId: row.location_id,
     locationName,
     locationSummary,
@@ -545,8 +549,12 @@ export async function quickEditMobileEvent(
         throw new Error("Prix invalide");
       }
       updates.price = input.price;
+      updates.price_min = input.price;
+      updates.price_max = null;
     } else {
       updates.price = null;
+      updates.price_min = null;
+      updates.price_max = null;
     }
   }
 

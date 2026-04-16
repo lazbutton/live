@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -95,12 +97,19 @@ function matchesEventSearch(event: AdminEvent, rawQuery: string) {
   const query = normalizeSearchText(rawQuery);
   if (!query) return true;
 
+  const organizerLabels =
+    event.event_organizers?.flatMap((entry) => [
+      entry.organizer?.name || "",
+      entry.location?.name || "",
+    ]) ?? [];
+
   const searchableParts = [
     event.title || "",
     event.description || "",
     event.category || "",
     event.location?.name || "",
     event.major_event_events?.[0]?.major_event?.title || "",
+    ...organizerLabels,
   ];
 
   const searchableText = normalizeSearchText(searchableParts.join(" "));
@@ -134,13 +143,14 @@ function isEventLongerThan24Hours(
   return end.getTime() - start.getTime() > 24 * 60 * 60 * 1000;
 }
 
-function getEventOrganizerIds(event: AdminEvent) {
-  const rawIds =
-    event.event_organizers?.flatMap((entry) => [
-      entry.organizer?.id,
-      entry.location?.id,
-    ]) ?? [];
-  return Array.from(new Set(rawIds.filter(Boolean) as string[]));
+type ListMonthGroup = {
+  key: string;
+  label: string;
+  events: AdminEvent[];
+};
+
+function formatListMonthLabel(date: Date) {
+  return format(date, "MMMM yyyy", { locale: fr });
 }
 
 export function EventsPage() {
@@ -157,9 +167,6 @@ export function EventsPage() {
 
   const [searchQuery, setSearchQuery] = React.useState("");
   const [viewMode, setViewMode] = React.useState<"calendar" | "list">("calendar");
-  const [selectedOrganizerIds, setSelectedOrganizerIds] = React.useState<string[]>(
-    [],
-  );
   const [filterStatus, setFilterStatus] = React.useState<
     "all" | "pending" | "approved"
   >("all");
@@ -387,20 +394,13 @@ export function EventsPage() {
       filtered = filtered.filter((ev) => !isEventLongerThan24Hours(ev));
     }
 
-    if (selectedOrganizerIds.length > 0) {
-      filtered = filtered.filter((event) => {
-        const organizerIds = getEventOrganizerIds(event);
-        return organizerIds.some((id) => selectedOrganizerIds.includes(id));
-      });
-    }
-
     filtered.sort(
       (a, b) =>
         (parseDateWithoutTimezone(a.date)?.getTime() ?? 0) -
         (parseDateWithoutTimezone(b.date)?.getTime() ?? 0),
     );
     return filtered;
-  }, [events, filterStatus, hideLongEvents, searchQuery, selectedOrganizerIds]);
+  }, [events, filterStatus, hideLongEvents, searchQuery]);
 
   const listViewEvents = React.useMemo(() => {
     const todayStart = new Date();
@@ -414,6 +414,31 @@ export function EventsPage() {
     });
   }, [filteredEvents]);
 
+  const listViewMonthGroups = React.useMemo<ListMonthGroup[]>(() => {
+    const groups = new Map<string, ListMonthGroup>();
+
+    for (const event of listViewEvents) {
+      const eventDate = parseDateWithoutTimezone(event.date);
+      if (!eventDate) continue;
+
+      const key = format(eventDate, "yyyy-MM");
+      const existing = groups.get(key);
+
+      if (existing) {
+        existing.events.push(event);
+        continue;
+      }
+
+      groups.set(key, {
+        key,
+        label: formatListMonthLabel(eventDate),
+        events: [event],
+      });
+    }
+
+    return Array.from(groups.values());
+  }, [listViewEvents]);
+
   const pendingCount = React.useMemo(() => {
     // count pending with current search, independent of status toggle
     let base = [...events];
@@ -423,28 +448,8 @@ export function EventsPage() {
     if (hideLongEvents) {
       base = base.filter((ev) => !isEventLongerThan24Hours(ev));
     }
-    if (selectedOrganizerIds.length > 0) {
-      base = base.filter((event) => {
-        const organizerIds = getEventOrganizerIds(event);
-        return organizerIds.some((id) => selectedOrganizerIds.includes(id));
-      });
-    }
     return base.filter((ev) => ev.status === "pending").length;
-  }, [events, hideLongEvents, searchQuery, selectedOrganizerIds]);
-
-  const organizerFilterOptions = React.useMemo(
-    () =>
-      organizers
-        .map((organizer) => ({
-          value: organizer.id,
-          label:
-            organizer.type === "location"
-              ? `${organizer.name} (Lieu)`
-              : organizer.name,
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label, "fr")),
-    [organizers],
-  );
+  }, [events, hideLongEvents, searchQuery]);
 
   React.useEffect(() => {
     if (searchQuery.trim()) {
@@ -456,7 +461,6 @@ export function EventsPage() {
     setSearchQuery("");
     setFilterStatus("all");
     setHideLongEvents(false);
-    setSelectedOrganizerIds([]);
   }
 
   function openCreate(date?: Date) {
@@ -699,9 +703,6 @@ export function EventsPage() {
         onImportFromFacebookClick={() => setIsFacebookImportOpen(true)}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
-        organizerFilterOptions={organizerFilterOptions}
-        selectedOrganizerIds={selectedOrganizerIds}
-        onOrganizerFilterChange={setSelectedOrganizerIds}
         onResetFilters={resetFilters}
       />
 
@@ -740,23 +741,42 @@ export function EventsPage() {
             ) : null}
           </div>
 
-          {listViewEvents.length === 0 ? (
+          {listViewMonthGroups.length === 0 ? (
             <div className="rounded-lg border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
               Aucun événement trouvé pour ces filtres.
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              {listViewEvents.map((event) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  onClick={() => openEditEvent(event)}
-                  onQuickApprove={
-                    event.status === "pending"
-                      ? () => quickApprove(event.id)
-                      : undefined
-                  }
-                />
+            <div className="space-y-6">
+              {listViewMonthGroups.map((group, groupIndex) => (
+                <section key={group.key} className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    {groupIndex > 0 ? (
+                      <div className="hidden h-px flex-1 bg-border/60 md:block" aria-hidden="true" />
+                    ) : null}
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold capitalize text-foreground">
+                        {group.label}
+                      </div>
+                    </div>
+                    <div className="h-px flex-1 bg-border/60" aria-hidden="true" />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {group.events.map((event) => (
+                      <EventCard
+                        key={event.id}
+                        event={event}
+                        showDateHeader
+                        onClick={() => openEditEvent(event)}
+                        onQuickApprove={
+                          event.status === "pending"
+                            ? () => quickApprove(event.id)
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           )}

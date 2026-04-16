@@ -42,6 +42,7 @@ import {
   Euro,
   Users,
   Clock,
+  ExternalLink,
   Link as LinkIcon,
   Image as ImageIcon,
   Upload,
@@ -65,6 +66,11 @@ import { organizerCache, CACHE_KEYS, CACHE_TTL } from "@/lib/organizer-cache";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { SelectSearchable } from "@/components/ui/select-searchable";
 import { EventFormOverviewCard } from "@/components/events/event-form-overview-card";
+import { PotentialDuplicateAlert } from "@/components/events/potential-duplicate-alert";
+import {
+  fetchPotentialDuplicateEvents,
+  type PotentialDuplicateEvent,
+} from "@/lib/events/potential-duplicates";
 
 function addHoursToDatetimeLocal(value: string, hoursToAdd: number) {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
@@ -83,6 +89,21 @@ function addHoursToDatetimeLocal(value: string, hoursToAdd: number) {
   const ho = String(d.getHours()).padStart(2, "0");
   const mi = String(d.getMinutes()).padStart(2, "0");
   return `${y}-${mo}-${da}T${ho}:${mi}`;
+}
+
+function getOpenableExternalUrl(value: string | null | undefined) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return null;
+
+  const withProtocol = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+
+  try {
+    return new URL(withProtocol).toString();
+  } catch {
+    return null;
+  }
 }
 
 function EditEventContent() {
@@ -144,6 +165,12 @@ function EditEventContent() {
     status: "draft" as "draft" | "pending" | "approved" | "rejected",
     is_full: false,
   });
+  const externalUrlHref = getOpenableExternalUrl(formData.external_url);
+  const [duplicateCandidates, setDuplicateCandidates] = useState<
+    PotentialDuplicateEvent[]
+  >([]);
+  const [duplicateCandidatesLoading, setDuplicateCandidatesLoading] =
+    useState(false);
 
   useEffect(() => {
     checkPermissionAndLoadData();
@@ -157,6 +184,52 @@ function EditEventContent() {
       setFormData((prev) => ({ ...prev, room_id: "" }));
     }
   }, [formData.location_id]);
+
+  useEffect(() => {
+    const locationId = formData.location_id.trim();
+    const startValue = formData.date;
+    const endValue = formData.end_date;
+
+    if (!locationId || locationId === "none" || !startValue) {
+      setDuplicateCandidates([]);
+      setDuplicateCandidatesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setDuplicateCandidatesLoading(true);
+
+    void fetchPotentialDuplicateEvents({
+      supabase,
+      locationId,
+      startValue,
+      endValue,
+      excludeEventId: eventId,
+    })
+      .then((duplicates) => {
+        if (!cancelled) {
+          setDuplicateCandidates(duplicates);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error(
+            "Erreur lors de la vérification des doublons potentiels:",
+            error,
+          );
+          setDuplicateCandidates([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setDuplicateCandidatesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, formData.date, formData.end_date, formData.location_id]);
 
   async function checkPermissionAndLoadData() {
     if (!eventId) return;
@@ -633,6 +706,12 @@ function EditEventContent() {
 
         {/* Main form */}
         <form onSubmit={(e) => handleSubmit(e)} className="space-y-6">
+          <PotentialDuplicateAlert
+            duplicates={duplicateCandidates}
+            loading={duplicateCandidatesLoading}
+            agendaBasePath="/organizer/events"
+          />
+
           <EventFormOverviewCard
             title={formData.title}
             categoryLabel={selectedCategoryLabel}
@@ -670,22 +749,18 @@ function EditEventContent() {
                         <Tag className="h-4 w-4" />
                         Catégorie *
                       </Label>
-                      <Select
+                      <SelectSearchable
+                        options={categories.map((cat) => ({
+                          value: cat.id,
+                          label: cat.name,
+                        }))}
                         value={formData.category}
-                        onValueChange={(value) => setFormData({ ...formData, category: value })}
-                        required
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map((cat) => (
-                            <SelectItem key={cat.id} value={cat.id}>
-                              {cat.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, category: value })
+                        }
+                        placeholder="Sélectionner une catégorie"
+                        searchPlaceholder="Rechercher une catégorie..."
+                      />
                     </div>
 
                     <div className="space-y-2">
@@ -920,10 +995,23 @@ function EditEventContent() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="external_url" className="flex items-center gap-2">
-                      <LinkIcon className="h-4 w-4" />
-                      Lien externe
-                    </Label>
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="external_url" className="flex items-center gap-2">
+                        <LinkIcon className="h-4 w-4" />
+                        Lien externe
+                      </Label>
+                      {externalUrlHref ? (
+                        <a
+                          href={externalUrlHref}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/80 hover:underline"
+                        >
+                          Ouvrir
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      ) : null}
+                    </div>
                     <Input
                       id="external_url"
                       type="url"

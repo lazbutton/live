@@ -73,8 +73,8 @@ type RawEventRow = {
   external_url_label: string | null;
   is_full: boolean | null;
   price: number | string | null;
-  presale_price: number | string | null;
-  subscriber_price: number | string | null;
+  price_min: number | string | null;
+  price_max: number | string | null;
   location: SingleOrArray<RawLocationRelation>;
 };
 
@@ -346,22 +346,28 @@ function formatPriceLabel(event: RawEventRow) {
     return "Complet";
   }
 
-  const candidates = [
-    toNumberOrNull(event.subscriber_price),
-    toNumberOrNull(event.presale_price),
-    toNumberOrNull(event.price),
-  ].filter((value): value is number => value !== null && value >= 0);
+  const priceMin = toNumberOrNull(event.price_min) ?? toNumberOrNull(event.price);
+  const priceMax = toNumberOrNull(event.price_max);
 
-  if (candidates.length === 0) {
+  if (priceMin === null) {
     return null;
   }
 
-  const minPrice = Math.min(...candidates);
-  if (minPrice <= 0) {
+  if (priceMin <= 0) {
     return "Gratuit";
   }
 
-  return `À partir de ${minPrice.toLocaleString("fr-FR", {
+  if (priceMax != null && priceMax > priceMin) {
+    return `${priceMin.toLocaleString("fr-FR", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })} à ${priceMax.toLocaleString("fr-FR", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })} EUR`;
+  }
+
+  return `${priceMin.toLocaleString("fr-FR", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   })} EUR`;
@@ -604,8 +610,8 @@ export const getEventSharePageData = cache(
           external_url_label,
           is_full,
           price,
-          presale_price,
-          subscriber_price,
+          price_min,
+          price_max,
           location:locations(
             id,
             name,
@@ -785,8 +791,8 @@ export const getLocationSharePageData = cache(
             external_url_label,
             is_full,
             price,
-            presale_price,
-            subscriber_price,
+            price_min,
+            price_max,
             location:locations(
               id,
               name,
@@ -881,8 +887,8 @@ export const getOrganizerSharePageData = cache(
             external_url_label,
             is_full,
             price,
-            presale_price,
-            subscriber_price,
+            price_min,
+            price_max,
             location:locations(
               id,
               name,
@@ -991,8 +997,8 @@ export const getHubSharePageData = cache(
               external_url_label,
               is_full,
               price,
-              presale_price,
-              subscriber_price,
+              price_min,
+              price_max,
               location:locations(
                 id,
                 name,

@@ -130,16 +130,19 @@ export function DateTimePicker({
                 aria-label={label || "Date et heure"}
               />
               <PopoverTrigger asChild>
-                <Button
+                <button
                   type="button"
-                  variant="ghost"
-                  size="icon"
                   disabled={disabled}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9"
+                  className={cn(
+                    "absolute right-1 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-colors",
+                    disabled
+                      ? "cursor-not-allowed opacity-50"
+                      : "hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  )}
                   aria-label="Ouvrir le calendrier"
                 >
                   <CalendarIcon className="h-4 w-4" />
-                </Button>
+                </button>
               </PopoverTrigger>
             </div>
 

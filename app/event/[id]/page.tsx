@@ -69,8 +69,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       data.description ||
       `Découvrez ${data.title} sur OutLive${data.locationLabel ? ` · ${data.locationLabel}` : ""}.`,
     path: data.sharePath,
-    image: `${data.sharePath}/opengraph-image`,
-    imageAlt: `Aperçu OutLive de ${data.title}`,
+    image: data.imageUrl || `${data.sharePath}/opengraph-image`,
+    imageAlt: data.imageUrl
+      ? `Image de l'événement ${data.title}`
+      : `Aperçu OutLive de ${data.title}`,
     type: "article",
     keywords: [
       data.title,

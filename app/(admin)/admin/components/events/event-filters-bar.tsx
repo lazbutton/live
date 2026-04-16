@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { MultiSelect } from "@/components/ui/multi-select";
 import { cn } from "@/lib/utils";
 
 export type EventFiltersBarProps = {
@@ -32,9 +31,6 @@ export type EventFiltersBarProps = {
   onImportFromFacebookClick: () => void;
   viewMode: "calendar" | "list";
   onViewModeChange: (mode: "calendar" | "list") => void;
-  organizerFilterOptions: Array<{ value: string; label: string }>;
-  selectedOrganizerIds: string[];
-  onOrganizerFilterChange: (ids: string[]) => void;
   onResetFilters: () => void;
   className?: string;
 };
@@ -83,17 +79,13 @@ export function EventFiltersBar({
   onImportFromFacebookClick,
   viewMode,
   onViewModeChange,
-  organizerFilterOptions,
-  selectedOrganizerIds,
-  onOrganizerFilterChange,
   onResetFilters,
   className,
 }: EventFiltersBarProps) {
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
     filterStatus !== "all" ||
-    hideLongEvents ||
-    selectedOrganizerIds.length > 0;
+    hideLongEvents;
 
   return (
     <div className={cn("space-y-3", className)}>
@@ -209,27 +201,6 @@ export function EventFiltersBar({
         ) : null}
       </div>
 
-      {viewMode === "list" ? (
-        <div className="rounded-lg border bg-background p-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <Label className="text-sm">Organisateurs</Label>
-            {selectedOrganizerIds.length > 0 ? (
-              <span className="text-xs text-muted-foreground">
-                {selectedOrganizerIds.length} sélectionné
-                {selectedOrganizerIds.length > 1 ? "s" : ""}
-              </span>
-            ) : null}
-          </div>
-          <MultiSelect
-            options={organizerFilterOptions}
-            selected={selectedOrganizerIds}
-            onChange={onOrganizerFilterChange}
-            placeholder="Filtrer par organisateur..."
-            searchPlaceholder="Rechercher un organisateur..."
-            className="min-h-[44px]"
-          />
-        </div>
-      ) : null}
     </div>
   );
 }

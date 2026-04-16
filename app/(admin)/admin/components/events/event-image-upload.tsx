@@ -207,87 +207,99 @@ export function EventImageUpload({
 
   return (
     <div className={cn("space-y-3", className)}>
-      {previewUrl ? (
-        <div className="relative w-full aspect-[3/2] rounded-xl overflow-hidden border bg-muted">
-          <img
-            src={previewUrl}
-            alt="Aperçu"
-            className="h-full w-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
-            onClick={() => {
-              if (disabled) return;
-              openCropperFromUrl(previewUrl);
-            }}
-          />
-          {!disabled ? (
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              className="absolute top-2 right-2"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                clearImage();
-              }}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          ) : null}
-          <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/60 to-transparent">
-            <div className="text-xs text-white/90 flex items-center gap-2">
-              <ImageIcon className="h-3.5 w-3.5" />
-              Cliquer pour rogner
+      <div className="grid gap-4 md:grid-cols-2 md:items-start">
+        <div className="min-w-0">
+          {previewUrl ? (
+            <div className="relative h-44 w-full overflow-hidden rounded-xl border bg-muted md:h-48">
+              <img
+                src={previewUrl}
+                alt="Aperçu"
+                className="h-full w-full cursor-pointer object-cover transition-opacity hover:opacity-95"
+                onClick={() => {
+                  if (disabled) return;
+                  openCropperFromUrl(previewUrl);
+                }}
+              />
+              {!disabled ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="absolute right-2 top-2"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    clearImage();
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              ) : null}
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                <div className="flex items-center gap-2 text-xs text-white/90">
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  Cliquer pour rogner
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex h-44 w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/30 text-sm text-muted-foreground md:h-48">
+              Aucun visuel
+            </div>
+          )}
         </div>
-      ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="event-image-file">Fichier</Label>
-          <div className="flex items-center gap-2">
+        <div className="min-w-0 space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="event-image-file">Fichier</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                ref={fileInputRef}
+                id="event-image-file"
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                disabled={disabled}
+                className="cursor-pointer"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={disabled}
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Choisir un fichier"
+              >
+                <Upload className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Après sélection, un crop 3:2 est proposé automatiquement.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="event-image-url">Ou URL</Label>
             <Input
-              ref={fileInputRef}
-              id="event-image-file"
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
+              id="event-image-url"
+              type="url"
+              placeholder="https://…"
+              defaultValue={currentImageUrl || ""}
               disabled={disabled}
-              className="cursor-pointer"
+              onBlur={(e) => {
+                const next = e.target.value.trim();
+                onUrlChange(next);
+                if (next) {
+                  setPreviewUrl(next);
+                  setImageFile(null);
+                  onImageChange(null, next);
+                }
+              }}
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={disabled}
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="Choisir un fichier"
-            >
-              <Upload className="h-4 w-4" />
-            </Button>
+            <p className="text-xs text-muted-foreground">
+              Conseillé si l’image est déjà hébergée (sinon, privilégier l’upload).
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground">Après sélection, un crop 3:2 est proposé automatiquement.</p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="event-image-url">Ou URL</Label>
-          <Input
-            id="event-image-url"
-            type="url"
-            placeholder="https://…"
-            defaultValue={currentImageUrl || ""}
-            disabled={disabled}
-            onBlur={(e) => {
-              const next = e.target.value.trim();
-              onUrlChange(next);
-              if (next) {
-                setPreviewUrl(next);
-                setImageFile(null);
-                onImageChange(null, next);
-              }
-            }}
-          />
-          <p className="text-xs text-muted-foreground">Conseillé si l’image est déjà hébergée (sinon, privilégier l’upload).</p>
         </div>
       </div>
 
