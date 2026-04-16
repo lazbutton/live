@@ -24,6 +24,11 @@ type CategoryRow = {
   name: string;
 };
 
+type TagRow = {
+  id: string;
+  name: string;
+};
+
 type RawCityRow =
   | {
       label?: string | null;
@@ -68,6 +73,7 @@ type RawEventRow = {
   date: string;
   end_date: string | null;
   category: string | null;
+  tag_ids?: string[] | null;
   image_url: string | null;
   external_url: string | null;
   external_url_label: string | null;
@@ -198,6 +204,7 @@ export type EventSharePageData = {
   dateLabel: string;
   locationLabel: string | null;
   categoryLabel: string | null;
+  tagLabels: string[];
   priceLabel: string | null;
   ticketUrl: string | null;
   ticketLabel: string | null;
@@ -609,6 +616,7 @@ export const getEventSharePageData = cache(
           date,
           end_date,
           category,
+          tag_ids,
           image_url,
           external_url,
           external_url_label,
@@ -686,7 +694,29 @@ export const getEventSharePageData = cache(
       return null;
     }
 
-    const categoryNameById = await resolveCategoryNames([event.category]);
+    const tagsPromise =
+      event.tag_ids && event.tag_ids.length > 0
+        ? supabase.from("tags").select("id, name").in("id", event.tag_ids)
+        : Promise.resolve({ data: [] as TagRow[], error: null });
+    const [categoryNameById, tagsResult] = await Promise.all([
+      resolveCategoryNames([event.category]),
+      tagsPromise,
+    ]);
+
+    if (tagsResult.error) {
+      throw tagsResult.error;
+    }
+
+    const tagRows = ((tagsResult.data || []) as TagRow[]).slice();
+    const tagsById = new Map(tagRows.map((tag) => [tag.id, tag]));
+    const tagLabels = Array.from(
+      new Set(
+        (event.tag_ids || [])
+          .map((tagId) => tagsById.get(tagId)?.name?.trim() || "")
+          .filter(Boolean),
+      ),
+    );
+
     const location = normalizeSingle(event.location);
     const canonicalLocation =
       location?.id && location?.name
@@ -759,6 +789,7 @@ export const getEventSharePageData = cache(
       dateLabel: formatEventDateLabel(event.date, event.end_date),
       locationLabel: buildLocationLabel(event.location),
       categoryLabel: resolveCategoryLabel(event.category, categoryNameById),
+      tagLabels,
       priceLabel: formatPriceLabel(event),
       ticketUrl: normalizeText(event.external_url),
       ticketLabel: normalizeText(event.external_url_label),

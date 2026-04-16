@@ -12,7 +12,10 @@ import {
   buildDownloadAppPath,
   buildEventOpenPath,
 } from "@/lib/mobile-app-links";
-import { getEventSharePageData } from "@/lib/public-share-data";
+import {
+  getEventSharePageData,
+  type EventSharePageData,
+} from "@/lib/public-share-data";
 
 export const revalidate = 300;
 
@@ -21,6 +24,61 @@ type PageProps = {
     id: string;
   }>;
 };
+
+function normalizeMetadataText(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.replace(/\s+/g, " ") : null;
+}
+
+function truncateMetadataText(value: string, maxLength: number) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function buildEventMetadataDescription(data: EventSharePageData) {
+  const contextParts = [data.dateLabel, data.locationLabel].filter(Boolean);
+  const tagLabels = data.tagLabels.slice(0, 4);
+  const metadataLead = [
+    contextParts.length > 0 ? contextParts.join(" · ") : null,
+    tagLabels.length > 0 ? `Tags: ${tagLabels.join(", ")}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const normalizedDescription = normalizeMetadataText(data.description);
+
+  if (!metadataLead && !normalizedDescription) {
+    return `Découvrez ${data.title} sur OutLive.`;
+  }
+
+  if (!normalizedDescription) {
+    return truncateMetadataText(metadataLead, 220);
+  }
+
+  if (!metadataLead) {
+    return truncateMetadataText(normalizedDescription, 220);
+  }
+
+  return truncateMetadataText(`${metadataLead}. ${normalizedDescription}`, 220);
+}
+
+function buildEventMetadataKeywords(data: EventSharePageData) {
+  return Array.from(
+    new Set(
+      [
+        data.title,
+        data.locationLabel,
+        data.categoryLabel,
+        data.dateLabel,
+        ...data.tagLabels,
+        "OutLive",
+        "événement",
+      ].filter((value): value is string => Boolean(value)),
+    ),
+  );
+}
 
 function ExternalActionCard({
   href,
@@ -65,22 +123,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   return buildPublicMetadata({
     title: data.title,
-    description:
-      data.description ||
-      `Découvrez ${data.title} sur OutLive${data.locationLabel ? ` · ${data.locationLabel}` : ""}.`,
+    description: buildEventMetadataDescription(data),
     path: data.sharePath,
     image: data.imageUrl || `${data.sharePath}/opengraph-image`,
     imageAlt: data.imageUrl
       ? `Image de l'événement ${data.title}`
       : `Aperçu OutLive de ${data.title}`,
     type: "article",
-    keywords: [
-      data.title,
-      data.locationLabel || "",
-      data.categoryLabel || "",
-      "OutLive",
-      "événement",
-    ].filter(Boolean),
+    keywords: buildEventMetadataKeywords(data),
   });
 }
 
