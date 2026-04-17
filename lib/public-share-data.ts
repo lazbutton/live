@@ -4,7 +4,7 @@ import { formatDateWithoutTimezone } from "@/lib/date-utils";
 import {
   buildArtistPath,
   buildEntityReference,
-  buildEventPath,
+  buildEventOpenPath,
   buildHubPath,
   buildLocationPath,
   buildOrganizerPath,
@@ -432,7 +432,7 @@ function toPublicEventListItem(
   return {
     id: event.id,
     title: normalizeText(event.title) ?? "Événement sans titre",
-    href: buildEventPath(event.id),
+    href: buildEventOpenPath(event.id),
     dateLabel: formatEventDateLabel(event.date, event.end_date),
     locationLabel: buildLocationLabel(event.location),
     categoryLabel: resolveCategoryLabel(event.category, categoryNameById),
@@ -782,7 +782,7 @@ export const getEventSharePageData = cache(
 
     return {
       id: event.id,
-      sharePath: buildEventPath(event.id),
+      sharePath: buildEventOpenPath(event.id),
       title: normalizeText(event.title) ?? "Événement OutLive",
       description: normalizeText(event.description),
       imageUrl: normalizeText(event.image_url),

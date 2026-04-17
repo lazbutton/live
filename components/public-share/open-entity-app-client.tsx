@@ -1,31 +1,24 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useRef } from "react";
-import {
-  ArrowLeft,
-  Download,
-  ExternalLink,
-  Smartphone,
-} from "lucide-react";
+import { useEffect, useMemo } from "react";
+import { Download, ExternalLink, Smartphone } from "lucide-react";
 
 import {
   type AppOpenEntity,
   buildArtistDeepLink,
-  buildDownloadAppPath,
   buildEventDeepLink,
   buildHubDeepLink,
   buildLocationDeepLink,
   buildOrganizerDeepLink,
   detectMobilePlatform,
-  getPreferredStoreUrl,
+  getPublicStoreUrls,
 } from "@/lib/mobile-app-links";
 
 type OpenEntityAppClientProps = {
   entity: AppOpenEntity;
   identifier: string;
   displayName: string | null;
-  returnPath: string;
+  returnPath?: string;
 };
 
 function buildEntityDeepLink(entity: AppOpenEntity, identifier: string) {
@@ -66,125 +59,101 @@ export function OpenEntityAppClient({
   entity,
   identifier,
   displayName,
-  returnPath,
 }: OpenEntityAppClientProps) {
-  const pageHiddenRef = useRef(false);
-
   const deepLink = useMemo(
     () => buildEntityDeepLink(entity, identifier),
     [entity, identifier],
   );
-
-  const downloadFallbackPath = useMemo(
-    () =>
-      buildDownloadAppPath({
-        from: returnPath,
-        name: displayName,
-      }),
-    [displayName, returnPath],
-  );
+  const { appStoreUrl, playStoreUrl } = getPublicStoreUrls();
+  const hasStoreLinks = Boolean(appStoreUrl || playStoreUrl);
 
   useEffect(() => {
     const platform = detectMobilePlatform(window.navigator.userAgent);
-    const storeUrl = getPreferredStoreUrl(platform);
-    const fallbackUrl = storeUrl || downloadFallbackPath;
-
-    const handleVisibilityChange = () => {
-      pageHiddenRef.current = document.visibilityState === "hidden";
-    };
-
-    const handlePageHide = () => {
-      pageHiddenRef.current = true;
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("pagehide", handlePageHide);
+    if (!platform) {
+      return;
+    }
 
     const openTimer = window.setTimeout(() => {
       window.location.assign(deepLink);
     }, 80);
 
-    const fallbackTimer = window.setTimeout(() => {
-      if (pageHiddenRef.current || document.visibilityState === "hidden") {
-        return;
-      }
-
-      window.location.replace(fallbackUrl);
-    }, 1400);
-
     return () => {
       window.clearTimeout(openTimer);
-      window.clearTimeout(fallbackTimer);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("pagehide", handlePageHide);
     };
-  }, [deepLink, downloadFallbackPath]);
+  }, [deepLink]);
 
   return (
     <main className="min-h-screen bg-[#0b0b0c] px-4 py-10 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-2xl items-center justify-center">
-        <div className="w-full rounded-[32px] border border-white/10 bg-white/[0.035] p-7 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-10">
+      <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-xl items-center justify-center">
+        <div className="w-full rounded-[32px] border border-white/10 bg-white/[0.035] p-7 text-center shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-10">
           <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-[#de3333]/30 bg-[#de3333]/12 text-[#ff9b9b]">
             <Smartphone className="h-7 w-7" />
           </div>
 
           <div className="mt-6 space-y-3">
             <p className="text-xs font-medium uppercase tracking-[0.28em] text-white/45">
-              Ouverture dans l&apos;app
+              Télécharger l&apos;app
             </p>
             <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               {displayName
-                ? `Ouverture de ${displayName} dans OutLive`
-                : `Ouverture de ${entityLabel(entity)} dans OutLive`}
+                ? `Téléchargez OutLive pour ouvrir ${displayName}`
+                : `Téléchargez OutLive pour ouvrir ${entityLabel(entity)}`}
             </h1>
             <p className="max-w-xl text-sm leading-7 text-white/68 sm:text-base">
-              Si l&apos;application ne s&apos;ouvre pas automatiquement, vous
-              pouvez réessayer ou télécharger OutLive sur votre téléphone.
+              Installez OutLive sur iPhone ou Android pour ouvrir ce contenu
+              directement dans l&apos;application.
             </p>
           </div>
 
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <a
-              href={deepLink}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#de3333] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#c92b2b]"
-            >
-              <Smartphone className="h-4 w-4" />
-              Ouvrir l&apos;app
-            </a>
-            <Link
-              href={downloadFallbackPath}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/82 transition hover:border-white/22 hover:bg-white/[0.07] hover:text-white"
-            >
-              <Download className="h-4 w-4" />
-              Télécharger l&apos;app
-            </Link>
-          </div>
+          {hasStoreLinks ? (
+            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+              {appStoreUrl ? (
+                <a
+                  href={appStoreUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center justify-between gap-4 rounded-[24px] border border-white/12 bg-white/[0.04] px-5 py-4 text-left transition hover:border-white/24 hover:bg-white/[0.07]"
+                >
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-medium uppercase tracking-[0.24em] text-white/45">
+                      iPhone
+                    </div>
+                    <div className="mt-1 text-base font-semibold text-white">
+                      Télécharger sur l&apos;App Store
+                    </div>
+                  </div>
+                  <ExternalLink className="h-5 w-5 shrink-0 text-white/45 transition group-hover:text-white/70" />
+                </a>
+              ) : null}
+              {playStoreUrl ? (
+                <a
+                  href={playStoreUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center justify-between gap-4 rounded-[24px] border border-white/12 bg-white/[0.04] px-5 py-4 text-left transition hover:border-white/24 hover:bg-white/[0.07]"
+                >
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-medium uppercase tracking-[0.24em] text-white/45">
+                      Android
+                    </div>
+                    <div className="mt-1 text-base font-semibold text-white">
+                      Télécharger sur Google Play
+                    </div>
+                  </div>
+                  <ExternalLink className="h-5 w-5 shrink-0 text-white/45 transition group-hover:text-white/70" />
+                </a>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-8 rounded-[24px] border border-dashed border-white/12 bg-white/[0.025] p-5 text-sm text-white/62">
+              Les liens de téléchargement iOS et Android ne sont pas encore
+              configurés sur ce site.
+            </div>
+          )}
 
-          <div className="mt-8 rounded-[24px] border border-white/10 bg-black/20 p-5">
-            <p className="text-sm font-medium text-white/84">
-              Pas encore installé ?
-            </p>
-            <p className="mt-2 text-sm leading-6 text-white/62">
-              Vous serez redirigé automatiquement vers la page de téléchargement
-              si OutLive n&apos;est pas disponible sur cet appareil.
-            </p>
-          </div>
-
-          <div className="mt-8 flex flex-wrap items-center gap-4 text-sm text-white/56">
-            <Link
-              href={returnPath}
-              className="inline-flex items-center gap-2 transition hover:text-white"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Continuer sur le site
-            </Link>
-            <a
-              href={deepLink}
-              className="inline-flex items-center gap-2 transition hover:text-white"
-            >
-              <ExternalLink className="h-4 w-4" />
-              Réessayer l&apos;ouverture
-            </a>
+          <div className="mt-6 inline-flex items-center gap-2 text-sm text-white/52">
+            <Download className="h-4 w-4" />
+            L&apos;app essaiera de s&apos;ouvrir automatiquement sur mobile si elle est déjà installée.
           </div>
         </div>
       </div>
