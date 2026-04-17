@@ -18,22 +18,14 @@ function truncateMetadataText(value: string, maxLength: number) {
 }
 
 function buildEventMetadataTitle(data: EventSharePageData) {
-  const baseTitle = normalizeMetadataText(data.title) || "Événement OutLive";
-  const context = [data.dateLabel, data.locationLabel, ...data.tagLabels.slice(0, 2)]
-    .filter(Boolean)
-    .join(" · ");
+  const parts = [
+    normalizeMetadataText(data.categoryLabel),
+    normalizeMetadataText(data.title) || "Événement OutLive",
+    normalizeMetadataText(data.startDateLabel),
+    normalizeMetadataText(data.locationLabel),
+  ].filter((value): value is string => Boolean(value));
 
-  if (!context) {
-    return truncateMetadataText(baseTitle, 150);
-  }
-
-  const separator = " · ";
-  const maxLength = 150;
-  const reservedLength = context.length + separator.length;
-  const availableForTitle = Math.max(36, maxLength - reservedLength);
-  const shortenedTitle = truncateMetadataText(baseTitle, availableForTitle);
-
-  return truncateMetadataText(`${shortenedTitle}${separator}${context}`, maxLength);
+  return truncateMetadataText(parts.join(" · "), 150);
 }
 
 function buildEventMetadataDescription(data: EventSharePageData) {

@@ -202,6 +202,7 @@ export type EventSharePageData = {
   description: string | null;
   imageUrl: string | null;
   dateLabel: string;
+  startDateLabel: string;
   locationLabel: string | null;
   categoryLabel: string | null;
   tagLabels: string[];
@@ -326,6 +327,10 @@ function formatEventDateLabel(date: string, endDate: string | null) {
   }
 
   return `${startLabel} -> ${formatDateWithoutTimezone(endDate, "EEE d MMM • HH:mm")}`;
+}
+
+function formatEventStartDateLabel(date: string) {
+  return formatDateWithoutTimezone(date, "EEE d MMM • HH:mm");
 }
 
 function formatHubDateLabel(startAt: string, endAt: string) {
@@ -787,6 +792,7 @@ export const getEventSharePageData = cache(
       description: normalizeText(event.description),
       imageUrl: normalizeText(event.image_url),
       dateLabel: formatEventDateLabel(event.date, event.end_date),
+      startDateLabel: formatEventStartDateLabel(event.date),
       locationLabel: buildLocationLabel(event.location),
       categoryLabel: resolveCategoryLabel(event.category, categoryNameById),
       tagLabels,

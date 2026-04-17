@@ -66,7 +66,7 @@ export default async function DownloadAppPage({ searchParams }: PageProps) {
   const hasStoreLinks = Boolean(appStoreUrl || playStoreUrl);
 
   return (
-    <main className="min-h-screen bg-[#0b0b0c] px-4 py-8 text-white sm:px-6 lg:px-8">
+    <main className="min-h-dvh overflow-hidden bg-[#0b0b0c] px-4 py-4 text-white sm:px-6 sm:py-8 lg:px-8">
       <div className="mx-auto max-w-5xl">
         <header className="flex items-center justify-between gap-4">
           <ArtistPageLogo />
@@ -79,21 +79,21 @@ export default async function DownloadAppPage({ searchParams }: PageProps) {
           </Link>
         </header>
 
-        <section className="mt-14 grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_380px] lg:items-start">
-          <div className="space-y-6">
+        <section className="mt-8 grid min-h-[calc(100dvh-7rem)] gap-5 lg:mt-14 lg:min-h-0 lg:grid-cols-[minmax(0,1.1fr)_380px] lg:items-start lg:gap-8">
+          <div className="space-y-4 lg:space-y-6">
             <div className="inline-flex w-fit rounded-full border border-[#de3333]/25 bg-[#de3333]/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.26em] text-[#ff9b9b]">
               Télécharger l&apos;app
             </div>
 
-            <div className="space-y-4">
-              <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+            <div className="space-y-3 sm:space-y-4">
+              <h1 className="max-w-3xl text-[2rem] font-semibold leading-tight tracking-tight text-white sm:text-5xl">
                 {displayName
                   ? `Installez OutLive pour ouvrir ${displayName} directement dans l'app`
                   : "Installez OutLive pour ouvrir les artistes et événements dans l'app"}
               </h1>
-              <p className="max-w-2xl text-base leading-8 text-white/70 sm:text-lg">
-                Ouvrez les profils artistes, les événements, les lieux et les
-                organisateurs directement dans l&apos;expérience mobile OutLive.
+              <p className="max-w-2xl text-sm leading-6 text-white/70 sm:text-lg sm:leading-8">
+                Ouvrez artistes, événements, lieux et organisateurs directement
+                dans l&apos;app OutLive.
               </p>
             </div>
 
@@ -121,9 +121,19 @@ export default async function DownloadAppPage({ searchParams }: PageProps) {
                 le téléchargement direct depuis cette page.
               </div>
             )}
+
+            <div className="rounded-[24px] border border-white/8 bg-black/20 p-4 lg:hidden">
+              <p className="text-sm font-medium text-white/84">
+                Une fois installée
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/62">
+                Les liens OutLive ouvriront automatiquement le bon contenu dans
+                l&apos;app.
+              </p>
+            </div>
           </div>
 
-          <aside className="rounded-[32px] border border-white/10 bg-white/[0.035] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+          <aside className="hidden rounded-[32px] border border-white/10 bg-white/[0.035] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl lg:block">
             <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-white/84">
               <Smartphone className="h-7 w-7" />
             </div>
