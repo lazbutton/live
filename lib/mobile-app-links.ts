@@ -20,6 +20,7 @@ export type AppOpenEntity = "artist" | "event" | "location" | "organizer" | "hub
 type DownloadPathOptions = {
   from?: string | null;
   name?: string | null;
+  deepLink?: string | null;
 };
 
 function buildQueryString(options: DownloadPathOptions = {}) {
@@ -31,6 +32,11 @@ function buildQueryString(options: DownloadPathOptions = {}) {
 
   if (options.name) {
     params.set("name", options.name);
+  }
+
+  const normalizedDeepLink = normalizeAppDeepLink(options.deepLink);
+  if (normalizedDeepLink) {
+    params.set("deepLink", normalizedDeepLink);
   }
 
   const query = params.toString();
@@ -92,6 +98,15 @@ export function buildOrganizerDeepLink(reference: string) {
 
 export function buildHubDeepLink(slug: string) {
   return `${APP_SCHEME}hub/${encodeURIComponent(slug.trim())}`;
+}
+
+export function normalizeAppDeepLink(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed || !trimmed.startsWith(APP_SCHEME)) {
+    return null;
+  }
+
+  return trimmed;
 }
 
 export function buildArtistPath(slug: string) {

@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 
+import { OpenEntityAppClient } from "@/components/public-share/open-entity-app-client";
 import { buildPublicMetadata } from "@/lib/metadata";
 import { normalizeInternalPath } from "@/lib/mobile-app-links";
-
-import { OpenArtistAppClient } from "./page-client";
 
 export const metadata: Metadata = buildPublicMetadata({
   title: "Ouvrir dans l'app OutLive",
@@ -30,9 +29,10 @@ export default async function OpenArtistAppPage({
   const { from, name } = await searchParams;
 
   return (
-    <OpenArtistAppClient
-      artistId={artistId}
-      artistName={name?.trim() || null}
+    <OpenEntityAppClient
+      entity="artist"
+      identifier={artistId}
+      displayName={name?.trim() || null}
       returnPath={normalizeInternalPath(from)}
     />
   );

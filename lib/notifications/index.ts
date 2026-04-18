@@ -231,6 +231,10 @@ function getPayloadCategoryIds(payload: NotificationPayload): string[] {
 export function getEffectiveNotificationCategoryIds(
   preferences: Pick<EnabledNotificationUser, "category_ids" | "user_notification_categories">,
 ): string[] {
+  if (Array.isArray(preferences.category_ids) && preferences.category_ids.length === 0) {
+    return [];
+  }
+
   const explicitCategoryIds = uniqueStringValues(
     Array.isArray(preferences.category_ids) ? preferences.category_ids : [],
   );
@@ -255,7 +259,7 @@ function payloadMatchesUserNotificationCategories(
 
   const userCategoryIds = getEffectiveNotificationCategoryIds(preferences);
   if (userCategoryIds.length === 0) {
-    return false;
+    return !Array.isArray(preferences.category_ids);
   }
 
   return payloadCategoryIds.some((categoryId) => userCategoryIds.includes(categoryId));
@@ -478,8 +482,12 @@ export async function sendNotificationToUser(
 
   if (payloadCategoryIds.length > 0) {
     if (userDiagnostic.userCategoryIds.length === 0) {
+      const hasExplicitEmptySelection =
+        Array.isArray(preferences.category_ids) && preferences.category_ids.length === 0;
       userDiagnostic.reason =
-        "Le payload cible des catégories, mais l'utilisateur n'en a configuré aucune";
+        hasExplicitEmptySelection
+          ? "L'utilisateur a explicitement vidé toutes ses catégories de notifications"
+          : "Le payload cible des catégories, mais l'utilisateur n'en a configuré aucune";
       recordDiagnosticUser(diagnostics, userDiagnostic, {
         blocked: true,
         withoutCategories: true,
@@ -489,7 +497,11 @@ export async function sendNotificationToUser(
         success: false,
         sent: 0,
         failed: 1,
-        errors: ["L'utilisateur n'a pas configuré de catégories de notifications"],
+        errors: [
+          hasExplicitEmptySelection
+            ? "L'utilisateur a désactivé toutes ses catégories de notifications"
+            : "L'utilisateur n'a pas configuré de catégories de notifications",
+        ],
         diagnostics,
       };
     }
@@ -748,6 +760,8 @@ export async function sendNotificationToAll(
     );
 
     if (!payloadMatchesUserNotificationCategories(userData, payload)) {
+      const hasExplicitEmptySelection =
+        Array.isArray(userData.category_ids) && userData.category_ids.length === 0;
       recordDiagnosticUser(
         diagnostics,
         {
@@ -755,7 +769,9 @@ export async function sendNotificationToAll(
           status: "blocked",
           reason:
             userCategoryIds.length === 0
-              ? "Le payload cible des catégories, mais cet utilisateur n'en a configuré aucune"
+              ? hasExplicitEmptySelection
+                ? "L'utilisateur a explicitement vidé toutes ses catégories de notifications"
+                : "Le payload cible des catégories, mais cet utilisateur n'en a configuré aucune"
               : "Les catégories du payload ne correspondent à aucune catégorie suivie",
           errors: [],
           hasPreferences: true,

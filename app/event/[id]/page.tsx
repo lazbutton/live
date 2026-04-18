@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { buildEventOpenPath } from "@/lib/mobile-app-links";
+import { buildDownloadAppPath, buildEventDeepLink } from "@/lib/mobile-app-links";
 
 type PageProps = {
   params: Promise<{
@@ -10,5 +10,9 @@ type PageProps = {
 
 export default async function EventRedirectPage({ params }: PageProps) {
   const { id } = await params;
-  redirect(buildEventOpenPath(id));
+  redirect(
+    buildDownloadAppPath({
+      deepLink: buildEventDeepLink(id),
+    }),
+  );
 }

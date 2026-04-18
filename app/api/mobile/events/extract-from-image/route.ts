@@ -4,9 +4,29 @@ import { extractEventFromImage } from "@/lib/events/extract-event-from-image";
 import { requireMobileUserAuth } from "@/lib/mobile-user-auth";
 
 const MAX_IMAGE_SIZE_BYTES = 12 * 1024 * 1024;
+const IMAGE_EXTENSION_TO_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  heic: "image/heic",
+  heif: "image/heif",
+};
 
 function isImageMimeType(value: string) {
   return value.startsWith("image/");
+}
+
+function resolveMimeType(file: File) {
+  const declaredType = file.type?.trim().toLowerCase() || "";
+  if (isImageMimeType(declaredType)) {
+    return declaredType;
+  }
+
+  const fileName = file.name?.trim().toLowerCase() || "";
+  const extension = fileName.includes(".") ? fileName.split(".").pop() || "" : "";
+  return IMAGE_EXTENSION_TO_MIME[extension] || declaredType;
 }
 
 export async function POST(request: NextRequest) {
@@ -32,6 +52,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (imageFile) {
+      const mimeType = resolveMimeType(imageFile);
+
       if (imageFile.size <= 0) {
         return NextResponse.json(
           { error: "Le fichier image est vide." },
@@ -49,7 +71,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (!isImageMimeType(imageFile.type || "")) {
+      if (!isImageMimeType(mimeType)) {
         return NextResponse.json(
           {
             error:

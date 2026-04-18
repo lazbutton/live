@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { OpenEntityAppClient } from "@/components/public-share/open-entity-app-client";
 import { buildPublicMetadata } from "@/lib/metadata";
+import { buildDownloadAppPath, buildEventDeepLink } from "@/lib/mobile-app-links";
 import { getEventSharePageData, type EventSharePageData } from "@/lib/public-share-data";
 
 function normalizeMetadataText(value: string | null | undefined) {
@@ -70,6 +73,13 @@ function buildEventMetadataKeywords(data: EventSharePageData) {
   );
 }
 
+function isMetadataCrawler(userAgent: string | null) {
+  const normalizedUserAgent = userAgent?.toLowerCase() || "";
+  return /(bot|crawl|spider|slurp|facebookexternalhit|twitterbot|linkedinbot|slackbot|discordbot|whatsapp|telegrambot|preview|embedly|skypeuripreview)/i.test(
+    normalizedUserAgent,
+  );
+}
+
 type PageProps = {
   params: Promise<{
     eventId: string;
@@ -107,6 +117,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function OpenEventAppPage({ params }: PageProps) {
   const { eventId } = await params;
   const data = await getEventSharePageData(eventId);
+  const requestHeaders = await headers();
+
+  if (!isMetadataCrawler(requestHeaders.get("user-agent"))) {
+    redirect(
+      buildDownloadAppPath({
+        name: data?.title ?? null,
+        deepLink: buildEventDeepLink(eventId),
+      }),
+    );
+  }
 
   return (
     <OpenEntityAppClient

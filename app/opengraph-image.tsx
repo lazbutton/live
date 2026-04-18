@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { OutLiveAppMark, OUTLIVE_BRAND } from "@/lib/outlive-brand";
 
 export const size = {
   width: 1200,
@@ -17,8 +18,8 @@ export default function OpenGraphImage() {
           display: "flex",
           position: "relative",
           overflow: "hidden",
-          background: "#0b0b0c",
-          color: "white",
+          background: OUTLIVE_BRAND.background,
+          color: OUTLIVE_BRAND.foreground,
           fontFamily: "sans-serif",
         }}
       >
@@ -76,14 +77,7 @@ export default function OpenGraphImage() {
               gap: 14,
             }}
           >
-            <div
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: 9999,
-                background: "#DE3333",
-              }}
-            />
+            <OutLiveAppMark size={40} dotScale={0.45} exclamationScale={0.62} />
             <div
               style={{
                 fontSize: 40,
@@ -91,7 +85,7 @@ export default function OpenGraphImage() {
                 letterSpacing: -1.2,
               }}
             >
-              OutLive !
+              OutLive
             </div>
           </div>
 

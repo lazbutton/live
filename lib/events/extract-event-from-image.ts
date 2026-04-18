@@ -231,7 +231,23 @@ async function buildImageDataUrl({
   imageUrl?: string | null;
 }) {
   if (imageFile) {
-    if (!imageFile.type.startsWith("image/")) {
+    const fileName = imageFile.name?.trim().toLowerCase() || "";
+    const extension = fileName.includes(".") ? fileName.split(".").pop() || "" : "";
+    const inferredMimeType =
+      imageFile.type ||
+      (extension === "jpg" || extension === "jpeg"
+        ? "image/jpeg"
+        : extension === "png"
+          ? "image/png"
+          : extension === "webp"
+            ? "image/webp"
+            : extension === "gif"
+              ? "image/gif"
+              : extension === "heic" || extension === "heif"
+                ? "image/jpeg"
+                : "");
+
+    if (!inferredMimeType.startsWith("image/")) {
       return {
         ok: false as const,
         error: "Le fichier fourni n'est pas une image.",
@@ -242,7 +258,7 @@ async function buildImageDataUrl({
     const buffer = Buffer.from(await imageFile.arrayBuffer());
     return {
       ok: true as const,
-      dataUrl: `data:${imageFile.type || "image/jpeg"};base64,${buffer.toString("base64")}`,
+      dataUrl: `data:${inferredMimeType};base64,${buffer.toString("base64")}`,
       sourceImageUrl: imageUrl || undefined,
     };
   }
