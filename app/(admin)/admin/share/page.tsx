@@ -1,7 +1,17 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { AdminLayout } from "../components/admin-layout";
+import { SocialVisualStudio } from "../components/social-visual-studio";
 
 export default function SharePage() {
-  redirect("/admin/settings?tab=system#share");
+  return (
+    <AdminLayout
+      title="Visuels réseaux"
+      breadcrumbItems={[{ label: "Visuels réseaux" }]}
+    >
+      <SocialVisualStudio />
+    </AdminLayout>
+  );
 }
 
 

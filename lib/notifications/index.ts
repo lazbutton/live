@@ -8,6 +8,25 @@ export interface NotificationPayload {
   data?: Record<string, any>;
 }
 
+export interface NotificationSendOptions {
+  notificationLogId?: string;
+}
+
+export interface NotificationDispatchClaimInput {
+  userId: string;
+  payload: NotificationPayload;
+  deliveryDate: string;
+  deliveryKey: string;
+  flowType: string;
+}
+
+export interface NotificationDispatchClaimResult {
+  claimed: boolean;
+  logId?: string;
+  reason?: "already_sent" | "already_claimed" | "in_progress";
+  reclaimedStale?: boolean;
+}
+
 export interface NotificationResult {
   success: boolean;
   sent: number;
@@ -98,11 +117,27 @@ type NotificationDispatchDiagnostics = {
 };
 
 const MAX_DIAGNOSTIC_USERS = 25;
+const NOTIFICATION_CLAIM_STALE_MINUTES = Number(
+  process.env.NOTIFICATION_CLAIM_STALE_MINUTES ?? 20,
+);
 const USER_FLOW_NOTES = [
   "Flux utilisateur: vérifie user_notification_preferences.is_enabled.",
   "Flux utilisateur: applique le filtrage par catégories si data.categories ou data.category est présent.",
   "Flux utilisateur: envoie uniquement vers le token le plus récemment mis à jour.",
 ];
+
+function extractEventIds(payload: NotificationPayload): string[] | undefined {
+  return payload.data?.event_ids
+    ? (Array.isArray(payload.data.event_ids)
+        ? payload.data.event_ids
+        : [payload.data.event_ids]
+      ).filter((id): id is string => typeof id === "string")
+    : undefined;
+}
+
+function isUniqueViolation(error: any): boolean {
+  return error?.code === "23505";
+}
 
 function previewToken(tokenRow: NotificationTokenRow): NotificationTokenPreview {
   return {
@@ -398,11 +433,13 @@ export async function getEnabledNotificationUsers(options: {
  */
 export async function sendNotificationToUser(
   userId: string,
-  payload: NotificationPayload
+  payload: NotificationPayload,
+  options: NotificationSendOptions = {},
 ): Promise<NotificationResult> {
   const supabase = createServiceClient();
   const diagnostics = createNotificationDispatchDiagnostics("single", payload);
   const payloadCategoryIds = diagnostics.payload.categoryIds;
+  const notificationLogId = options.notificationLogId;
   const userDiagnostic: NotificationUserDiagnostic = {
     userId,
     status: "blocked",
@@ -422,6 +459,9 @@ export async function sendNotificationToUser(
   try {
     preferences = await getNotificationPreferencesForUser(userId);
   } catch (prefsError: any) {
+    if (notificationLogId) {
+      await releasePendingNotificationLog(notificationLogId);
+    }
     userDiagnostic.status = "failed";
     userDiagnostic.reason = "Impossible de récupérer les préférences utilisateur";
     userDiagnostic.errors = [
@@ -442,6 +482,9 @@ export async function sendNotificationToUser(
   }
 
   if (!preferences) {
+    if (notificationLogId) {
+      await releasePendingNotificationLog(notificationLogId);
+    }
     userDiagnostic.reason = "Aucune préférence de notification trouvée";
     recordDiagnosticUser(diagnostics, userDiagnostic, {
       blocked: true,
@@ -465,6 +508,9 @@ export async function sendNotificationToUser(
   );
 
   if (!preferences.is_enabled) {
+    if (notificationLogId) {
+      await releasePendingNotificationLog(notificationLogId);
+    }
     userDiagnostic.reason = "Les notifications sont désactivées pour cet utilisateur";
     recordDiagnosticUser(diagnostics, userDiagnostic, {
       blocked: true,
@@ -482,6 +528,9 @@ export async function sendNotificationToUser(
 
   if (payloadCategoryIds.length > 0) {
     if (userDiagnostic.userCategoryIds.length === 0) {
+      if (notificationLogId) {
+        await releasePendingNotificationLog(notificationLogId);
+      }
       const hasExplicitEmptySelection =
         Array.isArray(preferences.category_ids) && preferences.category_ids.length === 0;
       userDiagnostic.reason =
@@ -507,6 +556,9 @@ export async function sendNotificationToUser(
     }
 
     if (userDiagnostic.matchedCategoryIds.length === 0) {
+      if (notificationLogId) {
+        await releasePendingNotificationLog(notificationLogId);
+      }
       userDiagnostic.reason =
         "Les catégories du payload ne correspondent à aucune catégorie suivie par l'utilisateur";
       recordDiagnosticUser(diagnostics, userDiagnostic, {
@@ -532,6 +584,9 @@ export async function sendNotificationToUser(
 
   if (error) {
     console.error("❌ Erreur lors de la récupération des tokens:", error);
+    if (notificationLogId) {
+      await releasePendingNotificationLog(notificationLogId);
+    }
     userDiagnostic.status = "failed";
     userDiagnostic.reason = "Impossible de récupérer les tokens push";
     userDiagnostic.errors = [error.message];
@@ -549,6 +604,9 @@ export async function sendNotificationToUser(
   }
 
   if (!tokens || tokens.length === 0) {
+    if (notificationLogId) {
+      await releasePendingNotificationLog(notificationLogId);
+    }
     userDiagnostic.reason = "Aucun token push trouvé pour cet utilisateur";
     recordDiagnosticUser(diagnostics, userDiagnostic, {
       blocked: true,
@@ -580,80 +638,86 @@ export async function sendNotificationToUser(
   
   console.log(`📱 Utilisation du dernier token pour l'utilisateur ${userId}: ${tokenData.platform} (${tokenData.token.substring(0, 20)}...)`);
 
-  let result;
+  try {
+    let result;
 
-  if (tokenData.platform === "ios") {
-    if (tokenData.token.startsWith("ios_user_")) {
-      console.warn(
-        `⚠️ Token iOS invalide (format identifiant): ${tokenData.token}. L'application mobile doit obtenir et enregistrer le vrai token APNs depuis l'appareil iOS.`
-      );
-      console.warn(
-        `   💡 Pour obtenir le vrai token APNs dans Flutter iOS, utilisez flutter_apns ou UNUserNotificationCenter.`
-      );
-      
-      results.failed++;
-      userDiagnostic.status = "failed";
-      userDiagnostic.reason =
-        "Le dernier token iOS est un identifiant placeholder, pas un vrai token APNs";
-      userDiagnostic.errors = [
-        `Token iOS invalide (format identifiant au lieu d'un vrai token APNs): ${tokenData.token}. L'application doit enregistrer le vrai token APNs obtenu depuis l'appareil iOS.`,
-      ];
-      results.errors.push(...userDiagnostic.errors);
-      results.success = false;
-    } else {
-      result = await sendAPNsNotification(
+    if (tokenData.platform === "ios") {
+      if (tokenData.token.startsWith("ios_user_")) {
+        console.warn(
+          `⚠️ Token iOS invalide (format identifiant): ${tokenData.token}. L'application mobile doit obtenir et enregistrer le vrai token APNs depuis l'appareil iOS.`,
+        );
+        console.warn(
+          "   💡 Pour obtenir le vrai token APNs dans Flutter iOS, utilisez flutter_apns ou UNUserNotificationCenter.",
+        );
+
+        results.failed++;
+        userDiagnostic.status = "failed";
+        userDiagnostic.reason =
+          "Le dernier token iOS est un identifiant placeholder, pas un vrai token APNs";
+        userDiagnostic.errors = [
+          `Token iOS invalide (format identifiant au lieu d'un vrai token APNs): ${tokenData.token}. L'application doit enregistrer le vrai token APNs obtenu depuis l'appareil iOS.`,
+        ];
+        results.errors.push(...userDiagnostic.errors);
+        results.success = false;
+      } else {
+        result = await sendAPNsNotification(
+          tokenData.token,
+          payload.title,
+          payload.body,
+          payload.data,
+        );
+      }
+    } else if (tokenData.platform === "android") {
+      result = await sendFCMNotification(
         tokenData.token,
         payload.title,
         payload.body,
-        payload.data
+        payload.data,
       );
-    }
-  } else if (tokenData.platform === "android") {
-    result = await sendFCMNotification(
-      tokenData.token,
-      payload.title,
-      payload.body,
-      payload.data
-    );
-  } else {
-    console.warn(`⚠️ Plateforme "${tokenData.platform}" non supportée`);
-    results.failed++;
-    userDiagnostic.status = "failed";
-    userDiagnostic.reason = `Plateforme "${tokenData.platform}" non supportée`;
-    userDiagnostic.errors = [`Plateforme "${tokenData.platform}" non supportée`];
-    results.errors.push(...userDiagnostic.errors);
-    results.success = false;
-  }
-
-  if (result) {
-    if (result.success) {
-      results.sent++;
-      userDiagnostic.status = "sent";
-      userDiagnostic.reason = "Notification envoyée";
     } else {
+      console.warn(`⚠️ Plateforme "${tokenData.platform}" non supportée`);
       results.failed++;
       userDiagnostic.status = "failed";
-      userDiagnostic.reason = result.error || "Erreur inconnue";
-      userDiagnostic.errors = [result.error || "Erreur inconnue"];
+      userDiagnostic.reason = `Plateforme "${tokenData.platform}" non supportée`;
+      userDiagnostic.errors = [`Plateforme "${tokenData.platform}" non supportée`];
       results.errors.push(...userDiagnostic.errors);
       results.success = false;
+    }
 
-      const shouldDeleteToken =
-        result.error?.includes("Token invalide") ||
-        result.error?.includes("BadDeviceToken") ||
-        result.error?.includes("Unregistered") ||
-        result.error?.includes("registration-token-not-registered") ||
-        result.error?.includes("400") || // Erreur 400 = généralement DeviceTokenNotForTopic (bundle ID mismatch)
-        result.error?.includes("Requête invalide");
+    if (result) {
+      if (result.success) {
+        results.sent++;
+        userDiagnostic.status = "sent";
+        userDiagnostic.reason = "Notification envoyée";
+      } else {
+        results.failed++;
+        userDiagnostic.status = "failed";
+        userDiagnostic.reason = result.error || "Erreur inconnue";
+        userDiagnostic.errors = [result.error || "Erreur inconnue"];
+        results.errors.push(...userDiagnostic.errors);
+        results.success = false;
 
-      if (shouldDeleteToken) {
-        await supabase
-          .from("user_push_tokens")
-          .delete()
-          .eq("token", tokenData.token);
-        console.log(`🗑️ Token invalide supprimé (${result.error}): ${tokenData.token.substring(0, 20)}...`);
+        const shouldDeleteToken =
+          result.error?.includes("Token invalide") ||
+          result.error?.includes("BadDeviceToken") ||
+          result.error?.includes("Unregistered") ||
+          result.error?.includes("registration-token-not-registered") ||
+          result.error?.includes("400") ||
+          result.error?.includes("Requête invalide");
+
+        if (shouldDeleteToken) {
+          await supabase.from("user_push_tokens").delete().eq("token", tokenData.token);
+          console.log(
+            `🗑️ Token invalide supprimé (${result.error}): ${tokenData.token.substring(0, 20)}...`,
+          );
+        }
       }
     }
+  } catch (dispatchError) {
+    if (notificationLogId) {
+      await releasePendingNotificationLog(notificationLogId);
+    }
+    throw dispatchError;
   }
 
   if (results.sent > 0) {
@@ -671,7 +735,13 @@ export async function sendNotificationToUser(
   }
 
   if (results.sent > 0) {
-    await logNotification(userId, payload);
+    if (notificationLogId) {
+      await markNotificationLogSent(notificationLogId, payload);
+    } else {
+      await logNotification(userId, payload);
+    }
+  } else if (notificationLogId) {
+    await releasePendingNotificationLog(notificationLogId);
   }
 
   results.success = results.failed === 0;
@@ -821,14 +891,7 @@ async function logNotification(
   payload: NotificationPayload
 ): Promise<void> {
   const supabase = createServiceClient();
-
-  // Extraire les event_ids depuis les données si présents
-  const eventIds = payload.data?.event_ids
-    ? (Array.isArray(payload.data.event_ids)
-        ? payload.data.event_ids
-        : [payload.data.event_ids]
-      ).filter((id): id is string => typeof id === "string")
-    : undefined;
+  const eventIds = extractEventIds(payload);
 
   const { error } = await supabase.from("notification_logs").insert({
     user_id: userId,
@@ -840,6 +903,125 @@ async function logNotification(
 
   if (error) {
     console.error("❌ Erreur lors du log de la notification:", error);
+  }
+}
+
+export async function claimNotificationDelivery(
+  input: NotificationDispatchClaimInput,
+): Promise<NotificationDispatchClaimResult> {
+  const { deliveryDate, deliveryKey, flowType, payload, userId } = input;
+  const supabase = createServiceClient();
+  const staleThresholdMs = NOTIFICATION_CLAIM_STALE_MINUTES * 60 * 1000;
+
+  const { data: existingLog, error: existingError } = await supabase
+    .from("notification_logs")
+    .select("id, created_at, sent_at")
+    .eq("delivery_key", deliveryKey)
+    .maybeSingle();
+
+  if (existingError) {
+    throw existingError;
+  }
+
+  let reclaimedStale = false;
+
+  if (existingLog) {
+    if (existingLog.sent_at) {
+      return {
+        claimed: false,
+        reason: "already_sent",
+      };
+    }
+
+    const createdAtMs = existingLog.created_at
+      ? new Date(existingLog.created_at).getTime()
+      : Number.NaN;
+    const isStale =
+      !Number.isNaN(createdAtMs) && Date.now() - createdAtMs >= staleThresholdMs;
+
+    if (!isStale) {
+      return {
+        claimed: false,
+        reason: "in_progress",
+      };
+    }
+
+    const { error: deleteError } = await supabase
+      .from("notification_logs")
+      .delete()
+      .eq("id", existingLog.id)
+      .is("sent_at", null);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    reclaimedStale = true;
+  }
+
+  const { data: insertedLog, error: insertError } = await supabase
+    .from("notification_logs")
+    .insert({
+      user_id: userId,
+      title: payload.title,
+      body: payload.body,
+      event_ids: extractEventIds(payload),
+      sent_at: null,
+      delivery_date: deliveryDate,
+      delivery_key: deliveryKey,
+      flow_type: flowType,
+    })
+    .select("id")
+    .single();
+
+  if (insertError) {
+    if (isUniqueViolation(insertError)) {
+      return {
+        claimed: false,
+        reason: "already_claimed",
+        reclaimedStale,
+      };
+    }
+    throw insertError;
+  }
+
+  return {
+    claimed: true,
+    logId: insertedLog.id,
+    reclaimedStale,
+  };
+}
+
+async function markNotificationLogSent(
+  notificationLogId: string,
+  payload: NotificationPayload,
+): Promise<void> {
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from("notification_logs")
+    .update({
+      body: payload.body,
+      event_ids: extractEventIds(payload),
+      sent_at: new Date().toISOString(),
+      title: payload.title,
+    })
+    .eq("id", notificationLogId);
+
+  if (error) {
+    console.error("❌ Erreur lors de la validation du log de notification:", error);
+  }
+}
+
+async function releasePendingNotificationLog(notificationLogId: string): Promise<void> {
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from("notification_logs")
+    .delete()
+    .eq("id", notificationLogId)
+    .is("sent_at", null);
+
+  if (error) {
+    console.error("❌ Erreur lors de la libération du log de notification:", error);
   }
 }
 

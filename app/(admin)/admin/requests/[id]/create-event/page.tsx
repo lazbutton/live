@@ -83,7 +83,7 @@ import {
 } from "@/lib/events/price-utils";
 import {
   isHttpImageUrl,
-  resolveCropSource,
+  fetchAdminProxiedImageObjectUrl,
 } from "@/lib/events/remote-image";
 import {
   extractImportedCategoryLabels,
@@ -432,6 +432,8 @@ interface UserRequest {
     category?: string;
     location_id?: string;
     location_name?: string;
+    organizer_id?: string;
+    location_organizer_id?: string;
     organizer_names?: string[];
     price?: number;
     address?: string;
@@ -439,9 +441,14 @@ interface UserRequest {
     image_url?: string;
     door_opening_time?: string;
     external_url?: string;
+    external_url_label?: string;
     instagram_url?: string;
     facebook_url?: string;
     room_id?: string;
+    is_pay_what_you_want?: boolean;
+    tags?: string[];
+    tag_ids?: string[];
+    metadata?: Record<string, unknown>;
   };
   requested_by?: string | null;
   contributor_display_name?: string | null;
@@ -585,7 +592,7 @@ function CreateEventContent() {
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const autoPrefillTriggeredRef = useRef<string | null>(null);
   const previousImageSignatureRef = useRef<string | null>(null);
-  const [proxyToken, setProxyToken] = useState<string | null>(null);
+  const remoteCropImageUrlRef = useRef<string | null>(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -613,25 +620,6 @@ function CreateEventContent() {
   >([]);
   const [duplicateCandidatesLoading, setDuplicateCandidatesLoading] =
     useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setProxyToken(data.session?.access_token ?? null);
-    });
-
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-      setProxyToken(session?.access_token ?? null);
-    });
-
-    return () => {
-      mounted = false;
-      data.subscription.unsubscribe();
-    };
-  }, []);
 
   // Fonction pour charger les salles d'un lieu
   async function loadRoomsForLocation(locationId: string) {
@@ -867,6 +855,61 @@ function CreateEventContent() {
     return findOrCreateTags(rawTagNames);
   }
 
+  function normalizeImportedStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((entry) => String(entry).trim())
+      .filter(
+        (entry, index, array) => Boolean(entry) && array.indexOf(entry) === index,
+      );
+  }
+
+  async function resolveExistingTagIds(
+    rawTagIds: unknown,
+    availableTags = tags,
+  ): Promise<string[]> {
+    const candidateIds = normalizeImportedStringArray(rawTagIds);
+    if (candidateIds.length === 0) {
+      return [];
+    }
+
+    const availableIds = new Set(availableTags.map((tag) => tag.id));
+    const unresolvedIds = candidateIds.filter((id) => !availableIds.has(id));
+
+    if (unresolvedIds.length === 0) {
+      return candidateIds;
+    }
+
+    const { data: existingTags, error } = await supabase
+      .from("tags")
+      .select("id, name")
+      .in("id", unresolvedIds);
+
+    if (error) {
+      console.error("Erreur lors de la résolution des tag_ids:", error);
+      return candidateIds.filter((id) => availableIds.has(id));
+    }
+
+    if (existingTags && existingTags.length > 0) {
+      setTags((previous) => {
+        const merged = new Map(previous.map((tag) => [tag.id, tag]));
+        for (const tag of existingTags) {
+          merged.set(tag.id, tag);
+        }
+        return Array.from(merged.values()).sort((a, b) =>
+          a.name.localeCompare(b.name),
+        );
+      });
+    }
+
+    const resolvedIds = new Set([
+      ...candidateIds.filter((id) => availableIds.has(id)),
+      ...(existingTags || []).map((tag) => tag.id),
+    ]);
+
+    return candidateIds.filter((id) => resolvedIds.has(id));
+  }
+
   function resolveLocationFromImportedData(
     locationName?: string | null,
     address?: string | null,
@@ -924,7 +967,10 @@ function CreateEventContent() {
     return null;
   }
 
-  function resolveOrganizerFromImportedData(organizerName?: string | null) {
+  function resolveOrganizerFromImportedData(
+    organizerName?: string | null,
+    availableOrganizers = organizers,
+  ) {
     const raw = (organizerName || "").trim();
     if (!raw) return null;
 
@@ -942,7 +988,7 @@ function CreateEventContent() {
 
     for (const candidate of candidates) {
       const normalizedCandidate = normalizeSearchValue(candidate);
-      const exact = organizers.find(
+      const exact = availableOrganizers.find(
         (organizer) =>
           normalizeSearchValue(organizer.name) === normalizedCandidate,
       );
@@ -951,17 +997,36 @@ function CreateEventContent() {
 
     for (const candidate of candidates) {
       const normalizedCandidate = normalizeSearchValue(candidate);
-      const partial = organizers.find((organizer) => {
+      if (normalizedCandidate.length < 4) continue;
+      const partialMatches = availableOrganizers.filter((organizer) => {
         const normalizedName = normalizeSearchValue(organizer.name);
         return (
           normalizedName.includes(normalizedCandidate) ||
           normalizedCandidate.includes(normalizedName)
         );
       });
-      if (partial) return partial;
+      if (partialMatches.length === 1) {
+        return partialMatches[0];
+      }
     }
 
     return null;
+  }
+
+  function resolveOrganizerIdsFromImportedNames(
+    rawOrganizerNames: unknown,
+    availableOrganizers = organizers,
+  ) {
+    return normalizeImportedStringArray(rawOrganizerNames)
+      .map(
+        (organizerName) =>
+          resolveOrganizerFromImportedData(organizerName, availableOrganizers)
+            ?.id || "",
+      )
+      .filter(
+        (organizerId, index, array) =>
+          Boolean(organizerId) && array.indexOf(organizerId) === index,
+      );
   }
 
   async function applyImportedEventData(
@@ -995,12 +1060,11 @@ function CreateEventContent() {
           : null,
     );
 
-    const importedTags = Array.isArray(importedData.tags)
-      ? importedData.tags
-          .map((tag: unknown) => String(tag).trim())
-          .filter(Boolean)
-      : [];
-    if (importedTags.length > 0) {
+    const importedTags = normalizeImportedStringArray(importedData.tags);
+    const resolvedTagIds = await resolveExistingTagIds(importedData.tag_ids);
+    if (resolvedTagIds.length > 0) {
+      setSelectedTagIds(resolvedTagIds);
+    } else if (importedTags.length > 0) {
       const tagIds = await findOrCreateTags(importedTags);
       setSelectedTagIds(tagIds);
     }
@@ -1031,6 +1095,7 @@ function CreateEventContent() {
       typeof importedData.location_organizer_id === "string"
         ? importedData.location_organizer_id
         : "",
+      ...resolveOrganizerIdsFromImportedNames(importedData.organizer_names),
       matchedOrganizer?.id || "",
     ].filter(
       (value, index, array) => Boolean(value) && array.indexOf(value) === index,
@@ -1387,8 +1452,13 @@ function CreateEventContent() {
               : null,
         );
 
-        // Gérer les tags (peut être un tableau de noms de tags scrapés)
-        if (ed.tags && Array.isArray(ed.tags) && ed.tags.length > 0) {
+        const resolvedTagIds = await resolveExistingTagIds(
+          ed.tag_ids,
+          tagsResult.data || [],
+        );
+        if (resolvedTagIds.length > 0) {
+          setSelectedTagIds(resolvedTagIds);
+        } else if (ed.tags && Array.isArray(ed.tags) && ed.tags.length > 0) {
           const tagIds = await findOrCreateTags(ed.tags);
           setSelectedTagIds(tagIds);
         }
@@ -1434,17 +1504,25 @@ function CreateEventContent() {
         } else if (ed.location_organizer_id) {
           // Si un lieu-organisateur a été détecté automatiquement lors de l'enrichissement
           setSelectedOrganizerIds([ed.location_organizer_id]);
-        } else if (ed.location_id) {
-          // Si aucun organisateur n'a été trouvé mais qu'un lieu est présent, vérifier si c'est un lieu-organisateur
-          const { data: location } = await supabase
-            .from("locations")
-            .select("is_organizer")
-            .eq("id", ed.location_id)
-            .maybeSingle();
+        } else {
+          const matchedOrganizerIds = resolveOrganizerIdsFromImportedNames(
+            ed.organizer_names,
+            allOrganizers,
+          );
+          if (matchedOrganizerIds.length > 0) {
+            setSelectedOrganizerIds(matchedOrganizerIds);
+          } else if (ed.location_id) {
+            // Si aucun organisateur n'a été trouvé mais qu'un lieu est présent, vérifier si c'est un lieu-organisateur
+            const { data: location } = await supabase
+              .from("locations")
+              .select("is_organizer")
+              .eq("id", ed.location_id)
+              .maybeSingle();
 
-          if (location?.is_organizer) {
-            // Le lieu est un organisateur, l'ajouter automatiquement
-            setSelectedOrganizerIds([ed.location_id]);
+            if (location?.is_organizer) {
+              // Le lieu est un organisateur, l'ajouter automatiquement
+              setSelectedOrganizerIds([ed.location_id]);
+            }
           }
         }
 
@@ -1694,21 +1772,36 @@ function CreateEventContent() {
   }
 
   function openCropperFromRemoteUrl(rawUrl: string) {
-    if (isHttpImageUrl(rawUrl) && !proxyToken) {
-      alert(
-        "L'image distante est en cours de préparation. Réessaie dans un instant ou remplace-la manuellement.",
-      );
-      return;
-    }
+    void (async () => {
+      if (remoteCropImageUrlRef.current) {
+        URL.revokeObjectURL(remoteCropImageUrlRef.current);
+        remoteCropImageUrlRef.current = null;
+      }
 
-    setOriginalImageSrc(rawUrl);
-    setCropImageSrc(
-      resolveCropSource({
-        source: rawUrl,
-        proxyToken,
-      }),
-    );
-    setShowCropper(true);
+      try {
+        const { data } = await supabase.auth.getSession();
+        const accessToken = data.session?.access_token;
+
+        if (!accessToken) {
+          throw new Error("Missing admin session for remote crop.");
+        }
+
+        const objectUrl = await fetchAdminProxiedImageObjectUrl({
+          source: rawUrl,
+          accessToken,
+        });
+
+        remoteCropImageUrlRef.current = objectUrl;
+        setOriginalImageSrc(rawUrl);
+        setCropImageSrc(objectUrl);
+        setShowCropper(true);
+      } catch (error) {
+        console.error("Erreur préparation crop image distante:", error);
+        alert(
+          "Impossible de préparer l'image distante pour le rognage. Réessaie dans un instant ou remplace-la manuellement.",
+        );
+      }
+    })();
   }
 
   const onCropComplete = useCallback(
@@ -1791,6 +1884,10 @@ function CreateEventContent() {
       setImagePreview(localPreviewUrl);
       setOriginalImageSrc(localPreviewUrl);
       setShowCropper(false);
+      if (remoteCropImageUrlRef.current) {
+        URL.revokeObjectURL(remoteCropImageUrlRef.current);
+        remoteCropImageUrlRef.current = null;
+      }
       setCropImageSrc(null);
       setCrop({ x: 0, y: 0 });
       setZoom(1);
@@ -3389,6 +3486,10 @@ function CreateEventContent() {
                         className="absolute top-2 right-2 cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (remoteCropImageUrlRef.current) {
+                            URL.revokeObjectURL(remoteCropImageUrlRef.current);
+                            remoteCropImageUrlRef.current = null;
+                          }
                           setImagePreview(null);
                           setImageFile(null);
                           setOriginalImageSrc(null); // Réinitialiser aussi l'originale
@@ -4012,7 +4113,19 @@ function CreateEventContent() {
       </Dialog>
 
       {/* Cropper Dialog */}
-      <Dialog open={showCropper} onOpenChange={setShowCropper}>
+      <Dialog
+        open={showCropper}
+        onOpenChange={(open) => {
+          setShowCropper(open);
+          if (!open) {
+            if (remoteCropImageUrlRef.current) {
+              URL.revokeObjectURL(remoteCropImageUrlRef.current);
+              remoteCropImageUrlRef.current = null;
+            }
+            setCropImageSrc(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-5xl p-0 gap-0">
           <div className="flex flex-col h-[90vh] max-h-[800px]">
             {/* Header */}

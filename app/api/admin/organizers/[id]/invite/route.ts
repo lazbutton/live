@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { NextResponse } from "next/server";
 import { isOwnerOfOrganizer } from "@/lib/auth-helpers";
+import { buildInvitationEmail } from "@/lib/email/outlive-invitation-email";
 
 // POST : Envoyer une invitation par email
 export async function POST(
@@ -107,7 +108,12 @@ export async function POST(
           // Continuer pour créer une nouvelle invitation
         } else {
           // Envoyer l'email
-          await sendInvitationEmail(email, invitation.token, organizerData.name);
+          await sendInvitationEmail(
+            email,
+            invitation.token,
+            organizerData.name,
+            userRole,
+          );
           
           return NextResponse.json({
             success: true,
@@ -140,7 +146,12 @@ export async function POST(
     }
 
     // Envoyer l'email d'invitation
-    await sendInvitationEmail(email, invitation.token, organizerData.name);
+    await sendInvitationEmail(
+      email,
+      invitation.token,
+      organizerData.name,
+      userRole,
+    );
 
     // Enregistrer dans l'audit log
     const supabaseAdmin = createServiceClient();
@@ -177,7 +188,8 @@ export async function POST(
 async function sendInvitationEmail(
   email: string,
   token: string,
-  organizerName: string
+  organizerName: string,
+  role: "owner" | "editor" | "viewer",
 ) {
   // Construire l'URL d'invitation
   let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -194,122 +206,13 @@ async function sendInvitationEmail(
   
   const invitationUrl = `${baseUrl}/organizer/invite/accept?token=${token}`;
 
-  // Générer le HTML de l'email (style inspiré de l'interface admin)
-  const emailHTML = `
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>Invitation à rejoindre ${organizerName}</title>
-  <!--[if mso]>
-  <style type="text/css">
-    body, table, td {font-family: Arial, sans-serif !important;}
-  </style>
-  <![endif]-->
-</head>
-<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1f2937;">
-  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f5f5;">
-    <tr>
-      <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <!-- Header avec gradient (inspiré du style admin) -->
-          <tr>
-            <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
-                Invitation Organisateur
-              </h1>
-            </td>
-          </tr>
-          
-          <!-- Contenu principal -->
-          <tr>
-            <td style="padding: 40px 30px;">
-              <p style="margin: 0 0 24px 0; font-size: 16px; color: #1f2937; line-height: 1.6;">
-                Bonjour,
-              </p>
-              
-              <p style="margin: 0 0 24px 0; font-size: 16px; color: #1f2937; line-height: 1.6;">
-                Vous avez été invité à rejoindre <strong style="color: #667eea; font-weight: 600;">${organizerName}</strong> en tant qu'organisateur sur la plateforme OutLive.
-              </p>
-              
-              <p style="margin: 0 0 32px 0; font-size: 16px; color: #4b5563; line-height: 1.6;">
-                En acceptant cette invitation, vous pourrez gérer les événements de cet organisateur, créer de nouveaux événements, et bien plus encore.
-              </p>
-              
-              <!-- Badge d'information (style inspiré de l'admin) -->
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 32px 0;">
-                <tr>
-                  <td style="background-color: #eff6ff; border-left: 4px solid #667eea; padding: 16px 20px; border-radius: 6px;">
-                    <p style="margin: 0; font-size: 14px; color: #1e40af; line-height: 1.5;">
-                      <strong style="display: block; margin-bottom: 4px;">💡 Que pouvez-vous faire ?</strong>
-                      • Créer et modifier des événements<br>
-                      • Gérer le contenu de l'organisateur<br>
-                      • Suivre les statistiques
-                    </p>
-                  </td>
-                </tr>
-              </table>
-              
-              <!-- Bouton CTA (style inspiré de l'admin) -->
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                <tr>
-                  <td align="center" style="padding: 0 0 32px 0;">
-                    <a href="${invitationUrl}" style="display: inline-block; padding: 16px 32px; background-color: #667eea; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);">
-                      Créer mon compte et accepter
-                    </a>
-                  </td>
-                </tr>
-              </table>
-              
-              <!-- Note importante (style inspiré de l'admin) -->
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 24px 0;">
-                <tr>
-                  <td style="background-color: #fef3c7; border: 1px solid #fbbf24; padding: 16px; border-radius: 6px;">
-                    <p style="margin: 0; font-size: 14px; color: #92400e; line-height: 1.5;">
-                      <strong>⏰ Important :</strong> Ce lien d'invitation expire dans <strong>7 jours</strong>. Assurez-vous de créer votre compte avant cette date.
-                    </p>
-                  </td>
-                </tr>
-              </table>
-              
-              <!-- Lien alternatif -->
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                <tr>
-                  <td style="padding-top: 24px; border-top: 1px solid #e5e7eb;">
-                    <p style="margin: 0 0 12px 0; font-size: 13px; color: #6b7280;">
-                      Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :
-                    </p>
-                    <p style="margin: 0; word-break: break-all;">
-                      <a href="${invitationUrl}" style="color: #667eea; text-decoration: underline; font-size: 13px; word-break: break-all;">
-                        ${invitationUrl}
-                      </a>
-                    </p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #f9fafb; padding: 24px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-              <p style="margin: 0 0 8px 0; font-size: 12px; color: #6b7280; line-height: 1.5;">
-                Cet email a été envoyé automatiquement, merci de ne pas y répondre.
-              </p>
-              <p style="margin: 0; font-size: 12px; color: #9ca3af;">
-                © ${new Date().getFullYear()} OutLive - Tous droits réservés
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-  `;
+  const emailContent = buildInvitationEmail({
+    baseUrl,
+    invitationUrl,
+    organizerName,
+    recipientEmail: email,
+    role,
+  });
 
   // Essayer d'envoyer l'email avec Resend si la clé API est configurée
   if (process.env.RESEND_API_KEY) {
@@ -324,8 +227,9 @@ async function sendInvitationEmail(
         await resend.emails.send({
           from: process.env.RESEND_FROM_EMAIL || "noreply@votredomaine.com",
           to: email,
-          subject: `Invitation à rejoindre ${organizerName}`,
-          html: emailHTML,
+          subject: emailContent.subject,
+          html: emailContent.html,
+          text: emailContent.text,
         });
         
         // Logger en développement pour confirmation
@@ -334,7 +238,7 @@ async function sendInvitationEmail(
           console.log("📧 EMAIL ENVOYÉ VIA RESEND");
           console.log("=".repeat(60));
           console.log(`To: ${email}`);
-          console.log(`Subject: Invitation à rejoindre ${organizerName}`);
+          console.log(`Subject: ${emailContent.subject}`);
           console.log(`From: ${process.env.RESEND_FROM_EMAIL || "noreply@votredomaine.com"}`);
           console.log("\n" + "=".repeat(60) + "\n");
         }
@@ -353,7 +257,7 @@ async function sendInvitationEmail(
   console.log("📧 INVITATION EMAIL (FALLBACK - CONSOLE)");
   console.log("=".repeat(60));
   console.log(`To: ${email}`);
-  console.log(`Subject: Invitation à rejoindre ${organizerName}`);
+  console.log(`Subject: ${emailContent.subject}`);
   console.log(`\nURL d'invitation:`);
   console.log(invitationUrl);
   if (!process.env.RESEND_API_KEY) {

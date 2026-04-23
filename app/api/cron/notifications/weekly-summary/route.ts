@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import {
+  claimNotificationDelivery,
   getEffectiveNotificationCategoryIds,
   getEnabledNotificationUsers,
   sendNotificationToUser,
@@ -26,6 +27,14 @@ const WEEKLY_FLOW = {
   latestTokenOnly: true,
 };
 const MAX_ROUTE_DIAGNOSTICS = 25;
+
+type WeeklyDigestEventRow = {
+  id: string;
+  title: string;
+  date: string;
+  end_date: string | null;
+  category: string | null;
+};
 
 /**
  * Vérifie que la requête vient bien de Vercel Cron
@@ -59,7 +68,6 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = createServiceClient();
-    
     console.log("📊 Démarrage du cron de résumé hebdomadaire");
 
     const now = new Date();
@@ -127,7 +135,7 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    const relevantEvents = (events || []).filter((event: any) => {
+    const relevantEvents = ((events ?? []) as WeeklyDigestEventRow[]).filter((event) => {
       const start = new Date(event.date);
       const end = event.end_date ? new Date(event.end_date) : null;
       if (end && !Number.isNaN(end.getTime())) {
@@ -149,7 +157,10 @@ export async function GET(request: NextRequest) {
     console.log(`📋 ${relevantEvents.length} événement(s) pertinent(s) trouvé(s) pour cette semaine`);
     
     // Filtrer les événements avec catégorie
-    const eventsWithCategory = relevantEvents.filter(e => e.category);
+    const eventsWithCategory = relevantEvents.filter(
+      (event): event is WeeklyDigestEventRow & { category: string } =>
+        typeof event.category === "string" && event.category.length > 0,
+    );
     
     if (eventsWithCategory.length === 0) {
       console.log("ℹ️ Aucun événement avec catégorie trouvé cette semaine");
@@ -258,7 +269,7 @@ export async function GET(request: NextRequest) {
       }
 
       const userEvents = eventsWithCategory.filter(
-        (e) => e.category && userCategoryIds.includes(e.category),
+        (event) => userCategoryIds.includes(event.category),
       );
       if (userEvents.length > 0) {
         eventsByUser[user.user_id] = userEvents;
@@ -298,11 +309,11 @@ export async function GET(request: NextRequest) {
     // Envoyer une seule notification par utilisateur avec tous ses événements
     for (const [userId, userEvents] of Object.entries(eventsByUser)) {
       try {
-        const eventIds = userEvents.map(e => e.id);
+        const eventIds = userEvents.map((event) => event.id);
         
         // Grouper par jour pour le message
         const eventsByDay: Record<string, typeof userEvents> = {};
-        userEvents.forEach(event => {
+        userEvents.forEach((event) => {
           const eventDate = new Date(event.date).toISOString().split("T")[0];
           if (!eventsByDay[eventDate]) {
             eventsByDay[eventDate] = [];
@@ -311,34 +322,49 @@ export async function GET(request: NextRequest) {
         });
         
         const dayCount = Object.keys(eventsByDay).length;
-        const categories = [...new Set(userEvents.map(e => e.category).filter(Boolean))];
+        const categories = [...new Set(userEvents.map((event) => event.category))];
         
         const title = "Résumé de la semaine 📅";
         const body = userEvents.length === 1
           ? `${userEvents[0].title} cette semaine !`
           : `${userEvents.length} événement(s) prévu(s) cette semaine sur ${dayCount} jour(s). Ne manquez rien !`;
 
-        const { count: alreadySentCount, error: logCheckError } = await supabase
-          .from("notification_logs")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId)
-          .eq("title", title)
-          .gte("sent_at", weekStartIso)
-          .lt("sent_at", nextWeekStartIso);
+        const weekStartLabel = getIsoLocalDate(weekStartLocal);
+        const weekEndLabel = getIsoLocalDate(weekEndLocal);
+        const deliveryKey = `weekly_summary:${weekStartLabel}:${userId}`;
+        const claim = await claimNotificationDelivery({
+          userId,
+          payload: {
+            title,
+            body,
+            data: {
+              type: "weekly_summary",
+              start_date: weekStartLabel,
+              end_date: weekEndLabel,
+              event_ids: eventIds,
+              events_count: userEvents.length,
+              days_count: dayCount,
+              categories,
+            },
+          },
+          deliveryDate: weekStartLabel,
+          deliveryKey,
+          flowType: "weekly_summary",
+        });
 
-        if (logCheckError) {
-          console.warn(`⚠️ Impossible de vérifier l'anti-doublon weekly pour ${userId}:`, logCheckError);
-        }
-
-        if ((alreadySentCount ?? 0) > 0) {
+        if (!claim.claimed || !claim.logId) {
           skippedAlreadySent++;
           if (deliveryDiagnostics.length < MAX_ROUTE_DIAGNOSTICS) {
             deliveryDiagnostics.push({
               userId,
               status: "skipped",
-              reason: "Notification hebdomadaire déjà envoyée dans la fenêtre en cours",
+              reason:
+                claim.reason === "in_progress"
+                  ? "Notification déjà réservée par une autre exécution en cours"
+                  : "Notification hebdomadaire déjà envoyée pour cette semaine",
               eventsCount: userEvents.length,
               categories,
+              deliveryKey,
             });
           }
           continue;
@@ -349,13 +375,15 @@ export async function GET(request: NextRequest) {
           body,
           data: {
             type: "weekly_summary",
-            start_date: getIsoLocalDate(weekStartLocal),
-            end_date: getIsoLocalDate(weekEndLocal),
+            start_date: weekStartLabel,
+            end_date: weekEndLabel,
             event_ids: eventIds,
             events_count: userEvents.length,
             days_count: dayCount,
             categories,
           },
+        }, {
+          notificationLogId: claim.logId,
         });
 
         if (result.success && result.sent > 0) {
@@ -373,6 +401,8 @@ export async function GET(request: NextRequest) {
             status: result.success && result.sent > 0 ? "sent" : "failed",
             eventsCount: userEvents.length,
             categories,
+            deliveryKey,
+            reclaimedStaleClaim: claim.reclaimedStale ?? false,
             diagnostics: result.diagnostics,
           });
         }

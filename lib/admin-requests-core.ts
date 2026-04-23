@@ -19,6 +19,7 @@ export interface AdminRequestEventData {
   location_id?: string | null;
   location_name?: string | null;
   organizer_id?: string | null;
+  location_organizer_id?: string | null;
   organizer_names?: string[] | null;
   price?: number | null;
   address?: string | null;
@@ -28,6 +29,8 @@ export interface AdminRequestEventData {
   external_url?: string | null;
   external_url_label?: string | null;
   scraping_url?: string | null;
+  tag_ids?: string[] | null;
+  tags?: string[] | null;
   [key: string]: unknown;
 }
 

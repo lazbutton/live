@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 
@@ -12,7 +13,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle2, RefreshCw } from "lucide-react";
 
 import { CronsManagement } from "../crons-management";
-import { ShareNetworkContent } from "../share-network-content";
 
 type PendingFeedback = {
   id: string;
@@ -174,10 +174,23 @@ export function SystemTab() {
         </CardContent>
       </Card>
 
-      <Separator />
-
       <div id="share" className="scroll-mt-24">
-        <ShareNetworkContent />
+        <Card>
+          <CardHeader>
+            <CardTitle>Studio visuels réseaux</CardTitle>
+            <CardDescription>
+              La génération des posts Instagram dispose maintenant d&apos;une page dédiée avec hydration des événements, palette automatique et couleurs personnalisables.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-muted-foreground">
+              Ouvre le studio dédié pour préparer, éditer et exporter les visuels réseaux.
+            </div>
+            <Button asChild>
+              <Link href="/admin/share">Ouvrir le studio</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

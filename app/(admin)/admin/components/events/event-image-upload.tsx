@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { compressImage } from "@/lib/image-compression";
-import { buildAdminProxyImageUrl, isHttpImageUrl } from "@/lib/events/remote-image";
+import { fetchAdminProxiedImageObjectUrl, isHttpImageUrl } from "@/lib/events/remote-image";
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -85,7 +85,7 @@ export function EventImageUpload({
   const [crop, setCrop] = React.useState({ x: 0, y: 0 });
   const [zoom, setZoom] = React.useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = React.useState<Area | null>(null);
-  const [proxyToken, setProxyToken] = React.useState<string | null>(null);
+  const remoteCropImageUrlRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     // sync externe -> interne seulement si pas de file locale
@@ -94,44 +94,51 @@ export function EventImageUpload({
     }
   }, [currentImageUrl, imageFile]);
 
-  React.useEffect(() => {
-    let mounted = true;
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setProxyToken(data.session?.access_token ?? null);
-    });
-
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-      setProxyToken(session?.access_token ?? null);
-    });
-
-    return () => {
-      mounted = false;
-      data.subscription.unsubscribe();
-    };
-  }, []);
-
   const onCropComplete = React.useCallback((_a: Area, pixels: Area) => {
     setCroppedAreaPixels(pixels);
   }, []);
 
-  function openCropperFromUrl(rawUrl: string) {
-    if (isHttpImageUrl(rawUrl) && !proxyToken) {
-      toast({
-        title: "Préparation de l'image",
-        description: "Réessaie dans un instant.",
-        variant: "destructive",
-      });
+  const revokeRemoteCropImageUrl = React.useCallback(() => {
+    if (!remoteCropImageUrlRef.current) {
+      return;
+    }
+    URL.revokeObjectURL(remoteCropImageUrlRef.current);
+    remoteCropImageUrlRef.current = null;
+  }, []);
+
+  async function openCropperFromUrl(rawUrl: string) {
+    revokeRemoteCropImageUrl();
+
+    if (!isHttpImageUrl(rawUrl)) {
+      setCropImageSrc(rawUrl);
+      setShowCropper(true);
       return;
     }
 
-    const nextCropSrc = isHttpImageUrl(rawUrl)
-      ? buildAdminProxyImageUrl(rawUrl, proxyToken)
-      : rawUrl;
-    setCropImageSrc(nextCropSrc);
-    setShowCropper(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error("Missing admin session for remote crop.");
+      }
+
+      const objectUrl = await fetchAdminProxiedImageObjectUrl({
+        source: rawUrl,
+        accessToken,
+      });
+
+      remoteCropImageUrlRef.current = objectUrl;
+      setCropImageSrc(objectUrl);
+      setShowCropper(true);
+    } catch (error) {
+      console.error("Erreur préparation crop image distante:", error);
+      toast({
+        title: "Préparation de l'image impossible",
+        description: "Réessaie dans un instant ou remplace l'image manuellement.",
+        variant: "destructive",
+      });
+    }
   }
 
   async function openCropperFromFile(file: File) {
@@ -175,6 +182,7 @@ export function EventImageUpload({
       setPreviewUrl(nextPreview);
       onImageChange(compressed, nextPreview);
       setShowCropper(false);
+      revokeRemoteCropImageUrl();
       setCropImageSrc(null);
       setCrop({ x: 0, y: 0 });
       setZoom(1);
@@ -188,6 +196,7 @@ export function EventImageUpload({
   function clearImage() {
     setImageFile(null);
     setPreviewUrl(null);
+    revokeRemoteCropImageUrl();
     setCropImageSrc(null);
     setShowCropper(false);
     setCrop({ x: 0, y: 0 });
@@ -210,7 +219,7 @@ export function EventImageUpload({
                 className="h-full w-full cursor-pointer object-cover transition-opacity hover:opacity-95"
                 onClick={() => {
                   if (disabled) return;
-                  openCropperFromUrl(previewUrl);
+                  void openCropperFromUrl(previewUrl);
                 }}
               />
               {!disabled ? (
@@ -296,7 +305,17 @@ export function EventImageUpload({
         </div>
       </div>
 
-      <Dialog open={showCropper} onOpenChange={(o) => !disabled && setShowCropper(o)}>
+      <Dialog
+        open={showCropper}
+        onOpenChange={(open) => {
+          if (disabled) return;
+          setShowCropper(open);
+          if (!open) {
+            revokeRemoteCropImageUrl();
+            setCropImageSrc(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Rogner l’image</DialogTitle>

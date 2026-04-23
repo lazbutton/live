@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 
 function isProbablyHttpUrl(value: string) {
   return /^https?:\/\//i.test(value);
@@ -13,28 +14,38 @@ function isAllowedContentType(contentType: string | null) {
   );
 }
 
+function extractBearerToken(authorizationHeader: string | null) {
+  if (!authorizationHeader) return null;
+  const match = authorizationHeader.match(/^Bearer\s+(.+)$/i);
+  return match?.[1] ?? null;
+}
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const target = url.searchParams.get("url");
-    const token = url.searchParams.get("token");
 
     if (!target || !isProbablyHttpUrl(target)) {
       return NextResponse.json({ error: "Invalid url" }, { status: 400 });
     }
 
-    // Auth admin (même logique que les autres routes admin: role=admin dans user_metadata)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json({ error: "Supabase env missing" }, { status: 500 });
+    const serverClient = await createServerClient();
+    const serverAuth = await serverClient.auth.getUser();
+    let user = serverAuth.data.user;
+
+    if (!user) {
+      const bearerToken = extractBearerToken(req.headers.get("authorization"));
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      if (bearerToken && supabaseUrl && supabaseAnonKey) {
+        const tokenClient = createSupabaseClient(supabaseUrl, supabaseAnonKey);
+        const tokenAuth = await tokenClient.auth.getUser(bearerToken);
+        user = tokenAuth.data.user;
+      }
     }
 
-    const client = createClient(supabaseUrl, supabaseAnonKey);
-
-    // Auth via access token (utile pour <img src=...> qui ne peut pas envoyer de header Authorization)
-    const { data: userData } = await client.auth.getUser(token || undefined);
-    const role = userData?.user?.user_metadata?.role;
+    const role = user?.user_metadata?.role;
     if (role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import {
+  claimNotificationDelivery,
   getEffectiveNotificationCategoryIds,
   getEnabledNotificationUsers,
   sendNotificationToUser,
@@ -25,6 +26,14 @@ const DAILY_FLOW = {
   latestTokenOnly: true,
 };
 const MAX_ROUTE_DIAGNOSTICS = 25;
+
+type DailyDigestEventRow = {
+  id: string;
+  title: string;
+  date: string;
+  end_date: string | null;
+  category: string | null;
+};
 
 /**
  * Vérifie que la requête vient bien de Vercel Cron
@@ -58,7 +67,6 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = createServiceClient();
-    
     console.log("📅 Démarrage du cron de notifications pour les événements du jour");
     
     const now = new Date();
@@ -108,7 +116,7 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    const relevantEvents = (events || []).filter((event: any) => {
+    const relevantEvents = ((events ?? []) as DailyDigestEventRow[]).filter((event) => {
       const start = new Date(event.date);
       const end = event.end_date ? new Date(event.end_date) : null;
       if (end && !Number.isNaN(end.getTime())) {
@@ -130,7 +138,10 @@ export async function GET(request: NextRequest) {
     console.log(`📋 ${relevantEvents.length} événement(s) pertinent(s) trouvé(s) pour aujourd'hui`);
     
     // Filtrer les événements avec catégorie
-    const eventsWithCategory = relevantEvents.filter(e => e.category);
+    const eventsWithCategory = relevantEvents.filter(
+      (event): event is DailyDigestEventRow & { category: string } =>
+        typeof event.category === "string" && event.category.length > 0,
+    );
     
     if (eventsWithCategory.length === 0) {
       console.log("ℹ️ Aucun événement avec catégorie trouvé aujourd'hui");
@@ -240,7 +251,7 @@ export async function GET(request: NextRequest) {
       }
 
       const userEvents = eventsWithCategory.filter(
-        (e) => e.category && userCategoryIds.includes(e.category),
+        (event) => userCategoryIds.includes(event.category),
       );
       if (userEvents.length > 0) {
         eventsByUser[user.user_id] = userEvents;
@@ -279,8 +290,11 @@ export async function GET(request: NextRequest) {
     // Envoyer une seule notification par utilisateur avec tous ses événements
     for (const [userId, userEvents] of Object.entries(eventsByUser)) {
       try {
-        const eventIds = userEvents.map(e => e.id);
-        const eventTitles = userEvents.slice(0, 3).map(e => e.title).join(", ");
+        const eventIds = userEvents.map((event) => event.id);
+        const eventTitles = userEvents
+          .slice(0, 3)
+          .map((event) => event.title)
+          .join(", ");
         const moreEvents = userEvents.length > 3 ? ` et ${userEvents.length - 3} autre(s)` : "";
         
         const title = "Événements du jour 📅";
@@ -288,29 +302,40 @@ export async function GET(request: NextRequest) {
           ? `${userEvents[0].title} a lieu aujourd'hui !`
           : `${userEvents.length} événement(s) prévu(s) aujourd'hui : ${eventTitles}${moreEvents}`;
         
-        const categories = [...new Set(userEvents.map(e => e.category).filter(Boolean))];
+        const categories = [...new Set(userEvents.map((event) => event.category))];
 
-        const { count: alreadySentCount, error: logCheckError } = await supabase
-          .from("notification_logs")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId)
-          .eq("title", title)
-          .gte("sent_at", todayStart)
-          .lt("sent_at", tomorrowStart);
+        const deliveryKey = `daily_events:${todayLabel}:${userId}`;
+        const claim = await claimNotificationDelivery({
+          userId,
+          payload: {
+            title,
+            body,
+            data: {
+              type: "daily_events",
+              date: todayLabel,
+              event_ids: eventIds,
+              events_count: userEvents.length,
+              categories,
+            },
+          },
+          deliveryDate: todayLabel,
+          deliveryKey,
+          flowType: "daily_events",
+        });
 
-        if (logCheckError) {
-          console.warn(`⚠️ Impossible de vérifier l'anti-doublon daily pour ${userId}:`, logCheckError);
-        }
-
-        if ((alreadySentCount ?? 0) > 0) {
+        if (!claim.claimed || !claim.logId) {
           skippedAlreadySent++;
           if (deliveryDiagnostics.length < MAX_ROUTE_DIAGNOSTICS) {
             deliveryDiagnostics.push({
               userId,
               status: "skipped",
-              reason: "Notification déjà envoyée dans la fenêtre du jour",
+              reason:
+                claim.reason === "in_progress"
+                  ? "Notification déjà réservée par une autre exécution en cours"
+                  : "Notification déjà envoyée pour ce digest quotidien",
               eventsCount: userEvents.length,
               categories,
+              deliveryKey,
             });
           }
           continue;
@@ -326,6 +351,8 @@ export async function GET(request: NextRequest) {
             events_count: userEvents.length,
             categories,
           },
+        }, {
+          notificationLogId: claim.logId,
         });
 
         if (result.success && result.sent > 0) {
@@ -343,6 +370,8 @@ export async function GET(request: NextRequest) {
             status: result.success && result.sent > 0 ? "sent" : "failed",
             eventsCount: userEvents.length,
             categories,
+            deliveryKey,
+            reclaimedStaleClaim: claim.reclaimedStale ?? false,
             diagnostics: result.diagnostics,
           });
         }

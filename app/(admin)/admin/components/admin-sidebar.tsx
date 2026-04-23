@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   Calendar,
+  ImageIcon,
   Inbox,
   LayoutDashboard,
   LogOut,
@@ -65,6 +66,11 @@ const menuItems = [
     title: "Multi-événements",
     icon: Map,
     url: "/admin/major-events",
+  },
+  {
+    title: "Visuels réseaux",
+    icon: ImageIcon,
+    url: "/admin/share",
   },
   {
     title: "Modération",
