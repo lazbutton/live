@@ -1,12 +1,13 @@
 import { ImageResponse } from "next/og";
 
-import { OutLiveAppMark, OUTLIVE_BRAND } from "@/lib/outlive-brand";
 import type { EventSharePageData } from "@/lib/public-share-data";
 import { publicShareImageSize } from "@/lib/public-share-og";
 
 const fallbackTitle = "Événement OutLive";
-const fallbackDescription =
-  "Découvrez l'événement partagé sur OutLive avec une prévisualisation riche.";
+const posterBackground = "#274c77";
+const posterText = "#ffffff";
+const posterMutedText = "rgba(255,255,255,0.66)";
+const posterDivider = "rgba(255,255,255,0.18)";
 
 function cleanText(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -18,29 +19,65 @@ function truncateText(value: string, maxLength: number) {
   return `${value.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
-function resolveHeroImage(data: EventSharePageData | null) {
-  return (
-    cleanText(data?.imageUrl) ||
-    cleanText(data?.locationLink?.imageUrl) ||
-    cleanText(data?.organizers[0]?.imageUrl) ||
-    cleanText(data?.hub?.imageUrl)
-  );
+function wrapPosterTitle(title: string) {
+  const clean = title.replace(/\s+/g, " ").trim();
+  if (!clean) return ["OUTLIVE"];
+
+  const words = clean.split(" ");
+  if (words.length <= 3 && clean.length <= 28) {
+    return [clean];
+  }
+
+  const lines: string[] = [];
+  let currentLine = "";
+  const maxCharsPerLine = clean.length > 40 ? 15 : 18;
+  let nextWordIndex = 0;
+
+  while (nextWordIndex < words.length && lines.length < 3) {
+    const word = words[nextWordIndex] ?? "";
+    const candidate = currentLine ? `${currentLine} ${word}` : word;
+
+    if (candidate.length <= maxCharsPerLine || currentLine.length === 0) {
+      currentLine = candidate;
+      nextWordIndex += 1;
+      continue;
+    }
+
+    lines.push(currentLine);
+    currentLine = "";
+  }
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  const remainingWords = words.slice(nextWordIndex);
+  if (remainingWords.length > 0 && lines.length > 0) {
+    lines[lines.length - 1] = `${lines[lines.length - 1]} ${remainingWords.join(" ")}`.trim();
+  }
+
+  return lines.slice(0, 3);
 }
 
-function resolveMainMeta(data: EventSharePageData | null) {
-  return [data?.dateLabel, data?.locationLabel].map(cleanText).filter(Boolean).join(" · ");
+function resolveTagsLabel(data: EventSharePageData | null) {
+  const tags = data?.tagLabels.map(cleanText).filter(Boolean).slice(0, 4) ?? [];
+  return tags.join(", ");
 }
 
-function resolveDetailPills(data: EventSharePageData | null) {
-  if (!data) return ["OutLive", "Événement"];
+function resolveCategoryLabel(data: EventSharePageData | null) {
+  return cleanText(data?.categoryLabel) || "Événement";
+}
 
-  return [
-    cleanText(data.categoryLabel),
-    cleanText(data.priceLabel),
-    ...data.tagLabels.map(cleanText).filter(Boolean).slice(0, 2),
-  ]
-    .filter((item): item is string => Boolean(item))
-    .slice(0, 4);
+function resolvePriceLabel(data: EventSharePageData | null) {
+  return cleanText(data?.priceLabel) || "";
+}
+
+function resolveVenueLabel(data: EventSharePageData | null) {
+  return cleanText(data?.locationLabel) || "Lieu à confirmer";
+}
+
+function resolveDateLabel(data: EventSharePageData | null) {
+  return cleanText(data?.dateLabel) || "Date à confirmer";
 }
 
 function resolveSignature(data: EventSharePageData | null) {
@@ -61,246 +98,288 @@ type EventOgImageOptions = {
 };
 
 export function createEventOgImage({ data }: EventOgImageOptions) {
-  const title = truncateText(cleanText(data?.title) || fallbackTitle, 78);
-  const description = truncateText(cleanText(data?.description) || fallbackDescription, 150);
-  const heroImage = resolveHeroImage(data);
-  const mainMeta = resolveMainMeta(data);
-  const detailPills = resolveDetailPills(data);
+  const titleLines = wrapPosterTitle(truncateText(cleanText(data?.title) || fallbackTitle, 76));
+  const categoryLabel = resolveCategoryLabel(data);
+  const priceLabel = resolvePriceLabel(data);
+  const tagsLabel = resolveTagsLabel(data);
+  const venueLabel = truncateText(resolveVenueLabel(data), 58);
+  const dateLabel = truncateText(resolveDateLabel(data), 64);
   const signature = resolveSignature(data);
 
   return new ImageResponse(
     (
       <div
         style={{
-          background:
-            "radial-gradient(circle at 12% 10%, rgba(234,47,47,0.32), transparent 25%), radial-gradient(circle at 88% 90%, rgba(255,255,255,0.10), transparent 22%), linear-gradient(135deg, #0b0b0d 0%, #19191d 56%, #0f0f12 100%)",
-          color: OUTLIVE_BRAND.foreground,
+          background: "#111827",
+          color: posterText,
           display: "flex",
           fontFamily: "Inter, Arial, sans-serif",
           height: "100%",
           overflow: "hidden",
-          padding: 54,
+          padding: 42,
           position: "relative",
           width: "100%",
         }}
       >
         <div
           style={{
-            border: "1px solid rgba(255,255,255,0.10)",
-            borderRadius: 40,
+            background: posterBackground,
+            border: `2px solid ${posterText}`,
             display: "flex",
+            flexDirection: "column",
             height: "100%",
             overflow: "hidden",
-            position: "relative",
             width: "100%",
           }}
         >
           <div
             style={{
-              background: "rgba(255,255,255,0.035)",
+              alignItems: "center",
+              borderBottom: `2px solid ${posterDivider}`,
               display: "flex",
-              flexDirection: "column",
               justifyContent: "space-between",
-              padding: "42px 44px",
-              width: "55%",
+              padding: "24px 34px 20px",
+              width: "100%",
             }}
           >
             <div
               style={{
                 alignItems: "center",
                 display: "flex",
-                justifyContent: "space-between",
-                width: "100%",
+                gap: 12,
               }}
             >
               <div
                 style={{
-                  alignItems: "center",
+                  backgroundColor: "#DE3333",
+                  borderRadius: 999,
                   display: "flex",
-                  gap: 14,
+                  height: 14,
+                  width: 14,
                 }}
-              >
-                <OutLiveAppMark size={42} dotScale={0.45} exclamationScale={0.62} />
-                <div
-                  style={{
-                    color: "#ffffff",
-                    fontSize: 30,
-                    fontWeight: 900,
-                    letterSpacing: -0.8,
-                  }}
-                >
-                  OutLive
-                </div>
-              </div>
-
+              />
               <div
                 style={{
-                  border: "1px solid rgba(234,47,47,0.38)",
-                  borderRadius: 999,
-                  color: "#ffb0b0",
+                  color: posterText,
                   display: "flex",
-                  fontSize: 15,
-                  fontWeight: 800,
-                  letterSpacing: "0.16em",
-                  padding: "9px 14px",
-                  textTransform: "uppercase",
+                  fontSize: 29,
+                  fontWeight: 900,
+                  letterSpacing: "-0.02em",
+                  lineHeight: 1,
                 }}
               >
-                Événement
+                OutLive !
               </div>
             </div>
 
+            <div
+              style={{
+                color: posterText,
+                display: "flex",
+                fontSize: 28,
+                fontWeight: 800,
+                lineHeight: 1,
+              }}
+            >
+              {dateLabel}
+            </div>
+          </div>
+
+          <div
+            style={{
+              alignItems: "center",
+              borderBottom: `2px solid ${posterDivider}`,
+              display: "flex",
+              justifyContent: "space-between",
+              padding: "24px 38px",
+              width: "100%",
+            }}
+          >
+            <div
+              style={{
+                alignItems: "center",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 14,
+                maxWidth: 560,
+              }}
+            >
+              <div
+                style={{
+                  border: `2px solid ${posterDivider}`,
+                  color: posterText,
+                  display: "flex",
+                  fontSize: 21,
+                  fontWeight: 900,
+                  letterSpacing: "0.05em",
+                  padding: "9px 17px",
+                  textTransform: "uppercase",
+                }}
+              >
+                {categoryLabel}
+              </div>
+              {priceLabel ? (
+                <div
+                  style={{
+                    background: posterText,
+                    color: posterBackground,
+                    display: "flex",
+                    fontSize: 22,
+                    fontWeight: 950,
+                    padding: "9px 17px",
+                  }}
+                >
+                  {priceLabel}
+                </div>
+              ) : null}
+            </div>
+
+            <div
+              style={{
+                color: posterText,
+                display: "flex",
+                fontSize: 25,
+                fontWeight: 800,
+                lineHeight: 1.2,
+                maxWidth: 470,
+                textAlign: "right",
+              }}
+            >
+              {tagsLabel || "OutLive"}
+            </div>
+          </div>
+
+          <div
+            style={{
+              borderBottom: `2px solid ${posterDivider}`,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              minHeight: 214,
+              padding: "30px 38px 34px",
+              width: "100%",
+            }}
+          >
+            <div
+              style={{
+                color: posterText,
+                display: "flex",
+                flexDirection: "column",
+                fontSize: titleLines.length > 2 ? 68 : 78,
+                fontWeight: 950,
+                letterSpacing: "-0.055em",
+                lineHeight: 0.88,
+                textTransform: "uppercase",
+              }}
+            >
+              {titleLines.map((line, index) => (
+                <div key={`${line}-${index}`} style={{ display: "flex" }}>
+                  {line}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div
+            style={{
+              borderBottom: `2px solid ${posterDivider}`,
+              display: "flex",
+              width: "100%",
+            }}
+          >
+            <div
+              style={{
+                borderRight: `2px solid ${posterDivider}`,
+                display: "flex",
+                flexDirection: "column",
+                padding: "25px 38px",
+                width: "50%",
+              }}
+            >
+              <div
+                style={{
+                  color: posterMutedText,
+                  display: "flex",
+                  fontSize: 15,
+                  fontWeight: 900,
+                  letterSpacing: "0.14em",
+                  marginBottom: 10,
+                  textTransform: "uppercase",
+                }}
+              >
+                Lieu
+              </div>
+              <div
+                style={{
+                  color: posterText,
+                  display: "flex",
+                  fontSize: 33,
+                  fontWeight: 950,
+                  letterSpacing: "-0.03em",
+                  lineHeight: 1.06,
+                  textTransform: "uppercase",
+                }}
+              >
+                {venueLabel}
+              </div>
+            </div>
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: 18,
-                width: "100%",
+                padding: "25px 38px",
+                width: "50%",
               }}
             >
-              {mainMeta ? (
-                <div
-                  style={{
-                    color: "rgba(255,255,255,0.70)",
-                    display: "flex",
-                    fontSize: 25,
-                    fontWeight: 800,
-                    lineHeight: 1.16,
-                  }}
-                >
-                  {mainMeta}
-                </div>
-              ) : null}
-
               <div
                 style={{
-                  color: "#ffffff",
+                  color: posterMutedText,
                   display: "flex",
-                  fontSize: title.length > 54 ? 58 : 66,
-                  fontWeight: 950,
-                  letterSpacing: -3,
-                  lineHeight: 0.94,
+                  fontSize: 15,
+                  fontWeight: 900,
+                  letterSpacing: "0.14em",
+                  marginBottom: 10,
                   textTransform: "uppercase",
                 }}
               >
-                {title}
+                Horaires
               </div>
-
               <div
                 style={{
-                  color: "rgba(255,255,255,0.72)",
+                  color: posterText,
                   display: "flex",
-                  fontSize: 22,
-                  fontWeight: 600,
-                  lineHeight: 1.28,
-                  maxWidth: 560,
+                  fontSize: 33,
+                  fontWeight: 950,
+                  letterSpacing: "-0.03em",
+                  lineHeight: 1.06,
                 }}
               >
-                {description}
-              </div>
-            </div>
-
-            <div
-              style={{
-                alignItems: "flex-end",
-                display: "flex",
-                gap: 16,
-                justifyContent: "space-between",
-                width: "100%",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 10,
-                  maxWidth: 430,
-                }}
-              >
-                {detailPills.map((pill) => (
-                  <div
-                    key={pill}
-                    style={{
-                      background: "rgba(255,255,255,0.07)",
-                      border: "1px solid rgba(255,255,255,0.13)",
-                      borderRadius: 999,
-                      color: "rgba(255,255,255,0.82)",
-                      display: "flex",
-                      fontSize: 17,
-                      fontWeight: 800,
-                      padding: "9px 14px",
-                    }}
-                  >
-                    {pill}
-                  </div>
-                ))}
-              </div>
-
-              <div
-                style={{
-                  color: "rgba(255,255,255,0.52)",
-                  display: "flex",
-                  fontSize: 17,
-                  fontWeight: 700,
-                  lineHeight: 1.2,
-                  maxWidth: 220,
-                  textAlign: "right",
-                }}
-              >
-                {signature}
+                {dateLabel}
               </div>
             </div>
           </div>
 
           <div
             style={{
-              background: "rgba(255,255,255,0.06)",
+              alignItems: "center",
               display: "flex",
-              flex: 1,
-              position: "relative",
+              justifyContent: "flex-end",
+              padding: "16px 38px",
+              width: "100%",
             }}
           >
-            {heroImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                alt=""
-                src={heroImage}
-                style={{
-                  height: "100%",
-                  objectFit: "cover",
-                  width: "100%",
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  alignItems: "center",
-                  background:
-                    "radial-gradient(circle at 30% 20%, rgba(234,47,47,0.42), transparent 26%), linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.02))",
-                  color: "rgba(255,255,255,0.52)",
-                  display: "flex",
-                  fontSize: 44,
-                  fontWeight: 950,
-                  height: "100%",
-                  justifyContent: "center",
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  width: "100%",
-                }}
-              >
-                OutLive
-              </div>
-            )}
-
             <div
               style={{
-                background:
-                  "linear-gradient(90deg, rgba(11,11,13,0.82) 0%, rgba(11,11,13,0.20) 34%, rgba(11,11,13,0) 100%)",
+                color: posterMutedText,
                 display: "flex",
-                inset: 0,
-                position: "absolute",
+                fontSize: 20,
+                fontWeight: 700,
+                lineHeight: 1.2,
+                textAlign: "right",
               }}
-            />
+            >
+              {signature}
+            </div>
           </div>
         </div>
       </div>
