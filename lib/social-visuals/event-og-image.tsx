@@ -8,6 +8,37 @@ const posterBackground = "#274c77";
 const posterText = "#ffffff";
 const posterMutedText = "rgba(255,255,255,0.66)";
 const posterDivider = "rgba(255,255,255,0.18)";
+const specialGothicExpandedOneUrl =
+  "https://fonts.gstatic.com/s/specialgothicexpandedone/v2/IurO6Zxk74-YaYk1r3HOet4g75ENmBxUmOK61tA0Iu5QmJF_.woff2";
+const spaceGroteskUrl =
+  "https://fonts.gstatic.com/s/spacegrotesk/v22/V8mDoQDjQSkFtoMM3T6r8E7mPbF4C_k3HqU.woff2";
+
+let eventOgFontsPromise:
+  | Promise<{
+      spaceGrotesk: ArrayBuffer;
+      specialGothicExpandedOne: ArrayBuffer;
+    }>
+  | null = null;
+
+async function fetchFont(url: string) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Unable to load OG font: ${url}`);
+  }
+  return response.arrayBuffer();
+}
+
+function loadEventOgFonts() {
+  eventOgFontsPromise ??= Promise.all([
+    fetchFont(spaceGroteskUrl),
+    fetchFont(specialGothicExpandedOneUrl),
+  ]).then(([spaceGrotesk, specialGothicExpandedOne]) => ({
+    spaceGrotesk,
+    specialGothicExpandedOne,
+  }));
+
+  return eventOgFontsPromise;
+}
 
 function cleanText(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -97,7 +128,8 @@ type EventOgImageOptions = {
   data: EventSharePageData | null;
 };
 
-export function createEventOgImage({ data }: EventOgImageOptions) {
+export async function createEventOgImage({ data }: EventOgImageOptions) {
+  const fonts = await loadEventOgFonts();
   const titleLines = wrapPosterTitle(truncateText(cleanText(data?.title) || fallbackTitle, 76));
   const categoryLabel = resolveCategoryLabel(data);
   const priceLabel = resolvePriceLabel(data);
@@ -113,7 +145,7 @@ export function createEventOgImage({ data }: EventOgImageOptions) {
           background: "#111827",
           color: posterText,
           display: "flex",
-          fontFamily: "Inter, Arial, sans-serif",
+          fontFamily: "Space Grotesk",
           height: "100%",
           overflow: "hidden",
           padding: 42,
@@ -162,8 +194,9 @@ export function createEventOgImage({ data }: EventOgImageOptions) {
                 style={{
                   color: posterText,
                   display: "flex",
+                  fontFamily: "Special Gothic Expanded One",
                   fontSize: 29,
-                  fontWeight: 900,
+                  fontWeight: 400,
                   letterSpacing: "-0.02em",
                   lineHeight: 1,
                 }}
@@ -384,6 +417,28 @@ export function createEventOgImage({ data }: EventOgImageOptions) {
         </div>
       </div>
     ),
-    publicShareImageSize,
+    {
+      ...publicShareImageSize,
+      fonts: [
+        {
+          name: "Space Grotesk",
+          data: fonts.spaceGrotesk,
+          style: "normal",
+          weight: 400,
+        },
+        {
+          name: "Space Grotesk",
+          data: fonts.spaceGrotesk,
+          style: "normal",
+          weight: 700,
+        },
+        {
+          name: "Special Gothic Expanded One",
+          data: fonts.specialGothicExpandedOne,
+          style: "normal",
+          weight: 400,
+        },
+      ],
+    },
   );
 }
