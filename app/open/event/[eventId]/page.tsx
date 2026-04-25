@@ -104,8 +104,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title: buildEventMetadataTitle(data),
     description: buildEventMetadataDescription(data),
     path: data.sharePath,
-    image: `/event/${eventId}/opengraph-image`,
-    imageAlt: `Aperçu OutLive de ${data.title}`,
+    image: data.imageUrl || `/event/${eventId}/opengraph-image`,
+    imageAlt: data.imageUrl
+      ? `Image de l'événement ${data.title}`
+      : `Aperçu OutLive de ${data.title}`,
     type: "article",
     noIndex: true,
     keywords: buildEventMetadataKeywords(data),
