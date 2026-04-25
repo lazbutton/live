@@ -5,6 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
+import {
+  buildRequestReviewUpdate,
+  getDefaultContributorMessage,
+  type AdminRequestReviewAction,
+} from "@/lib/admin-request-review";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -114,11 +119,12 @@ export function RequestsWorkspaceKanban() {
   const [duplicateEventsLoading, setDuplicateEventsLoading] = React.useState(false);
   const [duplicateEvents, setDuplicateEvents] = React.useState<DuplicateEvent[]>([]);
   const [rejectOpen, setRejectOpen] = React.useState(false);
+  const [reviewAction, setReviewAction] =
+    React.useState<AdminRequestReviewAction>("request_changes");
   const [rejectInternalNotes, setRejectInternalNotes] = React.useState("");
   const [rejectContributorMessage, setRejectContributorMessage] = React.useState("");
   const [rejectModerationReason, setRejectModerationReason] =
     React.useState<AdminModerationReason | "">("");
-  const [rejectAllowResubmission, setRejectAllowResubmission] = React.useState(true);
   const [rejectTarget, setRejectTarget] = React.useState<AdminRequestItem | null>(null);
 
   const appliedSearchSelectionRef = React.useRef<string | null>(null);
@@ -562,16 +568,34 @@ export function RequestsWorkspaceKanban() {
     [board, loadItems, selectNextItemAfterMutation],
   );
 
-  const requestReject = React.useCallback((item: AdminRequestItem) => {
+  const requestReview = React.useCallback(
+    (item: AdminRequestItem, action: AdminRequestReviewAction) => {
     setRejectTarget(item);
+      setReviewAction(action);
     setRejectInternalNotes(item.internalNotes || item.notes || "");
-    setRejectContributorMessage(item.contributorMessage || "");
-    setRejectModerationReason(item.moderationReason || "");
-    setRejectAllowResubmission(item.allowUserResubmission || true);
+      setRejectContributorMessage(
+        item.contributorMessage ||
+          (item.moderationReason
+            ? getDefaultContributorMessage(action, item.moderationReason)
+            : ""),
+      );
+      setRejectModerationReason(item.moderationReason || "");
     setRejectOpen(true);
-  }, []);
+    },
+    [],
+  );
 
-  const confirmReject = React.useCallback(async () => {
+  const requestChanges = React.useCallback(
+    (item: AdminRequestItem) => requestReview(item, "request_changes"),
+    [requestReview],
+  );
+
+  const requestReject = React.useCallback(
+    (item: AdminRequestItem) => requestReview(item, "reject"),
+    [requestReview],
+  );
+
+  const confirmReview = React.useCallback(async () => {
     if (!rejectTarget) return;
 
     const contributorMessage = rejectContributorMessage.trim();
@@ -587,7 +611,7 @@ export function RequestsWorkspaceKanban() {
     if (!contributorMessage) {
       toast({
         title: "Message contributeur obligatoire",
-        description: "Ajoutez un message exploitable avant de rejeter la demande.",
+        description: "Ajoutez un message exploitable avant de traiter la demande.",
         variant: "destructive",
       });
       return;
@@ -604,18 +628,17 @@ export function RequestsWorkspaceKanban() {
         data: { user },
       } = await supabase.auth.getUser();
 
+      const update = buildRequestReviewUpdate({
+        action: reviewAction,
+        reviewedBy: user?.id || null,
+        internalNotes: rejectInternalNotes,
+        moderationReason: rejectModerationReason,
+        contributorMessage,
+      });
+
       const { error } = await supabase
         .from("user_requests")
-        .update({
-          status: "rejected",
-          notes: rejectInternalNotes.trim() || null,
-          internal_notes: rejectInternalNotes.trim() || null,
-          moderation_reason: rejectModerationReason,
-          contributor_message: contributorMessage,
-          allow_user_resubmission: rejectAllowResubmission,
-          reviewed_by: user?.id || null,
-          reviewed_at: new Date().toISOString(),
-        })
+        .update(update)
         .eq("id", rejectTarget.id);
 
       if (error) throw error;
@@ -626,14 +649,19 @@ export function RequestsWorkspaceKanban() {
       setRejectInternalNotes("");
       setRejectContributorMessage("");
       setRejectModerationReason("");
-      setRejectAllowResubmission(true);
       selectNextItemAfterMutation(nextItems, previousLane, previousIndex);
-      toast({ title: "Demande rejetée", variant: "success" });
-    } catch (error) {
-      console.error("Erreur rejet demande:", error);
       toast({
-        title: "Rejet impossible",
-        description: "La demande n'a pas pu être rejetée.",
+        title:
+          reviewAction === "request_changes"
+            ? "Correction demandée"
+            : "Demande refusée",
+        variant: "success",
+      });
+    } catch (error) {
+      console.error("Erreur décision demande:", error);
+      toast({
+        title: "Décision impossible",
+        description: "La demande n'a pas pu être traitée.",
         variant: "destructive",
       });
     } finally {
@@ -642,11 +670,11 @@ export function RequestsWorkspaceKanban() {
   }, [
     board,
     loadItems,
-    rejectAllowResubmission,
     rejectContributorMessage,
     rejectInternalNotes,
     rejectModerationReason,
     rejectTarget,
+    reviewAction,
     selectNextItemAfterMutation,
   ]);
 
@@ -712,6 +740,7 @@ export function RequestsWorkspaceKanban() {
               onOpen={openItem}
               onConvert={convertFast}
               onEdit={openFullReview}
+              onRequestChanges={requestChanges}
               onReject={requestReject}
               onOpenUrl={openUrl}
             />
@@ -742,6 +771,7 @@ export function RequestsWorkspaceKanban() {
               onConvert={(item) => void convertFast(item)}
               onEdit={openFullReview}
               onEditWithPrefill={openFullReviewWithPrefill}
+              onRequestChanges={requestChanges}
               onOpenRelatedRequest={openItem}
               onReject={requestReject}
               onViewEvent={viewEvent}
@@ -781,6 +811,7 @@ export function RequestsWorkspaceKanban() {
               onConvert={(item) => void convertFast(item)}
               onEdit={openFullReview}
               onEditWithPrefill={openFullReviewWithPrefill}
+              onRequestChanges={requestChanges}
               onOpenRelatedRequest={openItem}
               onReject={requestReject}
               onViewEvent={viewEvent}
@@ -791,11 +822,11 @@ export function RequestsWorkspaceKanban() {
 
       <RequestRejectDialog
         open={rejectOpen}
+        action={reviewAction}
         target={rejectTarget}
         internalNotes={rejectInternalNotes}
         contributorMessage={rejectContributorMessage}
         moderationReason={rejectModerationReason}
-        allowResubmission={rejectAllowResubmission}
         processing={processingId === rejectTarget?.id}
         onOpenChange={(open) => {
           setRejectOpen(open);
@@ -804,8 +835,7 @@ export function RequestsWorkspaceKanban() {
         onInternalNotesChange={setRejectInternalNotes}
         onContributorMessageChange={setRejectContributorMessage}
         onModerationReasonChange={setRejectModerationReason}
-        onAllowResubmissionChange={setRejectAllowResubmission}
-        onConfirm={() => void confirmReject()}
+        onConfirm={() => void confirmReview()}
       />
     </div>
   );

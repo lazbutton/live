@@ -11,6 +11,10 @@ import {
   type AdminRequestItem,
   type AdminRequestLane,
 } from "@/lib/admin-requests-core";
+import {
+  buildRequestReviewUpdate,
+  type AdminRequestReviewAction,
+} from "@/lib/admin-request-review";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export type MobileAdminEventStatusFilter = "all" | "pending" | "approved";
@@ -622,46 +626,72 @@ export async function convertMobileAdminRequest(supabase: SupabaseClient, reques
 export async function rejectMobileAdminRequest(
   supabase: SupabaseClient,
   requestId: string,
-  {
-    reviewedBy,
-    internalNotes,
-    moderationReason,
-    contributorMessage,
-    allowUserResubmission,
-  }: {
+  input: {
     reviewedBy: string;
     internalNotes: string;
     moderationReason: NonNullable<AdminRequestItem["moderationReason"]>;
     contributorMessage: string;
-    allowUserResubmission: boolean;
+    allowUserResubmission?: boolean;
   }
 ) {
-  const normalizedInternalNotes = internalNotes.trim();
-  const normalizedContributorMessage = contributorMessage.trim();
-  if (!normalizedContributorMessage) {
-    throw new Error("Le message contributeur est obligatoire");
+  return reviewMobileAdminRequest(supabase, requestId, {
+    ...input,
+    action: input.allowUserResubmission ? "request_changes" : "reject",
+  });
+}
+
+export async function requestChangesMobileAdminRequest(
+  supabase: SupabaseClient,
+  requestId: string,
+  input: {
+    reviewedBy: string;
+    internalNotes: string;
+    moderationReason: NonNullable<AdminRequestItem["moderationReason"]>;
+    contributorMessage: string;
   }
+) {
+  return reviewMobileAdminRequest(supabase, requestId, {
+    ...input,
+    action: "request_changes",
+  });
+}
+
+export async function reviewMobileAdminRequest(
+  supabase: SupabaseClient,
+  requestId: string,
+  {
+    action,
+    reviewedBy,
+    internalNotes,
+    moderationReason,
+    contributorMessage,
+  }: {
+    action: AdminRequestReviewAction;
+    reviewedBy: string;
+    internalNotes: string;
+    moderationReason: NonNullable<AdminRequestItem["moderationReason"]>;
+    contributorMessage: string;
+  }
+) {
+  const updates = buildRequestReviewUpdate({
+    action,
+    reviewedBy,
+    internalNotes,
+    moderationReason,
+    contributorMessage,
+  });
 
   const { error } = await supabase
     .from("user_requests")
-    .update({
-      status: "rejected",
-      notes: normalizedInternalNotes || null,
-      internal_notes: normalizedInternalNotes || null,
-      moderation_reason: moderationReason,
-      contributor_message: normalizedContributorMessage,
-      allow_user_resubmission: allowUserResubmission,
-      reviewed_by: reviewedBy,
-      reviewed_at: new Date().toISOString(),
-    })
+    .update(updates)
     .eq("id", requestId);
 
   if (error) throw error;
 
   const requests = await fetchRequestItems(supabase);
-  const rejected = requests.find((item) => item.id === requestId);
-  if (!rejected) {
-    throw new Error("Demande introuvable après rejet");
+  const reviewed = requests.find((item) => item.id === requestId);
+  if (!reviewed) {
+    throw new Error("Demande introuvable après décision");
   }
-  return serializeRequest(rejected);
+  return serializeRequest(reviewed);
 }

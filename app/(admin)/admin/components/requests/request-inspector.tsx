@@ -14,6 +14,7 @@ import {
   Link2,
   Loader2,
   MapPin,
+  RotateCcw,
   Sparkles,
   SquarePen,
   ThumbsDown,
@@ -277,6 +278,7 @@ export function RequestInspector({
   onConvert,
   onEdit,
   onEditWithPrefill,
+  onRequestChanges,
   onOpenRelatedRequest,
   onReject,
   onViewEvent,
@@ -302,6 +304,7 @@ export function RequestInspector({
   onConvert: (item: AdminRequestItem) => void;
   onEdit: (item: AdminRequestItem) => void;
   onEditWithPrefill: (item: AdminRequestItem, mode: "url" | "facebook") => void;
+  onRequestChanges: (item: AdminRequestItem) => void;
   onOpenRelatedRequest: (item: AdminRequestItem) => void;
   onReject: (item: AdminRequestItem) => void;
   onViewEvent: (item: AdminRequestItem) => void;
@@ -337,6 +340,7 @@ export function RequestInspector({
   const collisionCount = duplicateEvents.length + similarRequests.length;
   const canConvert = item.status === "pending" && item.isFastConvertible;
   const canEdit = item.status === "pending";
+  const canRequestChanges = item.status === "pending" && !canConvert;
   const requestedAtLabel = formatDateWithoutTimezone(item.requestedAt, "PPp");
   const requestedAge = formatRequestAgeShort(item.requestedAt);
   const reviewedAtLabel = item.reviewedAt
@@ -512,10 +516,22 @@ export function RequestInspector({
               </Button>
             ) : null}
 
+            {canRequestChanges ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => onRequestChanges(item)}
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Demander correction
+              </Button>
+            ) : null}
+
             {item.status === "pending" ? (
               <Button type="button" size="sm" variant="destructive" onClick={() => onReject(item)}>
                 <ThumbsDown className="mr-2 h-4 w-4" />
-                Rejeter
+                Refuser
               </Button>
             ) : null}
 

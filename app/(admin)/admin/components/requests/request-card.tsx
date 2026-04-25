@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Loader2,
   MapPin,
+  RotateCcw,
   SquarePen,
   ThumbsDown,
   Wand2,
@@ -68,6 +69,7 @@ export function RequestCard({
   onOpen,
   onConvert,
   onEdit,
+  onRequestChanges,
   onReject,
   onOpenUrl,
 }: {
@@ -77,6 +79,7 @@ export function RequestCard({
   onOpen: (item: AdminRequestItem) => void;
   onConvert: (item: AdminRequestItem) => void;
   onEdit: (item: AdminRequestItem) => void;
+  onRequestChanges: (item: AdminRequestItem) => void;
   onReject: (item: AdminRequestItem) => void;
   onOpenUrl: (url: string) => void;
 }) {
@@ -86,6 +89,7 @@ export function RequestCard({
   const sourceDomain = item.sourceUrl ? safeDomainFromUrl(item.sourceUrl) : null;
   const canConvert = item.status === "pending" && item.isFastConvertible;
   const canEdit = item.status === "pending";
+  const canRequestChanges = item.status === "pending" && !canConvert;
 
   return (
     <div
@@ -153,10 +157,17 @@ export function RequestCard({
           </Button>
         ) : null}
 
+        {canRequestChanges ? (
+          <Button type="button" size="sm" variant="outline" onClick={() => onRequestChanges(item)}>
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Corriger
+          </Button>
+        ) : null}
+
         {item.status === "pending" ? (
           <Button type="button" size="sm" variant="ghost" onClick={() => onReject(item)}>
             <ThumbsDown className="mr-2 h-4 w-4" />
-            Rejeter
+            Refuser
           </Button>
         ) : (
           <Button type="button" size="sm" variant="ghost" onClick={() => onOpen(item)}>

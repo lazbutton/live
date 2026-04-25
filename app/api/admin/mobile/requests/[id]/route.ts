@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { rejectMobileAdminRequest } from "@/lib/admin-mobile";
+import {
+  rejectMobileAdminRequest,
+  requestChangesMobileAdminRequest,
+} from "@/lib/admin-mobile";
 import { requireAdminMobileAuth } from "@/lib/admin-mobile-auth";
+import type { AdminModerationReason } from "@/lib/admin-requests-core";
 
 export async function PATCH(
   request: NextRequest,
@@ -14,9 +18,9 @@ export async function PATCH(
     const body = await request.json();
     const action = typeof body?.action === "string" ? body.action : null;
 
-    if (action !== "reject") {
+    if (action !== "reject" && action !== "request_changes") {
       return NextResponse.json(
-        { error: "Seule l'action reject est supportée" },
+        { error: "Action non supportée" },
         { status: 400 }
       );
     }
@@ -31,14 +35,23 @@ export async function PATCH(
       typeof body.moderationReason === "string" ? body.moderationReason : null;
     const contributorMessage =
       typeof body.contributorMessage === "string" ? body.contributorMessage : "";
-    const allowUserResubmission = body.allowUserResubmission === true;
-    const item = await rejectMobileAdminRequest(auth.supabase, id, {
+    if (!moderationReason) {
+      return NextResponse.json(
+        { error: "moderationReason est requis" },
+        { status: 400 }
+      );
+    }
+
+    const reviewInput = {
       reviewedBy: auth.user.id,
       internalNotes,
-      moderationReason,
+      moderationReason: moderationReason as AdminModerationReason,
       contributorMessage,
-      allowUserResubmission,
-    });
+    };
+    const item =
+      action === "request_changes"
+        ? await requestChangesMobileAdminRequest(auth.supabase, id, reviewInput)
+        : await rejectMobileAdminRequest(auth.supabase, id, reviewInput);
 
     return NextResponse.json({ item });
   } catch (error: any) {

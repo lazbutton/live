@@ -1,10 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, ThumbsDown } from "lucide-react";
+import { Loader2, RotateCcw, ThumbsDown } from "lucide-react";
 
 import type { AdminModerationReason, AdminRequestItem } from "@/lib/admin-requests";
 import { getModerationReasonLabel } from "@/lib/admin-requests";
+import {
+  getDefaultContributorMessage,
+  type AdminRequestReviewAction,
+} from "@/lib/admin-request-review";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,45 +26,58 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { MODERATION_REASONS } from "./request-ui";
 
 export function RequestRejectDialog({
   open,
+  action,
   target,
   internalNotes,
   contributorMessage,
   moderationReason,
-  allowResubmission,
   processing,
   onOpenChange,
   onInternalNotesChange,
   onContributorMessageChange,
   onModerationReasonChange,
-  onAllowResubmissionChange,
   onConfirm,
 }: {
   open: boolean;
+  action: AdminRequestReviewAction;
   target: AdminRequestItem | null;
   internalNotes: string;
   contributorMessage: string;
   moderationReason: AdminModerationReason | "";
-  allowResubmission: boolean;
   processing: boolean;
   onOpenChange: (open: boolean) => void;
   onInternalNotesChange: (value: string) => void;
   onContributorMessageChange: (value: string) => void;
   onModerationReasonChange: (value: AdminModerationReason | "") => void;
-  onAllowResubmissionChange: (value: boolean) => void;
   onConfirm: () => void;
 }) {
+  const isRequestChanges = action === "request_changes";
+  const title = isRequestChanges ? "Demander une correction" : "Refuser définitivement";
+  const description = isRequestChanges
+    ? "Message clair, reprise autorisée, retour rapide côté utilisateur."
+    : "Décision finale, message court et compréhensible côté utilisateur.";
+  const confirmLabel = isRequestChanges ? "Demander correction" : "Refuser";
+  const ConfirmIcon = isRequestChanges ? RotateCcw : ThumbsDown;
+
+  function handleReasonChange(value: string) {
+    const nextReason = value as AdminModerationReason;
+    onModerationReasonChange(nextReason);
+    if (!contributorMessage.trim()) {
+      onContributorMessageChange(getDefaultContributorMessage(action, nextReason));
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Rejeter la demande</DialogTitle>
-          <DialogDescription>Motif clair, message utile, décision rapide.</DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -78,9 +95,7 @@ export function RequestRejectDialog({
             <Label htmlFor="reject-reason-structured">Motif structuré</Label>
             <Select
               value={moderationReason}
-              onValueChange={(value) =>
-                onModerationReasonChange(value as AdminModerationReason)
-              }
+              onValueChange={handleReasonChange}
             >
               <SelectTrigger id="reject-reason-structured">
                 <SelectValue placeholder="Choisissez un motif" />
@@ -102,19 +117,40 @@ export function RequestRejectDialog({
               rows={3}
               value={contributorMessage}
               onChange={(event) => onContributorMessageChange(event.target.value)}
-              placeholder="Explique ce qu’il faut corriger ou pourquoi la demande est refusée."
+              placeholder={
+                isRequestChanges
+                  ? "Explique ce qu’il faut corriger pour renvoyer la demande."
+                  : "Explique brièvement pourquoi la demande est refusée."
+              }
             />
+            {moderationReason ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="px-0"
+                onClick={() =>
+                  onContributorMessageChange(
+                    getDefaultContributorMessage(action, moderationReason),
+                  )
+                }
+              >
+                Utiliser le message recommandé
+              </Button>
+            ) : null}
           </div>
 
-          <div className="flex items-start justify-between gap-4 rounded-xl border bg-muted/20 p-3">
+          <div className="rounded-xl border bg-muted/20 p-3">
             <div>
-              <div className="text-sm font-medium">Autoriser une reprise</div>
-                  <div className="text-xs text-muted-foreground">Autorise une nouvelle soumission.</div>
+              <div className="text-sm font-medium">
+                {isRequestChanges ? "Correction possible" : "Refus définitif"}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {isRequestChanges
+                  ? "La demande passera en À corriger côté utilisateur."
+                  : "L’utilisateur verra le retour, sans bouton de renvoi."}
+              </div>
             </div>
-            <Switch
-              checked={allowResubmission}
-              onCheckedChange={onAllowResubmissionChange}
-            />
           </div>
 
           <div className="space-y-2">
@@ -133,13 +169,18 @@ export function RequestRejectDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={processing}>
             Annuler
           </Button>
-          <Button type="button" variant="destructive" onClick={onConfirm} disabled={processing}>
+          <Button
+            type="button"
+            variant={isRequestChanges ? "default" : "destructive"}
+            onClick={onConfirm}
+            disabled={processing}
+          >
             {processing ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <ThumbsDown className="mr-2 h-4 w-4" />
+              <ConfirmIcon className="mr-2 h-4 w-4" />
             )}
-            Rejeter
+            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
