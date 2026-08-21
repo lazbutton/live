@@ -37,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2, ExternalLink, Code, Edit2, Globe, Instagram, Facebook, Users, Music, ChevronLeft, LayoutGrid, List as ListIcon } from "lucide-react";
+import { Plus, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2, ExternalLink, Code, Edit2, Globe, Instagram, Facebook, Users, Music, ChevronLeft, LayoutGrid, List as ListIcon, RotateCw } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -48,15 +48,28 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RoomsManagement } from "./rooms-management";
 import { compressImage } from "@/lib/image-compression";
+import { removeReplacedStorageObject } from "@/lib/supabase/image-utils";
 import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
+import { useAlertDialog } from "@/hooks/use-alert-dialog";
+import { toast } from "@/components/ui/use-toast";
+import {
+  ManagementEmptyState,
+  ManagementHero,
+  ManagementPill,
+  ManagementSectionLabel,
+  ManagementStat,
+  ManagementStatGrid,
+  ManagementToolbar,
+} from "./management-page-primitives";
 
 interface Room {
   id: string;
@@ -65,7 +78,7 @@ interface Room {
   capacity: number | null;
 }
 
-interface Location {
+export interface Location {
   id: string;
   name: string;
   address: string | null;
@@ -81,6 +94,7 @@ interface Location {
   facebook_page_id: string | null;
   website_url: string | null;
   scraping_example_url: string | null;
+  source_capture_mode: "url" | "image" | "facebook";
   is_organizer: boolean | null;
   suggested: boolean | null;
   created_at: string;
@@ -91,6 +105,21 @@ interface Location {
     label: string;
   } | null;
   rooms?: Room[];
+}
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+function getCaptureModeLabel(mode: Location["source_capture_mode"]) {
+  if (mode === "image") return "Capture image";
+  if (mode === "facebook") return "Capture Facebook";
+  return "Capture URL";
 }
 
 export function LocationsManagement() {
@@ -106,8 +135,12 @@ export function LocationsManagement() {
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
+  const [cityFilter, setCityFilter] = useState<string>("all");
+  const [organizerFilter, setOrganizerFilter] = useState<"all" | "organizer" | "non_organizer">("all");
+  const [suggestedFilter, setSuggestedFilter] = useState<"all" | "suggested" | "non_suggested">("all");
   const [isRoomsDialogOpen, setIsRoomsDialogOpen] = useState(false);
   const [selectedLocationForRooms, setSelectedLocationForRooms] = useState<Location | null>(null);
+  const { showAlert, showConfirm, AlertDialogComponent } = useAlertDialog();
 
   useEffect(() => {
     loadLocations();
@@ -161,31 +194,52 @@ export function LocationsManagement() {
 
   // Filtrer les lieux par recherche
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredLocations(locations);
-    } else {
-      const query = searchQuery.toLowerCase();
-      setFilteredLocations(
-        locations.filter((location) => 
-          location.name.toLowerCase().includes(query) ||
-          location.address?.toLowerCase().includes(query) ||
-          location.city?.label.toLowerCase().includes(query)
-        )
-      );
-    }
-  }, [locations, searchQuery]);
+    const query = searchQuery.trim().toLowerCase();
+    const next = locations.filter((location) => {
+      const matchesQuery =
+        !query ||
+        location.name.toLowerCase().includes(query) ||
+        location.address?.toLowerCase().includes(query) ||
+        location.city?.label.toLowerCase().includes(query);
+      const matchesCity = cityFilter === "all" || location.city?.id === cityFilter;
+      const matchesOrganizer =
+        organizerFilter === "all" ||
+        (organizerFilter === "organizer"
+          ? Boolean(location.is_organizer)
+          : !Boolean(location.is_organizer));
+      const matchesSuggested =
+        suggestedFilter === "all" ||
+        (suggestedFilter === "suggested"
+          ? Boolean(location.suggested)
+          : !Boolean(location.suggested));
+      return matchesQuery && matchesCity && matchesOrganizer && matchesSuggested;
+    });
+    setFilteredLocations(next);
+  }, [locations, searchQuery, cityFilter, organizerFilter, suggestedFilter]);
 
   async function deleteLocation(id: string) {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer ce lieu ?")) return;
-
-    try {
-      const { error } = await supabase.from("locations").delete().eq("id", id);
-      if (error) throw error;
-      await loadLocations();
-    } catch (error) {
-      console.error("Erreur lors de la suppression:", error);
-      alert("Erreur lors de la suppression du lieu");
-    }
+    showConfirm({
+      title: "Supprimer le lieu",
+      description: "Êtes-vous sûr de vouloir supprimer ce lieu ?",
+      confirmText: "Supprimer",
+      cancelText: "Annuler",
+      variant: "destructive",
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.from("locations").delete().eq("id", id);
+          if (error) throw error;
+          toast({ title: "Lieu supprimé", variant: "success" });
+          await loadLocations();
+        } catch (error) {
+          console.error("Erreur lors de la suppression:", error);
+          showAlert({
+            title: "Suppression impossible",
+            description: "Erreur lors de la suppression du lieu",
+            confirmText: "OK",
+          });
+        }
+      },
+    });
   }
 
   async function toggleSuggested(locationId: string, currentValue: boolean) {
@@ -194,7 +248,12 @@ export function LocationsManagement() {
       if (!currentValue) {
         const suggestedCount = locations.filter(loc => loc.suggested).length;
         if (suggestedCount >= 6) {
-          alert("Vous ne pouvez pas recommander plus de 6 lieux. Veuillez désactiver un lieu recommandé avant d'en activer un autre.");
+          showAlert({
+            title: "Limite atteinte",
+            description:
+              "Vous ne pouvez pas recommander plus de 6 lieux. Désactivez un lieu recommandé avant d'en activer un autre.",
+            confirmText: "OK",
+          });
           return;
         }
       }
@@ -208,7 +267,11 @@ export function LocationsManagement() {
       await loadLocations();
     } catch (error) {
       console.error("Erreur lors de la mise à jour:", error);
-      alert("Erreur lors de la mise à jour du lieu recommandé");
+      showAlert({
+        title: "Mise à jour impossible",
+        description: "Erreur lors de la mise à jour du lieu recommandé",
+        confirmText: "OK",
+      });
     }
   }
 
@@ -220,14 +283,30 @@ export function LocationsManagement() {
     setIsDialogOpen(true);
   }
 
-  function getInitials(name: string) {
-    return name
-      .split(" ")
-      .slice(0, 2)
-      .map(n => n[0])
-      .join("")
-      .toUpperCase();
+  function getLocationLinkCount(location: Location) {
+    return [
+      location.website_url,
+      location.instagram_url,
+      location.facebook_url,
+      location.tiktok_url,
+    ].filter(Boolean).length;
   }
+
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    cityFilter !== "all" ||
+    organizerFilter !== "all" ||
+    suggestedFilter !== "all";
+  const cityOptions = Array.from(
+    new Map(
+      locations
+        .filter((location) => location.city?.id && location.city?.label)
+        .map((location) => [location.city!.id, location.city!.label]),
+    ).entries(),
+  ).map(([id, label]) => ({ id, label }));
+  const organizerLocationsCount = locations.filter((loc) => Boolean(loc.is_organizer)).length;
+  const withoutImageCount = locations.filter((loc) => !loc.image_url).length;
+  const withRoomsCount = locations.filter((loc) => (loc.rooms?.length || 0) > 0).length;
 
   if (loading) {
     return (
@@ -242,146 +321,233 @@ export function LocationsManagement() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="space-y-6">
-        {/* En-tête compact */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <h2 className="text-xl font-semibold">Lieux</h2>
-              <p className="text-sm text-muted-foreground">
-                {filteredLocations.length} lieu{filteredLocations.length > 1 ? "x" : ""}
-                {searchQuery && ` sur ${locations.length}`}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap justify-end">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50 border">
-              <span className="text-sm font-medium">Lieux recommandés:</span>
-              <Badge variant={suggestedCount >= 6 ? "destructive" : suggestedCount >= 4 ? "default" : "secondary"} className="font-semibold">
-                {suggestedCount}/6
-              </Badge>
-            </div>
+      <div className="space-y-5">
+        <ManagementHero
+          icon={<Building2 className="h-5 w-5" />}
+          title="Lieux"
+          description="Gérez les lieux, les salles associées, les pages source et la mise en avant dans une interface plus lisible et plus rapide à exploiter."
+          actions={
+            <>
+              <div className="flex items-center gap-2 rounded-xl border border-border/70 bg-background/90 px-3 py-2 shadow-sm">
+                <span className="text-sm font-medium">Recommandés</span>
+                <Badge
+                  variant={suggestedCount >= 6 ? "destructive" : suggestedCount >= 4 ? "default" : "secondary"}
+                  className="rounded-full"
+                >
+                  {suggestedCount}/6
+                </Badge>
+              </div>
+              <div className="flex items-center gap-1 rounded-xl border border-border/70 bg-background/90 p-1 shadow-sm">
+                <Button
+                  type="button"
+                  variant={viewMode === "list" ? "default" : "ghost"}
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => setViewMode("list")}
+                  title="Vue liste"
+                >
+                  <ListIcon className="h-4 w-4" />
+                  <span className="hidden md:inline">Liste</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={viewMode === "grid" ? "default" : "ghost"}
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => setViewMode("grid")}
+                  title="Vue grille"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  <span className="hidden md:inline">Grille</span>
+                </Button>
+              </div>
+              <Button onClick={() => handleOpenDialog()} size="sm" className="h-9 rounded-xl">
+                <Plus className="mr-1.5 h-4 w-4" />
+                Nouveau lieu
+              </Button>
+            </>
+          }
+        >
+          <ManagementStatGrid>
+            <ManagementStat label="Résultats visibles" value={filteredLocations.length} hint={`${locations.length} au total`} />
+            <ManagementStat label="Lieux-organisateurs" value={organizerLocationsCount} hint="Peuvent créer une source" />
+            <ManagementStat label="Avec salles" value={withRoomsCount} hint="Gestion rapide des rooms" />
+            <ManagementStat label="Image & mise en avant" value={`${suggestedCount}/6`} hint={`${withoutImageCount} sans image`} />
+          </ManagementStatGrid>
+        </ManagementHero>
 
-            <div className="flex items-center gap-1 rounded-lg border bg-background p-1">
+        <ManagementToolbar>
+          <div className="space-y-3">
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.2fr_repeat(3,minmax(0,0.9fr))_auto]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher un lieu, une adresse ou une ville..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-11 rounded-xl pl-9"
+                />
+              </div>
+              <Select value={cityFilter} onValueChange={setCityFilter}>
+                <SelectTrigger className="h-11 rounded-xl">
+                  <SelectValue placeholder="Ville" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les villes</SelectItem>
+                  {cityOptions.map((city) => (
+                    <SelectItem key={city.id} value={city.id}>
+                      {city.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={organizerFilter}
+                onValueChange={(value) => setOrganizerFilter(value as typeof organizerFilter)}
+              >
+                <SelectTrigger className="h-11 rounded-xl">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les lieux</SelectItem>
+                  <SelectItem value="organizer">Lieux-organisateurs</SelectItem>
+                  <SelectItem value="non_organizer">Lieux simples</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={suggestedFilter}
+                onValueChange={(value) => setSuggestedFilter(value as typeof suggestedFilter)}
+              >
+                <SelectTrigger className="h-11 rounded-xl">
+                  <SelectValue placeholder="Recommandation" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous</SelectItem>
+                  <SelectItem value="suggested">Recommandés</SelectItem>
+                  <SelectItem value="non_suggested">Non recommandés</SelectItem>
+                </SelectContent>
+              </Select>
               <Button
                 type="button"
-                variant={viewMode === "list" ? "default" : "ghost"}
-                size="sm"
-                className="h-8 px-2"
-                onClick={() => setViewMode("list")}
-                title="Vue liste"
+                variant="ghost"
+                className="h-11 rounded-xl"
+                disabled={!hasActiveFilters}
+                onClick={() => {
+                  setSearchQuery("");
+                  setCityFilter("all");
+                  setOrganizerFilter("all");
+                  setSuggestedFilter("all");
+                }}
               >
-                <ListIcon className="h-4 w-4" />
-                <span className="hidden md:inline">Liste</span>
-              </Button>
-              <Button
-                type="button"
-                variant={viewMode === "grid" ? "default" : "ghost"}
-                size="sm"
-                className="h-8 px-2"
-                onClick={() => setViewMode("grid")}
-                title="Vue grille"
-              >
-                <LayoutGrid className="h-4 w-4" />
-                <span className="hidden md:inline">Grille</span>
+                <RotateCw className="mr-2 h-4 w-4" />
+                Réinitialiser
               </Button>
             </div>
-
-            <Button onClick={() => handleOpenDialog()} size="sm" className="h-9">
-              <Plus className="h-4 w-4 mr-1.5" />
-              Ajouter
-            </Button>
+            {hasActiveFilters ? (
+              <div className="flex flex-wrap gap-2">
+                {searchQuery.trim() ? <ManagementPill tone="muted">Recherche: {searchQuery.trim()}</ManagementPill> : null}
+                {cityFilter !== "all" ? (
+                  <ManagementPill tone="muted">
+                    Ville: {cityOptions.find((city) => city.id === cityFilter)?.label || cityFilter}
+                  </ManagementPill>
+                ) : null}
+                {organizerFilter !== "all" ? (
+                  <ManagementPill tone="muted">
+                    {organizerFilter === "organizer" ? "Lieux-organisateurs" : "Lieux simples"}
+                  </ManagementPill>
+                ) : null}
+                {suggestedFilter !== "all" ? (
+                  <ManagementPill tone="muted">
+                    {suggestedFilter === "suggested" ? "Recommandés" : "Non recommandés"}
+                  </ManagementPill>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-        </div>
-
-        {/* Recherche */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher un lieu..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-10"
-          />
-        </div>
+        </ManagementToolbar>
 
         {/* Liste / Grille */}
         {filteredLocations.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <Building2 className="h-12 w-12 mx-auto opacity-20 mb-2" />
-            <p>{locations.length === 0 ? "Aucun lieu. Cliquez sur 'Ajouter' pour commencer." : `Aucun résultat pour "${searchQuery}"`}</p>
-          </div>
+          <ManagementEmptyState
+            icon={<Building2 className="h-6 w-6" />}
+            title={locations.length === 0 ? "Aucun lieu pour le moment" : "Aucun résultat"}
+            description={
+              locations.length === 0
+                ? "Ajoutez votre premier lieu pour structurer l’offre, les salles et les pages source."
+                : `Aucun lieu ne correspond aux filtres actuels${searchQuery.trim() ? ` pour "${searchQuery.trim()}"` : ""}.`
+            }
+          />
         ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {filteredLocations.map((location) => (
               <div
                 key={location.id}
                 onClick={() => handleOpenDialog(location)}
-                className="group relative flex flex-col p-4 rounded-lg border bg-card hover:shadow-md hover:border-primary/50 transition-all duration-200 cursor-pointer min-h-[160px]"
+                className="group relative flex min-h-[320px] flex-col overflow-hidden rounded-3xl border border-border/70 bg-card/95 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg cursor-pointer"
               >
-                {/* Avatar et infos */}
-                <div className="flex items-start gap-3 mb-3">
-                  <Avatar className="h-12 w-12 ring-2 ring-background shrink-0">
+                <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-r from-primary/5 via-primary/0 to-transparent" />
+                <div className="relative flex items-start gap-3">
+                  <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-border/70 shadow-sm">
                     <AvatarImage src={location.image_url || undefined} alt={location.name} />
-                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                    <AvatarFallback className="rounded-2xl bg-primary/10 text-primary font-semibold">
                       {getInitials(location.name)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-sm truncate">{location.name}</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="truncate text-base font-semibold">{location.name}</h3>
                       {location.is_organizer && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">Orga</Badge>
+                        <Badge variant="outline" className="rounded-full border-border/70 bg-background/80 text-[11px]">
+                          Lieu-organisateur
+                        </Badge>
+                      )}
+                      {location.suggested && (
+                        <Badge variant="secondary" className="rounded-full text-[11px]">
+                          Recommandé
+                        </Badge>
                       )}
                     </div>
-                    {location.address && (
-                      <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                        {location.address}
-                      </p>
-                    )}
-                    {location.city?.label && (
-                      <div className="mt-1">
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                          {location.city.label}
-                        </Badge>
-                      </div>
-                    )}
-                    {location.short_description && (
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                        {location.short_description}
-                      </p>
-                    )}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {location.city?.label ? <ManagementPill tone="muted">{location.city.label}</ManagementPill> : null}
+                      <ManagementPill tone={location.image_url ? "default" : "warning"}>
+                        {location.image_url ? "Image OK" : "Image manquante"}
+                      </ManagementPill>
+                    </div>
                   </div>
                 </div>
 
-                {/* Salles et capacité */}
-                {(location.rooms && location.rooms.length > 0) || location.capacity ? (
-                  <div className="mb-3 space-y-1">
-                    {location.rooms && location.rooms.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {location.rooms.map((room) => (
-                          <Badge key={room.id} variant="secondary" className="text-xs">
-                            {room.name}{room.capacity && ` (${room.capacity})`}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                    {location.capacity && (
-                      <p className="text-xs text-muted-foreground">Capacité: {location.capacity}</p>
-                    )}
-                  </div>
-                ) : null}
+                <div className="mt-4 min-h-[72px] space-y-2">
+                  <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+                    {location.address || "Aucune adresse renseignée"}
+                  </p>
+                  <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+                    {location.short_description?.trim() ||
+                      "Ajoutez une description courte pour mieux qualifier l’ambiance, l’accès ou la spécialité du lieu."}
+                  </p>
+                </div>
 
-                {/* Liens sociaux */}
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  <ManagementPill tone="muted">
+                    {(location.rooms?.length || 0)} salle{(location.rooms?.length || 0) > 1 ? "s" : ""}
+                  </ManagementPill>
+                  {location.capacity ? (
+                    <ManagementPill tone="muted">Capacité {location.capacity}</ManagementPill>
+                  ) : null}
+                  {location.is_organizer ? (
+                    <ManagementPill tone={location.scraping_example_url ? "positive" : "muted"}>
+                      {location.scraping_example_url ? "Source prête" : getCaptureModeLabel(location.source_capture_mode)}
+                    </ManagementPill>
+                  ) : null}
+                </div>
+
                 {(location.instagram_url || location.facebook_url || location.tiktok_url || location.website_url) && (
-                  <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                  <div className="mt-4 flex items-center gap-1.5 flex-wrap">
                     {location.website_url && (
                       <a
                         href={location.website_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded hover:bg-accent transition-colors"
+                        className="rounded-xl border border-border/70 bg-background/80 p-2 hover:bg-accent transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Globe className="h-3.5 w-3.5 text-muted-foreground" />
@@ -392,7 +558,7 @@ export function LocationsManagement() {
                         href={location.instagram_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded hover:bg-accent transition-colors"
+                      className="rounded-xl border border-border/70 bg-background/80 p-2 hover:bg-accent transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Instagram className="h-3.5 w-3.5 text-muted-foreground" />
@@ -403,7 +569,7 @@ export function LocationsManagement() {
                         href={location.facebook_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded hover:bg-accent transition-colors"
+                      className="rounded-xl border border-border/70 bg-background/80 p-2 hover:bg-accent transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Facebook className="h-3.5 w-3.5 text-muted-foreground" />
@@ -414,7 +580,7 @@ export function LocationsManagement() {
                         href={location.tiktok_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded hover:bg-accent transition-colors"
+                      className="rounded-xl border border-border/70 bg-background/80 p-2 hover:bg-accent transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Music className="h-3.5 w-3.5 text-muted-foreground" />
@@ -423,69 +589,43 @@ export function LocationsManagement() {
                   </div>
                 )}
 
-                {/* Actions - collées en bas */}
-                <div className="flex items-center justify-between gap-1 pt-2 border-t mt-auto">
-                  <div className="flex items-center gap-1">
-                    {location.is_organizer && (
-                      <Link
-                        href={`/admin/organizers/${location.id}/team`}
-                        className="p-1.5 rounded hover:bg-accent transition-colors"
-                        title="Gérer l'équipe"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Users className="h-3.5 w-3.5" />
-                      </Link>
-                    )}
-                    {location.scraping_example_url ? (
-                      <a
-                        href={location.scraping_example_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1.5 rounded hover:bg-accent transition-colors"
-                        title="Ouvrir l'URL d'exemple de scraping"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    ) : (
-                      <button
+                <div className="mt-auto pt-4">
+                  <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Button
                         type="button"
-                        disabled
-                        className="p-1.5 rounded opacity-50 cursor-not-allowed"
-                        title="Aucune URL d'exemple de scraping"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    {location.scraping_example_url && (
-                      <button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-xl bg-background/80"
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/admin/scraping/${location.id}`);
+                          setSelectedLocationForRooms(location);
+                          setIsRoomsDialogOpen(true);
                         }}
-                        className="p-1.5 rounded hover:bg-accent transition-colors"
-                        title="Configuration scraping"
                       >
-                        <Code className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedLocationForRooms(location);
-                        setIsRoomsDialogOpen(true);
-                      }}
-                      className="p-1.5 rounded hover:bg-accent transition-colors"
-                      title="Gérer les salles"
-                    >
-                      <LayoutGrid className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-1">
+                        <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
+                        Salles
+                      </Button>
+                      {location.is_organizer ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 rounded-xl bg-background/80"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/admin/organizers/${location.id}/team`);
+                          }}
+                        >
+                          <Users className="mr-1.5 h-3.5 w-3.5" />
+                          Équipe
+                        </Button>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-1">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div 
+                        <div
                           className="flex items-center"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -501,91 +641,93 @@ export function LocationsManagement() {
                         <p>{location.suggested ? "Recommandé" : "Non recommandé"}</p>
                       </TooltipContent>
                     </Tooltip>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                        <button 
-                          className="p-1.5 rounded hover:bg-accent transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-40 p-1" align="end">
-                      <div className="space-y-0.5">
-                        <button
-                          onClick={() => handleOpenDialog(location)}
-                          className="w-full text-left px-3 py-2 text-sm rounded hover:bg-accent transition-colors flex items-center gap-2"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                          Modifier
-                        </button>
-                        <button
-                          onClick={() => deleteLocation(location.id)}
-                          className="w-full text-left px-3 py-2 text-sm rounded hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Supprimer
-                        </button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 rounded-xl"
+                        title="Supprimer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteLocation(location.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border bg-card">
+          <div className="overflow-hidden rounded-3xl border border-border/70 bg-card/95 shadow-sm">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Lieu</TableHead>
+                  <TableHead className="hidden lg:table-cell">Signaux</TableHead>
+                  <TableHead className="hidden xl:table-cell">Capacité & salles</TableHead>
                   <TableHead className="hidden md:table-cell text-right">Recommandé</TableHead>
-                  <TableHead className="text-right">Commandes</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredLocations.map((location) => (
                   <TableRow
                     key={location.id}
-                    className="cursor-pointer"
+                    className="cursor-pointer hover:bg-muted/20"
                     onClick={() => handleOpenDialog(location)}
                   >
                     <TableCell>
                       <div className="flex items-center gap-3 min-w-0">
-                        <Avatar className="h-9 w-9 ring-2 ring-background shrink-0">
+                        <Avatar className="h-11 w-11 shrink-0 rounded-2xl border border-border/70 shadow-sm">
                           <AvatarImage src={location.image_url || undefined} alt={location.name} />
-                          <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                          <AvatarFallback className="rounded-2xl bg-primary/10 text-primary font-semibold">
                             {getInitials(location.name)}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <div className="font-medium truncate">{location.name}</div>
-                            {location.is_organizer && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">Orga</Badge>
-                            )}
-                            {location.suggested && (
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">Recommandé</Badge>
-                            )}
+                            {location.is_organizer ? <Badge variant="outline" className="rounded-full text-[10px]">Orga</Badge> : null}
+                            {location.suggested ? <Badge variant="secondary" className="rounded-full text-[10px]">Recommandé</Badge> : null}
                           </div>
-                          {location.address && (
-                            <div className="text-xs text-muted-foreground truncate">{location.address}</div>
-                          )}
+                          <div className="truncate text-xs text-muted-foreground">{location.address || "Adresse non renseignée"}</div>
                           {location.city?.label && (
                             <div className="mt-1">
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              <Badge variant="secondary" className="rounded-full text-[10px]">
                                 {location.city.label}
                               </Badge>
                             </div>
                           )}
-                          {(location.rooms?.length || 0) > 0 && (
-                            <div className="text-xs text-muted-foreground">
-                              {(location.rooms?.length || 0)} salle{(location.rooms?.length || 0) > 1 ? "s" : ""}
-                              {location.capacity ? ` • Capacité ${location.capacity}` : ""}
-                            </div>
-                          )}
                         </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <div className="flex flex-wrap gap-1.5">
+                        <ManagementPill tone={location.is_organizer ? "default" : "muted"}>
+                          {location.is_organizer ? getCaptureModeLabel(location.source_capture_mode) : "Lieu simple"}
+                        </ManagementPill>
+                        <ManagementPill tone={location.scraping_example_url ? "positive" : "muted"}>
+                          {location.scraping_example_url ? "Scraping prêt" : "Pas de scraping"}
+                        </ManagementPill>
+                        <ManagementPill tone={location.image_url ? "default" : "warning"}>
+                          {location.image_url ? "Image OK" : "Image manquante"}
+                        </ManagementPill>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell">
+                      <div className="flex flex-wrap gap-1.5">
+                        <ManagementPill tone="muted">
+                          {(location.rooms?.length || 0)} salle{(location.rooms?.length || 0) > 1 ? "s" : ""}
+                        </ManagementPill>
+                        {location.capacity ? (
+                          <ManagementPill tone="muted">Capacité {location.capacity}</ManagementPill>
+                        ) : null}
+                        <ManagementPill tone="muted">
+                          {getLocationLinkCount(location)} lien{getLocationLinkCount(location) > 1 ? "s" : ""}
+                        </ManagementPill>
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
@@ -602,8 +744,8 @@ export function LocationsManagement() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        {location.is_organizer && (
-                          <Button asChild variant="ghost" size="icon">
+                        {location.is_organizer ? (
+                          <Button asChild variant="ghost" size="icon" className="rounded-xl">
                             <Link
                               href={`/admin/organizers/${location.id}/team`}
                               title="Équipe"
@@ -612,35 +754,12 @@ export function LocationsManagement() {
                               <Users className="h-4 w-4" />
                             </Link>
                           </Button>
-                        )}
-                        {location.scraping_example_url ? (
-                          <Button asChild variant="ghost" size="icon">
-                            <a
-                              href={location.scraping_example_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="URL d'exemple de scraping"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            disabled
-                            title="Aucune URL d'exemple de scraping"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                        )}
+                        ) : null}
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
+                          className="rounded-xl"
                           title={location.scraping_example_url ? "Configuration scraping" : "Aucune URL de scraping"}
                           disabled={!location.scraping_example_url}
                           onClick={(e) => {
@@ -655,6 +774,7 @@ export function LocationsManagement() {
                           type="button"
                           variant="ghost"
                           size="icon"
+                          className="rounded-xl"
                           title="Gérer les salles"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -668,6 +788,7 @@ export function LocationsManagement() {
                           type="button"
                           variant="ghost"
                           size="icon"
+                          className="rounded-xl"
                           title="Modifier"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -676,18 +797,41 @@ export function LocationsManagement() {
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          title="Supprimer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteLocation(location.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="rounded-xl"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52 rounded-xl">
+                            {location.scraping_example_url ? (
+                              <DropdownMenuItem asChild className="cursor-pointer">
+                                <a
+                                  href={location.scraping_example_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  Ouvrir l'URL source
+                                </a>
+                              </DropdownMenuItem>
+                            ) : null}
+                            <DropdownMenuItem
+                              onClick={() => deleteLocation(location.id)}
+                              className="cursor-pointer text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Supprimer
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -718,12 +862,13 @@ export function LocationsManagement() {
             }}
           />
         )}
+        <AlertDialogComponent />
       </div>
     </TooltipProvider>
   );
 }
 
-function LocationDialog({
+export function LocationDialog({
   location,
   open,
   onOpenChange,
@@ -735,9 +880,12 @@ function LocationDialog({
   onSuccess: () => void;
 }) {
   const isMobile = useIsMobile();
+  const { showAlert, AlertDialogComponent } = useAlertDialog();
+  const [cities, setCities] = useState<Array<{ id: string; label: string }>>([]);
   const [formData, setFormData] = useState({
     name: "",
     address: "",
+    city_id: "",
     image_url: "",
     short_description: "",
     capacity: "",
@@ -750,6 +898,7 @@ function LocationDialog({
     facebook_page_id: "",
     website_url: "",
     scraping_example_url: "",
+    source_capture_mode: "url" as "url" | "image" | "facebook",
     is_organizer: false,
     suggested: false,
   });
@@ -771,6 +920,7 @@ function LocationDialog({
       setFormData({
         name: location.name || "",
         address: location.address || "",
+        city_id: location.city_id || "",
         image_url: location.image_url || "",
         short_description: location.short_description || "",
         capacity: location.capacity?.toString() || "",
@@ -783,6 +933,7 @@ function LocationDialog({
         facebook_page_id: location.facebook_page_id || "",
         website_url: location.website_url || "",
         scraping_example_url: location.scraping_example_url || "",
+        source_capture_mode: location.source_capture_mode || "url",
         is_organizer: location.is_organizer || false,
         suggested: location.suggested || false,
       });
@@ -793,6 +944,7 @@ function LocationDialog({
       setFormData({
         name: "",
         address: "",
+        city_id: "",
         image_url: "",
         short_description: "",
         capacity: "",
@@ -805,6 +957,7 @@ function LocationDialog({
         facebook_page_id: "",
         website_url: "",
         scraping_example_url: "",
+        source_capture_mode: "url",
         is_organizer: false,
         suggested: false,
       });
@@ -814,11 +967,30 @@ function LocationDialog({
     }
   }, [location, open]);
 
+  useEffect(() => {
+    if (!open) return;
+    void (async () => {
+      const { data, error } = await supabase
+        .from("cities")
+        .select("id, label")
+        .order("label", { ascending: true });
+      if (error) {
+        console.error("Erreur chargement villes:", error);
+        return;
+      }
+      setCities((data || []) as Array<{ id: string; label: string }>);
+    })();
+  }, [open]);
+
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith("image/")) {
-        alert("Veuillez sélectionner une image");
+        showAlert({
+          title: "Image invalide",
+          description: "Veuillez sélectionner une image.",
+          confirmText: "OK",
+        });
         return;
       }
 
@@ -905,7 +1077,11 @@ function LocationDialog({
       setAspectRatio(3 / 2);
     } catch (error) {
       console.error("Erreur lors du cropping:", error);
-      alert("Erreur lors du rognage de l'image");
+      showAlert({
+        title: "Rognage impossible",
+        description: "Erreur lors du rognage de l'image",
+        confirmText: "OK",
+      });
     }
   }
 
@@ -917,7 +1093,63 @@ function LocationDialog({
   }
 
   async function handleImageUpload(): Promise<string | null> {
-    if (!imageFile) return formData.image_url;
+    const currentUrl = formData.image_url?.trim() || "";
+    const isStoredLocationImage = (url: string) =>
+      /\/storage\/v1\/object\/public\/locations-images\//.test(url);
+
+    async function uploadFromRemoteUrl(url: string): Promise<string | null> {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Image distante inaccessible (${response.status})`);
+        }
+        const blob = await response.blob();
+        const contentType = blob.type || "image/jpeg";
+        if (!contentType.startsWith("image/")) {
+          throw new Error("L'URL fournie n'est pas une image valide.");
+        }
+        const ext = contentType.includes("png")
+          ? "png"
+          : contentType.includes("webp")
+            ? "webp"
+            : contentType.includes("gif")
+              ? "gif"
+              : "jpg";
+        const remoteFile = new File([blob], `location-remote-${Date.now()}.${ext}`, {
+          type: contentType,
+        });
+        const fileToUpload = await compressImage(remoteFile, 2);
+        const fileExt = fileToUpload.name.split(".").pop() || ext;
+        const fileName = `locations/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const { data, error } = await supabase.storage
+          .from("locations-images")
+          .upload(fileName, fileToUpload, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+        if (error) throw error;
+        const { data: { publicUrl } } = supabase.storage
+          .from("locations-images")
+          .getPublicUrl(data.path);
+        return publicUrl;
+      } catch (error: any) {
+        console.error("Erreur copie image distante:", error);
+        showAlert({
+          title: "Image distante invalide",
+          description:
+            "Impossible de sauvegarder l'image distante: " +
+            (error.message || "Erreur inconnue"),
+          confirmText: "OK",
+        });
+        return null;
+      }
+    }
+
+    if (!imageFile) {
+      if (!currentUrl) return "";
+      if (isStoredLocationImage(currentUrl)) return currentUrl;
+      return await uploadFromRemoteUrl(currentUrl);
+    }
 
     try {
       setUploading(true);
@@ -937,7 +1169,12 @@ function LocationDialog({
 
       if (error) {
         if (error.message?.includes("Bucket not found")) {
-          alert("Le bucket 'locations-images' n'existe pas. Veuillez le créer dans Supabase Storage.");
+          showAlert({
+            title: "Bucket manquant",
+            description:
+              "Le bucket 'locations-images' n'existe pas. Veuillez le créer dans Supabase Storage.",
+            confirmText: "OK",
+          });
         } else {
           throw error;
         }
@@ -952,9 +1189,20 @@ function LocationDialog({
     } catch (error: any) {
       console.error("Erreur upload:", error);
       if (error.message?.includes("Bucket not found")) {
-        alert("Le bucket 'locations-images' n'existe pas. Veuillez le créer dans Supabase Storage.");
+        showAlert({
+          title: "Bucket manquant",
+          description:
+            "Le bucket 'locations-images' n'existe pas. Veuillez le créer dans Supabase Storage.",
+          confirmText: "OK",
+        });
       } else {
-        alert("Erreur lors de l'upload de l'image: " + (error.message || "Erreur inconnue"));
+        showAlert({
+          title: "Upload impossible",
+          description:
+            "Erreur lors de l'upload de l'image: " +
+            (error.message || "Erreur inconnue"),
+          confirmText: "OK",
+        });
       }
       return null;
     } finally {
@@ -969,11 +1217,29 @@ function LocationDialog({
       setUploading(true);
       let finalImageUrl = formData.image_url;
 
-      if (imageFile) {
+      if (imageFile || formData.image_url.trim()) {
         const uploadedUrl = await handleImageUpload();
-        if (uploadedUrl) {
+        if (uploadedUrl !== null) {
           finalImageUrl = uploadedUrl;
         } else {
+          setUploading(false);
+          return;
+        }
+      }
+
+      if (formData.suggested && !location?.suggested) {
+        const { count, error: suggestedError } = await supabase
+          .from("locations")
+          .select("id", { count: "exact", head: true })
+          .eq("suggested", true);
+        if (suggestedError) throw suggestedError;
+        if ((count || 0) >= 6) {
+          showAlert({
+            title: "Limite atteinte",
+            description:
+              "Vous ne pouvez pas recommander plus de 6 lieux. Désactivez un lieu recommandé avant d'en activer un autre.",
+            confirmText: "OK",
+          });
           setUploading(false);
           return;
         }
@@ -982,6 +1248,7 @@ function LocationDialog({
       const submitData = {
         name: formData.name,
         address: formData.address || null,
+        city_id: formData.city_id || null,
         image_url: finalImageUrl || null,
         short_description: formData.short_description || null,
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
@@ -994,6 +1261,7 @@ function LocationDialog({
         facebook_page_id: formData.facebook_page_id || null,
         website_url: formData.website_url || null,
         scraping_example_url: formData.scraping_example_url || null,
+        source_capture_mode: formData.source_capture_mode,
         is_organizer: formData.is_organizer || false,
         suggested: formData.suggested || false,
       };
@@ -1012,11 +1280,24 @@ function LocationDialog({
         if (error) throw error;
       }
 
+      if (location) {
+        await removeReplacedStorageObject(supabase, {
+          bucket: "locations-images",
+          previousUrl: location.image_url,
+          nextUrl: finalImageUrl,
+          references: [{ table: "locations", column: "image_url" }],
+        });
+      }
+
       onOpenChange(false);
       onSuccess();
     } catch (error) {
       console.error("Erreur lors de la sauvegarde:", error);
-      alert("Erreur lors de la sauvegarde du lieu");
+      showAlert({
+        title: "Sauvegarde impossible",
+        description: "Erreur lors de la sauvegarde du lieu",
+        confirmText: "OK",
+      });
     } finally {
       setUploading(false);
     }
@@ -1026,9 +1307,9 @@ function LocationDialog({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:w-[66.666vw] overflow-y-auto [@media(min-width:1440px)]:w-[66.666vw] [@media(min-width:1600px)]:max-w-2xl"
+        className="w-full overflow-y-auto bg-background sm:w-[66.666vw] [@media(min-width:1440px)]:w-[66.666vw] [@media(min-width:1600px)]:max-w-2xl"
       >
-        <SheetHeader className="mb-6">
+        <SheetHeader className="mb-5 border-b border-border/70 pb-5">
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -1048,7 +1329,45 @@ function LocationDialog({
             {location ? "Modifiez les informations du lieu" : "Ajoutez un nouveau lieu pour les événements"}
           </SheetDescription>
         </SheetHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 pb-24">
+          <div className="rounded-2xl border border-border/70 bg-muted/15 p-4">
+            <div className="flex items-start gap-3">
+              <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-border/70 shadow-sm">
+                <AvatarImage src={imagePreview || undefined} alt={formData.name || "Lieu"} />
+                <AvatarFallback className="rounded-2xl bg-primary/10 text-primary font-semibold">
+                  {getInitials(formData.name || location?.name || "NA")}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1 space-y-2">
+                <div>
+                  <div className="truncate text-base font-semibold">
+                    {formData.name.trim() || "Nouveau lieu"}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Centralisez les infos d’accès, les salles, la source et la mise en avant dans une fiche plus claire.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {formData.city_id ? (
+                    <ManagementPill tone="muted">
+                      {cities.find((city) => city.id === formData.city_id)?.label || "Ville sélectionnée"}
+                    </ManagementPill>
+                  ) : null}
+                  <ManagementPill tone={imagePreview ? "default" : "warning"}>
+                    {imagePreview ? "Image prête" : "Image manquante"}
+                  </ManagementPill>
+                  {formData.is_organizer ? (
+                    <ManagementPill tone={formData.scraping_example_url ? "positive" : "muted"}>
+                      {formData.scraping_example_url ? "Source prête" : getCaptureModeLabel(formData.source_capture_mode)}
+                    </ManagementPill>
+                  ) : null}
+                  {formData.suggested ? <ManagementPill tone="positive">Recommandé</ManagementPill> : null}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <ManagementSectionLabel>Essentiel</ManagementSectionLabel>
           <div className="space-y-2">
             <Label htmlFor="name">Nom *</Label>
             <Input
@@ -1078,6 +1397,33 @@ function LocationDialog({
               required
             />
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="city_id">Ville</Label>
+            <Select
+              value={formData.city_id || "none"}
+              onValueChange={(value) =>
+                setFormData({
+                  ...formData,
+                  city_id: value === "none" ? "" : value,
+                })
+              }
+            >
+              <SelectTrigger id="city_id" className="min-h-[44px] text-base">
+                <SelectValue placeholder="Sélectionner une ville" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Aucune ville</SelectItem>
+                {cities.map((city) => (
+                  <SelectItem key={city.id} value={city.id}>
+                    {city.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <ManagementSectionLabel>Coordonnées & accès</ManagementSectionLabel>
 
           <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
             <div className="space-y-2">
@@ -1117,6 +1463,8 @@ function LocationDialog({
               className="cursor-pointer resize-none min-h-[60px] text-base"
             />
           </div>
+
+          <ManagementSectionLabel>Réseaux & diffusion</ManagementSectionLabel>
 
           <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
             <div className="space-y-2">
@@ -1200,6 +1548,33 @@ function LocationDialog({
 
           {formData.is_organizer && (
             <div className="space-y-2">
+              <Label htmlFor="source_capture_mode" className="flex items-center gap-2">
+                <LinkIcon className="h-4 w-4" />
+                Type de lien pour la source
+              </Label>
+              <Select
+                value={formData.source_capture_mode}
+                onValueChange={(value: "url" | "image" | "facebook") =>
+                  setFormData({ ...formData, source_capture_mode: value })
+                }
+              >
+                <SelectTrigger id="source_capture_mode" className="min-h-[44px] text-base">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="url">URL</SelectItem>
+                  <SelectItem value="image">Photo / image</SelectItem>
+                  <SelectItem value="facebook">Facebook</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Ce choix pilote le mode d'entree de la source synchronisee dans l'intake.
+              </p>
+            </div>
+          )}
+
+          {formData.is_organizer && (
+            <div className="space-y-2">
               <Label htmlFor="facebook_page_id" className="flex items-center gap-2">
                 <LinkIcon className="h-4 w-4" />
                 ID de page Facebook
@@ -1274,6 +1649,8 @@ function LocationDialog({
             </>
           )}
 
+          <ManagementSectionLabel>Média</ManagementSectionLabel>
+
           <div className="space-y-2">
             <Label htmlFor="image" className="flex items-center gap-2">
               <ImageIcon className="h-4 w-4" />
@@ -1281,6 +1658,7 @@ function LocationDialog({
             </Label>
             {imagePreview && !showCropper && (
               <div className="relative w-full aspect-video max-w-xs rounded-lg overflow-hidden border group cursor-pointer" onClick={handleImageClick}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={imagePreview}
                   alt="Aperçu"
@@ -1343,23 +1721,25 @@ function LocationDialog({
             </div>
           </div>
 
-          <div className={`flex gap-2 ${isMobile ? "flex-col" : "justify-end"}`}>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={uploading}
-              className="min-h-[44px] w-full md:w-auto"
-            >
-              Annuler
-            </Button>
-            <Button
-              type="submit"
-              disabled={uploading}
-              className="min-h-[44px] w-full md:w-auto"
-            >
-              {uploading ? "Upload..." : location ? "Enregistrer" : "Créer"}
-            </Button>
+          <div className="sticky bottom-0 z-10 -mx-6 mt-6 border-t border-border/70 bg-background/95 px-6 py-3 backdrop-blur">
+            <div className={`flex gap-2 ${isMobile ? "flex-col" : "justify-end"}`}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={uploading}
+                className="min-h-[44px] w-full md:w-auto"
+              >
+                Annuler
+              </Button>
+              <Button
+                type="submit"
+                disabled={uploading}
+                className="min-h-[44px] w-full md:w-auto"
+              >
+                {uploading ? "Upload..." : location ? "Enregistrer" : "Créer"}
+              </Button>
+            </div>
           </div>
         </form>
 
@@ -1475,6 +1855,7 @@ function LocationDialog({
             </div>
           </DialogContent>
         </Dialog>
+        <AlertDialogComponent />
       </SheetContent>
     </Sheet>
   );

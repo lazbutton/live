@@ -7,6 +7,10 @@ import { fetchPendingAdminRequestsCount } from "@/lib/admin-requests";
 import { AdminLayout } from "../components/admin-layout";
 import { toast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, ListChecks } from "lucide-react";
 
 import type {
   AdminEvent,
@@ -23,11 +27,57 @@ import { PendingRequestsFeed } from "../components/dashboard/pending-requests-fe
 import { QuickActions } from "../components/dashboard/quick-actions";
 import { EventArtistsQuickDialog } from "../components/events/event-artists-quick-dialog";
 import { EventFormSheet } from "../components/events/event-form-sheet";
+import { logAdminAction } from "@/lib/admin-audit-log";
 
 function startOfLocalDay(date: Date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+type OverdueIntakeSource = {
+  id: string;
+  name: string;
+  priority: "p0" | "p1" | "p2" | "p3";
+  next_scan_at: string | null;
+  last_scanned_at: string | null;
+};
+
+function IntakeOverdueCard({
+  sources,
+  onOpenIntake,
+}: {
+  sources: OverdueIntakeSource[];
+  onOpenIntake: () => void;
+}) {
+  if (sources.length === 0) return null;
+
+  return (
+    <Card className="border-amber-500/30 bg-amber-500/[0.04]">
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div className="space-y-1">
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+            Collecte à relancer
+          </CardTitle>
+          <CardDescription>
+            {sources.length} source{sources.length > 1 ? "s" : ""} P0/P1 sont dues ou en retard.
+          </CardDescription>
+        </div>
+        <Button type="button" className="gap-2" onClick={onOpenIntake}>
+          <ListChecks className="h-4 w-4" />
+          Ouvrir Collecte
+        </Button>
+      </CardHeader>
+      <CardContent className="flex flex-wrap gap-2">
+        {sources.slice(0, 8).map((source) => (
+          <Badge key={source.id} variant="outline" className="bg-background/80">
+            {source.priority.toUpperCase()} · {source.name}
+          </Badge>
+        ))}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function DashboardPage() {
@@ -38,6 +88,9 @@ export default function DashboardPage() {
   const [pendingEvents, setPendingEvents] = React.useState(0);
   const [weekCount, setWeekCount] = React.useState(0);
   const [pendingRequests, setPendingRequests] = React.useState(0);
+  const [overdueIntakeSources, setOverdueIntakeSources] = React.useState<
+    OverdueIntakeSource[]
+  >([]);
 
   const [weekEvents, setWeekEvents] = React.useState<AdminEvent[]>([]);
 
@@ -95,6 +148,7 @@ export default function DashboardPage() {
         weekCountRes,
         weekEventsRes,
         pendingRequestsCount,
+        overdueSourcesRes,
       ] = await Promise.all([
         supabase.from("events").select("*", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("events").select("*", { count: "exact", head: true }).gte("date", today.toISOString()).lt("date", end.toISOString()),
@@ -124,16 +178,27 @@ export default function DashboardPage() {
           .lt("date", end.toISOString())
           .order("date", { ascending: true }),
         fetchPendingAdminRequestsCount(),
+        supabase
+          .from("event_sources")
+          .select("id,name,priority,next_scan_at,last_scanned_at")
+          .eq("status", "active")
+          .in("priority", ["p0", "p1"])
+          .or(`next_scan_at.lte.${new Date().toISOString()},last_scanned_at.is.null`)
+          .order("priority")
+          .order("next_scan_at", { ascending: true })
+          .limit(12),
       ]);
 
       if (pendingEventsRes.error) throw pendingEventsRes.error;
       if (weekCountRes.error) throw weekCountRes.error;
       if (weekEventsRes.error) throw weekEventsRes.error;
+      if (overdueSourcesRes.error) throw overdueSourcesRes.error;
 
       setPendingEvents(pendingEventsRes.count ?? 0);
       setWeekCount(weekCountRes.count ?? 0);
       setPendingRequests(pendingRequestsCount);
       setWeekEvents((weekEventsRes.data || []) as AdminEvent[]);
+      setOverdueIntakeSources((overdueSourcesRes.data || []) as OverdueIntakeSource[]);
     } catch (e) {
       console.error("Erreur dashboard:", e);
       toast({
@@ -185,6 +250,14 @@ export default function DashboardPage() {
       } catch (notificationError) {
         console.error("Notif approve (ignored):", notificationError);
       }
+
+      await logAdminAction({
+        action: "event.approve",
+        entityType: "event",
+        entityId: event.id,
+        entityLabel: before?.title || event.title,
+        metadata: { old_status: before?.status, new_status: "approved", source: "dashboard" },
+      });
 
       toast({ title: "Événement approuvé", variant: "success" });
       await loadDashboardData();
@@ -299,6 +372,11 @@ export default function DashboardPage() {
           onCreateEvent={() => router.push("/admin/events?create=1")}
           onImportFromUrl={() => router.push("/admin/events?import=1")}
           onImportFromFacebook={() => router.push("/admin/events?facebook_import=1")}
+        />
+
+        <IntakeOverdueCard
+          sources={overdueIntakeSources}
+          onOpenIntake={() => router.push("/admin/intake?filter=overdue")}
         />
 
         <WeekTimeline

@@ -6,14 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-import { LocationsTab } from "./locations-tab";
-import { OrganizersTab } from "./organizers-tab";
 import { CategoriesTagsTab } from "./categories-tags-tab";
 import { UsersTab } from "./users-tab";
 import { NotificationsTab } from "./notifications-tab";
 import { SystemTab } from "./system-tab";
 
-const validTabs = ["locations", "organizers", "categories", "users", "notifications", "system"] as const;
+const validTabs = ["categories", "users", "notifications", "system"] as const;
 type SettingsTab = (typeof validTabs)[number];
 
 function isValidTab(v: string | null): v is SettingsTab {
@@ -27,12 +25,12 @@ export function SettingsPage() {
 
   const [tab, setTab] = React.useState<SettingsTab>(() => {
     const fromQuery = searchParams?.get("tab") || null;
-    return isValidTab(fromQuery) ? fromQuery : "locations";
+    return isValidTab(fromQuery) ? fromQuery : "categories";
   });
 
   React.useEffect(() => {
     const fromQuery = searchParams?.get("tab") || null;
-    const next = isValidTab(fromQuery) ? fromQuery : "locations";
+    const next = isValidTab(fromQuery) ? fromQuery : "categories";
     setTab(next);
   }, [searchParams]);
 
@@ -43,7 +41,7 @@ export function SettingsPage() {
         const nextTab = next as SettingsTab;
         setTab(nextTab);
         const params = new URLSearchParams(searchParams?.toString() || "");
-        if (nextTab === "locations") {
+        if (nextTab === "categories") {
           params.delete("tab");
         } else {
           params.set("tab", nextTab);
@@ -60,8 +58,6 @@ export function SettingsPage() {
             isMobile && "overflow-x-auto whitespace-nowrap",
           )}
         >
-          <TabsTrigger value="locations">Lieux</TabsTrigger>
-          <TabsTrigger value="organizers">Organisateurs</TabsTrigger>
           <TabsTrigger value="categories">Catégories & Tags</TabsTrigger>
           <TabsTrigger value="users">Utilisateurs</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
@@ -69,12 +65,6 @@ export function SettingsPage() {
         </TabsList>
       </div>
 
-      <TabsContent value="locations" className="mt-6">
-        <LocationsTab />
-      </TabsContent>
-      <TabsContent value="organizers" className="mt-6">
-        <OrganizersTab />
-      </TabsContent>
       <TabsContent value="categories" className="mt-6">
         <CategoriesTagsTab />
       </TabsContent>

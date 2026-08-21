@@ -19,6 +19,7 @@ import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { fromDatetimeLocal, toDatetimeLocal } from "@/lib/date-utils";
 import { compressImage } from "@/lib/image-compression";
+import { removeReplacedStorageObject } from "@/lib/supabase/image-utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAlertDialog } from "@/hooks/use-alert-dialog";
 import {
@@ -74,6 +75,7 @@ import {
   fetchPotentialDuplicateEvents,
   type PotentialDuplicateEvent,
 } from "@/lib/events/potential-duplicates";
+import { logAdminAction } from "@/lib/admin-audit-log";
 
 import { EventImageUpload } from "./event-image-upload";
 import type {
@@ -138,6 +140,7 @@ export type EventFormSheetProps = {
   categories: CategoryOption[];
   defaultDate?: Date;
   prefill?: EventFormPrefill;
+  blockPastCreation?: boolean;
   onTagCreated?: () => void;
   onSaved?: (eventId: string) => void;
   onDeleted?: (eventId: string) => void;
@@ -201,6 +204,7 @@ function emptyForm(): EventFormData {
     image_url: "",
     status: "pending",
     is_featured: false,
+    hide_from_home: false,
     major_event_id: "",
   };
 }
@@ -592,6 +596,7 @@ export function EventFormSheet({
   categories,
   defaultDate,
   prefill,
+  blockPastCreation = false,
   onTagCreated,
   onSaved,
   onDeleted,
@@ -729,6 +734,7 @@ export function EventFormSheet({
         image_url: event.image_url || "",
         status: event.status || "pending",
         is_featured: Boolean(event.is_featured),
+        hide_from_home: Boolean(event.hide_from_home),
         major_event_id: event.major_event_events?.[0]?.major_event_id || "",
       });
 
@@ -1387,6 +1393,67 @@ export function EventFormSheet({
     }
   }
 
+  function isStoredEventImageUrl(url: string) {
+    if (!url) return false;
+    return /\/storage\/v1\/object\/public\/event-images\//.test(url);
+  }
+
+  async function uploadImageFromUrlIfNeeded(rawUrl: string): Promise<string | null> {
+    const imageUrl = rawUrl.trim();
+    if (!imageUrl || isStoredEventImageUrl(imageUrl)) return imageUrl || null;
+
+    try {
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Image distante inaccessible (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const contentType = blob.type || "image/jpeg";
+      if (!contentType.startsWith("image/")) {
+        throw new Error("URL invalide: la ressource n'est pas une image.");
+      }
+
+      const inferredExt = (() => {
+        if (contentType.includes("png")) return "png";
+        if (contentType.includes("webp")) return "webp";
+        if (contentType.includes("gif")) return "gif";
+        return "jpg";
+      })();
+      const remoteFile = new File([blob], `remote-${Date.now()}.${inferredExt}`, {
+        type: contentType,
+      });
+      const compressedFile = await compressImage(remoteFile, 2);
+      const fileExt = compressedFile.name.split(".").pop() || inferredExt;
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+
+      const { data, error } = await supabase.storage
+        .from("event-images")
+        .upload(fileName, compressedFile, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("event-images").getPublicUrl(data.path);
+
+      return publicUrl;
+    } catch (e: any) {
+      console.error("Erreur upload image depuis URL:", e);
+      toast({
+        title: "Sauvegarde image impossible",
+        description:
+          e?.message ||
+          "Impossible de copier l'image distante dans le storage `event-images`.",
+        variant: "destructive",
+      });
+      return null;
+    }
+  }
+
   function normalizeUuid(value: string) {
     if (!value || value === "none") return null;
     return value;
@@ -1478,6 +1545,15 @@ export function EventFormSheet({
       });
       return;
     }
+    if (!isEdit && blockPastCreation && isBeforeToday(formData.date)) {
+      toast({
+        title: "Date passee",
+        description:
+          "Impossible de creer un evenement deja passe depuis la pipeline intake.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!formData.category.trim()) {
       toast({
         title: "Catégorie requise",
@@ -1555,6 +1631,15 @@ export function EventFormSheet({
         setSaving(false);
         return;
       }
+      const normalizedImageUrl = formData.image_url.trim();
+      const uploadedRemoteUrl =
+        !imageFile && normalizedImageUrl
+          ? await uploadImageFromUrlIfNeeded(normalizedImageUrl)
+          : null;
+      if (!imageFile && normalizedImageUrl && !uploadedRemoteUrl) {
+        setSaving(false);
+        return;
+      }
 
       const selectedLocation =
         formData.location_id && formData.location_id !== "none"
@@ -1598,6 +1683,7 @@ export function EventFormSheet({
         scraping_url: normalizeNullable(formData.scraping_url),
         status: statusToSave,
         is_featured: Boolean(formData.is_featured),
+        hide_from_home: Boolean(formData.hide_from_home),
         tag_ids: selectedTagIds.length > 0 ? selectedTagIds : [],
         address: selectedLocation?.address || null,
         latitude: selectedLocation?.latitude || null,
@@ -1607,7 +1693,8 @@ export function EventFormSheet({
       // image url precedence: uploaded file > url field > cleared > keep existing
       const nextImageUrl = (() => {
         if (uploadedUrl) return uploadedUrl;
-        if (formData.image_url.trim()) return formData.image_url.trim();
+        if (uploadedRemoteUrl) return uploadedRemoteUrl;
+        if (normalizedImageUrl) return normalizedImageUrl;
         if (imageWasCleared) return null;
         return event?.image_url || null;
       })();
@@ -1703,6 +1790,28 @@ export function EventFormSheet({
         }
       }
 
+      if (isEdit && event) {
+        await removeReplacedStorageObject(supabase, {
+          bucket: "event-images",
+          previousUrl: event.image_url,
+          nextUrl: nextImageUrl,
+          references: [{ table: "events", column: "image_url" }],
+        });
+      }
+
+      await logAdminAction({
+        action: isEdit ? "event.update" : "event.create",
+        entityType: "event",
+        entityId: savedEventId,
+        entityLabel: baseData.title,
+        metadata: {
+          status: statusToSave,
+          force_approved: forceApproved,
+          previous_status: event?.status ?? null,
+          additional_slots: additionalUniqueSlots.length,
+        },
+      });
+
       toast({ title: "Événement enregistré", variant: "success" });
       onOpenChange(false);
       onSaved?.(savedEventId);
@@ -1734,6 +1843,12 @@ export function EventFormSheet({
             .delete()
             .eq("id", event.id);
           if (error) throw error;
+          await logAdminAction({
+            action: "event.delete",
+            entityType: "event",
+            entityId: event.id,
+            entityLabel: event.title,
+          });
           toast({ title: "Événement supprimé", variant: "success" });
           onOpenChange(false);
           onDeleted?.(event.id);
@@ -2672,15 +2787,26 @@ export function EventFormSheet({
 
                         <div className="space-y-2">
                           <Label>Visibilité</Label>
-                          <SettingToggle
-                            label="Mettre en avant"
-                            description="Afficher cet événement dans les surfaces éditoriales “À la une”."
-                            checked={formData.is_featured}
-                            onCheckedChange={(v) =>
-                              setFormData((p) => ({ ...p, is_featured: v }))
-                            }
-                            disabled={saving || deleting}
-                          />
+                          <div className="space-y-3">
+                            <SettingToggle
+                              label="Mettre en avant"
+                              description="Afficher cet événement dans les surfaces éditoriales “À la une”."
+                              checked={formData.is_featured}
+                              onCheckedChange={(v) =>
+                                setFormData((p) => ({ ...p, is_featured: v }))
+                              }
+                              disabled={saving || deleting}
+                            />
+                            <SettingToggle
+                              label="Masquer de l’accueil"
+                              description="L’événement reste visible dans les catégories, mais disparaît du flux principal “Tout”."
+                              checked={formData.hide_from_home}
+                              onCheckedChange={(v) =>
+                                setFormData((p) => ({ ...p, hide_from_home: v }))
+                              }
+                              disabled={saving || deleting}
+                            />
+                          </div>
                         </div>
                       </div>
                     </FormSection>

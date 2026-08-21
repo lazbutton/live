@@ -1,4 +1,4 @@
-import type { AdminRequestItem, AdminRequestLane } from "@/lib/admin-requests";
+import type { AdminRequestItem } from "@/lib/admin-requests";
 
 export type DuplicateEvent = {
   id: string;
@@ -7,5 +7,3 @@ export type DuplicateEvent = {
   external_url: string | null;
   scraping_url: string | null;
 };
-
-export type RequestBoardByLane = Record<AdminRequestLane, AdminRequestItem[]>;

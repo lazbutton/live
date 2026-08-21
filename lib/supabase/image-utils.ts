@@ -2,6 +2,70 @@
  * Utilitaires pour gérer les URLs d'images Supabase Storage avec optimisations
  */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+type StorageReference = {
+  table: string;
+  column: string;
+};
+
+export function getPublicStorageObjectPath(
+  storageUrl: string | null | undefined,
+  bucket: string,
+): string | null {
+  if (!storageUrl) return null;
+  const marker = `/storage/v1/object/public/${bucket}/`;
+  const markerIndex = storageUrl.indexOf(marker);
+  if (markerIndex < 0) return null;
+  return decodeURIComponent(
+    storageUrl.slice(markerIndex + marker.length).split("?")[0].replace(/^\/+/, ""),
+  );
+}
+
+/**
+ * Supprime une ancienne image uniquement lorsqu'aucune ligne ne la référence encore.
+ * Un échec de maintenance ne doit jamais annuler l'enregistrement métier réussi.
+ */
+export async function removeReplacedStorageObject(
+  supabase: SupabaseClient,
+  {
+    bucket,
+    previousUrl,
+    nextUrl,
+    references,
+  }: {
+    bucket: string;
+    previousUrl: string | null | undefined;
+    nextUrl: string | null | undefined;
+    references: StorageReference[];
+  },
+): Promise<boolean> {
+  if (!previousUrl || previousUrl === nextUrl) return false;
+  const objectPath = getPublicStorageObjectPath(previousUrl, bucket);
+  if (!objectPath) return false;
+
+  try {
+    for (const reference of references) {
+      const { count, error } = await supabase
+        .from(reference.table)
+        .select("*", { count: "exact", head: true })
+        .eq(reference.column, previousUrl);
+      if (error) throw error;
+      if ((count ?? 0) > 0) return false;
+    }
+
+    const { error } = await supabase.storage.from(bucket).remove([objectPath]);
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.warn(
+      `Nettoyage différé de l'image remplacée ${bucket}/${objectPath}:`,
+      error,
+    );
+    return false;
+  }
+}
+
 /**
  * Génère une URL d'image avec des paramètres de transformation
  * 

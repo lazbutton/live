@@ -6,15 +6,15 @@
     },
     {
       "path": "/api/cron/notifications/daily-events",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/cron/notifications/weekly-summary",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 8 * * 1"
     },
     {
       "path": "/api/cron/notion-sync",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 2 * * *"
     }
   ]
 }

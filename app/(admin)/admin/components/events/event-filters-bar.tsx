@@ -15,13 +15,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import type { CategoryOption } from "./types";
 
 export type EventFiltersBarProps = {
   searchQuery: string;
   onSearchChange: (q: string) => void;
   filterStatus: "all" | "pending" | "approved";
   onFilterStatusChange: (s: "all" | "pending" | "approved") => void;
+  filterCategory: "all" | "__none__" | string;
+  onFilterCategoryChange: (value: "all" | "__none__" | string) => void;
+  categories: CategoryOption[];
   hideLongEvents: boolean;
   onHideLongEventsChange: (value: boolean) => void;
   pendingCount: number;
@@ -29,6 +40,7 @@ export type EventFiltersBarProps = {
   onImportFromImageClick: () => void;
   onImportFromUrlClick: () => void;
   onImportFromFacebookClick: () => void;
+  onImportFromInstagramClick: () => void;
   viewMode: "calendar" | "list";
   onViewModeChange: (mode: "calendar" | "list") => void;
   onResetFilters: () => void;
@@ -70,6 +82,9 @@ export function EventFiltersBar({
   onSearchChange,
   filterStatus,
   onFilterStatusChange,
+  filterCategory,
+  onFilterCategoryChange,
+  categories,
   hideLongEvents,
   onHideLongEventsChange,
   pendingCount,
@@ -77,6 +92,7 @@ export function EventFiltersBar({
   onImportFromImageClick,
   onImportFromUrlClick,
   onImportFromFacebookClick,
+  onImportFromInstagramClick,
   viewMode,
   onViewModeChange,
   onResetFilters,
@@ -85,6 +101,7 @@ export function EventFiltersBar({
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
     filterStatus !== "all" ||
+    filterCategory !== "all" ||
     hideLongEvents;
 
   return (
@@ -135,6 +152,15 @@ export function EventFiltersBar({
             <Download className="h-4 w-4" />
             Importer depuis Facebook
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onImportFromInstagramClick}
+            className="h-11 gap-2 flex-1 md:flex-none"
+          >
+            <Download className="h-4 w-4" />
+            Importer depuis Instagram
+          </Button>
         </div>
       </div>
 
@@ -153,6 +179,28 @@ export function EventFiltersBar({
             { value: "approved", label: "Approuvés" },
           ]}
         />
+
+        <div className="min-w-[220px]">
+          <Select
+            value={filterCategory}
+            onValueChange={(value) =>
+              onFilterCategoryChange(value as "all" | "__none__" | string)
+            }
+          >
+            <SelectTrigger className="h-10 bg-background">
+              <SelectValue placeholder="Catégorie" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les catégories</SelectItem>
+              <SelectItem value="__none__">Sans catégorie</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <div className="flex items-center gap-3 rounded-lg border bg-background px-3 py-2">
           <Switch

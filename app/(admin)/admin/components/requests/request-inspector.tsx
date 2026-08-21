@@ -46,6 +46,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { DuplicateEvent } from "./request-types";
 import {
   formatEventDate,
+  formatRequestDateTime,
   MODERATION_REASONS,
   ReasonBadge,
   StatusBadge,
@@ -341,7 +342,7 @@ export function RequestInspector({
   const canConvert = item.status === "pending" && item.isFastConvertible;
   const canEdit = item.status === "pending";
   const canRequestChanges = item.status === "pending" && !canConvert;
-  const requestedAtLabel = formatDateWithoutTimezone(item.requestedAt, "PPp");
+  const requestedAtLabel = formatRequestDateTime(item.requestedAt);
   const requestedAge = formatRequestAgeShort(item.requestedAt);
   const reviewedAtLabel = item.reviewedAt
     ? formatDateWithoutTimezone(item.reviewedAt, "PPp")
@@ -472,7 +473,8 @@ export function RequestInspector({
           <div className="space-y-0.5">
             <CardTitle className="text-lg leading-tight">{item.title}</CardTitle>
             <div className="text-xs text-muted-foreground">
-              {contributor} • demandée {requestedAge || requestedAtLabel}
+              {contributor} • demandée {requestedAtLabel}
+              {requestedAge ? ` (${requestedAge})` : ""}
             </div>
           </div>
 
@@ -615,8 +617,8 @@ export function RequestInspector({
             />
             <InspectorMetric
               label="Demandée"
-              value={requestedAge || requestedAtLabel}
-              hint={requestedAtLabel}
+              value={requestedAtLabel}
+              hint={requestedAge ? `Reçue ${requestedAge}` : undefined}
             />
             <InspectorMetric label="Dernière revue" value={reviewedAtLabel} />
           </div>

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Inbox } from "lucide-react";
 
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
@@ -10,8 +11,20 @@ import {
   getDefaultContributorMessage,
   type AdminRequestReviewAction,
 } from "@/lib/admin-request-review";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type {
@@ -19,29 +32,37 @@ import type {
   AdminRequestItem,
   AdminRequestLane,
   AdminRequestPeriodFilter,
+  AdminRequestQueueFilter,
   AdminRequestTypeFilter,
+  AdminRequestWorkspaceTab,
 } from "@/lib/admin-requests";
 import {
-  countActionablePendingRequests,
   countRequestsByLane,
   fetchAdminRequestItems,
   filterAdminRequests,
+  flattenQueueSections,
+  getQueueFilterFromLane,
+  getRequestWorkspaceTab,
+  groupUnifiedQueue,
   startOfLocalDay,
 } from "@/lib/admin-requests";
 import { RequestCard } from "./request-card";
 import { RequestFiltersBar } from "./request-filters-bar";
 import { RequestInspector } from "./request-inspector";
-import { RequestLaneBoard } from "./request-lane-board";
+import {
+  RequestQueueBoard,
+  type RequestListSection,
+} from "./request-queue-board";
 import { RequestRejectDialog } from "./request-reject-dialog";
-import type { DuplicateEvent, RequestBoardByLane } from "./request-types";
-import { REQUEST_LANES } from "./request-ui";
-
-function getDefaultLane(counts: Record<AdminRequestLane, number>): AdminRequestLane {
-  for (const lane of REQUEST_LANES) {
-    if (counts[lane] > 0) return lane;
-  }
-  return "ready";
-}
+import { RequestShortcutsDialog } from "./request-shortcuts-dialog";
+import type { DuplicateEvent } from "./request-types";
+import { getLaneMeta, getQueueGroupMeta, REQUEST_LANES } from "./request-ui";
+import { logAdminAction } from "@/lib/admin-audit-log";
+import {
+  ManagementHero,
+  ManagementStat,
+  ManagementStatGrid,
+} from "../management-page-primitives";
 
 function toLocalDayKey(date: Date) {
   const y = date.getFullYear();
@@ -74,7 +95,11 @@ function buildUrlCandidates(item: AdminRequestItem) {
     item.raw.event_data?.scraping_url as string | null | undefined,
   ];
 
-  return [...new Set(values.map((value) => normalizeComparableUrl(value)).filter(Boolean))] as string[];
+  return [
+    ...new Set(
+      values.map((value) => normalizeComparableUrl(value)).filter(Boolean),
+    ),
+  ] as string[];
 }
 
 function buildRawUrlCandidates(item: AdminRequestItem) {
@@ -85,13 +110,101 @@ function buildRawUrlCandidates(item: AdminRequestItem) {
     item.raw.event_data?.scraping_url as string | null | undefined,
   ];
 
-  return [...new Set(values.map((value) => value?.trim()).filter(Boolean))] as string[];
+  return [
+    ...new Set(values.map((value) => value?.trim()).filter(Boolean)),
+  ] as string[];
 }
 
 function buildAgendaUrl(item: AdminRequestItem) {
   if (!item.eventDate) return "/admin/events?view=agenda";
-  const start = startOfLocalDay(new Date(item.eventDate)).toISOString().slice(0, 10);
+  const start = startOfLocalDay(new Date(item.eventDate))
+    .toISOString()
+    .slice(0, 10);
   return `/admin/events?view=agenda&start=${start}`;
+}
+
+function queueFilterToLane(
+  filter: AdminRequestQueueFilter,
+): AdminRequestLane | null {
+  switch (filter) {
+    case "ready":
+      return "ready";
+    case "to_complete":
+      return "to_process";
+    case "from_url":
+      return "from_url";
+    case "all":
+    default:
+      return null;
+  }
+}
+
+function tabToLaneParam(
+  tab: AdminRequestWorkspaceTab,
+  queueFilter: AdminRequestQueueFilter,
+) {
+  if (tab === "blocked") return "blocked";
+  if (tab === "processed") return "processed";
+  return queueFilterToLane(queueFilter);
+}
+
+function getDefaultTab(
+  counts: Record<AdminRequestLane, number>,
+): AdminRequestWorkspaceTab {
+  if (counts.ready + counts.to_process + counts.from_url > 0) return "queue";
+  if (counts.blocked > 0) return "blocked";
+  if (counts.processed > 0) return "processed";
+  return "queue";
+}
+
+function isEditableKeyboardTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(
+    target.closest("input, textarea, select, [contenteditable='true']"),
+  );
+}
+
+function getBoardCopy(
+  tab: AdminRequestWorkspaceTab,
+  queueFilter: AdminRequestQueueFilter,
+) {
+  if (tab === "blocked") {
+    return {
+      title: "Demandes bloquées",
+      description:
+        "Demandes passées ou à trancher sans polluer la file principale.",
+      emptyTitle: "Aucune demande bloquée",
+      emptyDescription:
+        "Les cas obsolètes apparaîtront ici pour décision rapide.",
+    };
+  }
+
+  if (tab === "processed") {
+    return {
+      title: "Demandes traitées",
+      description:
+        "Historique des conversions, refus et corrections demandées.",
+      emptyTitle: "Aucune demande traitée",
+      emptyDescription:
+        "L’historique des décisions apparaîtra ici au fur et à mesure.",
+    };
+  }
+
+  const suffix =
+    queueFilter === "ready"
+      ? "prêtes à convertir"
+      : queueFilter === "to_complete"
+        ? "à compléter"
+        : queueFilter === "from_url"
+          ? "depuis URL"
+          : "priorisée";
+
+  return {
+    title: "File à traiter",
+    description: `Vue ${suffix}, avec les urgences en haut.`,
+    emptyTitle: "Aucune demande à traiter",
+    emptyDescription: "La file est vide avec les filtres actuels.",
+  };
 }
 
 export function RequestsWorkspaceKanban() {
@@ -102,32 +215,46 @@ export function RequestsWorkspaceKanban() {
   const [items, setItems] = React.useState<AdminRequestItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
-  const [lane, setLane] = React.useState<AdminRequestLane>("ready");
-  const [typeFilter, setTypeFilter] = React.useState<AdminRequestTypeFilter>("all");
-  const [periodFilter, setPeriodFilter] = React.useState<AdminRequestPeriodFilter>("all");
+  const [tab, setTab] = React.useState<AdminRequestWorkspaceTab>("queue");
+  const [queueFilter, setQueueFilter] =
+    React.useState<AdminRequestQueueFilter>("all");
+  const [typeFilter, setTypeFilter] =
+    React.useState<AdminRequestTypeFilter>("all");
+  const [periodFilter, setPeriodFilter] =
+    React.useState<AdminRequestPeriodFilter>("all");
   const [searchQuery, setSearchQuery] = React.useState("");
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = React.useState(false);
   const [internalNotesDraft, setInternalNotesDraft] = React.useState("");
-  const [contributorMessageDraft, setContributorMessageDraft] = React.useState("");
-  const [moderationReasonDraft, setModerationReasonDraft] =
-    React.useState<AdminModerationReason | "">("");
+  const [contributorMessageDraft, setContributorMessageDraft] =
+    React.useState("");
+  const [moderationReasonDraft, setModerationReasonDraft] = React.useState<
+    AdminModerationReason | ""
+  >("");
   const [allowUserResubmissionDraft, setAllowUserResubmissionDraft] =
     React.useState(false);
   const [savingNotes, setSavingNotes] = React.useState(false);
   const [processingId, setProcessingId] = React.useState<string | null>(null);
-  const [duplicateEventsLoading, setDuplicateEventsLoading] = React.useState(false);
-  const [duplicateEvents, setDuplicateEvents] = React.useState<DuplicateEvent[]>([]);
+  const [duplicateEventsLoading, setDuplicateEventsLoading] =
+    React.useState(false);
+  const [duplicateEvents, setDuplicateEvents] = React.useState<
+    DuplicateEvent[]
+  >([]);
   const [rejectOpen, setRejectOpen] = React.useState(false);
   const [reviewAction, setReviewAction] =
     React.useState<AdminRequestReviewAction>("request_changes");
   const [rejectInternalNotes, setRejectInternalNotes] = React.useState("");
-  const [rejectContributorMessage, setRejectContributorMessage] = React.useState("");
-  const [rejectModerationReason, setRejectModerationReason] =
-    React.useState<AdminModerationReason | "">("");
-  const [rejectTarget, setRejectTarget] = React.useState<AdminRequestItem | null>(null);
+  const [rejectContributorMessage, setRejectContributorMessage] =
+    React.useState("");
+  const [rejectModerationReason, setRejectModerationReason] = React.useState<
+    AdminModerationReason | ""
+  >("");
+  const [rejectTarget, setRejectTarget] =
+    React.useState<AdminRequestItem | null>(null);
 
   const appliedSearchSelectionRef = React.useRef<string | null>(null);
+  const itemRefs = React.useRef(new Map<string, HTMLDivElement>());
 
   const syncParams = React.useCallback(
     (next: { lane?: AdminRequestLane | null; request?: string | null }) => {
@@ -183,57 +310,129 @@ export function RequestsWorkspaceKanban() {
     };
   }, []);
 
-  const counts = React.useMemo(() => countRequestsByLane(items), [items]);
-  const actionableCount = React.useMemo(
-    () => countActionablePendingRequests(items),
-    [items],
+  const rawCounts = React.useMemo(() => countRequestsByLane(items), [items]);
+
+  const laneCounts = React.useMemo(
+    () =>
+      REQUEST_LANES.reduce<Record<AdminRequestLane, number>>(
+        (acc, lane) => {
+          acc[lane] = filterAdminRequests(items, {
+            lane,
+            query: searchQuery,
+            typeFilter,
+            periodFilter,
+          }).length;
+          return acc;
+        },
+        {
+          ready: 0,
+          to_process: 0,
+          from_url: 0,
+          blocked: 0,
+          processed: 0,
+        },
+      ),
+    [items, periodFilter, searchQuery, typeFilter],
   );
+
+  const actionableCount =
+    laneCounts.ready + laneCounts.to_process + laneCounts.from_url;
 
   React.useEffect(() => {
     if (loading) return;
-    if (counts[lane] > 0) return;
-    setLane(getDefaultLane(counts));
-  }, [counts, lane, loading]);
+    if (items.length === 0) return;
+    setTab((current) => {
+      if (
+        current === "queue" &&
+        rawCounts.ready + rawCounts.to_process + rawCounts.from_url > 0
+      ) {
+        return current;
+      }
+      if (current === "blocked" && rawCounts.blocked > 0) return current;
+      if (current === "processed" && rawCounts.processed > 0) return current;
+      return getDefaultTab(rawCounts);
+    });
+  }, [items.length, loading, rawCounts]);
 
-  const buildBoard = React.useCallback(
-    (sourceItems: AdminRequestItem[]): RequestBoardByLane =>
-      REQUEST_LANES.reduce((acc, entry) => {
-        acc[entry] = filterAdminRequests(sourceItems, {
-          lane: entry,
-          query: searchQuery,
-          typeFilter,
-          periodFilter,
-        });
-        return acc;
-      }, {} as RequestBoardByLane),
-    [periodFilter, searchQuery, typeFilter],
+  const getVisibleItems = React.useCallback(
+    (
+      targetTab: AdminRequestWorkspaceTab,
+      targetQueueFilter: AdminRequestQueueFilter,
+      sourceItems: AdminRequestItem[] = items,
+    ) => {
+      if (targetTab === "queue") {
+        return flattenQueueSections(
+          groupUnifiedQueue(sourceItems, {
+            query: searchQuery,
+            typeFilter,
+            periodFilter,
+            queueFilter: targetQueueFilter,
+          }),
+        );
+      }
+
+      return filterAdminRequests(sourceItems, {
+        lane: targetTab,
+        query: searchQuery,
+        typeFilter,
+        periodFilter,
+      });
+    },
+    [items, periodFilter, searchQuery, typeFilter],
   );
 
-  const board = React.useMemo(() => buildBoard(items), [buildBoard, items]);
-  const boardCounts = React.useMemo(
+  const queueSections = React.useMemo(
     () =>
-      REQUEST_LANES.reduce<Record<AdminRequestLane, number>>((acc, entry) => {
-        acc[entry] = board[entry].length;
-        return acc;
-      }, {
-        ready: 0,
-        to_process: 0,
-        from_url: 0,
-        blocked: 0,
-        processed: 0,
+      groupUnifiedQueue(items, {
+        query: searchQuery,
+        typeFilter,
+        periodFilter,
+        queueFilter,
       }),
-    [board],
+    [items, periodFilter, queueFilter, searchQuery, typeFilter],
+  );
+  const blockedItems = React.useMemo(
+    () =>
+      filterAdminRequests(items, {
+        lane: "blocked",
+        query: searchQuery,
+        typeFilter,
+        periodFilter,
+      }),
+    [items, periodFilter, searchQuery, typeFilter],
+  );
+  const processedItems = React.useMemo(
+    () =>
+      filterAdminRequests(items, {
+        lane: "processed",
+        query: searchQuery,
+        typeFilter,
+        periodFilter,
+      }),
+    [items, periodFilter, searchQuery, typeFilter],
   );
 
-  const activeLaneItems = board[lane];
+  const activeItems = React.useMemo(
+    () =>
+      tab === "queue"
+        ? flattenQueueSections(queueSections)
+        : tab === "blocked"
+          ? blockedItems
+          : processedItems,
+    [blockedItems, processedItems, queueSections, tab],
+  );
   const activeItem = React.useMemo(
-    () => activeLaneItems.find((item) => item.id === activeId) ?? null,
-    [activeId, activeLaneItems],
+    () => activeItems.find((item) => item.id === activeId) ?? null,
+    [activeId, activeItems],
   );
 
   React.useEffect(() => {
     const selectionKey = searchParams.toString();
-    if (appliedSearchSelectionRef.current === selectionKey || items.length === 0) return;
+    if (
+      appliedSearchSelectionRef.current === selectionKey ||
+      items.length === 0
+    )
+      return;
 
     const requestedId = searchParams.get("request");
     const requestedLane = searchParams.get("lane");
@@ -241,7 +440,14 @@ export function RequestsWorkspaceKanban() {
     if (requestedId) {
       const target = items.find((item) => item.id === requestedId);
       if (target) {
-        setLane(target.lane);
+        const nextTab = getRequestWorkspaceTab(target.lane);
+        setTab(nextTab);
+        setQueueFilter(
+          nextTab === "queue" &&
+            REQUEST_LANES.includes(requestedLane as AdminRequestLane)
+            ? getQueueFilterFromLane(requestedLane as AdminRequestLane)
+            : "all",
+        );
         setActiveId(target.id);
         if (isMobile) setDetailsOpen(true);
       }
@@ -249,24 +455,33 @@ export function RequestsWorkspaceKanban() {
       requestedLane &&
       REQUEST_LANES.includes(requestedLane as AdminRequestLane)
     ) {
-      setLane(requestedLane as AdminRequestLane);
+      const nextLane = requestedLane as AdminRequestLane;
+      const nextTab = getRequestWorkspaceTab(nextLane);
+      setTab(nextTab);
+      setQueueFilter(
+        nextTab === "queue" ? getQueueFilterFromLane(nextLane) : "all",
+      );
     }
 
     appliedSearchSelectionRef.current = selectionKey;
   }, [isMobile, items, searchParams]);
 
   React.useEffect(() => {
-    if (activeLaneItems.length === 0) {
+    if (activeItems.length === 0) {
       setActiveId(null);
       if (isMobile) setDetailsOpen(false);
       return;
     }
 
-    if (!activeId || !activeLaneItems.some((item) => item.id === activeId)) {
-      const nextId = activeLaneItems[0]?.id ?? null;
-      setActiveId(nextId);
+    if (!activeId || !activeItems.some((item) => item.id === activeId)) {
+      setActiveId(activeItems[0]?.id ?? null);
     }
-  }, [activeId, activeLaneItems, isMobile]);
+  }, [activeId, activeItems, isMobile]);
+
+  React.useEffect(() => {
+    if (!activeId || isMobile) return;
+    itemRefs.current.get(activeId)?.scrollIntoView({ block: "nearest" });
+  }, [activeId, isMobile, tab, queueFilter]);
 
   React.useEffect(() => {
     setInternalNotesDraft(activeItem?.internalNotes || activeItem?.notes || "");
@@ -282,12 +497,51 @@ export function RequestsWorkspaceKanban() {
     activeItem?.allowUserResubmission,
   ]);
 
+  const boardSections = React.useMemo<RequestListSection[]>(() => {
+    if (tab === "queue") {
+      return queueSections.map((section) => {
+        const meta = getQueueGroupMeta(section.group);
+        return {
+          id: section.group,
+          title: meta.title,
+          description: meta.description,
+          items: section.items,
+          icon: meta.icon,
+          accentClassName: meta.accentClassName,
+          softClassName: meta.softClassName,
+          borderClassName: meta.borderClassName,
+        };
+      });
+    }
+
+    const laneMeta = getLaneMeta(tab);
+    const itemsForTab = tab === "blocked" ? blockedItems : processedItems;
+    return [
+      {
+        id: tab,
+        title: laneMeta.title,
+        description: laneMeta.description,
+        items: itemsForTab,
+        icon: laneMeta.icon,
+        accentClassName: laneMeta.accentClassName,
+        softClassName: laneMeta.softClassName,
+        borderClassName: laneMeta.borderClassName,
+      },
+    ];
+  }, [blockedItems, processedItems, queueSections, tab]);
+
+  const boardCopy = React.useMemo(
+    () => getBoardCopy(tab, queueFilter),
+    [queueFilter, tab],
+  );
+
   const similarRequests = React.useMemo(() => {
     if (!activeItem) return [];
 
     const activeUrlCandidates = buildUrlCandidates(activeItem);
     const activeDayKey =
-      activeItem.eventDate && !Number.isNaN(new Date(activeItem.eventDate).getTime())
+      activeItem.eventDate &&
+      !Number.isNaN(new Date(activeItem.eventDate).getTime())
         ? toLocalDayKey(startOfLocalDay(new Date(activeItem.eventDate)))
         : null;
     const normalizedActiveTitle = activeItem.title.trim().toLowerCase();
@@ -312,68 +566,74 @@ export function RequestsWorkspaceKanban() {
       })
       .sort(
         (left, right) =>
-          new Date(right.requestedAt).getTime() - new Date(left.requestedAt).getTime(),
+          new Date(right.requestedAt).getTime() -
+          new Date(left.requestedAt).getTime(),
       )
       .slice(0, 6);
   }, [activeItem, items]);
 
-  const loadDuplicateEvents = React.useCallback(async (item: AdminRequestItem) => {
-    const urlCandidates = buildRawUrlCandidates(item);
-    const title = item.raw.event_data?.title || item.title || "";
-    const dateIso = item.eventDate || item.raw.event_data?.date || "";
+  const loadDuplicateEvents = React.useCallback(
+    async (item: AdminRequestItem) => {
+      const urlCandidates = buildRawUrlCandidates(item);
+      const title = item.raw.event_data?.title || item.title || "";
+      const dateIso = item.eventDate || item.raw.event_data?.date || "";
 
-    setDuplicateEventsLoading(true);
-    try {
-      const results: DuplicateEvent[] = [];
+      setDuplicateEventsLoading(true);
+      try {
+        const results: DuplicateEvent[] = [];
 
-      for (const candidate of urlCandidates.slice(0, 3)) {
-        const [byExternal, byScraping] = await Promise.all([
-          supabase
-            .from("events")
-            .select("id,title,date,external_url,scraping_url")
-            .eq("external_url", candidate)
-            .limit(10),
-          supabase
-            .from("events")
-            .select("id,title,date,external_url,scraping_url")
-            .eq("scraping_url", candidate)
-            .limit(10),
-        ]);
+        for (const candidate of urlCandidates.slice(0, 3)) {
+          const [byExternal, byScraping] = await Promise.all([
+            supabase
+              .from("events")
+              .select("id,title,date,external_url,scraping_url")
+              .eq("external_url", candidate)
+              .limit(10),
+            supabase
+              .from("events")
+              .select("id,title,date,external_url,scraping_url")
+              .eq("scraping_url", candidate)
+              .limit(10),
+          ]);
 
-        if (byExternal.data) results.push(...(byExternal.data as DuplicateEvent[]));
-        if (byScraping.data) results.push(...(byScraping.data as DuplicateEvent[]));
-      }
-
-      if (title && dateIso && !Number.isNaN(new Date(dateIso).getTime())) {
-        const dayStart = startOfLocalDay(new Date(dateIso));
-        const dayEnd = new Date(dayStart);
-        dayEnd.setDate(dayEnd.getDate() + 1);
-
-        const byTitleAndDay = await supabase
-          .from("events")
-          .select("id,title,date,external_url,scraping_url")
-          .gte("date", dayStart.toISOString())
-          .lt("date", dayEnd.toISOString())
-          .ilike("title", `%${title.slice(0, 60)}%`)
-          .limit(10);
-
-        if (byTitleAndDay.data) {
-          results.push(...(byTitleAndDay.data as DuplicateEvent[]));
+          if (byExternal.data)
+            results.push(...(byExternal.data as DuplicateEvent[]));
+          if (byScraping.data)
+            results.push(...(byScraping.data as DuplicateEvent[]));
         }
-      }
 
-      const unique = new Map<string, DuplicateEvent>();
-      results.forEach((entry) => {
-        if (entry?.id) unique.set(entry.id, entry);
-      });
-      setDuplicateEvents(Array.from(unique.values()));
-    } catch (error) {
-      console.error("Erreur doublons événements:", error);
-      setDuplicateEvents([]);
-    } finally {
-      setDuplicateEventsLoading(false);
-    }
-  }, []);
+        if (title && dateIso && !Number.isNaN(new Date(dateIso).getTime())) {
+          const dayStart = startOfLocalDay(new Date(dateIso));
+          const dayEnd = new Date(dayStart);
+          dayEnd.setDate(dayEnd.getDate() + 1);
+
+          const byTitleAndDay = await supabase
+            .from("events")
+            .select("id,title,date,external_url,scraping_url")
+            .gte("date", dayStart.toISOString())
+            .lt("date", dayEnd.toISOString())
+            .ilike("title", `%${title.slice(0, 60)}%`)
+            .limit(10);
+
+          if (byTitleAndDay.data) {
+            results.push(...(byTitleAndDay.data as DuplicateEvent[]));
+          }
+        }
+
+        const unique = new Map<string, DuplicateEvent>();
+        results.forEach((entry) => {
+          if (entry?.id) unique.set(entry.id, entry);
+        });
+        setDuplicateEvents(Array.from(unique.values()));
+      } catch (error) {
+        console.error("Erreur doublons événements:", error);
+        setDuplicateEvents([]);
+      } finally {
+        setDuplicateEventsLoading(false);
+      }
+    },
+    [],
+  );
 
   React.useEffect(() => {
     if (!activeItem) {
@@ -404,39 +664,71 @@ export function RequestsWorkspaceKanban() {
     }
   }, [loadItems]);
 
-  const handleLaneChange = React.useCallback(
-    (nextLane: AdminRequestLane) => {
-      const nextActiveId = board[nextLane].some((item) => item.id === activeId)
-        ? activeId
-        : board[nextLane][0]?.id ?? null;
-
-      setLane(nextLane);
-      setActiveId(nextActiveId);
-      syncParams({ lane: nextLane, request: nextActiveId });
+  const selectFirstInView = React.useCallback(
+    (
+      nextTab: AdminRequestWorkspaceTab,
+      nextQueueFilter: AdminRequestQueueFilter,
+    ) => {
+      const nextItems = getVisibleItems(nextTab, nextQueueFilter);
+      const nextItem = nextItems[0] ?? null;
+      setActiveId(nextItem?.id ?? null);
+      syncParams({
+        lane: nextItem?.lane ?? tabToLaneParam(nextTab, nextQueueFilter),
+        request: nextItem?.id ?? null,
+      });
+      if (isMobile) setDetailsOpen(Boolean(nextItem));
     },
-    [activeId, board, syncParams],
+    [getVisibleItems, isMobile, syncParams],
+  );
+
+  const handleTabChange = React.useCallback(
+    (nextTab: AdminRequestWorkspaceTab) => {
+      const nextQueueFilter = nextTab === "queue" ? queueFilter : "all";
+      setTab(nextTab);
+      if (nextTab !== "queue") setQueueFilter("all");
+      selectFirstInView(nextTab, nextQueueFilter);
+    },
+    [queueFilter, selectFirstInView],
+  );
+
+  const handleQueueFilterChange = React.useCallback(
+    (nextFilter: AdminRequestQueueFilter) => {
+      setTab("queue");
+      setQueueFilter(nextFilter);
+      selectFirstInView("queue", nextFilter);
+    },
+    [selectFirstInView],
   );
 
   const openItem = React.useCallback(
     (item: AdminRequestItem) => {
-      setLane(item.lane);
+      const nextTab = getRequestWorkspaceTab(item.lane);
+      const canKeepQueueFilter =
+        nextTab === "queue" &&
+        getVisibleItems("queue", queueFilter).some(
+          (entry) => entry.id === item.id,
+        );
+      const nextQueueFilter = canKeepQueueFilter ? queueFilter : "all";
+
+      setTab(nextTab);
+      setQueueFilter(nextTab === "queue" ? nextQueueFilter : "all");
       setActiveId(item.id);
       syncParams({ lane: item.lane, request: item.id });
       if (isMobile) setDetailsOpen(true);
     },
-    [isMobile, syncParams],
+    [getVisibleItems, isMobile, queueFilter, syncParams],
   );
 
   const openFullReview = React.useCallback(
     (item: AdminRequestItem) => {
-      router.push(`/admin/requests/${item.id}/create-event`);
+      router.push(`/admin/events?request_id=${item.id}`);
     },
     [router],
   );
 
   const openFullReviewWithPrefill = React.useCallback(
     (item: AdminRequestItem, mode: "url" | "facebook") => {
-      router.push(`/admin/requests/${item.id}/create-event?prefill=${mode}`);
+      router.push(`/admin/events?request_id=${item.id}&prefill=${mode}`);
     },
     [router],
   );
@@ -468,26 +760,35 @@ export function RequestsWorkspaceKanban() {
   const selectNextItemAfterMutation = React.useCallback(
     (
       nextItems: AdminRequestItem[],
-      previousLane: AdminRequestLane,
+      previousTab: AdminRequestWorkspaceTab,
+      previousQueueFilter: AdminRequestQueueFilter,
       previousIndex: number,
     ) => {
-      const nextBoard = buildBoard(nextItems);
-      const nextLaneItems = nextBoard[previousLane];
+      const nextVisibleItems = getVisibleItems(
+        previousTab,
+        previousQueueFilter,
+        nextItems,
+      );
       const nextItem =
-        nextLaneItems[previousIndex] ??
-        nextLaneItems[Math.max(0, previousIndex - 1)] ??
-        nextLaneItems[0] ??
+        nextVisibleItems[previousIndex] ??
+        nextVisibleItems[Math.max(0, previousIndex - 1)] ??
+        nextVisibleItems[0] ??
         null;
 
-      setLane(previousLane);
+      setTab(previousTab);
+      setQueueFilter(previousTab === "queue" ? previousQueueFilter : "all");
       setActiveId(nextItem?.id ?? null);
-      syncParams({ lane: previousLane, request: nextItem?.id ?? null });
+      syncParams({
+        lane:
+          nextItem?.lane ?? tabToLaneParam(previousTab, previousQueueFilter),
+        request: nextItem?.id ?? null,
+      });
 
       if (isMobile) {
         setDetailsOpen(Boolean(nextItem));
       }
     },
-    [buildBoard, isMobile, syncParams],
+    [getVisibleItems, isMobile, syncParams],
   );
 
   const saveNotes = React.useCallback(async () => {
@@ -540,8 +841,11 @@ export function RequestsWorkspaceKanban() {
   const convertFast = React.useCallback(
     async (item: AdminRequestItem) => {
       setProcessingId(item.id);
-      const previousLane = item.lane;
-      const previousIndex = board[previousLane].findIndex((entry) => entry.id === item.id);
+      const previousTab = tab;
+      const previousQueueFilter = queueFilter;
+      const previousIndex = activeItems.findIndex(
+        (entry) => entry.id === item.id,
+      );
 
       try {
         const { error } = await supabase.rpc("convert_event_request_to_event", {
@@ -550,29 +854,46 @@ export function RequestsWorkspaceKanban() {
 
         if (error) throw error;
 
+        await logAdminAction({
+          action: "request.convert",
+          entityType: "request",
+          entityId: item.id,
+          entityLabel: item.title,
+          metadata: {
+            request_type: item.requestType,
+            source_kind: item.sourceKind,
+          },
+        });
+
         const nextItems = await loadItems();
-        selectNextItemAfterMutation(nextItems, previousLane, previousIndex);
+        selectNextItemAfterMutation(
+          nextItems,
+          previousTab,
+          previousQueueFilter,
+          previousIndex,
+        );
         toast({ title: "Demande convertie", variant: "success" });
       } catch (error: any) {
         console.error("Erreur conversion rapide:", error);
         toast({
           title: "Conversion impossible",
           description:
-            error?.message || "La demande doit être complétée avant conversion.",
+            error?.message ||
+            "La demande doit être complétée avant conversion.",
           variant: "destructive",
         });
       } finally {
         setProcessingId(null);
       }
     },
-    [board, loadItems, selectNextItemAfterMutation],
+    [activeItems, loadItems, queueFilter, selectNextItemAfterMutation, tab],
   );
 
   const requestReview = React.useCallback(
     (item: AdminRequestItem, action: AdminRequestReviewAction) => {
-    setRejectTarget(item);
+      setRejectTarget(item);
       setReviewAction(action);
-    setRejectInternalNotes(item.internalNotes || item.notes || "");
+      setRejectInternalNotes(item.internalNotes || item.notes || "");
       setRejectContributorMessage(
         item.contributorMessage ||
           (item.moderationReason
@@ -580,7 +901,7 @@ export function RequestsWorkspaceKanban() {
             : ""),
       );
       setRejectModerationReason(item.moderationReason || "");
-    setRejectOpen(true);
+      setRejectOpen(true);
     },
     [],
   );
@@ -611,15 +932,17 @@ export function RequestsWorkspaceKanban() {
     if (!contributorMessage) {
       toast({
         title: "Message contributeur obligatoire",
-        description: "Ajoutez un message exploitable avant de traiter la demande.",
+        description:
+          "Ajoutez un message exploitable avant de traiter la demande.",
         variant: "destructive",
       });
       return;
     }
 
     setProcessingId(rejectTarget.id);
-    const previousLane = rejectTarget.lane;
-    const previousIndex = board[previousLane].findIndex(
+    const previousTab = tab;
+    const previousQueueFilter = queueFilter;
+    const previousIndex = activeItems.findIndex(
       (item) => item.id === rejectTarget.id,
     );
 
@@ -643,13 +966,32 @@ export function RequestsWorkspaceKanban() {
 
       if (error) throw error;
 
+      await logAdminAction({
+        action:
+          reviewAction === "request_changes"
+            ? "request.request_changes"
+            : "request.reject",
+        entityType: "request",
+        entityId: rejectTarget.id,
+        entityLabel: rejectTarget.title,
+        metadata: {
+          moderation_reason: rejectModerationReason,
+          allow_user_resubmission: update.allow_user_resubmission,
+        },
+      });
+
       const nextItems = await loadItems();
       setRejectOpen(false);
       setRejectTarget(null);
       setRejectInternalNotes("");
       setRejectContributorMessage("");
       setRejectModerationReason("");
-      selectNextItemAfterMutation(nextItems, previousLane, previousIndex);
+      selectNextItemAfterMutation(
+        nextItems,
+        previousTab,
+        previousQueueFilter,
+        previousIndex,
+      );
       toast({
         title:
           reviewAction === "request_changes"
@@ -668,14 +1010,16 @@ export function RequestsWorkspaceKanban() {
       setProcessingId(null);
     }
   }, [
-    board,
+    activeItems,
     loadItems,
+    queueFilter,
     rejectContributorMessage,
     rejectInternalNotes,
     rejectModerationReason,
     rejectTarget,
     reviewAction,
     selectNextItemAfterMutation,
+    tab,
   ]);
 
   const viewEvent = React.useCallback(
@@ -684,6 +1028,111 @@ export function RequestsWorkspaceKanban() {
     },
     [router],
   );
+
+  const getItemRef = React.useCallback(
+    (itemId: string) => (node: HTMLDivElement | null) => {
+      if (node) itemRefs.current.set(itemId, node);
+      else itemRefs.current.delete(itemId);
+    },
+    [],
+  );
+
+  React.useEffect(() => {
+    if (isMobile || shortcutsOpen || rejectOpen) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isEditableKeyboardTarget(event.target)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      const key = event.key.toLowerCase();
+      if (key === "?" || (event.key === "/" && event.shiftKey)) {
+        event.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
+
+      if (!activeItem) return;
+
+      if (key === "arrowdown" || key === "j") {
+        event.preventDefault();
+        const index = activeItems.findIndex(
+          (item) => item.id === activeItem.id,
+        );
+        const nextItem =
+          activeItems[Math.min(activeItems.length - 1, index + 1)];
+        if (nextItem) {
+          setActiveId(nextItem.id);
+          syncParams({ lane: nextItem.lane, request: nextItem.id });
+        }
+        return;
+      }
+
+      if (key === "arrowup" || key === "k") {
+        event.preventDefault();
+        const index = activeItems.findIndex(
+          (item) => item.id === activeItem.id,
+        );
+        const nextItem = activeItems[Math.max(0, index - 1)];
+        if (nextItem) {
+          setActiveId(nextItem.id);
+          syncParams({ lane: nextItem.lane, request: nextItem.id });
+        }
+        return;
+      }
+
+      if (
+        key === "c" &&
+        activeItem.isFastConvertible &&
+        activeItem.status === "pending"
+      ) {
+        event.preventDefault();
+        void convertFast(activeItem);
+        return;
+      }
+
+      if (key === "e" && activeItem.status === "pending") {
+        event.preventDefault();
+        openFullReview(activeItem);
+        return;
+      }
+
+      if (key === "r" && activeItem.status === "pending") {
+        event.preventDefault();
+        requestReject(activeItem);
+        return;
+      }
+
+      if (
+        key === "x" &&
+        activeItem.status === "pending" &&
+        !activeItem.isFastConvertible
+      ) {
+        event.preventDefault();
+        requestChanges(activeItem);
+        return;
+      }
+
+      if (key === "o" && activeItem.sourceUrl) {
+        event.preventDefault();
+        openUrl(activeItem.sourceUrl);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    activeItem,
+    activeItems,
+    convertFast,
+    isMobile,
+    openFullReview,
+    openUrl,
+    rejectOpen,
+    requestChanges,
+    requestReject,
+    shortcutsOpen,
+    syncParams,
+  ]);
 
   if (loading) {
     return (
@@ -694,7 +1143,7 @@ export function RequestsWorkspaceKanban() {
             <CardDescription>Chargement de la file active…</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-24 w-full" />
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-[32rem] w-full" />
           </CardContent>
@@ -705,6 +1154,19 @@ export function RequestsWorkspaceKanban() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <ManagementHero
+        icon={<Inbox className="h-5 w-5" />}
+        title="Demandes"
+        description="File unifiée pour convertir, compléter ou modérer les contributions utilisateurs."
+      >
+        <ManagementStatGrid className="xl:grid-cols-4">
+          <ManagementStat label="Actionnables" value={actionableCount} hint="À traiter" />
+          <ManagementStat label="Prêtes" value={laneCounts.ready} hint="Conversion rapide" />
+          <ManagementStat label="Bloquées" value={laneCounts.blocked} hint="À trancher" />
+          <ManagementStat label="Traitées" value={laneCounts.processed} hint="Historique" />
+        </ManagementStatGrid>
+      </ManagementHero>
+
       <RequestFiltersBar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -712,12 +1174,15 @@ export function RequestsWorkspaceKanban() {
         onTypeFilterChange={setTypeFilter}
         periodFilter={periodFilter}
         onPeriodFilterChange={setPeriodFilter}
-        activeLane={lane}
-        onLaneChange={handleLaneChange}
-        counts={boardCounts}
+        activeTab={tab}
+        onTabChange={handleTabChange}
+        queueFilter={queueFilter}
+        onQueueFilterChange={handleQueueFilterChange}
+        counts={laneCounts}
         actionableCount={actionableCount}
         refreshing={refreshing}
         onRefresh={() => void refresh()}
+        onShowShortcuts={() => setShortcutsOpen(true)}
       />
 
       <div
@@ -727,10 +1192,14 @@ export function RequestsWorkspaceKanban() {
             : "grid min-h-0 flex-1 items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_460px]"
         }
       >
-        <RequestLaneBoard
-          board={board}
-          activeLane={lane}
+        <RequestQueueBoard
+          sections={boardSections}
+          title={boardCopy.title}
+          description={boardCopy.description}
+          emptyTitle={boardCopy.emptyTitle}
+          emptyDescription={boardCopy.emptyDescription}
           className={!isMobile ? "min-h-0" : undefined}
+          getItemRef={getItemRef}
           renderCard={(item) => (
             <RequestCard
               key={item.id}
@@ -782,7 +1251,10 @@ export function RequestsWorkspaceKanban() {
 
       {isMobile ? (
         <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
-          <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
+          <SheetContent
+            side="right"
+            className="w-full overflow-y-auto sm:max-w-2xl"
+          >
             <SheetHeader className="mb-6">
               <SheetTitle>Détail de la demande</SheetTitle>
               <SheetDescription>
@@ -836,6 +1308,11 @@ export function RequestsWorkspaceKanban() {
         onContributorMessageChange={setRejectContributorMessage}
         onModerationReasonChange={setRejectModerationReason}
         onConfirm={() => void confirmReview()}
+      />
+
+      <RequestShortcutsDialog
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
       />
     </div>
   );

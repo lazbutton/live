@@ -165,18 +165,20 @@ export function WeekTimeline({
         })}
       </div>
 
-      <EventContextMenu
-        event={contextMenu?.event || events[0]}
-        x={contextMenu?.x || 0}
-        y={contextMenu?.y || 0}
-        open={Boolean(contextMenu)}
-        onClose={() => setContextMenu(null)}
-        onEdit={onEventClick}
-        onEditArtists={onOpenArtistsDialog}
-        onToggleFull={onToggleFull}
-        onToggleFeatured={onToggleFeatured}
-        onQuickApprove={onQuickApprove}
-      />
+      {contextMenu ? (
+        <EventContextMenu
+          event={contextMenu.event}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          open
+          onClose={() => setContextMenu(null)}
+          onEdit={onEventClick}
+          onEditArtists={onOpenArtistsDialog}
+          onToggleFull={onToggleFull}
+          onToggleFeatured={onToggleFeatured}
+          onQuickApprove={onQuickApprove}
+        />
+      ) : null}
     </div>
   );
 }

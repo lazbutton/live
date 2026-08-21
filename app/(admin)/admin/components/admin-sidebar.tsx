@@ -19,9 +19,12 @@ import {
   ImageIcon,
   Inbox,
   LayoutDashboard,
+  ListChecks,
   LogOut,
   Map,
   Music,
+  Building2,
+  Users,
   Settings,
   ShieldAlert,
 } from "lucide-react";
@@ -53,6 +56,11 @@ const menuItems = [
     url: "/admin/events",
   },
   {
+    title: "Collecte",
+    icon: ListChecks,
+    url: "/admin/intake",
+  },
+  {
     title: "Demandes",
     icon: Inbox,
     url: "/admin/requests",
@@ -61,6 +69,16 @@ const menuItems = [
     title: "Artistes",
     icon: Music,
     url: "/admin/artists",
+  },
+  {
+    title: "Lieux",
+    icon: Building2,
+    url: "/admin/locations",
+  },
+  {
+    title: "Organisateurs",
+    icon: Users,
+    url: "/admin/organizers",
   },
   {
     title: "Multi-événements",

@@ -116,9 +116,9 @@ export function createPublicShareImage({
           >
             <div
               style={{
-                display: "inline-flex",
+                display: "flex",
                 alignItems: "center",
-                width: "fit-content",
+                alignSelf: "flex-start",
                 borderRadius: 9999,
                 border: "1px solid rgba(222,51,51,0.28)",
                 background: "rgba(222,51,51,0.12)",

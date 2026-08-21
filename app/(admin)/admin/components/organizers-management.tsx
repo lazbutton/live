@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,19 +24,20 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Plus, Search, Edit2, Trash2, ExternalLink, Code, Facebook,
-  Globe, Instagram, Image as ImageIcon, X, Save, Users, RotateCw, Music, ChevronLeft, UserPlus, UserMinus, LayoutGrid, List as ListIcon
+  Globe, Instagram, X, Save, Users, RotateCw, Music, ChevronLeft, UserPlus, UserMinus, LayoutGrid, List as ListIcon, MoreHorizontal, Link2
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { compressImage } from "@/lib/image-compression";
+import { removeReplacedStorageObject } from "@/lib/supabase/image-utils";
 import Cropper, { Area } from "react-easy-crop";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
 import { FacebookEventsImporter } from "./facebook-events-importer";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -47,8 +48,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAlertDialog } from "@/hooks/use-alert-dialog";
+import {
+  ManagementEmptyState,
+  ManagementHero,
+  ManagementPill,
+  ManagementSectionLabel,
+  ManagementStat,
+  ManagementStatGrid,
+  ManagementToolbar,
+} from "./management-page-primitives";
 
-interface Organizer {
+export interface Organizer {
   id: string;
   name: string;
   logo_url: string | null;
@@ -59,14 +69,32 @@ interface Organizer {
   facebook_page_id: string | null;
   website_url: string | null;
   scraping_example_url: string | null;
+  source_capture_mode: "url" | "image" | "facebook";
   created_at: string;
   updated_at: string;
   type?: "organizer" | "location";
 }
 
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+function getCaptureModeLabel(mode: Organizer["source_capture_mode"]) {
+  if (mode === "image") return "Capture image";
+  if (mode === "facebook") return "Capture Facebook";
+  return "Capture URL";
+}
+
 export function OrganizersManagement() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const openOrganizerId = searchParams?.get("open");
+  const didAutoOpenRef = useRef(false);
   const [organizers, setOrganizers] = useState<Organizer[]>([]);
   const [filteredOrganizers, setFilteredOrganizers] = useState<Organizer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,8 +102,20 @@ export function OrganizersManagement() {
   const [editingOrganizer, setEditingOrganizer] = useState<Organizer | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
+  const [typeFilter, setTypeFilter] = useState<"all" | "organizer" | "location">("all");
+  const [networkFilter, setNetworkFilter] = useState<"all" | "with_links" | "without_links">("all");
+  const [scrapingFilter, setScrapingFilter] = useState<"all" | "with_scraping" | "without_scraping">("all");
   const [isImporterOpen, setIsImporterOpen] = useState(false);
   const { showAlert, showConfirm, AlertDialogComponent } = useAlertDialog();
+
+  const handleOpenDialog = useCallback((organizer?: Organizer) => {
+    if (organizer?.type === "location") {
+      router.push(`/admin/locations?open=${organizer.id}`);
+      return;
+    }
+    setEditingOrganizer(organizer || null);
+    setIsDialogOpen(true);
+  }, [router]);
 
   useEffect(() => {
     loadOrganizers();
@@ -89,18 +129,39 @@ export function OrganizersManagement() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredOrganizers(organizers);
-    } else {
-      const query = searchQuery.toLowerCase();
-      setFilteredOrganizers(
-        organizers.filter((org) => 
-          org.name.toLowerCase().includes(query) ||
-          org.short_description?.toLowerCase().includes(query)
-        )
+    if (!openOrganizerId) return;
+    if (didAutoOpenRef.current) return;
+    if (loading) return;
+
+    const organizerToOpen = organizers.find((item) => item.id === openOrganizerId);
+    if (!organizerToOpen) return;
+
+    didAutoOpenRef.current = true;
+    handleOpenDialog(organizerToOpen);
+  }, [openOrganizerId, loading, organizers, handleOpenDialog]);
+
+  useEffect(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const next = organizers.filter((org) => {
+      const matchesQuery =
+        !query ||
+        org.name.toLowerCase().includes(query) ||
+        org.short_description?.toLowerCase().includes(query);
+      const matchesType = typeFilter === "all" || org.type === typeFilter;
+      const hasLinks = Boolean(
+        org.website_url || org.instagram_url || org.facebook_url || org.tiktok_url,
       );
-    }
-  }, [organizers, searchQuery]);
+      const matchesLinks =
+        networkFilter === "all" ||
+        (networkFilter === "with_links" ? hasLinks : !hasLinks);
+      const hasScraping = Boolean(org.scraping_example_url);
+      const matchesScraping =
+        scrapingFilter === "all" ||
+        (scrapingFilter === "with_scraping" ? hasScraping : !hasScraping);
+      return matchesQuery && matchesType && matchesLinks && matchesScraping;
+    });
+    setFilteredOrganizers(next);
+  }, [organizers, searchQuery, typeFilter, networkFilter, scrapingFilter]);
 
   async function loadOrganizers() {
     try {
@@ -113,7 +174,7 @@ export function OrganizersManagement() {
 
       const { data: locationsData, error: locationsError } = await supabase
         .from("locations")
-        .select("id, name, image_url, instagram_url, facebook_url, tiktok_url, facebook_page_id, website_url, scraping_example_url, created_at, updated_at")
+        .select("id, name, image_url, instagram_url, facebook_url, tiktok_url, facebook_page_id, website_url, scraping_example_url, source_capture_mode, created_at, updated_at")
         .eq("is_organizer", true)
         .order("name", { ascending: true });
 
@@ -132,6 +193,7 @@ export function OrganizersManagement() {
           facebook_page_id: loc.facebook_page_id,
           website_url: loc.website_url || null,
           scraping_example_url: loc.scraping_example_url || null,
+          source_capture_mode: loc.source_capture_mode || "url",
           created_at: loc.created_at,
           updated_at: loc.updated_at,
           type: "location" as const,
@@ -188,24 +250,24 @@ export function OrganizersManagement() {
     });
   }
 
-  function handleOpenDialog(organizer?: Organizer) {
-    // Les lieux-organisateurs se gèrent dans la page /admin/locations
-    if (organizer?.type === "location") {
-      router.push(`/admin/locations?open=${organizer.id}`);
-      return;
-    }
-    setEditingOrganizer(organizer || null);
-    setIsDialogOpen(true);
+  function getOrganizerLinkCount(organizer: Organizer) {
+    return [
+      organizer.website_url,
+      organizer.instagram_url,
+      organizer.facebook_url,
+      organizer.tiktok_url,
+    ].filter(Boolean).length;
   }
 
-  function getInitials(name: string) {
-    return name
-      .split(" ")
-      .slice(0, 2)
-      .map(n => n[0])
-      .join("")
-      .toUpperCase();
-  }
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    typeFilter !== "all" ||
+    networkFilter !== "all" ||
+    scrapingFilter !== "all";
+  const organizersCount = organizers.filter((item) => item.type === "organizer").length;
+  const organizerLocationsCount = organizers.filter((item) => item.type === "location").length;
+  const withoutImageCount = organizers.filter((item) => !item.logo_url).length;
+  const withScrapingCount = organizers.filter((item) => Boolean(item.scraping_example_url)).length;
 
   if (loading) {
     return (
@@ -219,121 +281,234 @@ export function OrganizersManagement() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* En-tête compact */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <h2 className="text-xl font-semibold">Organisateurs</h2>
-            <p className="text-sm text-muted-foreground">
-              {filteredOrganizers.length} organisateur{filteredOrganizers.length > 1 ? "s" : ""}
-              {searchQuery && ` sur ${organizers.length}`}
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-2 items-center">
-          <div className="flex items-center gap-1 rounded-lg border bg-background p-1">
+    <div className="space-y-5">
+      <ManagementHero
+        icon={<Users className="h-5 w-5" />}
+        title="Organisateurs"
+        description="Pilotez les organisateurs et lieux-organisateurs depuis une vue claire, plus rapide à filtrer et plus agréable à éditer."
+        actions={
+          <>
+            <div className="flex items-center gap-1 rounded-xl border border-border/70 bg-background/90 p-1 shadow-sm">
+              <Button
+                type="button"
+                variant={viewMode === "list" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => setViewMode("list")}
+                title="Vue liste"
+              >
+                <ListIcon className="h-4 w-4" />
+                <span className="hidden md:inline">Liste</span>
+              </Button>
+              <Button
+                type="button"
+                variant={viewMode === "grid" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => setViewMode("grid")}
+                title="Vue grille"
+              >
+                <LayoutGrid className="h-4 w-4" />
+                <span className="hidden md:inline">Grille</span>
+              </Button>
+            </div>
             <Button
-              type="button"
-              variant={viewMode === "list" ? "default" : "ghost"}
+              onClick={() => setIsImporterOpen(true)}
+              variant="outline"
               size="sm"
-              className="h-8 px-2"
-              onClick={() => setViewMode("list")}
-              title="Vue liste"
+              className="h-9 rounded-xl"
             >
-              <ListIcon className="h-4 w-4" />
-              <span className="hidden md:inline">Liste</span>
+              <Facebook className="mr-1.5 h-4 w-4" />
+              <span className="hidden sm:inline">Import Facebook</span>
             </Button>
-            <Button
-              type="button"
-              variant={viewMode === "grid" ? "default" : "ghost"}
-              size="sm"
-              className="h-8 px-2"
-              onClick={() => setViewMode("grid")}
-              title="Vue grille"
-            >
-              <LayoutGrid className="h-4 w-4" />
-              <span className="hidden md:inline">Grille</span>
+            <Button onClick={() => handleOpenDialog()} size="sm" className="h-9 rounded-xl">
+              <Plus className="mr-1.5 h-4 w-4" />
+              Nouvel organisateur
             </Button>
-          </div>
-          <Button
-            onClick={() => setIsImporterOpen(true)}
-            variant="outline"
-            size="sm"
-            className="h-9"
-          >
-            <Facebook className="h-4 w-4 mr-1.5" />
-            <span className="hidden sm:inline">Facebook</span>
-          </Button>
-          <Button
-            onClick={() => handleOpenDialog()}
-            size="sm"
-            className="h-9"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Ajouter
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      >
+        <ManagementStatGrid>
+          <ManagementStat
+            label="Résultats visibles"
+            value={filteredOrganizers.length}
+            hint={`${organizers.length} au total`}
+          />
+          <ManagementStat
+            label="Organisateurs purs"
+            value={organizersCount}
+            hint="Structures éditées ici"
+          />
+          <ManagementStat
+            label="Lieux-organisateurs"
+            value={organizerLocationsCount}
+            hint="Basculent vers la page Lieux"
+          />
+          <ManagementStat
+            label="Scraping prêt"
+            value={withScrapingCount}
+            hint={`${withoutImageCount} sans image`}
+          />
+        </ManagementStatGrid>
+      </ManagementHero>
 
-      {/* Recherche */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Rechercher un organisateur..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9 h-10"
-        />
-      </div>
+      <ManagementToolbar>
+        <div className="space-y-3">
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.2fr_repeat(3,minmax(0,0.9fr))_auto]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher par nom ou description..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-11 rounded-xl pl-9"
+              />
+            </div>
+            <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as typeof typeFilter)}>
+              <SelectTrigger className="h-11 rounded-xl">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les types</SelectItem>
+                <SelectItem value="organizer">Organisateurs</SelectItem>
+                <SelectItem value="location">Lieux-organisateurs</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={networkFilter}
+              onValueChange={(value) => setNetworkFilter(value as typeof networkFilter)}
+            >
+              <SelectTrigger className="h-11 rounded-xl">
+                <SelectValue placeholder="Liens" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les liens</SelectItem>
+                <SelectItem value="with_links">Avec liens</SelectItem>
+                <SelectItem value="without_links">Sans liens</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={scrapingFilter}
+              onValueChange={(value) => setScrapingFilter(value as typeof scrapingFilter)}
+            >
+              <SelectTrigger className="h-11 rounded-xl">
+                <SelectValue placeholder="Scraping" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous</SelectItem>
+                <SelectItem value="with_scraping">Avec scraping</SelectItem>
+                <SelectItem value="without_scraping">Sans scraping</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-11 rounded-xl"
+              disabled={!hasActiveFilters}
+              onClick={() => {
+                setSearchQuery("");
+                setTypeFilter("all");
+                setNetworkFilter("all");
+                setScrapingFilter("all");
+              }}
+            >
+              <RotateCw className="mr-2 h-4 w-4" />
+              Réinitialiser
+            </Button>
+          </div>
+          {hasActiveFilters ? (
+            <div className="flex flex-wrap gap-2">
+              {searchQuery.trim() ? <ManagementPill tone="muted">Recherche: {searchQuery.trim()}</ManagementPill> : null}
+              {typeFilter !== "all" ? (
+                <ManagementPill tone="muted">
+                  {typeFilter === "organizer" ? "Type: organisateurs" : "Type: lieux-organisateurs"}
+                </ManagementPill>
+              ) : null}
+              {networkFilter !== "all" ? (
+                <ManagementPill tone="muted">
+                  {networkFilter === "with_links" ? "Avec liens" : "Sans liens"}
+                </ManagementPill>
+              ) : null}
+              {scrapingFilter !== "all" ? (
+                <ManagementPill tone="muted">
+                  {scrapingFilter === "with_scraping" ? "Avec scraping" : "Sans scraping"}
+                </ManagementPill>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </ManagementToolbar>
 
       {/* Liste / Grille */}
       {filteredOrganizers.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <Users className="h-12 w-12 mx-auto opacity-20 mb-2" />
-          <p>{organizers.length === 0 ? "Aucun organisateur. Cliquez sur 'Ajouter' pour commencer." : `Aucun résultat pour "${searchQuery}"`}</p>
-        </div>
+        <ManagementEmptyState
+          icon={<Users className="h-6 w-6" />}
+          title={organizers.length === 0 ? "Aucun organisateur pour le moment" : "Aucun résultat"}
+          description={
+            organizers.length === 0
+              ? "Ajoutez un premier organisateur ou importez-le depuis Facebook pour démarrer plus vite."
+              : `Aucun organisateur ne correspond aux filtres actuels${searchQuery.trim() ? ` pour "${searchQuery.trim()}"` : ""}.`
+          }
+        />
       ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {filteredOrganizers.map((organizer) => (
             <div
               key={organizer.id}
               onClick={() => handleOpenDialog(organizer)}
-              className="group relative flex flex-col p-4 rounded-lg border bg-card hover:shadow-md hover:border-primary/50 transition-all duration-200 cursor-pointer min-h-[160px]"
+              className="group relative flex min-h-[280px] flex-col overflow-hidden rounded-3xl border border-border/70 bg-card/95 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg cursor-pointer"
             >
-              {/* Avatar et badges */}
-              <div className="flex items-start gap-3 mb-3">
-                <Avatar className="h-12 w-12 ring-2 ring-background">
+              <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-r from-primary/5 via-primary/0 to-transparent" />
+              <div className="relative flex items-start gap-3">
+                <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-border/70 shadow-sm">
                   <AvatarImage src={organizer.logo_url || undefined} alt={organizer.name} />
-                  <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                  <AvatarFallback className="rounded-2xl bg-primary/10 text-primary font-semibold">
                     {getInitials(organizer.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-sm truncate">{organizer.name}</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="truncate text-base font-semibold">{organizer.name}</h3>
                     {organizer.type === "location" && (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">Lieu</Badge>
+                      <Badge variant="outline" className="rounded-full border-border/70 bg-background/80 text-[11px]">
+                        Lieu-organisateur
+                      </Badge>
                     )}
                   </div>
-                  {organizer.short_description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
-                      {organizer.short_description}
-                    </p>
-                  )}
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <ManagementPill tone={organizer.scraping_example_url ? "positive" : "muted"}>
+                      {organizer.scraping_example_url ? "Scraping prêt" : "Sans scraping"}
+                    </ManagementPill>
+                    <ManagementPill tone={organizer.logo_url ? "default" : "warning"}>
+                      {organizer.logo_url ? "Image OK" : "Image manquante"}
+                    </ManagementPill>
+                    <ManagementPill tone="muted">
+                      {getOrganizerLinkCount(organizer)} lien{getOrganizerLinkCount(organizer) > 1 ? "s" : ""}
+                    </ManagementPill>
+                  </div>
                 </div>
               </div>
 
-              {/* Liens sociaux */}
+              <div className="mt-4 min-h-[60px]">
+                <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+                  {organizer.short_description?.trim() ||
+                    "Aucune description pour le moment. Ouvrez la fiche pour compléter la présence publique, les liens et le scraping."}
+                </p>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                <ManagementPill tone="muted">{getCaptureModeLabel(organizer.source_capture_mode)}</ManagementPill>
+                {organizer.facebook_page_id ? <ManagementPill tone="muted">Page Facebook liée</ManagementPill> : null}
+              </div>
+
               {(organizer.instagram_url || organizer.facebook_url || organizer.tiktok_url || organizer.website_url) && (
-                <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                <div className="mt-4 flex items-center gap-1.5 flex-wrap">
                   {organizer.website_url && (
                     <a
                       href={organizer.website_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-1.5 rounded hover:bg-accent transition-colors"
+                      className="rounded-xl border border-border/70 bg-background/80 p-2 hover:bg-accent transition-colors"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Globe className="h-3.5 w-3.5 text-muted-foreground" />
@@ -344,7 +519,7 @@ export function OrganizersManagement() {
                       href={organizer.instagram_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-1.5 rounded hover:bg-accent transition-colors"
+                      className="rounded-xl border border-border/70 bg-background/80 p-2 hover:bg-accent transition-colors"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Instagram className="h-3.5 w-3.5 text-muted-foreground" />
@@ -355,7 +530,7 @@ export function OrganizersManagement() {
                       href={organizer.facebook_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-1.5 rounded hover:bg-accent transition-colors"
+                      className="rounded-xl border border-border/70 bg-background/80 p-2 hover:bg-accent transition-colors"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Facebook className="h-3.5 w-3.5 text-muted-foreground" />
@@ -366,7 +541,7 @@ export function OrganizersManagement() {
                       href={organizer.tiktok_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-1.5 rounded hover:bg-accent transition-colors"
+                      className="rounded-xl border border-border/70 bg-background/80 p-2 hover:bg-accent transition-colors"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Music className="h-3.5 w-3.5 text-muted-foreground" />
@@ -375,186 +550,130 @@ export function OrganizersManagement() {
                 </div>
               )}
 
-              {/* Actions - collées en bas */}
-              <div className="flex items-center justify-between gap-1 pt-2 border-t mt-auto">
-                <div className="flex items-center gap-1">
-                  <Link
-                    href={`/admin/organizers/${organizer.id}/team`}
-                    className="p-1.5 rounded hover:bg-accent transition-colors"
-                    title="Gérer l'équipe"
-                    onClick={(e) => e.stopPropagation()}
+              <div className="mt-auto pt-4">
+                <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      asChild
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-xl bg-background/80"
+                    >
+                      <Link
+                        href={`/admin/organizers/${organizer.id}/team`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Users className="mr-1.5 h-3.5 w-3.5" />
+                        Équipe
+                      </Link>
+                    </Button>
+                    {organizer.scraping_example_url ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-xl bg-background/80"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/admin/scraping/${organizer.id}`);
+                        }}
+                      >
+                        <Code className="mr-1.5 h-3.5 w-3.5" />
+                        Scraping
+                      </Button>
+                    ) : null}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-xl"
+                    title="Supprimer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteOrganizer(organizer.id);
+                    }}
                   >
-                    <Users className="h-3.5 w-3.5" />
-                  </Link>
-                  {organizer.scraping_example_url ? (
-                    <a
-                      href={organizer.scraping_example_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded hover:bg-accent transition-colors"
-                      title="Ouvrir l'URL d'exemple de scraping"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled
-                      className="p-1.5 rounded opacity-50 cursor-not-allowed"
-                      title="Aucune URL d'exemple de scraping"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  {organizer.scraping_example_url && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(`/admin/scraping/${organizer.id}`);
-                      }}
-                      className="p-1.5 rounded hover:bg-accent transition-colors"
-                      title="Configuration scraping"
-                    >
-                      <Code className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </div>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className="p-1.5 rounded hover:bg-accent transition-colors">
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-40 p-1" align="end">
-                    <div className="space-y-0.5">
-                      <button
-                        onClick={() => handleOpenDialog(organizer)}
-                        className="w-full text-left px-3 py-2 text-sm rounded hover:bg-accent transition-colors flex items-center gap-2"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                        {organizer.type === "location" ? "Ouvrir dans Lieux" : "Modifier"}
-                      </button>
-                      <button
-                        onClick={() => deleteOrganizer(organizer.id)}
-                        className="w-full text-left px-3 py-2 text-sm rounded hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Supprimer
-                      </button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="rounded-lg border bg-card">
+        <div className="overflow-hidden rounded-3xl border border-border/70 bg-card/95 shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Organisateur</TableHead>
                 <TableHead className="hidden md:table-cell">Type</TableHead>
-                <TableHead className="hidden lg:table-cell">Liens</TableHead>
-                <TableHead className="text-right">Commandes</TableHead>
+                <TableHead className="hidden lg:table-cell">Signaux</TableHead>
+                <TableHead className="hidden xl:table-cell">Liens</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredOrganizers.map((organizer) => (
                 <TableRow
                   key={organizer.id}
-                  className="cursor-pointer"
+                  className="cursor-pointer hover:bg-muted/20"
                   onClick={() => handleOpenDialog(organizer)}
                 >
                   <TableCell>
                     <div className="flex items-center gap-3 min-w-0">
-                      <Avatar className="h-9 w-9 ring-2 ring-background shrink-0">
+                      <Avatar className="h-11 w-11 shrink-0 rounded-2xl border border-border/70 shadow-sm">
                         <AvatarImage src={organizer.logo_url || undefined} alt={organizer.name} />
-                        <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                        <AvatarFallback className="rounded-2xl bg-primary/10 text-primary font-semibold">
                           {getInitials(organizer.name)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <div className="font-medium truncate">{organizer.name}</div>
+                          <div className="truncate font-medium">{organizer.name}</div>
                           {organizer.type === "location" && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
-                              Lieu
+                            <Badge variant="outline" className="rounded-full text-[10px]">
+                              Lieu-organisateur
                             </Badge>
                           )}
                         </div>
-                        {organizer.short_description && (
-                          <div className="text-xs text-muted-foreground truncate">
-                            {organizer.short_description}
-                          </div>
-                        )}
+                        <div className="truncate text-xs text-muted-foreground">
+                          {organizer.short_description?.trim() || "Aucune description"}
+                        </div>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    {organizer.type === "location" ? (
-                      <Badge variant="secondary">Lieu-organisateur</Badge>
-                    ) : (
-                      <Badge variant="secondary">Organisateur</Badge>
-                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      <ManagementPill tone={organizer.type === "location" ? "warning" : "default"}>
+                        {organizer.type === "location" ? "Lieu-organisateur" : "Organisateur"}
+                      </ManagementPill>
+                      <ManagementPill tone="muted">
+                        {getCaptureModeLabel(organizer.source_capture_mode)}
+                      </ManagementPill>
+                    </div>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
-                    <div className="flex items-center gap-1.5">
-                      {organizer.website_url && (
-                        <a
-                          href={organizer.website_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 rounded hover:bg-accent transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                          title="Site web"
-                        >
-                          <Globe className="h-4 w-4 text-muted-foreground" />
-                        </a>
-                      )}
-                      {organizer.instagram_url && (
-                        <a
-                          href={organizer.instagram_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 rounded hover:bg-accent transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                          title="Instagram"
-                        >
-                          <Instagram className="h-4 w-4 text-muted-foreground" />
-                        </a>
-                      )}
-                      {organizer.facebook_url && (
-                        <a
-                          href={organizer.facebook_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 rounded hover:bg-accent transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                          title="Facebook"
-                        >
-                          <Facebook className="h-4 w-4 text-muted-foreground" />
-                        </a>
-                      )}
-                      {organizer.tiktok_url && (
-                        <a
-                          href={organizer.tiktok_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 rounded hover:bg-accent transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                          title="TikTok"
-                        >
-                          <Music className="h-4 w-4 text-muted-foreground" />
-                        </a>
-                      )}
+                    <div className="flex flex-wrap gap-1.5">
+                      <ManagementPill tone={organizer.scraping_example_url ? "positive" : "muted"}>
+                        {organizer.scraping_example_url ? "Scraping prêt" : "Pas de scraping"}
+                      </ManagementPill>
+                      <ManagementPill tone={organizer.logo_url ? "default" : "warning"}>
+                        {organizer.logo_url ? "Image OK" : "Image manquante"}
+                      </ManagementPill>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell">
+                    <div className="flex items-center gap-2">
+                      <ManagementPill tone="muted">
+                        <Link2 className="mr-1 h-3.5 w-3.5" />
+                        {getOrganizerLinkCount(organizer)} lien{getOrganizerLinkCount(organizer) > 1 ? "s" : ""}
+                      </ManagementPill>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button asChild variant="ghost" size="icon">
+                      <Button asChild variant="ghost" size="icon" className="rounded-xl">
                         <Link
                           href={`/admin/organizers/${organizer.id}/team`}
                           title="Équipe"
@@ -563,34 +682,11 @@ export function OrganizersManagement() {
                           <Users className="h-4 w-4" />
                         </Link>
                       </Button>
-                      {organizer.scraping_example_url ? (
-                        <Button asChild variant="ghost" size="icon">
-                          <a
-                            href={organizer.scraping_example_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="URL d'exemple de scraping"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled
-                          title="Aucune URL d'exemple de scraping"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      )}
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
+                        className="rounded-xl"
                         title={organizer.scraping_example_url ? "Configuration scraping" : "Aucune URL de scraping"}
                         disabled={!organizer.scraping_example_url}
                         onClick={(e) => {
@@ -605,6 +701,7 @@ export function OrganizersManagement() {
                         type="button"
                         variant="ghost"
                         size="icon"
+                        className="rounded-xl"
                         title={organizer.type === "location" ? "Ouvrir dans Lieux" : "Modifier"}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -613,18 +710,41 @@ export function OrganizersManagement() {
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        title="Supprimer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteOrganizer(organizer.id);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="rounded-xl"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52 rounded-xl">
+                          {organizer.scraping_example_url ? (
+                            <DropdownMenuItem asChild className="cursor-pointer">
+                              <a
+                                href={organizer.scraping_example_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                Ouvrir l'URL source
+                              </a>
+                            </DropdownMenuItem>
+                          ) : null}
+                          <DropdownMenuItem
+                            onClick={() => deleteOrganizer(organizer.id)}
+                            className="cursor-pointer text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Supprimer
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -651,7 +771,7 @@ export function OrganizersManagement() {
   );
 }
 
-function OrganizerDialog({
+export function OrganizerDialog({
   organizer,
   open,
   onOpenChange,
@@ -662,7 +782,6 @@ function OrganizerDialog({
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }) {
-  const router = useRouter();
   const { showAlert, showConfirm, AlertDialogComponent } = useAlertDialog();
   const [formData, setFormData] = useState({
     name: "",
@@ -674,11 +793,11 @@ function OrganizerDialog({
     facebook_page_id: "",
     website_url: "",
     scraping_example_url: "",
+    source_capture_mode: "url" as "url" | "image" | "facebook",
   });
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
   const [showCropper, setShowCropper] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -709,9 +828,9 @@ function OrganizerDialog({
         facebook_page_id: organizer.facebook_page_id || "",
         website_url: organizer.website_url || "",
         scraping_example_url: organizer.scraping_example_url || "",
+        source_capture_mode: organizer.source_capture_mode || "url",
       });
       setLogoPreview(organizer.logo_url || null);
-      setOriginalImageSrc(organizer.logo_url || null);
     } else {
       setFormData({
         name: "",
@@ -723,9 +842,9 @@ function OrganizerDialog({
         facebook_page_id: "",
         website_url: "",
         scraping_example_url: "",
+        source_capture_mode: "url",
       });
       setLogoPreview(null);
-      setOriginalImageSrc(null);
     }
     setLogoFile(null);
     if (organizer) {
@@ -856,14 +975,22 @@ function OrganizerDialog({
       });
 
       if (!response.ok) {
-        alert("Erreur lors de la mise à jour du rôle");
+        showAlert({
+          title: "Erreur",
+          description: "Erreur lors de la mise à jour du rôle",
+          confirmText: "OK",
+        });
         return;
       }
 
       await loadOrganizerUsers(organizer.id);
     } catch (error) {
       console.error("Erreur:", error);
-      alert("Erreur lors de la mise à jour");
+      showAlert({
+        title: "Erreur",
+        description: "Erreur lors de la mise à jour",
+        confirmText: "OK",
+      });
     } finally {
       setLoadingUsers(false);
     }
@@ -875,7 +1002,6 @@ function OrganizerDialog({
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUrl = reader.result as string;
-        setOriginalImageSrc(dataUrl);
         setCropImageSrc(dataUrl);
         setShowCropper(true);
       };
@@ -925,12 +1051,69 @@ function OrganizerDialog({
       setCroppedAreaPixels(null);
     } catch (error) {
       console.error("Erreur lors du cropping:", error);
-      alert("Erreur lors du rognage de l'image");
+      showAlert({
+        title: "Rognage impossible",
+        description: "Erreur lors du rognage de l'image",
+        confirmText: "OK",
+      });
     }
   }
 
   async function handleImageUpload(): Promise<string | null> {
-    if (!logoFile) return formData.logo_url;
+    const currentUrl = formData.logo_url?.trim() || "";
+
+    const isStoredOrganizerImage = (url: string) =>
+      /\/storage\/v1\/object\/public\/organizers-images\//.test(url);
+
+    async function uploadFromRemoteUrl(url: string): Promise<string | null> {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Image distante inaccessible (${response.status})`);
+        }
+        const blob = await response.blob();
+        const contentType = blob.type || "image/jpeg";
+        if (!contentType.startsWith("image/")) {
+          throw new Error("L'URL fournie n'est pas une image valide.");
+        }
+        const ext = contentType.includes("png")
+          ? "png"
+          : contentType.includes("webp")
+            ? "webp"
+            : contentType.includes("gif")
+              ? "gif"
+              : "jpg";
+        const remoteFile = new File([blob], `organizer-remote-${Date.now()}.${ext}`, {
+          type: contentType,
+        });
+        const fileToUpload = await compressImage(remoteFile, 2);
+        const fileExt = fileToUpload.name.split(".").pop() || ext;
+        const fileName = `organizers/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const { data, error } = await supabase.storage
+          .from("organizers-images")
+          .upload(fileName, fileToUpload, { cacheControl: "3600", upsert: false });
+        if (error) throw error;
+        const { data: { publicUrl } } = supabase.storage.from("organizers-images").getPublicUrl(data.path);
+        return publicUrl;
+      } catch (error: any) {
+        console.error("Erreur copie image distante:", error);
+        showAlert({
+          title: "Image distante invalide",
+          description:
+            "Impossible de sauvegarder l'image distante: " +
+            (error.message || "Erreur inconnue"),
+          confirmText: "OK",
+        });
+        return null;
+      }
+    }
+
+    if (!logoFile) {
+      if (!currentUrl) return "";
+      if (isStoredOrganizerImage(currentUrl)) return currentUrl;
+      return await uploadFromRemoteUrl(currentUrl);
+    }
+
     try {
       setUploading(true);
       const fileToUpload = await compressImage(logoFile, 2);
@@ -944,7 +1127,12 @@ function OrganizerDialog({
       return publicUrl;
     } catch (error: any) {
       console.error("Erreur upload:", error);
-      alert("Erreur lors de l'upload: " + (error.message || "Erreur inconnue"));
+      showAlert({
+        title: "Upload impossible",
+        description:
+          "Erreur lors de l'upload: " + (error.message || "Erreur inconnue"),
+        confirmText: "OK",
+      });
       return null;
     } finally {
       setUploading(false);
@@ -956,9 +1144,9 @@ function OrganizerDialog({
     try {
       setUploading(true);
       let finalLogoUrl = formData.logo_url;
-      if (logoFile) {
+      if (logoFile || formData.logo_url.trim()) {
         const uploadedUrl = await handleImageUpload();
-        if (uploadedUrl) finalLogoUrl = uploadedUrl;
+        if (uploadedUrl !== null) finalLogoUrl = uploadedUrl;
         else { setUploading(false); return; }
       }
       const submitData = {
@@ -971,6 +1159,7 @@ function OrganizerDialog({
         facebook_page_id: formData.facebook_page_id || null,
         website_url: formData.website_url || null,
         scraping_example_url: formData.scraping_example_url || null,
+        source_capture_mode: formData.source_capture_mode,
       };
       if (organizer) {
         const { error } = await supabase.from("organizers").update(submitData).eq("id", organizer.id);
@@ -979,11 +1168,26 @@ function OrganizerDialog({
         const { error } = await supabase.from("organizers").insert([submitData]);
         if (error) throw error;
       }
+      if (organizer) {
+        await removeReplacedStorageObject(supabase, {
+          bucket: "organizers-images",
+          previousUrl: organizer.logo_url,
+          nextUrl: finalLogoUrl,
+          references: [
+            { table: "organizers", column: "logo_url" },
+            { table: "artists", column: "image_url" },
+          ],
+        });
+      }
       onOpenChange(false);
       onSuccess();
     } catch (error) {
       console.error("Erreur:", error);
-      alert("Erreur lors de la sauvegarde");
+      showAlert({
+        title: "Sauvegarde impossible",
+        description: "Erreur lors de la sauvegarde",
+        confirmText: "OK",
+      });
     } finally {
       setUploading(false);
     }
@@ -993,9 +1197,9 @@ function OrganizerDialog({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:w-[66.666vw] overflow-y-auto [@media(min-width:1440px)]:w-[66.666vw] [@media(min-width:1600px)]:max-w-2xl"
+        className="w-full overflow-y-auto bg-background sm:w-[66.666vw] [@media(min-width:1440px)]:w-[66.666vw] [@media(min-width:1600px)]:max-w-2xl"
       >
-        <SheetHeader className="mb-6">
+        <SheetHeader className="mb-5 border-b border-border/70 pb-5">
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -1038,7 +1242,40 @@ function OrganizerDialog({
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 pb-24">
+            <div className="rounded-2xl border border-border/70 bg-muted/15 p-4">
+              <div className="flex items-start gap-3">
+                <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-border/70 shadow-sm">
+                  <AvatarImage src={logoPreview || undefined} alt={formData.name || "Organisateur"} />
+                  <AvatarFallback className="rounded-2xl bg-primary/10 text-primary font-semibold">
+                    {getInitials(formData.name || organizer?.name || "NA")}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div>
+                    <div className="truncate text-base font-semibold">
+                      {formData.name.trim() || "Nouvel organisateur"}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Préparez la fiche publique, les liens et la configuration source depuis un seul écran.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <ManagementPill tone={logoPreview ? "default" : "warning"}>
+                      {logoPreview ? "Logo prêt" : "Logo manquant"}
+                    </ManagementPill>
+                    <ManagementPill tone={formData.scraping_example_url ? "positive" : "muted"}>
+                      {formData.scraping_example_url ? "Scraping prêt" : "Scraping à configurer"}
+                    </ManagementPill>
+                    <ManagementPill tone="muted">
+                      {getCaptureModeLabel(formData.source_capture_mode)}
+                    </ManagementPill>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <ManagementSectionLabel>Essentiel</ManagementSectionLabel>
             <div className="space-y-2">
               <Label htmlFor="name">Nom *</Label>
               <Input
@@ -1057,6 +1294,7 @@ function OrganizerDialog({
                 rows={3}
               />
             </div>
+            <ManagementSectionLabel>Réseaux & liens publics</ManagementSectionLabel>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="instagram_url">Instagram</Label>
@@ -1087,6 +1325,7 @@ function OrganizerDialog({
                 placeholder="https://tiktok.com/@..."
               />
             </div>
+            <ManagementSectionLabel>Source & scraping</ManagementSectionLabel>
             <div className="space-y-2">
               <Label htmlFor="facebook_page_id">ID Page Facebook</Label>
               <Input
@@ -1114,9 +1353,32 @@ function OrganizerDialog({
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="source_capture_mode">Type de lien pour la source</Label>
+              <Select
+                value={formData.source_capture_mode}
+                onValueChange={(value: "url" | "image" | "facebook") =>
+                  setFormData({ ...formData, source_capture_mode: value })
+                }
+              >
+                <SelectTrigger id="source_capture_mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="url">URL</SelectItem>
+                  <SelectItem value="image">Photo / image</SelectItem>
+                  <SelectItem value="facebook">Facebook</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Ce choix pilote le mode d'entree de la source synchronisee dans l'intake.
+              </p>
+            </div>
+            <ManagementSectionLabel>Média</ManagementSectionLabel>
+            <div className="space-y-2">
               <Label>Logo</Label>
               {logoPreview && (
                 <div className="relative w-32 h-32 rounded-lg overflow-hidden border">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={logoPreview} alt="Logo" className="w-full h-full object-cover" />
                   <Button
                     type="button"
@@ -1134,29 +1396,44 @@ function OrganizerDialog({
                 </div>
               )}
               <Input type="file" accept="image/*" onChange={handleLogoChange} />
+              <Label htmlFor="logo_url" className="text-xs text-muted-foreground">
+                Ou entrez une URL
+              </Label>
+              <Input
+                id="logo_url"
+                type="url"
+                value={formData.logo_url}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFormData({ ...formData, logo_url: value });
+                  if (value) {
+                    setLogoPreview(value);
+                    setLogoFile(null);
+                  }
+                }}
+                placeholder="https://example.com/logo.jpg"
+                disabled={!!logoFile}
+              />
             </div>
 
             {/* Section Gestion des utilisateurs (seulement si on modifie un organisateur existant) */}
             {organizer && (
               <>
                 <Separator />
+                <ManagementSectionLabel>Équipe</ManagementSectionLabel>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <Label className="text-base font-semibold">Utilisateurs associés</Label>
                     <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          // Note: Les organisateurs doivent utiliser leur interface /organizer/team
-                          // Ce bouton est visible uniquement pour les admins
-                        }}
-                        disabled
-                        title="Utilisez l'interface organisateur pour gérer l'équipe"
-                      >
-                        <Users className="h-4 w-4 mr-2" />
-                        Gérer l'équipe (via interface organisateur)
+                      <Button type="button" variant="outline" size="sm" asChild>
+                        <Link
+                          href={`/admin/organizers/${organizer.id}/team`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Users className="h-4 w-4 mr-2" />
+                          Ouvrir l'espace équipe
+                        </Link>
                       </Button>
                       <Button
                         type="button"
@@ -1319,14 +1596,16 @@ function OrganizerDialog({
               </>
             )}
 
-            <div className="flex gap-2 justify-end">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Annuler
-              </Button>
-              <Button type="submit" disabled={uploading}>
-                {uploading ? <RotateCw className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                {organizer ? "Enregistrer" : "Créer"}
-              </Button>
+            <div className="sticky bottom-0 z-10 -mx-6 mt-6 border-t border-border/70 bg-background/95 px-6 py-3 backdrop-blur">
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={uploading}>
+                  {uploading ? <RotateCw className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                  {organizer ? "Enregistrer" : "Créer"}
+                </Button>
+              </div>
             </div>
           </form>
         )}

@@ -8,11 +8,9 @@ import {
 } from "@/lib/notifications";
 import {
   addDaysToLocalDate,
-  formatHourMinute,
   getIsoLocalDate,
   getIsoLocalTime,
   getZonedDateParts,
-  isWithinScheduledWindow,
   zonedTimeToUtc,
 } from "@/lib/cron-timezone";
 
@@ -24,6 +22,8 @@ const DAILY_FLOW = {
   honorsPreferences: true,
   honorsCategories: true,
   latestTokenOnly: true,
+  scheduleMode: "vercel_hobby_daily",
+  schedulePrecision: "hour",
 };
 const MAX_ROUTE_DIAGNOSTICS = 25;
 
@@ -54,7 +54,7 @@ function verifyCronRequest(request: NextRequest): boolean {
  * GET /api/cron/notifications/daily-events
  *
  * Cron job pour envoyer la passe quotidienne des notifications par categories suivies.
- * L'heure effective reste pilotee par `notification_settings.notification_time`.
+ * Sur Vercel Hobby, l'horaire est pilote par vercel.json avec une precision a l'heure.
  */
 export async function GET(request: NextRequest) {
   // Vérifier que la requête vient bien de Vercel Cron
@@ -157,7 +157,7 @@ export async function GET(request: NextRequest) {
     // Vérifier si les notifications globales sont activées
     const { data: globalSettings } = await supabase
       .from("notification_settings")
-      .select("is_active, notification_time")
+      .select("is_active")
       .maybeSingle();
 
     if (!globalSettings || !globalSettings.is_active) {
@@ -169,41 +169,6 @@ export async function GET(request: NextRequest) {
         notificationsSent: 0,
         flow: DAILY_FLOW,
       });
-    }
-
-    // Vérifier si l'heure actuelle correspond à l'heure configurée (pour les utilisateurs "daily")
-    const currentHour = nowInParis.hour;
-    const currentMinute = nowInParis.minute;
-    
-    if (globalSettings.notification_time) {
-      const [configuredHour, configuredMinute] = globalSettings.notification_time.split(":").map(Number);
-      const sendWindowMinutes = Number(process.env.CRON_SEND_WINDOW_MINUTES ?? 15);
-      const isInTimeWindow = isWithinScheduledWindow({
-        currentHour,
-        currentMinute,
-        scheduledHour: configuredHour,
-        scheduledMinute: configuredMinute,
-        windowMinutes: sendWindowMinutes,
-      });
-      
-      if (!isInTimeWindow) {
-        console.log(
-          `ℹ️ Pas dans la fenêtre d'envoi Paris. Heure actuelle: ${formatHourMinute(currentHour, currentMinute)}, Heure configurée: ${formatHourMinute(configuredHour, configuredMinute)}, Fenêtre: ±${sendWindowMinutes} min`,
-        );
-        return NextResponse.json({
-          success: true,
-          message: "Pas dans la fenêtre d'envoi",
-          eventsCount: eventsWithCategory.length,
-          notificationsSent: 0,
-          flow: DAILY_FLOW,
-          debug: {
-            timezone: "Europe/Paris",
-            currentTime: formatHourMinute(currentHour, currentMinute),
-            configuredTime: formatHourMinute(configuredHour, configuredMinute),
-            sendWindowMinutes,
-          },
-        });
-      }
     }
 
     let enabledUsers;

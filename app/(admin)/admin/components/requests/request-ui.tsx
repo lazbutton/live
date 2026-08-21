@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   CheckCircle2,
   CircleAlert,
+  Clock,
   Link2,
   LucideIcon,
   Sparkles,
@@ -13,6 +14,7 @@ import {
 import type {
   AdminModerationReason,
   AdminRequestLane,
+  AdminRequestQueueGroup,
   AdminRequestStatus,
 } from "@/lib/admin-requests";
 import {
@@ -23,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatDateWithoutTimezone } from "@/lib/date-utils";
+import { formatRequestAgeShort } from "@/lib/admin-requests";
 
 export const REQUEST_LANES: AdminRequestLane[] = [
   "ready",
@@ -52,12 +55,23 @@ type RequestLaneMeta = {
   dotClassName: string;
 };
 
+type RequestQueueGroupMeta = {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  accentClassName: string;
+  softClassName: string;
+  borderClassName: string;
+  dotClassName: string;
+};
+
 const REQUEST_LANE_META: Record<AdminRequestLane, RequestLaneMeta> = {
   ready: {
     title: "Prêtes",
     description: "Demandes convertibles rapidement.",
     emptyTitle: "Aucune demande prête",
-    emptyDescription: "Les conversions 1 clic apparaîtront ici dès qu’une demande est complète.",
+    emptyDescription:
+      "Les conversions 1 clic apparaîtront ici dès qu’une demande est complète.",
     icon: Sparkles,
     accentClassName: "text-emerald-700 dark:text-emerald-300",
     softClassName: "bg-emerald-500/10",
@@ -68,7 +82,8 @@ const REQUEST_LANE_META: Record<AdminRequestLane, RequestLaneMeta> = {
     title: "À compléter",
     description: "Demandes à relire ou enrichir.",
     emptyTitle: "Rien à compléter",
-    emptyDescription: "Les demandes incomplètes ou ambiguës seront rangées dans cette colonne.",
+    emptyDescription:
+      "Les demandes incomplètes ou ambiguës seront rangées dans cette colonne.",
     icon: SquarePen,
     accentClassName: "text-amber-700 dark:text-amber-300",
     softClassName: "bg-amber-500/10",
@@ -79,7 +94,8 @@ const REQUEST_LANE_META: Record<AdminRequestLane, RequestLaneMeta> = {
     title: "Depuis URL",
     description: "Demandes à enrichir depuis une source externe.",
     emptyTitle: "Aucune URL en attente",
-    emptyDescription: "Les demandes provenant d’une URL apparaîtront ici pour relecture.",
+    emptyDescription:
+      "Les demandes provenant d’une URL apparaîtront ici pour relecture.",
     icon: Link2,
     accentClassName: "text-sky-700 dark:text-sky-300",
     softClassName: "bg-sky-500/10",
@@ -90,7 +106,8 @@ const REQUEST_LANE_META: Record<AdminRequestLane, RequestLaneMeta> = {
     title: "Bloquées",
     description: "Demandes passées ou à trancher.",
     emptyTitle: "Aucune demande bloquée",
-    emptyDescription: "Les cas obsolètes ou sensibles seront regroupés ici pour être tranchés vite.",
+    emptyDescription:
+      "Les cas obsolètes ou sensibles seront regroupés ici pour être tranchés vite.",
     icon: CircleAlert,
     accentClassName: "text-rose-700 dark:text-rose-300",
     softClassName: "bg-rose-500/10",
@@ -101,7 +118,8 @@ const REQUEST_LANE_META: Record<AdminRequestLane, RequestLaneMeta> = {
     title: "Traitées",
     description: "Historique des décisions prises.",
     emptyTitle: "Aucune demande traitée",
-    emptyDescription: "L’historique des décisions apparaîtra ici au fur et à mesure.",
+    emptyDescription:
+      "L’historique des décisions apparaîtra ici au fur et à mesure.",
     icon: CheckCircle2,
     accentClassName: "text-muted-foreground",
     softClassName: "bg-muted",
@@ -109,6 +127,68 @@ const REQUEST_LANE_META: Record<AdminRequestLane, RequestLaneMeta> = {
     dotClassName: "bg-muted-foreground/60",
   },
 };
+
+const REQUEST_QUEUE_GROUP_META: Record<
+  AdminRequestQueueGroup,
+  RequestQueueGroupMeta
+> = {
+  urgent: {
+    title: "Urgent",
+    description: "Événements proches à traiter en priorité.",
+    icon: Clock,
+    accentClassName: "text-rose-700 dark:text-rose-300",
+    softClassName: "bg-rose-500/10",
+    borderClassName: "border-rose-500/20",
+    dotClassName: "bg-rose-500",
+  },
+  ready: {
+    title: "Prêtes à convertir",
+    description: "Demandes complètes, conversion rapide possible.",
+    icon: Sparkles,
+    accentClassName: "text-emerald-700 dark:text-emerald-300",
+    softClassName: "bg-emerald-500/10",
+    borderClassName: "border-emerald-500/20",
+    dotClassName: "bg-emerald-500",
+  },
+  to_complete: {
+    title: "À compléter",
+    description: "Demandes à enrichir ou relire.",
+    icon: SquarePen,
+    accentClassName: "text-amber-700 dark:text-amber-300",
+    softClassName: "bg-amber-500/10",
+    borderClassName: "border-amber-500/20",
+    dotClassName: "bg-amber-500",
+  },
+};
+
+const MISSING_FIELD_SHORT_LABELS: Record<string, string> = {
+  titre: "titre",
+  description: "description",
+  date: "date",
+  catégorie: "catégorie",
+  categorie: "catégorie",
+  lieu: "lieu",
+  adresse: "adresse",
+  organisateur: "organisateur",
+  "url source": "source",
+};
+
+export function formatRequestDateTime(value: string | null) {
+  if (!value) return "Date inconnue";
+
+  try {
+    return formatDateWithoutTimezone(value, "EEE d MMM yyyy • HH:mm");
+  } catch {
+    return value;
+  }
+}
+
+export function formatRequestDateTimeWithAge(value: string | null) {
+  const formatted = formatRequestDateTime(value);
+  const age = value ? formatRequestAgeShort(value) : "";
+  if (!age) return formatted;
+  return `${formatted} (${age})`;
+}
 
 export function formatEventDate(value: string | null) {
   if (!value) return "Non renseignée";
@@ -120,8 +200,45 @@ export function formatEventDate(value: string | null) {
   }
 }
 
+export function formatRelativeEventDate(value: string | null) {
+  if (!value) return "Date non renseignée";
+
+  let formattedDate = value;
+  try {
+    formattedDate = formatDateWithoutTimezone(value, "EEE d MMM • HH:mm");
+  } catch {
+    formattedDate = value;
+  }
+
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return formattedDate;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const eventDay = new Date(timestamp);
+  eventDay.setHours(0, 0, 0, 0);
+  const diffDays = Math.round(
+    (eventDay.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
+  );
+
+  if (diffDays < 0) return `${formattedDate} • passé`;
+  if (diffDays === 0) return `${formattedDate} • aujourd'hui`;
+  if (diffDays === 1) return `${formattedDate} • demain`;
+  if (diffDays <= 30) return `${formattedDate} • dans ${diffDays} j`;
+  return formattedDate;
+}
+
 export function getLaneMeta(lane: AdminRequestLane) {
   return REQUEST_LANE_META[lane];
+}
+
+export function getQueueGroupMeta(group: AdminRequestQueueGroup) {
+  return REQUEST_QUEUE_GROUP_META[group];
+}
+
+export function getMissingFieldShortLabel(field: string) {
+  const normalized = field.trim().toLowerCase();
+  return MISSING_FIELD_SHORT_LABELS[normalized] ?? normalized;
 }
 
 export function getLaneBadgeClassName(lane: AdminRequestLane) {
@@ -163,7 +280,9 @@ export function LaneBadge({ lane }: { lane: AdminRequestLane }) {
 
 export function StatusBadge({ status }: { status: AdminRequestStatus }) {
   return (
-    <Badge className={cn("border text-[11px]", getStatusBadgeClassName(status))}>
+    <Badge
+      className={cn("border text-[11px]", getStatusBadgeClassName(status))}
+    >
       {getRequestStatusLabel(status)}
     </Badge>
   );
@@ -195,7 +314,9 @@ export function SummaryField({
         <span>{label}</span>
       </div>
       <div className="text-sm font-medium leading-snug">{value}</div>
-      {hint ? <div className="mt-1 text-xs text-muted-foreground">{hint}</div> : null}
+      {hint ? (
+        <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
+      ) : null}
     </div>
   );
 }
@@ -219,10 +340,19 @@ export function LaneCountPill({
         "flex items-center gap-2 rounded-full border text-sm transition-colors",
         subtle ? "px-2.5 py-1 text-xs" : "px-3 py-1.5",
         active ? meta.borderClassName : "border-border/70",
-        active ? meta.softClassName : subtle ? "bg-transparent text-muted-foreground" : "bg-background",
+        active
+          ? meta.softClassName
+          : subtle
+            ? "bg-transparent text-muted-foreground"
+            : "bg-background",
       )}
     >
-      <span className={cn(active ? "font-medium" : "text-muted-foreground", subtle && "tracking-tight")}>
+      <span
+        className={cn(
+          active ? "font-medium" : "text-muted-foreground",
+          subtle && "tracking-tight",
+        )}
+      >
         {meta.title}
       </span>
       <Badge

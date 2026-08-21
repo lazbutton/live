@@ -25,6 +25,8 @@ export type EventsCalendarProps = {
   onOpenArtistsDialog: (event: AdminEvent) => void;
   onToggleFull: (event: AdminEvent) => Promise<void>;
   onToggleFeatured: (event: AdminEvent) => Promise<void>;
+  initialAnchor?: Date;
+  initialView?: "week" | "month";
 };
 
 export function EventsCalendar({
@@ -36,6 +38,8 @@ export function EventsCalendar({
   onOpenArtistsDialog,
   onToggleFull,
   onToggleFeatured,
+  initialAnchor,
+  initialView,
 }: EventsCalendarProps) {
   const isMobile = useIsMobile();
 
@@ -46,6 +50,17 @@ export function EventsCalendar({
     x: number;
     y: number;
   } | null>(null);
+
+  React.useEffect(() => {
+    if (initialView) {
+      setView(initialView);
+    }
+  }, [initialView]);
+
+  React.useEffect(() => {
+    if (!initialAnchor) return;
+    setAnchor(startOfLocalDay(initialAnchor));
+  }, [initialAnchor]);
 
   const weekStart = React.useMemo(
     () => startOfWeek(anchor, { weekStartsOn: 1 }), // lundi

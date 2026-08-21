@@ -3,6 +3,7 @@
 import * as React from "react";
 import { supabase } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/image-compression";
+import { removeReplacedStorageObject } from "@/lib/supabase/image-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,6 +57,11 @@ import {
   X,
 } from "lucide-react";
 import Cropper, { Area } from "react-easy-crop";
+import {
+  ManagementHero,
+  ManagementStat,
+  ManagementStatGrid,
+} from "./management-page-primitives";
 
 type AdminArtist = {
   id: string;
@@ -378,7 +384,59 @@ export function ArtistsManagement() {
   }
 
   async function uploadImageIfNeeded() {
-    if (!imageFile) return normalizeNullable(form.image_url);
+    const currentUrl = normalizeNullable(form.image_url);
+    const isStoredArtistImage = (url: string) =>
+      /\/storage\/v1\/object\/public\/organizers-images\//.test(url);
+
+    async function uploadFromRemoteUrl(url: string): Promise<string | null> {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Image distante inaccessible (${response.status})`);
+        }
+        const blob = await response.blob();
+        const contentType = blob.type || "image/jpeg";
+        if (!contentType.startsWith("image/")) {
+          throw new Error("L'URL fournie n'est pas une image valide.");
+        }
+        const ext = contentType.includes("png")
+          ? "png"
+          : contentType.includes("webp")
+            ? "webp"
+            : contentType.includes("gif")
+              ? "gif"
+              : "jpg";
+        const remoteFile = new File([blob], `artist-remote-${Date.now()}.${ext}`, {
+          type: contentType,
+        });
+        const compressedFile = await compressImage(remoteFile, 2);
+        const extension = compressedFile.name.split(".").pop() || ext;
+        const fileName = `artists/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
+
+        const { data, error } = await supabase.storage
+          .from("organizers-images")
+          .upload(fileName, compressedFile, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+        if (error) throw error;
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("organizers-images").getPublicUrl(data.path);
+        return publicUrl;
+      } catch (error: any) {
+        console.error("Erreur copie image distante artiste:", error);
+        alert(error?.message || "Impossible de sauvegarder l'image distante.");
+        return null;
+      }
+    }
+
+    if (!imageFile) {
+      if (!currentUrl) return null;
+      if (isStoredArtistImage(currentUrl)) return currentUrl;
+      return await uploadFromRemoteUrl(currentUrl);
+    }
 
     const compressedFile = await compressImage(imageFile, 2);
     const extension = compressedFile.name.split(".").pop() || "jpg";
@@ -423,6 +481,11 @@ export function ArtistsManagement() {
     setSaving(true);
     try {
       const imageUrl = await uploadImageIfNeeded();
+      if (!imageFile && form.image_url.trim() && !imageUrl) {
+        alert("Impossible de sauvegarder l'image distante. Verifie l'URL ou ajoute un fichier.");
+        setSaving(false);
+        return;
+      }
       const payload = {
         name: form.name.trim(),
         artist_type_label: normalizeNullable(form.artist_type_label),
@@ -449,6 +512,18 @@ export function ArtistsManagement() {
           created_by: user?.id || null,
         });
         if (error) throw error;
+      }
+
+      if (selectedArtist) {
+        await removeReplacedStorageObject(supabase, {
+          bucket: "organizers-images",
+          previousUrl: selectedArtist.image_url,
+          nextUrl: imageUrl,
+          references: [
+            { table: "organizers", column: "logo_url" },
+            { table: "artists", column: "image_url" },
+          ],
+        });
       }
 
       await loadArtists();
@@ -478,6 +553,18 @@ export function ArtistsManagement() {
 
   return (
     <div className="space-y-6">
+      <ManagementHero
+        icon={<Music className="h-5 w-5" />}
+        title="Artistes"
+        description="Gère les profils publics des artistes et collaborateurs reliés aux événements."
+      >
+        <ManagementStatGrid className="xl:grid-cols-3">
+          <ManagementStat label="Total" value={artists.length} hint="Profils artistes" />
+          <ManagementStat label="Filtrés" value={filteredArtists.length} hint="Vue courante" />
+          <ManagementStat label="Tags" value={tags.length} hint="Référentiel disponible" />
+        </ManagementStatGrid>
+      </ManagementHero>
+
       <Card>
         <CardHeader className="gap-4 md:flex-row md:items-end md:justify-between">
           <div>

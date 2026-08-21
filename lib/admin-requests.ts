@@ -8,25 +8,38 @@ export {
   type AdminRequestItem,
   type AdminRequestLane,
   type AdminRequestPeriodFilter,
+  type AdminRequestQueueFilter,
+  type AdminRequestQueueGroup,
+  type AdminRequestQueueSection,
   type AdminRequestStatus,
   type AdminRequestType,
   type AdminRequestTypeFilter,
+  type AdminRequestWorkspaceTab,
   ADMIN_REQUEST_SELECT,
   buildAdminRequestItem,
   countActionablePendingRequests,
   countRequestsByLane,
   filterAdminRequests,
+  flattenQueueSections,
   formatRequestAgeShort,
   getAdminRequestMissingFields,
+  getQueueFilterFromLane,
   getRequestLaneLabel,
   getModerationReasonLabel,
+  getRequestWorkspaceTab,
   getRequestStatusLabel,
   getRequestTypeLabel,
+  groupUnifiedQueue,
   safeDomainFromUrl,
   sortAdminRequests,
   startOfLocalDay,
 } from "@/lib/admin-requests-core";
-import { type AdminRawRequest, ADMIN_REQUEST_SELECT, buildAdminRequestItem, countActionablePendingRequests } from "@/lib/admin-requests-core";
+import {
+  type AdminRawRequest,
+  ADMIN_REQUEST_SELECT,
+  buildAdminRequestItem,
+  countActionablePendingRequests,
+} from "@/lib/admin-requests-core";
 
 export async function fetchAdminRequestItems() {
   const { data, error } = await supabase
@@ -37,7 +50,7 @@ export async function fetchAdminRequestItems() {
 
   if (error) throw error;
 
-  const rows = ((data || []) as unknown) as AdminRawRequest[];
+  const rows = (data || []) as unknown as AdminRawRequest[];
   return rows.map((request) => buildAdminRequestItem(request));
 }
 

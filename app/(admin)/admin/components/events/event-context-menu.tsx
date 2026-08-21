@@ -98,19 +98,20 @@ export function EventContextMenu({
   }, [onClose, open]);
 
   const dateLabel = React.useMemo(() => {
+    if (!event?.date) return "";
     try {
       return format(new Date(event.date), "EEE d MMM • HH:mm", { locale: fr });
     } catch {
       return event.date;
     }
-  }, [event.date]);
+  }, [event?.date]);
 
   function runAction(action: () => void | Promise<void>) {
     onClose();
     void action();
   }
 
-  if (!open) return null;
+  if (!open || !event) return null;
 
   return (
     <div

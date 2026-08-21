@@ -262,12 +262,13 @@ export async function GET(request: NextRequest) {
 Deux crons de notifications produit sont configurés :
 
 #### a. Notifications quotidiennes (`/api/cron/notifications/daily-events`)
-- **Schedule** : `*/5 * * * *` (Polling toutes les 5 minutes)
+- **Schedule** : `0 8 * * *` (une fois par jour à 08:00 UTC)
 - **Fonction** : Envoie la passe quotidienne des notifications par catégories suivies
 - **Fichier** : `app/api/cron/notifications/daily-events/route.ts`
+- **Précision Hobby** : l'exécution peut démarrer à n'importe quel moment entre 08:00 et 08:59 UTC
 
 #### b. Résumé hebdomadaire (`/api/cron/notifications/weekly-summary`)
-- **Schedule** : `*/5 * * * *` (Polling toutes les 5 minutes)
+- **Schedule** : `0 8 * * 1` (le lundi à 08:00 UTC)
 - **Fonction** : Envoie le résumé hebdomadaire des événements de la semaine en début de semaine
 - **Fichier** : `app/api/cron/notifications/weekly-summary/route.ts`
 
@@ -384,9 +385,20 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
 
 ## Limitations Vercel
 
-- **Gratuit** : 2 cron jobs maximum par projet
-- **Pro** : 20 cron jobs maximum
-- **Enterprise** : Illimité
+- **Hobby** : 100 cron jobs maximum par projet, chaque expression devant s'exécuter au plus une fois par jour
+- **Hobby** : précision à l'heure ; un job prévu à 08:00 peut démarrer entre 08:00 et 08:59
+- **Pro / Enterprise** : jusqu'à 100 cron jobs avec une précision à la minute et des cadences sous-journalières
+
+La configuration gratuite du projet conserve quatre jobs :
+
+- `cleanup` : tous les jours à 03:00 UTC
+- `notion-sync` : rattrapage quotidien à 02:00 UTC
+- `daily-events` : tous les jours à 08:00 UTC
+- `weekly-summary` : le lundi à 08:00 UTC
+
+Le webhook Notion traite les changements entrants immédiatement. Le cron
+`notion-sync` n'est qu'un rattrapage et peut donc accepter un délai maximal
+d'environ 24 heures.
 
 Les crons sont uniquement disponibles en **Production** sur Vercel (pas en Preview/Development).
 

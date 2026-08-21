@@ -1,18 +1,18 @@
 /**
- * Compresse une image dans le navigateur pour qu'elle fasse moins de 2 Mo
+ * Compresse une image dans le navigateur pour rester sous le budget Storage Free.
  * @param file Le fichier image à compresser
- * @param maxSizeMo Taille maximale en Mo (défaut: 2)
- * @param maxWidth Largeur maximale en pixels (défaut: 1920)
- * @param maxHeight Hauteur maximale en pixels (défaut: 1920)
+ * @param maxSizeMo Taille maximale demandée en Mo, plafonnée à 0,9 Mo
+ * @param maxWidth Largeur maximale en pixels (défaut: 1600)
+ * @param maxHeight Hauteur maximale en pixels (défaut: 1600)
  * @returns Promise<File> Le fichier compressé
  */
 export async function compressImage(
   file: File,
-  maxSizeMo: number = 2,
-  maxWidth: number = 1920,
-  maxHeight: number = 1920
+  maxSizeMo: number = 0.9,
+  maxWidth: number = 1600,
+  maxHeight: number = 1600
 ): Promise<File> {
-  // Si le fichier fait déjà moins de maxSizeMo et n'a pas besoin de redimensionnement, on peut le retourner tel quel
+  const effectiveMaxSizeMo = Math.min(Math.max(maxSizeMo, 0.1), 0.9);
   const sizeInMo = file.size / (1024 * 1024);
   
   // Si déjà en dessous de la taille max, on vérifie quand même si un redimensionnement est nécessaire
@@ -60,12 +60,13 @@ export async function compressImage(
               const sizeInMo = blob.size / (1024 * 1024);
 
               // Si la taille est acceptable ou que la qualité est déjà très basse
-              if (sizeInMo <= maxSizeMo || quality <= 0.1) {
+              if (sizeInMo <= effectiveMaxSizeMo || quality <= 0.1) {
+                const baseName = file.name.replace(/\.[^.]+$/, "");
                 const compressedFile = new File(
                   [blob],
-                  file.name,
+                  `${baseName || "image"}.webp`,
                   {
-                    type: file.type || "image/jpeg",
+                    type: "image/webp",
                     lastModified: Date.now(),
                   }
                 );
@@ -75,14 +76,15 @@ export async function compressImage(
                 tryCompress(Math.max(0.1, quality - 0.1));
               }
             },
-            file.type || "image/jpeg",
+            "image/webp",
             quality
           );
         };
 
-        // Commencer avec une qualité de 0.9 (90%) pour les fichiers > maxSizeMo
+        // WebP conserve la transparence des logos tout en réduisant leur poids.
+        // Commencer avec une qualité de 0.9 (90%) pour les fichiers > la cible
         // ou 0.85 pour optimiser même les fichiers plus petits
-        const initialQuality = sizeInMo > maxSizeMo ? 0.9 : 0.85;
+        const initialQuality = sizeInMo > effectiveMaxSizeMo ? 0.9 : 0.85;
         tryCompress(initialQuality);
       };
 

@@ -1,6 +1,13 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { AdminLayout } from "../components/admin-layout";
+import { LocationsManagement } from "../components/locations-management";
 
 export default function LocationsPage() {
-  redirect("/admin/settings?tab=locations");
+  return (
+    <AdminLayout title="Lieux" breadcrumbItems={[{ label: "Lieux" }]}>
+      <LocationsManagement />
+    </AdminLayout>
+  );
 }
 

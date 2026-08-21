@@ -74,6 +74,14 @@ function KpiCard({
   );
 }
 
+function todayLocalDateKey() {
+  const date = new Date();
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export function KpiCards({ pendingEvents, weekCount, pendingRequests, onRequestsClick }: KpiCardsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-3">
@@ -89,7 +97,7 @@ export function KpiCards({ pendingEvents, weekCount, pendingRequests, onRequests
         title="Cette semaine"
         value={weekCount}
         icon={CalendarClock}
-        href="/admin/events"
+        href={`/admin/events?view=agenda&start=${todayLocalDateKey()}`}
         tone="info"
       />
       <KpiCard

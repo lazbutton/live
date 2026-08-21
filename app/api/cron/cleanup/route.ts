@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     
     console.log("🧹 Démarrage du cron de nettoyage");
     
-    const results: Record<string, number> = {};
+    const results: Record<string, unknown> = {};
     
     // 1. Supprimer les événements passés depuis plus de 30 jours
     try {
@@ -96,6 +96,27 @@ export async function GET(request: NextRequest) {
     } catch (error: any) {
       console.error("❌ Erreur lors de la suppression des tokens:", error);
       results.tokensError = error.message;
+    }
+
+    // 4. Appliquer les rétentions techniques bornées (Notion, scans et audits).
+    try {
+      const requestedBatchSize = Number(
+        process.env.FREE_TIER_CLEANUP_BATCH_SIZE ?? 10000,
+      );
+      const batchSize = Number.isFinite(requestedBatchSize)
+        ? Math.min(Math.max(Math.trunc(requestedBatchSize), 1), 100000)
+        : 10000;
+      const { data: technicalCleanup, error: technicalCleanupError } =
+        await supabase.rpc("cleanup_free_tier_technical_data", {
+          p_batch_size: batchSize,
+        });
+
+      if (technicalCleanupError) throw technicalCleanupError;
+      results.technicalCleanup = technicalCleanup;
+      console.log("🧽 Rétention des données techniques appliquée", technicalCleanup);
+    } catch (error: any) {
+      console.error("❌ Erreur lors de la rétention technique:", error);
+      results.technicalCleanupError = error.message;
     }
     
     console.log("✅ Nettoyage terminé");

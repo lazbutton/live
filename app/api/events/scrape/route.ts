@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { extractEventFromInstagramPost } from "@/lib/instagram/extract-event-from-post";
+import { isInstagramPostUrl } from "@/lib/instagram/post-url";
 import { scrapeEventPage } from "@/lib/scraping/scrape-event-page";
+
+export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,7 +41,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await scrapeEventPage({ url, organizer_id: organizer_id || null, location_id: location_id || null, supabase });
+    if (isInstagramPostUrl(url)) {
+      const instagramResult = await extractEventFromInstagramPost(url);
+      if (instagramResult.ok) {
+        return NextResponse.json({
+          data: instagramResult.data,
+          metadata: instagramResult.metadata,
+        });
+      }
+      console.warn(
+        "Fallback scraping Instagram via page HTML après échec Instaloader:",
+        instagramResult.error,
+      );
+    }
+
+    const result = await scrapeEventPage({
+      url,
+      organizer_id: organizer_id || null,
+      location_id: location_id || null,
+      supabase,
+    });
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }

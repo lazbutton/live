@@ -319,6 +319,12 @@ async function applyNotionLocationJob(
 ) {
   const link = await getLocationLinkByNotionPageId(supabase, page.id);
   const mapped = mapNotionLocationPageToLive(page);
+
+  if (link && compareHashes(link.last_sync_hash, mapped.syncHash)) {
+    await skipSyncJob(job.id, "Aucun changement effectif détecté", supabase);
+    return;
+  }
+
   const locationId = mapped.liveLocationId ?? link?.location_id ?? null;
 
   if (!locationId) {
@@ -368,6 +374,12 @@ async function applyNotionOrganizerJob(
 ) {
   const link = await getOrganizerLinkByNotionPageId(supabase, page.id);
   const mapped = mapNotionOrganizerPageToLive(page);
+
+  if (link && compareHashes(link.last_sync_hash, mapped.syncHash)) {
+    await skipSyncJob(job.id, "Aucun changement effectif détecté", supabase);
+    return;
+  }
+
   const ownerKind = mapped.ownerKind ?? link?.owner_kind ?? "organizer";
   const ownerId = mapped.liveOrganizerId ?? link?.owner_id ?? null;
 

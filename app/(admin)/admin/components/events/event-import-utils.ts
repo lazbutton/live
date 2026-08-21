@@ -30,6 +30,42 @@ type BuildEventPrefillFromImportArgs = {
   defaultStatus?: EventStatus;
 };
 
+function normalizeImportedTagLabel(value: string) {
+  return value
+    .trim()
+    .replace(/^#/, "")
+    .replace(/\s+/g, " ")
+    .replace(/[|/]/g, " ")
+    .replace(/[,:;]+$/g, "")
+    .trim();
+}
+
+function parseImportedTags(rawTags: unknown): string[] {
+  const sourceValues = Array.isArray(rawTags)
+    ? rawTags
+    : typeof rawTags === "string"
+      ? [rawTags]
+      : [];
+
+  const splitValues = sourceValues.flatMap((value) =>
+    String(value)
+      .split(/[,\n;]+/)
+      .map((part) => normalizeImportedTagLabel(part)),
+  );
+
+  const deduped = new Map<string, string>();
+  for (const tag of splitValues) {
+    if (!tag || tag.length < 2 || tag.length > 40) continue;
+    const normalizedKey = normalizeSearchValue(tag);
+    if (!normalizedKey) continue;
+    if (!deduped.has(normalizedKey)) {
+      deduped.set(normalizedKey, tag);
+    }
+  }
+
+  return Array.from(deduped.values());
+}
+
 function normalizeSearchValue(value: string) {
   return value
     .normalize("NFD")
@@ -149,11 +185,7 @@ export async function resolveTagIdsForImport({
 }) {
   if (!Array.isArray(rawTagNames) || rawTagNames.length === 0) return [];
 
-  const normalizedNames = rawTagNames
-    .map((tag) => tag.trim())
-    .filter(
-      (tag, index, array) => Boolean(tag) && array.indexOf(tag) === index,
-    );
+  const normalizedNames = parseImportedTags(rawTagNames);
 
   const resolvedIds: string[] = [];
   let shouldNotifyTagsChanged = false;
@@ -210,10 +242,7 @@ export async function buildEventFormPrefillFromImport({
   prefill: EventFormPrefill;
   warnings: ImportedEventWarning[];
 }> {
-  const rawTags = data.tags as unknown;
-  const importedTags = Array.isArray(rawTags)
-    ? rawTags.map((tag) => tag.toString().trim()).filter(Boolean)
-    : [];
+  const importedTags = parseImportedTags(data.tags as unknown);
 
   const tagIds = findOrCreateTagIds
     ? await findOrCreateTagIds(importedTags)

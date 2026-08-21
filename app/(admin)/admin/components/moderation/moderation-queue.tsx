@@ -30,6 +30,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { logAdminAction } from "@/lib/admin-audit-log";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type ModerationStatus = "pending" | "under_review" | "actioned" | "dismissed";
 type StatusFilter = "all" | "open" | ModerationStatus;
@@ -78,6 +89,8 @@ type ActionDraft = {
   hideEvent: boolean;
   suspendUser: boolean;
 };
+
+type BulkModerationAction = "hide_and_action" | "action" | "dismiss";
 
 const statusLabels: Record<ModerationStatus, string> = {
   pending: "En attente",
@@ -199,6 +212,13 @@ export function ModerationQueue() {
   const [actionDrafts, setActionDrafts] = React.useState<
     Record<string, ActionDraft>
   >({});
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(
+    () => new Set(),
+  );
+  const [bulkAction, setBulkAction] = React.useState<BulkModerationAction | null>(
+    null,
+  );
+  const [bulkWorking, setBulkWorking] = React.useState(false);
 
   const loadQueue = React.useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -368,6 +388,46 @@ export function ModerationQueue() {
     });
   }, [eventsById, overdueOnly, reports, searchQuery, statusFilter, usersById]);
 
+  const selectableReports = React.useMemo(
+    () => filteredReports.filter((report) => !isResolved(report.status)),
+    [filteredReports],
+  );
+
+  const selectedReports = React.useMemo(
+    () => reports.filter((report) => selectedIds.has(report.id) && !isResolved(report.status)),
+    [reports, selectedIds],
+  );
+
+  const allVisibleSelected =
+    selectableReports.length > 0 &&
+    selectableReports.every((report) => selectedIds.has(report.id));
+
+  function toggleReportSelection(reportId: string, checked: boolean) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(reportId);
+      } else {
+        next.delete(reportId);
+      }
+      return next;
+    });
+  }
+
+  function toggleVisibleSelection(checked: boolean) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      for (const report of selectableReports) {
+        if (checked) {
+          next.add(report.id);
+        } else {
+          next.delete(report.id);
+        }
+      }
+      return next;
+    });
+  }
+
   async function applyModerationAction(
     report: ModerationReport,
     payload: {
@@ -397,6 +457,19 @@ export function ModerationQueue() {
         throw new Error(errorData.error || "Action impossible");
       }
 
+      await logAdminAction({
+        action:
+          payload.status === "dismissed"
+            ? "moderation.dismiss"
+            : payload.status === "actioned"
+              ? "moderation.action"
+              : "moderation.update",
+        entityType: "content_report",
+        entityId: report.id,
+        entityLabel: eventsById[report.target_event_id]?.title || null,
+        metadata: payload,
+      });
+
       await loadQueue({ silent: true });
       setActionDrafts((current) => ({
         ...current,
@@ -417,6 +490,79 @@ export function ModerationQueue() {
     } finally {
       setWorkingId(null);
     }
+  }
+
+  async function applyBulkModerationAction() {
+    if (!bulkAction || selectedReports.length === 0) return;
+
+    setBulkWorking(true);
+    let failedCount = 0;
+
+    const payload =
+      bulkAction === "hide_and_action"
+        ? {
+            status: "actioned" as const,
+            eventSafetyHidden: true,
+            adminNote: "Action groupée: événement masqué et signalement traité.",
+          }
+        : bulkAction === "action"
+          ? {
+              status: "actioned" as const,
+              adminNote: "Action groupée: signalement traité.",
+            }
+          : {
+              status: "dismissed" as const,
+              adminNote: "Action groupée: signalement écarté.",
+            };
+
+    for (const report of selectedReports) {
+      try {
+        const response = await fetch(`/api/admin/moderation/reports/${report.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          failedCount += 1;
+        } else {
+          await logAdminAction({
+            action:
+              bulkAction === "dismiss"
+                ? "moderation.bulk_dismiss"
+                : bulkAction === "hide_and_action"
+                  ? "moderation.bulk_hide_and_action"
+                  : "moderation.bulk_action",
+            entityType: "content_report",
+            entityId: report.id,
+            entityLabel: eventsById[report.target_event_id]?.title || null,
+            metadata: payload,
+          });
+        }
+      } catch {
+        failedCount += 1;
+      }
+    }
+
+    await loadQueue({ silent: true });
+    setSelectedIds(new Set());
+    setBulkWorking(false);
+    setBulkAction(null);
+
+    if (failedCount > 0) {
+      toast({
+        title: "Action groupée partielle",
+        description: `${failedCount} signalement${failedCount > 1 ? "s" : ""} n'ont pas pu être mis à jour.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Action groupée terminée",
+      description: `${selectedReports.length} signalement${selectedReports.length > 1 ? "s" : ""} mis à jour.`,
+      variant: "success",
+    });
   }
 
   return (
@@ -513,6 +659,51 @@ export function ModerationQueue() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <label className="flex min-h-10 items-center gap-3 rounded-md border px-3 py-2">
+            <Checkbox
+              checked={allVisibleSelected}
+              disabled={selectableReports.length === 0}
+              onCheckedChange={(checked) => toggleVisibleSelection(checked === true)}
+            />
+            <span className="text-sm">
+              Sélectionner les signalements visibles
+              {selectableReports.length > 0 ? ` (${selectableReports.length})` : ""}
+            </span>
+          </label>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="text-sm text-muted-foreground">
+              {selectedReports.length} sélectionné{selectedReports.length > 1 ? "s" : ""}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={selectedReports.length === 0 || bulkWorking}
+              onClick={() => setBulkAction("dismiss")}
+            >
+              Écarter en lot
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={selectedReports.length === 0 || bulkWorking}
+              onClick={() => setBulkAction("action")}
+            >
+              Marquer traités
+            </Button>
+            <Button
+              type="button"
+              disabled={selectedReports.length === 0 || bulkWorking}
+              onClick={() => setBulkAction("hide_and_action")}
+            >
+              Masquer + traiter
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {loading ? (
         <div className="space-y-4">
           {Array.from({ length: 4 }).map((_, index) => (
@@ -563,7 +754,17 @@ export function ModerationQueue() {
               >
                 <CardHeader className="space-y-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="space-y-3">
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        className="mt-1"
+                        checked={selectedIds.has(report.id)}
+                        disabled={resolved}
+                        onCheckedChange={(checked) =>
+                          toggleReportSelection(report.id, checked === true)
+                        }
+                        aria-label={`Sélectionner le signalement ${report.id}`}
+                      />
+                      <div className="space-y-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant={getStatusVariant(report.status)}>
                           {statusLabels[report.status]}
@@ -602,6 +803,7 @@ export function ModerationQueue() {
                           Signalé {formatRelative(report.created_at)} • échéance{" "}
                           {formatDateTime(report.review_due_at)}
                         </CardDescription>
+                      </div>
                       </div>
                     </div>
 
@@ -870,6 +1072,39 @@ export function ModerationQueue() {
           })}
         </div>
       )}
+
+      <AlertDialog open={bulkAction !== null} onOpenChange={(open) => !open && setBulkAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer l'action groupée</AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkAction === "hide_and_action"
+                ? "Les événements liés seront masqués du feed public et les signalements sélectionnés seront marqués comme traités."
+                : bulkAction === "action"
+                  ? "Les signalements sélectionnés seront marqués comme traités."
+                  : "Les signalements sélectionnés seront écartés sans action supplémentaire."}
+              {" "}
+              Cette action concerne {selectedReports.length} signalement
+              {selectedReports.length > 1 ? "s" : ""}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkWorking}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={bulkWorking || selectedReports.length === 0}
+              onClick={(event) => {
+                event.preventDefault();
+                void applyBulkModerationAction();
+              }}
+            >
+              {bulkWorking ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Confirmer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

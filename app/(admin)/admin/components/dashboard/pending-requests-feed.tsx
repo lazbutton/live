@@ -12,6 +12,7 @@ import {
   getRequestLaneLabel,
   getRequestTypeLabel,
 } from "@/lib/admin-requests";
+import { formatRequestDateTime } from "../requests/request-ui";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -110,6 +111,7 @@ export function PendingRequestsFeed({ refreshKey }: PendingRequestsFeedProps) {
       <CardContent className="space-y-3">
         {requests.map((r) => {
           const proposedDate = r.eventDate || null;
+          const requestedAt = formatRequestDateTime(r.requestedAt);
           const age = formatRequestAgeShort(r.requestedAt);
 
           return (
@@ -118,8 +120,9 @@ export function PendingRequestsFeed({ refreshKey }: PendingRequestsFeedProps) {
                 <div className="min-w-0">
                   <div className="font-semibold truncate">{r.title}</div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {age}
-                    {proposedDate ? ` • ${formatDateWithoutTimezone(proposedDate, "PPp")}` : ""}
+                    Demandée {requestedAt}
+                    {age ? ` • ${age}` : ""}
+                    {proposedDate ? ` • Événement ${formatDateWithoutTimezone(proposedDate, "PPp")}` : ""}
                     {r.locationSummary ? ` • ${r.locationSummary}` : ""}
                   </div>
                 </div>

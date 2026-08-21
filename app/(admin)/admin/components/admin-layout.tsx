@@ -12,6 +12,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { AdminSidebar } from "./admin-sidebar";
+import { AdminCommandPalette } from "./admin-command-palette";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 import { ThemeToggle } from "./theme-toggle";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -56,6 +57,7 @@ export function AdminLayout({ children, title, breadcrumbItems = [] }: AdminLayo
             </Breadcrumb>
           </div>
           <div className="flex items-center gap-2">
+            <AdminCommandPalette />
             <ThemeToggle />
           </div>
         </header>

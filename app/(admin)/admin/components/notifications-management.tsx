@@ -488,7 +488,7 @@ export function NotificationsManagement() {
                 Paramètres globaux de notifications
               </CardTitle>
               <CardDescription>
-                Configurez l'activation globale et l'heure d'envoi des notifications push
+                Configurez l&apos;activation globale et la fenêtre d&apos;envoi des notifications push
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -539,21 +539,30 @@ export function NotificationsManagement() {
                   {/* Heure d'envoi */}
                   <div className="space-y-2 p-4 border rounded-lg">
                     <Label htmlFor="notification-time" className="text-base font-semibold">
-                      Heure d'envoi
+                      Heure indicative historique
                     </Label>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Heure à laquelle les notifications sont envoyées pour les utilisateurs qui ont choisi la fréquence "Tous les jours". Format : HH:MM (ex: 09:00)
+                      Le plan Vercel Hobby déclenche désormais la passe quotidienne
+                      une fois par jour à 08:00 UTC, avec une précision pouvant
+                      varier d&apos;une heure. Cela correspond à la matinée en France
+                      et cette valeur n&apos;est plus utilisée comme une heure stricte.
                     </p>
                     <Input
                       id="notification-time"
                       type="time"
                       step={60}
                       value={settings.notification_time}
-                      onChange={(e) =>
-                        setSettings((prev) => prev ? { ...prev, notification_time: e.target.value } : null)
-                      }
+                      disabled
+                      aria-describedby="notification-time-help"
                       className="h-11 w-full max-w-xs"
                     />
+                    <p
+                      id="notification-time-help"
+                      className="text-xs text-muted-foreground"
+                    >
+                      Pour changer cette fenêtre, modifiez le planning du cron
+                      puis redéployez la production.
+                    </p>
                   </div>
 
                   <div className="space-y-4 p-4 border rounded-lg">

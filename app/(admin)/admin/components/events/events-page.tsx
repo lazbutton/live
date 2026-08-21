@@ -34,7 +34,21 @@ import {
 } from "./event-import-dialog";
 import { EventImageImportDialog } from "./event-image-import-dialog";
 import { FacebookEventImportDialog } from "./facebook-event-import-dialog";
-import { parseDateWithoutTimezone } from "@/lib/date-utils";
+import { InstagramEventImportDialog } from "./instagram-event-import-dialog";
+import { parseDateWithoutTimezone, toDatetimeLocal } from "@/lib/date-utils";
+import {
+  buildEventFormPrefillFromIntakePayload,
+  clearIntakeEventPrefill,
+  readIntakeEventPrefill,
+  type IntakeEventPrefillPayload,
+} from "../intake/intake-event-prefill";
+import { logAdminAction } from "@/lib/admin-audit-log";
+import {
+  ManagementHero,
+  ManagementStat,
+  ManagementStatGrid,
+} from "../management-page-primitives";
+import { CalendarDays } from "lucide-react";
 
 function normalizeSearchText(value: string) {
   return value
@@ -153,6 +167,50 @@ function formatListMonthLabel(date: Date) {
   return format(date, "MMMM yyyy", { locale: fr });
 }
 
+function buildEventFormPrefillFromRequest(request: any): EventFormPrefill {
+  const eventData = request?.event_data || {};
+  const sourceUrl =
+    eventData.external_url || eventData.scraping_url || request?.source_url || "";
+  const priceValue =
+    eventData.price ?? eventData.price_min ?? eventData.presale_price ?? null;
+
+  const organizerIds = [
+    eventData.organizer_id,
+    eventData.location_organizer_id,
+    request?.organizer_id,
+  ].filter(Boolean) as string[];
+
+  return {
+    form: {
+      title: eventData.title || eventData.name || "",
+      description: eventData.description || request?.notes || "",
+      date: toDatetimeLocal(eventData.date),
+      end_date: toDatetimeLocal(eventData.end_date),
+      category: eventData.category || "",
+      location_id: eventData.location_id || request?.location_id || "",
+      price_min: priceValue !== null && priceValue !== undefined ? String(priceValue) : "",
+      price_max:
+        eventData.price_max !== null && eventData.price_max !== undefined
+          ? String(eventData.price_max)
+          : "",
+      is_pay_what_you_want: Boolean(eventData.is_pay_what_you_want),
+      capacity:
+        eventData.capacity !== null && eventData.capacity !== undefined
+          ? String(eventData.capacity)
+          : "",
+      external_url: sourceUrl,
+      external_url_label: eventData.external_url_label || "",
+      scraping_url: eventData.scraping_url || request?.source_url || "",
+      instagram_url: eventData.instagram_url || "",
+      facebook_url: eventData.facebook_url || "",
+      image_url: eventData.image_url || "",
+      status: "pending",
+    },
+    organizerIds,
+    tagIds: Array.isArray(eventData.tag_ids) ? eventData.tag_ids : [],
+  };
+}
+
 export function EventsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -170,6 +228,9 @@ export function EventsPage() {
   const [filterStatus, setFilterStatus] = React.useState<
     "all" | "pending" | "approved"
   >("all");
+  const [filterCategory, setFilterCategory] = React.useState<
+    "all" | "__none__" | string
+  >("all");
   const [hideLongEvents, setHideLongEvents] = React.useState(false);
 
   const [selectedEvent, setSelectedEvent] = React.useState<AdminEvent | null>(
@@ -182,11 +243,29 @@ export function EventsPage() {
   const [isImportOpen, setIsImportOpen] = React.useState(false);
   const [isImageImportOpen, setIsImageImportOpen] = React.useState(false);
   const [isFacebookImportOpen, setIsFacebookImportOpen] = React.useState(false);
+  const [isInstagramImportOpen, setIsInstagramImportOpen] =
+    React.useState(false);
   const [defaultDate, setDefaultDate] = React.useState<Date | undefined>(
+    undefined,
+  );
+  const [calendarAnchor, setCalendarAnchor] = React.useState<Date | undefined>(
     undefined,
   );
   const [prefill, setPrefill] = React.useState<EventFormPrefill | undefined>(
     undefined,
+  );
+  const [activeIntakePrefill, setActiveIntakePrefill] =
+    React.useState<IntakeEventPrefillPayload | null>(null);
+  const [activeRequestPrefillId, setActiveRequestPrefillId] =
+    React.useState<string | null>(null);
+
+  const normalizedCategoryIdSet = React.useMemo(
+    () => new Set(categories.map((cat) => cat.id.trim().toUpperCase())),
+    [categories],
+  );
+  const normalizedCategoryNameSet = React.useMemo(
+    () => new Set(categories.map((cat) => cat.name.trim().toUpperCase())),
+    [categories],
   );
 
   const loadCategories = React.useCallback(async () => {
@@ -334,6 +413,26 @@ export function EventsPage() {
     void loadAll();
   }, [loadAll]);
 
+  React.useEffect(() => {
+    if (!searchParams) return;
+
+    const viewParam = searchParams.get("view");
+    const startParam = searchParams.get("start");
+
+    if (viewParam === "agenda" || viewParam === "calendar") {
+      setViewMode("calendar");
+    } else if (viewParam === "list") {
+      setViewMode("list");
+    }
+
+    if (startParam) {
+      const parsedStart = parseDateWithoutTimezone(startParam);
+      if (parsedStart) {
+        setCalendarAnchor(parsedStart);
+      }
+    }
+  }, [searchParams]);
+
   // init depuis query params (status/create/import)
   const didInitFromQuery = React.useRef(false);
   React.useEffect(() => {
@@ -355,10 +454,12 @@ export function EventsPage() {
     const createParam = params.get("create");
     const importParam = params.get("import");
     const facebookImportParam = params.get("facebook_import");
+    const instagramImportParam = params.get("instagram_import");
 
     const shouldOpenCreate = createParam === "1";
     const shouldOpenImport = importParam === "1";
     const shouldOpenFacebookImport = facebookImportParam === "1";
+    const shouldOpenInstagramImport = instagramImportParam === "1";
 
     if (shouldOpenCreate) {
       openCreate();
@@ -372,12 +473,95 @@ export function EventsPage() {
       setIsFacebookImportOpen(true);
       params.delete("facebook_import");
     }
+    if (shouldOpenInstagramImport) {
+      setIsInstagramImportOpen(true);
+      params.delete("instagram_import");
+    }
 
-    if (shouldOpenCreate || shouldOpenImport || shouldOpenFacebookImport) {
+    if (
+      shouldOpenCreate ||
+      shouldOpenImport ||
+      shouldOpenFacebookImport ||
+      shouldOpenInstagramImport
+    ) {
       const q = params.toString();
       router.replace(q ? `/admin/events?${q}` : "/admin/events");
     }
   }, [searchParams, router]);
+
+  const didApplyIntakePrefill = React.useRef(false);
+  React.useEffect(() => {
+    if (loading || didApplyIntakePrefill.current || !searchParams) return;
+
+    const opportunityId = searchParams.get("intake_opportunity");
+    if (!opportunityId) return;
+
+    didApplyIntakePrefill.current = true;
+    const payload = readIntakeEventPrefill(opportunityId);
+    if (!payload) {
+      toast({
+        title: "Prefill collecte introuvable",
+        description: "Retourne dans Collecte et relance la création depuis l’opportunité.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPrefill(buildEventFormPrefillFromIntakePayload({ payload, categories }));
+    setActiveIntakePrefill(payload);
+    setDefaultDate(undefined);
+    setSelectedEvent(null);
+    setIsFormOpen(true);
+    clearIntakeEventPrefill();
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("intake_opportunity");
+    params.delete("create");
+    const query = params.toString();
+    router.replace(query ? `/admin/events?${query}` : "/admin/events");
+  }, [categories, loading, router, searchParams]);
+
+  const didApplyRequestPrefill = React.useRef(false);
+  React.useEffect(() => {
+    if (loading || didApplyRequestPrefill.current || !searchParams) return;
+
+    const requestId = searchParams.get("request_id");
+    if (!requestId) return;
+
+    didApplyRequestPrefill.current = true;
+
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("user_requests")
+          .select("*")
+          .eq("id", requestId)
+          .single();
+
+        if (error) throw error;
+
+        setPrefill(buildEventFormPrefillFromRequest(data));
+        setActiveRequestPrefillId(requestId);
+        setDefaultDate(undefined);
+        setSelectedEvent(null);
+        setIsFormOpen(true);
+
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete("request_id");
+        params.delete("create");
+        const query = params.toString();
+        router.replace(query ? `/admin/events?${query}` : "/admin/events");
+      } catch (error: any) {
+        console.error("Erreur prefill demande:", error);
+        toast({
+          title: "Demande introuvable",
+          description:
+            error?.message || "Retourne dans Demandes et relance la complétion.",
+          variant: "destructive",
+        });
+      }
+    })();
+  }, [loading, router, searchParams]);
 
   const filteredEvents = React.useMemo(() => {
     let filtered = [...events];
@@ -390,6 +574,35 @@ export function EventsPage() {
       filtered = filtered.filter((ev) => matchesEventSearch(ev, searchQuery));
     }
 
+    if (filterCategory !== "all") {
+      if (filterCategory === "__none__") {
+        filtered = filtered.filter((ev) => {
+          const raw = String(ev.category ?? "").trim();
+          if (!raw) return true;
+          if (raw.toLowerCase() === "null") return true;
+          const normalized = raw.toUpperCase();
+          // Considérer "sans catégorie" si la valeur n'est reliée à aucune catégorie active.
+          return (
+            !normalizedCategoryIdSet.has(normalized) &&
+            !normalizedCategoryNameSet.has(normalized)
+          );
+        });
+      } else {
+        const selected = categories.find((cat) => cat.id === filterCategory);
+        const selectedId = selected?.id.trim().toUpperCase();
+        const selectedName = selected?.name.trim().toUpperCase();
+
+        filtered = filtered.filter((ev) => {
+          const raw = String(ev.category ?? "").trim().toUpperCase();
+          if (!raw) return false;
+          return (
+            (selectedId ? raw === selectedId : false) ||
+            (selectedName ? raw === selectedName : false)
+          );
+        });
+      }
+    }
+
     if (hideLongEvents) {
       filtered = filtered.filter((ev) => !isEventLongerThan24Hours(ev));
     }
@@ -400,7 +613,16 @@ export function EventsPage() {
         (parseDateWithoutTimezone(b.date)?.getTime() ?? 0),
     );
     return filtered;
-  }, [events, filterStatus, hideLongEvents, searchQuery]);
+  }, [
+    categories,
+    events,
+    filterCategory,
+    filterStatus,
+    hideLongEvents,
+    normalizedCategoryIdSet,
+    normalizedCategoryNameSet,
+    searchQuery,
+  ]);
 
   const listViewEvents = React.useMemo(() => {
     const todayStart = new Date();
@@ -445,11 +667,45 @@ export function EventsPage() {
     if (searchQuery.trim()) {
       base = base.filter((ev) => matchesEventSearch(ev, searchQuery));
     }
+    if (filterCategory !== "all") {
+      if (filterCategory === "__none__") {
+        base = base.filter((ev) => {
+          const raw = String(ev.category ?? "").trim();
+          if (!raw) return true;
+          if (raw.toLowerCase() === "null") return true;
+          const normalized = raw.toUpperCase();
+          return (
+            !normalizedCategoryIdSet.has(normalized) &&
+            !normalizedCategoryNameSet.has(normalized)
+          );
+        });
+      } else {
+        const selected = categories.find((cat) => cat.id === filterCategory);
+        const selectedId = selected?.id.trim().toUpperCase();
+        const selectedName = selected?.name.trim().toUpperCase();
+        base = base.filter((ev) => {
+          const raw = String(ev.category ?? "").trim().toUpperCase();
+          if (!raw) return false;
+          return (
+            (selectedId ? raw === selectedId : false) ||
+            (selectedName ? raw === selectedName : false)
+          );
+        });
+      }
+    }
     if (hideLongEvents) {
       base = base.filter((ev) => !isEventLongerThan24Hours(ev));
     }
     return base.filter((ev) => ev.status === "pending").length;
-  }, [events, hideLongEvents, searchQuery]);
+  }, [
+    categories,
+    events,
+    filterCategory,
+    hideLongEvents,
+    normalizedCategoryIdSet,
+    normalizedCategoryNameSet,
+    searchQuery,
+  ]);
 
   React.useEffect(() => {
     if (searchQuery.trim()) {
@@ -460,12 +716,14 @@ export function EventsPage() {
   function resetFilters() {
     setSearchQuery("");
     setFilterStatus("all");
+    setFilterCategory("all");
     setHideLongEvents(false);
   }
 
   function openCreate(date?: Date) {
     setSelectedEvent(null);
     setPrefill(undefined);
+    setActiveIntakePrefill(null);
     setDefaultDate(date);
     setIsFormOpen(true);
   }
@@ -473,6 +731,7 @@ export function EventsPage() {
   function openEditEvent(event: AdminEvent) {
     setSelectedEvent(event);
     setPrefill(undefined);
+    setActiveIntakePrefill(null);
     setDefaultDate(undefined);
     setIsFormOpen(true);
   }
@@ -513,6 +772,14 @@ export function EventsPage() {
         console.error("Notif approve (ignored):", e);
       }
 
+      await logAdminAction({
+        action: "event.approve",
+        entityType: "event",
+        entityId: eventId,
+        entityLabel: before?.title || null,
+        metadata: { old_status: before?.status, new_status: "approved" },
+      });
+
       toast({ title: "Événement approuvé", variant: "success" });
       await loadEvents();
     } catch (e: any) {
@@ -533,6 +800,11 @@ export function EventsPage() {
         .update({ status: "approved" })
         .in("id", eventIds);
       if (error) throw error;
+      await logAdminAction({
+        action: "event.bulk_approve",
+        entityType: "event",
+        metadata: { event_ids: eventIds, count: eventIds.length },
+      });
       toast({
         title: `${eventIds.length} événement${eventIds.length > 1 ? "s" : ""} approuvé${eventIds.length > 1 ? "s" : ""}`,
         variant: "success",
@@ -674,6 +946,68 @@ export function EventsPage() {
     setIsFormOpen(true);
   }
 
+  async function handleEventSaved(eventId: string) {
+    await loadEvents();
+
+    if (activeRequestPrefillId) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const { error } = await supabase
+        .from("user_requests")
+        .update({
+          status: "converted",
+          converted_event_id: eventId,
+          converted_at: new Date().toISOString(),
+          reviewed_by: user?.id || null,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", activeRequestPrefillId);
+
+      if (error) {
+        toast({
+          title: "Demande non synchronisée",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        await logAdminAction({
+          action: "request.convert",
+          entityType: "request",
+          entityId: activeRequestPrefillId,
+          entityLabel: `Événement ${eventId}`,
+          metadata: { created_event_id: eventId, source: "event_form_sheet" },
+        });
+        setActiveRequestPrefillId(null);
+        toast({ title: "Demande marquée convertie", variant: "success" });
+      }
+    }
+
+    if (!activeIntakePrefill?.opportunityId) return;
+
+    const { error } = await supabase
+      .from("event_opportunities")
+      .update({
+        status: "created",
+        created_event_id: eventId,
+        decision_reason: "Evenement cree depuis la collecte.",
+      })
+      .eq("id", activeIntakePrefill.opportunityId);
+
+    if (error) {
+      toast({
+        title: "Collecte non synchronisee",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setActiveIntakePrefill(null);
+    toast({ title: "Opportunite marquee creee", variant: "success" });
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -689,11 +1023,26 @@ export function EventsPage() {
 
   return (
     <div className="space-y-4">
+      <ManagementHero
+        icon={<CalendarDays className="h-5 w-5" />}
+        title="Événements"
+        description="Pilote le calendrier, les imports et les validations depuis un poste unique."
+      >
+        <ManagementStatGrid className="xl:grid-cols-3">
+          <ManagementStat label="Total" value={events.length} hint="Événements chargés" />
+          <ManagementStat label="En attente" value={pendingCount} hint="À valider" />
+          <ManagementStat label="Résultat filtré" value={filteredEvents.length} hint="Vue courante" />
+        </ManagementStatGrid>
+      </ManagementHero>
+
       <EventFiltersBar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         filterStatus={filterStatus}
         onFilterStatusChange={setFilterStatus}
+        filterCategory={filterCategory}
+        onFilterCategoryChange={setFilterCategory}
+        categories={categories}
         hideLongEvents={hideLongEvents}
         onHideLongEventsChange={setHideLongEvents}
         pendingCount={pendingCount}
@@ -701,6 +1050,7 @@ export function EventsPage() {
         onImportFromImageClick={() => setIsImageImportOpen(true)}
         onImportFromUrlClick={() => setIsImportOpen(true)}
         onImportFromFacebookClick={() => setIsFacebookImportOpen(true)}
+        onImportFromInstagramClick={() => setIsInstagramImportOpen(true)}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onResetFilters={resetFilters}
@@ -716,6 +1066,8 @@ export function EventsPage() {
           onOpenArtistsDialog={openArtistsDialog}
           onToggleFull={toggleEventFull}
           onToggleFeatured={toggleEventFeatured}
+          initialAnchor={calendarAnchor}
+          initialView="week"
         />
       ) : (
         <Card className="p-4">
@@ -792,6 +1144,7 @@ export function EventsPage() {
             setSelectedEvent(null);
             setPrefill(undefined);
             setDefaultDate(undefined);
+            setActiveRequestPrefillId(null);
           }
         }}
         locations={locations}
@@ -802,7 +1155,7 @@ export function EventsPage() {
         defaultDate={defaultDate}
         prefill={prefill}
         onTagCreated={() => void loadTags()}
-        onSaved={() => void loadEvents()}
+        onSaved={(eventId) => void handleEventSaved(eventId)}
         onDeleted={() => void loadEvents()}
       />
 
@@ -835,6 +1188,13 @@ export function EventsPage() {
       <FacebookEventImportDialog
         open={isFacebookImportOpen}
         onOpenChange={setIsFacebookImportOpen}
+        organizers={organizers}
+        onImported={handleImported}
+      />
+
+      <InstagramEventImportDialog
+        open={isInstagramImportOpen}
+        onOpenChange={setIsInstagramImportOpen}
         organizers={organizers}
         onImported={handleImported}
       />

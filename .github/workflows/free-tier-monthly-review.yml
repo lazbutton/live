@@ -1,0 +1,83 @@
+name: Revue mensuelle des offres gratuites
+
+on:
+  schedule:
+    - cron: "0 8 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  open-review:
+    name: Ouvrir la revue mensuelle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Créer la checklist si elle n'existe pas
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const now = new Date();
+            const month = now.toISOString().slice(0, 7);
+            const title = `Revue Free/Hobby — ${month}`;
+            const { owner, repo } = context.repo;
+            const defaultBranch = context.payload.repository.default_branch;
+
+            const issues = await github.paginate(
+              github.rest.issues.listForRepo,
+              {
+                owner,
+                repo,
+                state: "all",
+                per_page: 100,
+              },
+            );
+
+            if (issues.some((issue) => issue.title === title)) {
+              core.info(`La revue ${month} existe déjà.`);
+              return;
+            }
+
+            const body = [
+              `Suivre le runbook : [\`docs/FREE_TIER_RUNBOOK.md\`](https://github.com/${owner}/${repo}/blob/${defaultBranch}/docs/FREE_TIER_RUNBOOK.md).`,
+              "",
+              "## Sauvegarde et entretien",
+              "- [ ] Sauvegarde Supabase créée, sommes SHA256 validées et copie hors dépôt effectuée",
+              "- [ ] Audit Storage exécuté en dry-run ; suppression confirmée uniquement si nécessaire",
+              "- [ ] File Notion, checkpoints et rétentions techniques contrôlés",
+              "",
+              "## Quotas à relever",
+              "- [ ] Supabase DB : `___ MB` / alerte `400 MB`",
+              "- [ ] Supabase Storage : `___ MB` / alerte `800 MB`",
+              "- [ ] Supabase egress : `___ GB` / alerte `4 GB`",
+              "- [ ] Supabase MAU : `___` / alerte `40 000`",
+              "- [ ] Supabase Edge Functions : `___` / alerte `400 000`",
+              "- [ ] Vercel Function Invocations : `___` / alerte `800 000`",
+              "- [ ] Vercel CPU actif : `___ h` / alerte `3 h`",
+              "- [ ] Vercel transfert : `___ GB` / alerte `80 GB`",
+              "",
+              "## Santé des automatisations",
+              "- [ ] `notion-sync` a réussi",
+              "- [ ] `cleanup` a réussi",
+              "- [ ] `daily-events` a réussi",
+              "- [ ] `weekly-summary` a réussi",
+              "- [ ] Site public, admin, app Flutter et API Supabase testés",
+              "",
+              "## Décision",
+              "- [ ] Aucun seuil d'alerte dépassé deux mois de suite",
+              "- [ ] Aucune cadence sous-journalière ou garantie de disponibilité devenue indispensable",
+              "- [ ] Le projet reste personnel et non commercial au sens de Vercel Hobby",
+              "- [ ] Les sauvegardes manuelles, la pause possible et l'absence de SLA restent acceptables",
+              "",
+              "Si une case de décision ne peut pas être cochée ou si une campagne menace les quotas, réévaluer immédiatement le retour à Pro.",
+            ].join("\n");
+
+            const issue = await github.rest.issues.create({
+              owner,
+              repo,
+              title,
+              body,
+            });
+
+            core.info(`Revue créée : ${issue.data.html_url}`);

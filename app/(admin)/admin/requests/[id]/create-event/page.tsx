@@ -491,6 +491,13 @@ function CreateEventContent() {
   const requestId = params?.id as string;
   const prefillMode = searchParams.get("prefill");
 
+  useEffect(() => {
+    if (!requestId) return;
+    const query = new URLSearchParams({ request_id: requestId });
+    if (prefillMode) query.set("prefill", prefillMode);
+    router.replace(`/admin/events?${query.toString()}`);
+  }, [prefillMode, requestId, router]);
+
   const [request, setRequest] = useState<UserRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

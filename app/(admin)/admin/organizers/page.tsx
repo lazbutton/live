@@ -1,6 +1,13 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { AdminLayout } from "../components/admin-layout";
+import { OrganizersManagement } from "../components/organizers-management";
 
 export default function OrganizersPage() {
-  redirect("/admin/settings?tab=organizers");
+  return (
+    <AdminLayout title="Organisateurs" breadcrumbItems={[{ label: "Organisateurs" }]}>
+      <OrganizersManagement />
+    </AdminLayout>
+  );
 }
 

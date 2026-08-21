@@ -1,6 +1,12 @@
 export type AdminRequestType = "event_creation" | "event_from_url";
-export type AdminRequestStatus = "pending" | "approved" | "rejected" | "converted";
-export type AdminRequestLane = "to_process" | "ready" | "from_url" | "blocked" | "processed";
+export type AdminRequestStatus =
+  "pending" | "approved" | "rejected" | "converted";
+export type AdminRequestLane =
+  "to_process" | "ready" | "from_url" | "blocked" | "processed";
+export type AdminRequestWorkspaceTab = "queue" | "blocked" | "processed";
+export type AdminRequestQueueFilter =
+  "all" | "ready" | "to_complete" | "from_url";
+export type AdminRequestQueueGroup = "urgent" | "ready" | "to_complete";
 export type AdminRequestTypeFilter = "all" | AdminRequestType;
 export type AdminRequestPeriodFilter = "all" | "24h" | "7d" | "30d";
 export type AdminModerationReason =
@@ -89,6 +95,11 @@ export interface AdminRequestItem {
   isPast: boolean;
   searchText: string;
   raw: AdminRawRequest;
+}
+
+export interface AdminRequestQueueSection {
+  group: AdminRequestQueueGroup;
+  items: AdminRequestItem[];
 }
 
 export const ADMIN_REQUEST_SELECT = [
@@ -228,7 +239,11 @@ export function getAdminRequestMissingFields(raw: AdminRawRequest) {
   const missing: string[] = [];
 
   if (raw.request_type === "event_from_url") {
-    if (!normalizeString(raw.source_url ?? eventData.scraping_url ?? eventData.external_url)) {
+    if (
+      !normalizeString(
+        raw.source_url ?? eventData.scraping_url ?? eventData.external_url,
+      )
+    ) {
       missing.push("URL source");
     }
     return missing;
@@ -241,21 +256,28 @@ export function getAdminRequestMissingFields(raw: AdminRawRequest) {
 
   const hasLocation = Boolean(
     normalizeString(eventData.location_id) ||
-      normalizeString(eventData.location_name) ||
-      normalizeString(raw.location_id) ||
-      normalizeString(raw.location_name)
+    normalizeString(eventData.location_name) ||
+    normalizeString(raw.location_id) ||
+    normalizeString(raw.location_name),
   );
   if (!hasLocation) missing.push("Lieu");
 
   if (!normalizeString(eventData.address)) missing.push("Adresse");
 
-  const hasOrganizer = Boolean(normalizeString(eventData.organizer_id) || normalizeStringArray(eventData.organizer_names).length > 0);
+  const hasOrganizer = Boolean(
+    normalizeString(eventData.organizer_id) ||
+    normalizeStringArray(eventData.organizer_names).length > 0,
+  );
   if (!hasOrganizer) missing.push("Organisateur");
 
   return missing;
 }
 
-function resolveLane(raw: AdminRawRequest, isPast: boolean, isFastConvertible: boolean): AdminRequestLane {
+function resolveLane(
+  raw: AdminRawRequest,
+  isPast: boolean,
+  isFastConvertible: boolean,
+): AdminRequestLane {
   if (raw.status !== "pending") return "processed";
   if (isPast) return "blocked";
   if (raw.request_type === "event_from_url") return "from_url";
@@ -264,16 +286,28 @@ function resolveLane(raw: AdminRawRequest, isPast: boolean, isFastConvertible: b
 }
 
 export function buildAdminRequestItem(raw: AdminRawRequest): AdminRequestItem {
-  const requestType = raw.request_type === "event_from_url" ? "event_from_url" : "event_creation";
+  const requestType =
+    raw.request_type === "event_from_url" ? "event_from_url" : "event_creation";
   const eventData = raw.event_data ?? {};
   const eventDate = normalizeString(eventData.date);
   const eventTimestamp = eventDate ? new Date(eventDate).getTime() : Number.NaN;
-  const isPast = Number.isFinite(eventTimestamp) && eventTimestamp < startOfLocalDay(new Date()).getTime();
-  const missingFields = getAdminRequestMissingFields({ ...raw, request_type: requestType });
-  const isFastConvertible = raw.status === "pending" && requestType === "event_creation" && !isPast && missingFields.length === 0;
+  const isPast =
+    Number.isFinite(eventTimestamp) &&
+    eventTimestamp < startOfLocalDay(new Date()).getTime();
+  const missingFields = getAdminRequestMissingFields({
+    ...raw,
+    request_type: requestType,
+  });
+  const isFastConvertible =
+    raw.status === "pending" &&
+    requestType === "event_creation" &&
+    !isPast &&
+    missingFields.length === 0;
   const title =
     normalizeString(eventData.title) ??
-    (normalizeString(raw.source_url) ? safeDomainFromUrl(raw.source_url as string) : "(sans titre)");
+    (normalizeString(raw.source_url)
+      ? safeDomainFromUrl(raw.source_url as string)
+      : "(sans titre)");
   const sourceUrl =
     normalizeString(raw.source_url) ??
     normalizeString(eventData.external_url) ??
@@ -284,8 +318,14 @@ export function buildAdminRequestItem(raw: AdminRawRequest): AdminRequestItem {
     normalizeString(eventData.address),
   ]);
   const organizerSummary =
-    normalizeStringArray(eventData.organizer_names).join(", ") || normalizeString(eventData.organizer_id) || null;
-  const lane = resolveLane({ ...raw, request_type: requestType }, isPast, isFastConvertible);
+    normalizeStringArray(eventData.organizer_names).join(", ") ||
+    normalizeString(eventData.organizer_id) ||
+    null;
+  const lane = resolveLane(
+    { ...raw, request_type: requestType },
+    isPast,
+    isFastConvertible,
+  );
 
   return {
     id: raw.id,
@@ -307,10 +347,19 @@ export function buildAdminRequestItem(raw: AdminRawRequest): AdminRequestItem {
       raw.internal_notes ??
       raw.notes ??
       null,
-    moderationReason: (normalizeString(raw.moderation_reason) as AdminModerationReason | null) ?? null,
-    contributorMessage: normalizeString(raw.contributor_message) ?? raw.contributor_message ?? null,
+    moderationReason:
+      (normalizeString(
+        raw.moderation_reason,
+      ) as AdminModerationReason | null) ?? null,
+    contributorMessage:
+      normalizeString(raw.contributor_message) ??
+      raw.contributor_message ??
+      null,
     allowUserResubmission: raw.allow_user_resubmission === true,
-    contributorDisplayName: normalizeString(raw.contributor_display_name) ?? raw.contributor_display_name ?? null,
+    contributorDisplayName:
+      normalizeString(raw.contributor_display_name) ??
+      raw.contributor_display_name ??
+      null,
     communityAttributionOptIn: raw.community_attribution_opt_in === true,
     eventDate,
     endDate: normalizeString(eventData.end_date),
@@ -358,11 +407,160 @@ function compareNullableAsc(a: number, b: number) {
   return 0;
 }
 
-export function sortAdminRequests(items: AdminRequestItem[], lane: AdminRequestLane) {
+function matchesRequestCommonFilters(
+  item: AdminRequestItem,
+  {
+    query,
+    typeFilter,
+    periodFilter,
+  }: {
+    query: string;
+    typeFilter: AdminRequestTypeFilter;
+    periodFilter: AdminRequestPeriodFilter;
+  },
+) {
+  if (typeFilter !== "all" && item.requestType !== typeFilter) {
+    return false;
+  }
+
+  if (periodFilter !== "all") {
+    const now = Date.now();
+    const delta =
+      periodFilter === "24h"
+        ? 24 * 60 * 60 * 1000
+        : periodFilter === "7d"
+          ? 7 * 24 * 60 * 60 * 1000
+          : 30 * 24 * 60 * 60 * 1000;
+    const requestedAt = getTimestamp(item.requestedAt);
+    if (!Number.isFinite(requestedAt) || now - requestedAt > delta) {
+      return false;
+    }
+  }
+
+  const normalizedQuery = query.trim().toLowerCase();
+  if (normalizedQuery && !item.searchText.includes(normalizedQuery)) {
+    return false;
+  }
+
+  return true;
+}
+
+export function getRequestWorkspaceTab(
+  lane: AdminRequestLane,
+): AdminRequestWorkspaceTab {
+  if (lane === "blocked") return "blocked";
+  if (lane === "processed") return "processed";
+  return "queue";
+}
+
+export function getQueueFilterFromLane(
+  lane: AdminRequestLane,
+): AdminRequestQueueFilter {
+  if (lane === "ready") return "ready";
+  if (lane === "from_url") return "from_url";
+  if (lane === "to_process") return "to_complete";
+  return "all";
+}
+
+function matchesQueueFilter(
+  item: AdminRequestItem,
+  queueFilter: AdminRequestQueueFilter,
+) {
+  switch (queueFilter) {
+    case "ready":
+      return item.lane === "ready";
+    case "from_url":
+      return item.lane === "from_url";
+    case "to_complete":
+      return item.lane === "to_process";
+    case "all":
+    default:
+      return true;
+  }
+}
+
+function isEventWithinNextDays(item: AdminRequestItem, days: number) {
+  const eventTimestamp = getTimestamp(item.eventDate);
+  if (!Number.isFinite(eventTimestamp)) return false;
+  const today = startOfLocalDay(new Date()).getTime();
+  const limit = today + days * 24 * 60 * 60 * 1000;
+  return eventTimestamp >= today && eventTimestamp < limit;
+}
+
+function sortQueueItems(items: AdminRequestItem[]) {
+  return [...items].sort((left, right) => {
+    const leftEvent = getTimestamp(left.eventDate);
+    const rightEvent = getTimestamp(right.eventDate);
+    const eventComparison = compareNullableAsc(leftEvent, rightEvent);
+    if (eventComparison !== 0) return eventComparison;
+    return getTimestamp(right.requestedAt) - getTimestamp(left.requestedAt);
+  });
+}
+
+export function groupUnifiedQueue(
+  items: AdminRequestItem[],
+  {
+    query = "",
+    typeFilter = "all",
+    periodFilter = "all",
+    queueFilter = "all",
+  }: {
+    query?: string;
+    typeFilter?: AdminRequestTypeFilter;
+    periodFilter?: AdminRequestPeriodFilter;
+    queueFilter?: AdminRequestQueueFilter;
+  } = {},
+): AdminRequestQueueSection[] {
+  const queueItems = items.filter((item) => {
+    if (item.status !== "pending") return false;
+    if (item.lane === "blocked" || item.lane === "processed") return false;
+    if (!matchesQueueFilter(item, queueFilter)) return false;
+    return matchesRequestCommonFilters(item, {
+      query,
+      typeFilter,
+      periodFilter,
+    });
+  });
+
+  const urgent = sortQueueItems(
+    queueItems.filter((item) => isEventWithinNextDays(item, 7)),
+  );
+  const urgentIds = new Set(urgent.map((item) => item.id));
+  const ready = sortQueueItems(
+    queueItems.filter(
+      (item) => !urgentIds.has(item.id) && item.isFastConvertible,
+    ),
+  );
+  const remainingIds = new Set([...urgentIds, ...ready.map((item) => item.id)]);
+  const toComplete = sortQueueItems(
+    queueItems.filter((item) => !remainingIds.has(item.id)),
+  );
+
+  const sections: AdminRequestQueueSection[] = [
+    { group: "urgent", items: urgent },
+    { group: "ready", items: ready },
+    { group: "to_complete", items: toComplete },
+  ];
+
+  return sections.filter((section) => section.items.length > 0);
+}
+
+export function flattenQueueSections(sections: AdminRequestQueueSection[]) {
+  return sections.flatMap((section) => section.items);
+}
+
+export function sortAdminRequests(
+  items: AdminRequestItem[],
+  lane: AdminRequestLane,
+) {
   return [...items].sort((left, right) => {
     if (lane === "processed") {
-      const leftProcessedAt = getTimestamp(left.convertedAt ?? left.reviewedAt ?? left.requestedAt);
-      const rightProcessedAt = getTimestamp(right.convertedAt ?? right.reviewedAt ?? right.requestedAt);
+      const leftProcessedAt = getTimestamp(
+        left.convertedAt ?? left.reviewedAt ?? left.requestedAt,
+      );
+      const rightProcessedAt = getTimestamp(
+        right.convertedAt ?? right.reviewedAt ?? right.requestedAt,
+      );
       return rightProcessedAt - leftProcessedAt;
     }
 
@@ -395,12 +593,14 @@ export function countRequestsByLane(items: AdminRequestItem[]) {
       from_url: 0,
       blocked: 0,
       processed: 0,
-    }
+    },
   );
 }
 
 export function countActionablePendingRequests(items: AdminRequestItem[]) {
-  return items.filter((item) => item.status === "pending" && item.lane !== "blocked").length;
+  return items.filter(
+    (item) => item.status === "pending" && item.lane !== "blocked",
+  ).length;
 }
 
 export function filterAdminRequests(
@@ -415,33 +615,12 @@ export function filterAdminRequests(
     query: string;
     typeFilter: AdminRequestTypeFilter;
     periodFilter: AdminRequestPeriodFilter;
-  }
+  },
 ) {
   let next = items.filter((item) => item.lane === lane);
-
-  if (typeFilter !== "all") {
-    next = next.filter((item) => item.requestType === typeFilter);
-  }
-
-  if (periodFilter !== "all") {
-    const now = Date.now();
-    const delta =
-      periodFilter === "24h"
-        ? 24 * 60 * 60 * 1000
-        : periodFilter === "7d"
-          ? 7 * 24 * 60 * 60 * 1000
-          : 30 * 24 * 60 * 60 * 1000;
-
-    next = next.filter((item) => {
-      const requestedAt = getTimestamp(item.requestedAt);
-      return Number.isFinite(requestedAt) && now - requestedAt <= delta;
-    });
-  }
-
-  const normalizedQuery = query.trim().toLowerCase();
-  if (normalizedQuery) {
-    next = next.filter((item) => item.searchText.includes(normalizedQuery));
-  }
+  next = next.filter((item) =>
+    matchesRequestCommonFilters(item, { query, typeFilter, periodFilter }),
+  );
 
   return sortAdminRequests(next, lane);
 }

@@ -8,12 +8,10 @@ import {
 } from "@/lib/notifications";
 import {
   addDaysToLocalDate,
-  formatHourMinute,
   getIsoLocalDate,
   getIsoLocalTime,
   getLocalWeekday,
   getZonedDateParts,
-  isWithinScheduledWindow,
   zonedTimeToUtc,
 } from "@/lib/cron-timezone";
 
@@ -25,6 +23,8 @@ const WEEKLY_FLOW = {
   honorsPreferences: true,
   honorsCategories: true,
   latestTokenOnly: true,
+  scheduleMode: "vercel_hobby_weekly",
+  schedulePrecision: "hour",
 };
 const MAX_ROUTE_DIAGNOSTICS = 25;
 
@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
     // Vérifier si les notifications globales sont activées
     const { data: globalSettings } = await supabase
       .from("notification_settings")
-      .select("is_active, notification_time")
+      .select("is_active")
       .maybeSingle();
 
     if (!globalSettings || !globalSettings.is_active) {
@@ -188,40 +188,6 @@ export async function GET(request: NextRequest) {
         notificationsSent: 0,
         flow: WEEKLY_FLOW,
       });
-    }
-
-    const currentHour = nowInParis.hour;
-    const currentMinute = nowInParis.minute;
-
-    if (globalSettings.notification_time) {
-      const [configuredHour, configuredMinute] = globalSettings.notification_time.split(":").map(Number);
-      const sendWindowMinutes = Number(process.env.CRON_SEND_WINDOW_MINUTES ?? 15);
-      const isInTimeWindow = isWithinScheduledWindow({
-        currentHour,
-        currentMinute,
-        scheduledHour: configuredHour,
-        scheduledMinute: configuredMinute,
-        windowMinutes: sendWindowMinutes,
-      });
-
-      if (!isInTimeWindow) {
-        console.log(
-          `ℹ️ Pas dans la fenêtre d'envoi hebdomadaire Paris. Heure actuelle: ${formatHourMinute(currentHour, currentMinute)}, Heure configurée: ${formatHourMinute(configuredHour, configuredMinute)}, Fenêtre: ±${sendWindowMinutes} min`,
-        );
-        return NextResponse.json({
-          success: true,
-          message: "Pas dans la fenêtre d'envoi hebdomadaire",
-          eventsCount: eventsWithCategory.length,
-          notificationsSent: 0,
-          flow: WEEKLY_FLOW,
-          debug: {
-            timezone: "Europe/Paris",
-            currentTime: formatHourMinute(currentHour, currentMinute),
-            configuredTime: formatHourMinute(configuredHour, configuredMinute),
-            sendWindowMinutes,
-          },
-        });
-      }
     }
 
     let enabledUsers;

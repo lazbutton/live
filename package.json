@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "backup:supabase": "./scripts/backup-supabase-free-tier.sh",
+    "storage:audit": "node scripts/audit-storage.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
