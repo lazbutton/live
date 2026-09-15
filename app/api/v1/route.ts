@@ -27,6 +27,7 @@ export function GET() {
         create: `${origin}/api/v1/events`,
         createFromUrl: `${origin}/api/v1/events/from-url`,
         extractFromImage: `${origin}/api/v1/events/extract-from-image`,
+        radioCampus: `${origin}/api/v1/radio-campus`,
       },
     }),
   );

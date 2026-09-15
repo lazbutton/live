@@ -17,6 +17,7 @@ import {
   extractFromImageBodySchema,
   featuredEventsQuerySchema,
   publicEventSchema,
+  radioCampusResponseSchema,
   eventSubmissionListResponseSchema,
   submissionsQuerySchema,
 } from "./events/schemas";
@@ -30,6 +31,7 @@ registry.register("CreateEventBody", createEventBodySchema);
 registry.register("CreateEventFromUrlBody", createEventFromUrlBodySchema);
 registry.register("CreateEventResponse", createEventResponseSchema);
 registry.register("EventSubmissionListResponse", eventSubmissionListResponseSchema);
+registry.register("RadioCampusResponse", radioCampusResponseSchema);
 registry.register("ApiError", apiErrorSchema);
 
 registry.registerComponent("securitySchemes", "BearerAuth", {
@@ -46,6 +48,26 @@ const errorResponse = (description: string) => ({
     "application/json": {
       schema: apiErrorSchema,
     },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/radio-campus",
+  tags: ["Partners"],
+  summary: "Agenda Radio Campus Orléans (embed rapide)",
+  description:
+    "Point d'entrée dédié au site Radio Campus : payload allégé (sans description ni artistes), fenêtre 90 jours, cache CDN 60s. Aucun paramètre. CORS `*`.",
+  responses: {
+    200: {
+      description: "Événements Radio Campus à venir ou en cours",
+      content: {
+        "application/json": {
+          schema: radioCampusResponseSchema,
+        },
+      },
+    },
+    500: errorResponse("Erreur serveur"),
   },
 });
 
@@ -269,7 +291,7 @@ export function buildOpenApiDocument() {
       title: "OutLive Events API",
       version: "1.0.0",
       description:
-        "API publique des événements OutLive : lecture des événements approuvés et soumission communautaire (modération).",
+        "API publique des événements OutLive : lecture des événements approuvés et soumission communautaire (modération). CORS ouvert sur les GET (`*`) : un projet React peut appeler `https://www.outlive.fr/api/v1/events` directement. Guide d'intégration : docs/EVENTS_API.md dans le dépôt live-admin.",
       contact: {
         name: "OutLive",
         url: getSiteUrl(),
@@ -285,6 +307,10 @@ export function buildOpenApiDocument() {
       {
         name: "Events",
         description: "Catalogue public et soumissions utilisateur",
+      },
+      {
+        name: "Partners",
+        description: "Feeds dédiés, payload allégé et cache CDN",
       },
     ],
   });

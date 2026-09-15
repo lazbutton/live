@@ -380,9 +380,39 @@ export const extractFromImageBodySchema = z
   })
   .openapi("ExtractEventFromImageBody");
 
+export const radioCampusEventSchema = z
+  .object({
+    id: uuidSchema,
+    title: z.string(),
+    date: z.string().openapi({ format: "date-time" }),
+    endDate: z.string().nullable().openapi({ format: "date-time" }),
+    imageUrl: z.string().nullable(),
+    address: z.string().nullable(),
+    locationName: z.string().nullable(),
+    externalUrl: z.string().nullable(),
+    externalUrlLabel: z.string().nullable(),
+    url: z.string().openapi({
+      description: "Page publique OutLive de l'événement",
+    }),
+  })
+  .openapi("RadioCampusEvent");
+
+export const radioCampusResponseSchema = z
+  .object({
+    partner: z.object({
+      slug: z.literal("radio-campus"),
+      name: z.string(),
+    }),
+    generatedAt: z.string().openapi({ format: "date-time" }),
+    data: z.array(radioCampusEventSchema),
+  })
+  .openapi("RadioCampusResponse");
+
 export type EventListQuery = z.infer<typeof eventListQuerySchema>;
 export type FeaturedEventsQuery = z.infer<typeof featuredEventsQuerySchema>;
 export type PublicEvent = z.infer<typeof publicEventSchema>;
 export type CreateEventBody = z.infer<typeof createEventBodySchema>;
 export type CreateEventFromUrlBody = z.infer<typeof createEventFromUrlBodySchema>;
 export type EventSubmission = z.infer<typeof eventSubmissionSchema>;
+export type RadioCampusEvent = z.infer<typeof radioCampusEventSchema>;
+export type RadioCampusResponse = z.infer<typeof radioCampusResponseSchema>;

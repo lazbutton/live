@@ -18,6 +18,17 @@ export function publicGetJson(body: unknown, init?: ResponseInit) {
   return withPublicGetCors(NextResponse.json(body, init));
 }
 
+export const PARTNER_FEED_CACHE_CONTROL =
+  "public, max-age=60, s-maxage=120, stale-while-revalidate=600";
+
+export function publicCachedGetJson(body: unknown, init?: ResponseInit) {
+  const response = publicGetJson(body, init);
+  response.headers.set("Cache-Control", PARTNER_FEED_CACHE_CONTROL);
+  response.headers.set("CDN-Cache-Control", PARTNER_FEED_CACHE_CONTROL);
+  response.headers.set("Vercel-CDN-Cache-Control", PARTNER_FEED_CACHE_CONTROL);
+  return response;
+}
+
 export function publicGetOptions() {
   return new NextResponse(null, {
     status: 204,
