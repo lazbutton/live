@@ -21,7 +21,6 @@ import {
 } from "@/lib/user-requests/create-event-request";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 export function OPTIONS() {
   return publicGetOptions();

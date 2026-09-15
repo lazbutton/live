@@ -31,8 +31,8 @@ Filtres utiles sur `GET /api/v1/events` :
 | Query | Exemple | Rôle |
 |---|---|---|
 | `cityId` / `cityIds` | UUID | Ville |
-| `locationId` / `locationIds` | UUID | Lieu (venue de l’événement) |
-| `organizerId` / `organizerIds` | UUID | Organisateur (ou lieu utilisé comme organisateur) |
+| `locationId` / `locationIds` | UUID | Lieu (venue de l’événement). Plusieurs IDs = union |
+| `organizerId` / `organizerIds` | UUID | Organisateur, ou lieu utilisé comme organisateur. Plusieurs IDs = union. Combiné avec un lieu = intersection |
 | `startDate` / `endDate` | `2026-09-14` | Fenêtre (défaut : aujourd’hui → +13 jours) |
 | `includeOngoing` | `true` | Inclure les événements déjà commencés |
 | `category` | `concert` | Catégorie |

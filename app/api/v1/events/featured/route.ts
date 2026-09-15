@@ -12,7 +12,6 @@ import { featuredEventsQuerySchema } from "@/lib/api/v1/events/schemas";
 import { listFeaturedEvents } from "@/lib/api/v1/events/service";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 export function OPTIONS() {
   return publicGetOptions();
