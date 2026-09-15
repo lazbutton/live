@@ -384,6 +384,7 @@ export const radioCampusEventSchema = z
   .object({
     id: uuidSchema,
     title: z.string(),
+    description: z.string().nullable(),
     date: z.string().openapi({ format: "date-time" }),
     endDate: z.string().nullable().openapi({ format: "date-time" }),
     imageUrl: z.string().nullable(),

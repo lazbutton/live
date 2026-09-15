@@ -13,12 +13,13 @@ export const RADIO_CAMPUS_ORGANIZER_ID =
   process.env.RADIO_CAMPUS_ORGANIZER_ID?.trim() ||
   "9d6d803d-4a7e-4118-beba-1744a1159b99";
 
-const DAYS_AHEAD = 90;
-const LIMIT = 40;
+const DAYS_AHEAD = 365;
+const LIMIT = 100;
 
 const SLIM_SELECT = [
   "id",
   "title",
+  "description",
   "date",
   "end_date",
   "image_url",
@@ -62,6 +63,7 @@ function mapSlimEvent(row: Record<string, unknown>): RadioCampusEvent | null {
   return {
     id,
     title,
+    description: asString(row.description),
     date,
     endDate: asString(row.end_date),
     imageUrl: asString(row.image_url),
@@ -123,6 +125,6 @@ export async function listRadioCampusEvents(
 
 export const getCachedRadioCampusFeed = unstable_cache(
   async () => listRadioCampusEvents(createAnonClient()),
-  ["api-v1-radio-campus", RADIO_CAMPUS_ORGANIZER_ID],
+  ["api-v1-radio-campus-v2", RADIO_CAMPUS_ORGANIZER_ID],
   { revalidate: 60 },
 );
