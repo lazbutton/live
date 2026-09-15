@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-import { sendNotificationToAdmins } from "@/lib/notifications/admin";
+import {
+  createEventUserRequest,
+  createdRequestSuccessMessage,
+  type CreateEventRequestInput,
+} from "@/lib/user-requests/create-event-request";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-type CreateEventCreationRequestBody = {
+type LegacyCreateEventCreationRequestBody = {
   requestType: "event_creation";
-  eventData: Record<string, any>;
+  eventData: Record<string, unknown>;
   contributorDisplayName?: string | null;
   communityAttributionOptIn?: boolean;
 };
 
-type CreateEventFromUrlRequestBody = {
+type LegacyCreateEventFromUrlRequestBody = {
   requestType: "event_from_url";
   locationId?: string | null;
   locationName: string;
@@ -22,9 +26,9 @@ type CreateEventFromUrlRequestBody = {
   communityAttributionOptIn?: boolean;
 };
 
-type CreateUserRequestBody =
-  | CreateEventCreationRequestBody
-  | CreateEventFromUrlRequestBody;
+type LegacyCreateUserRequestBody =
+  | LegacyCreateEventCreationRequestBody
+  | LegacyCreateEventFromUrlRequestBody;
 
 function createUserScopedClient(token: string) {
   return createClient(supabaseUrl, supabaseAnonKey, {
@@ -34,22 +38,6 @@ function createUserScopedClient(token: string) {
       },
     },
   });
-}
-
-function buildNotificationBody(payload: {
-  requestType: string;
-  eventTitle?: string | null;
-}) {
-  const requestTypeLabel =
-    payload.requestType === "event_from_url" ? "depuis URL" : "complète";
-  const title =
-    payload.eventTitle?.toString().trim() || "Nouvelle demande";
-
-  if (title !== "Nouvelle demande") {
-    return `Nouvelle demande ${requestTypeLabel}: ${title}`;
-  }
-
-  return `Nouvelle demande ${requestTypeLabel} d'événement`;
 }
 
 export async function POST(request: NextRequest) {
@@ -78,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json().catch(() => null)) as
-      | CreateUserRequestBody
+      | LegacyCreateUserRequestBody
       | null;
 
     if (!body || typeof body.requestType !== "string") {
@@ -88,14 +76,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let createdRequest:
-      | {
-          id: string;
-          request_type: string;
-          event_data?: Record<string, any> | null;
-          source_url?: string | null;
-        }
-      | null = null;
+    let input: CreateEventRequestInput;
 
     if (body.requestType === "event_creation") {
       if (!body.eventData || typeof body.eventData !== "object") {
@@ -104,81 +85,21 @@ export async function POST(request: NextRequest) {
           { status: 400 },
         );
       }
-
-      const { data, error } = await supabase
-        .from("user_requests")
-        .insert({
-          request_type: "event_creation",
-          requested_by: user.id,
-          event_data: body.eventData,
-          status: "pending",
-          contributor_display_name:
-            body.contributorDisplayName?.trim() || null,
-          community_attribution_opt_in:
-            body.communityAttributionOptIn ?? false,
-        })
-        .select("id, request_type, event_data, source_url")
-        .single();
-
-      if (error || !data) {
-        return NextResponse.json(
-          {
-            error:
-              error?.message ||
-              "Impossible de créer la demande event_creation",
-          },
-          { status: 400 },
-        );
-      }
-
-      createdRequest = data;
+      input = {
+        requestType: "event_creation",
+        eventData: body.eventData,
+        contributorDisplayName: body.contributorDisplayName,
+        communityAttributionOptIn: body.communityAttributionOptIn,
+      };
     } else if (body.requestType === "event_from_url") {
-      if (
-        typeof body.locationName !== "string" ||
-        body.locationName.trim().length === 0 ||
-        typeof body.sourceUrl !== "string" ||
-        body.sourceUrl.trim().length === 0
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              "locationName et sourceUrl sont requis pour event_from_url",
-          },
-          { status: 400 },
-        );
-      }
-
-      const { data, error } = await supabase
-        .from("user_requests")
-        .insert({
-          request_type: "event_from_url",
-          requested_by: user.id,
-          location_id: body.locationId?.trim().length
-            ? body.locationId!.trim()
-            : null,
-          location_name: body.locationName.trim(),
-          source_url: body.sourceUrl.trim(),
-          status: "pending",
-          contributor_display_name:
-            body.contributorDisplayName?.trim() || null,
-          community_attribution_opt_in:
-            body.communityAttributionOptIn ?? false,
-        })
-        .select("id, request_type, event_data, source_url")
-        .single();
-
-      if (error || !data) {
-        return NextResponse.json(
-          {
-            error:
-              error?.message ||
-              "Impossible de créer la demande event_from_url",
-          },
-          { status: 400 },
-        );
-      }
-
-      createdRequest = data;
+      input = {
+        requestType: "event_from_url",
+        locationId: body.locationId,
+        locationName: body.locationName,
+        sourceUrl: body.sourceUrl,
+        contributorDisplayName: body.contributorDisplayName,
+        communityAttributionOptIn: body.communityAttributionOptIn,
+      };
     } else {
       return NextResponse.json(
         { error: "requestType non supporté" },
@@ -186,35 +107,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const notificationResult = await sendNotificationToAdmins({
-      title: "📋 Nouvelle demande",
-      body: buildNotificationBody({
-        requestType: createdRequest.request_type,
-        eventTitle: createdRequest.event_data?.title?.toString(),
-      }),
-      data: {
-        type: "new_request",
-        request_id: createdRequest.id,
-        request_type: createdRequest.request_type,
-        event_title: createdRequest.event_data?.title?.toString() ?? null,
-        source_url: createdRequest.source_url ?? null,
-      },
+    const created = await createEventUserRequest({
+      accessToken: token,
+      userId: user.id,
+      input,
     });
+
+    if (!created.ok) {
+      return NextResponse.json(
+        { error: created.message },
+        { status: created.status },
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      request_id: createdRequest.id,
+      request_id: created.request.id,
       status: "pending",
-      message:
-        createdRequest.request_type === "event_from_url"
-          ? "Demande de création d'événement depuis URL soumise avec succès. Elle sera examinée par un administrateur."
-          : "Demande de création d'événement soumise avec succès. Elle sera examinée par un administrateur.",
+      message: createdRequestSuccessMessage(created.request.request_type),
       notification: {
-        success: notificationResult.success,
-        sent: notificationResult.sent,
-        failed: notificationResult.failed,
-        errors: notificationResult.errors,
-        diagnostics: notificationResult.diagnostics,
+        success: created.notification.success,
+        sent: created.notification.sent,
+        failed: created.notification.failed,
+        errors: created.notification.errors,
+        diagnostics: created.notification.diagnostics,
       },
       flow: {
         route: "/api/user-requests",
@@ -223,10 +139,9 @@ export async function POST(request: NextRequest) {
         sender: "sendNotificationToAdmins",
       },
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || "Erreur serveur" },
-      { status: 500 },
-    );
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : "Erreur serveur";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
