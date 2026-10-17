@@ -1,170 +1,182 @@
-# Types de Notifications Disponibles pour les Utilisateurs
+# Recap Notifications Utilisateur et Admin
 
-> Attention
->
-> Ce document decrit en grande partie un ancien systeme devenu obsolete.
->
-> Les rappels individuels par evenement ont ete retires du produit.
-> Le systeme actuel conserve uniquement les notifications par categories suivies avec deux frequences: `daily` et `weekly`.
-> Pour l'etat cible et les regles produit a suivre, se referer a `docs/NOTIFICATION_TYPES_ADMIN copy.md`.
+## Objectif produit
 
-## Vue d'ensemble
+Pour la premiere sortie, le produit ne garde qu'un seul systeme de notifications utilisateur :
 
-Les utilisateurs de l'application peuvent recevoir différents types de notifications selon leurs préférences et leurs interactions avec les événements. Ce document décrit tous les types de notifications disponibles et comment ils fonctionnent.
+- des notifications push par categories suivies
+- avec deux rythmes seulement : `daily` et `weekly`
+- sans rappels individuels par evenement
 
----
+Le role de l'admin est de piloter l'envoi global et l'heure d'envoi, puis de laisser le backend selectionner les bons utilisateurs et les bons evenements.
 
-## 1. Notifications de Rappel d'Événements (Event Reminders)
+## Ce qui doit rester cote utilisateur
 
-### Description
-Notifications locales programmées par l'utilisateur pour se rappeler d'événements spécifiques.
+- un switch global d'activation des notifications
+- un choix de frequence :
+  `daily` = tous les jours
+  `weekly` = debut de semaine
+- une liste de categories suivies
+- depuis la fiche ou la modale d'un evenement :
+  suivre ou ne plus suivre la categorie de cet evenement
 
-### Caractéristiques
-- **Type** : Notifications locales (programmées sur l'appareil de l'utilisateur)
-- **Contrôle** : Géré individuellement par l'utilisateur pour chaque événement
-- **Activation** : Via le menu contextuel d'un événement (icône de notification)
-- **Désactivation** : Via le même menu contextuel
+## Ce qui ne doit plus etre utilise
 
-### Options de Timing Disponibles
-L'utilisateur peut choisir parmi 3 options pour recevoir un rappel :
+- aucun rappel individuel par evenement
+- aucun timing `1 jour`, `3 heures`, `1 heure`
+- aucune programmation locale liee a un evenement
+- aucune logique produit basee sur `event_notifications`
 
-1. **1 jour avant l'événement**
-   - Disponible uniquement si l'événement a lieu dans plus de 24 heures
-   - Message : "L'événement a lieu demain à [lieu]"
+## Tables et sources utiles
 
-2. **3 heures avant l'événement**
-   - Disponible si l'événement a lieu dans plus de 3 heures
-   - Message : "L'événement a lieu dans 3h à [lieu]"
+### Preferences utilisateur
 
-3. **1 heure avant l'événement**
-   - Disponible si l'événement a lieu dans plus de 1 heure
-   - Message : "L'événement a lieu dans 1h à [lieu]"
+- `user_notification_preferences`
+  contient l'etat global utilisateur, la frequence choisie et les categories suivies via `category_ids`
+- `user_notification_categories`
+  si cette table existe encore, la considerer comme legacy tant qu'elle n'est plus la source lue par le backend
+- `user_push_tokens`
+  contient les tokens push exploitables pour l'envoi
 
-### Comportement
-- Les options non disponibles (selon la date de l'événement) sont automatiquement masquées
-- L'utilisateur peut changer le timing à tout moment en réactivant la notification
-- Les notifications sont automatiquement annulées si l'événement est supprimé ou modifié
-- Format du message : "Rappel : [Titre de l'événement]" + "L'événement a lieu [timing] à [lieu]"
+### Reglages admin
 
----
+- `notification_settings`
+  contient au minimum :
+  `is_active`
+  `notification_time`
 
-## 2. Notifications Push (Notifications Système)
+## Regles d'eligibilite utilisateur
 
-### Description
-Notifications push envoyées par l'administrateur pour informer les utilisateurs des nouveaux événements ou des mises à jour importantes.
+Un utilisateur est eligible a un envoi seulement si toutes les conditions suivantes sont vraies :
 
-### Caractéristiques
-- **Type** : Notifications push (FCM pour Android, APNs pour iOS)
-- **Contrôle** : Géré par l'administrateur via l'écran "Paramètres de notifications"
-- **Activation** : L'utilisateur doit activer les notifications dans ses préférences
-- **Permissions** : Nécessite l'autorisation système de l'appareil
+1. l'envoi global admin est actif
+2. l'utilisateur a active les notifications
+3. la frequence utilisateur correspond a la passe en cours
+4. l'utilisateur suit au moins une categorie
+5. l'utilisateur possede au moins un token push valide
+6. au moins un evenement a envoyer appartient a une categorie suivie par cet utilisateur
 
-### Configuration Utilisateur
+## Gestion des frequences
 
-#### Fréquence de Réception
-L'utilisateur peut choisir la fréquence à laquelle il souhaite recevoir les notifications push :
+### Envoi quotidien
 
-1. **Tous les jours** (`daily`)
-   - L'utilisateur reçoit des notifications quotidiennement selon l'heure configurée par l'admin
+- cible uniquement les utilisateurs en `daily`
+- part a l'heure definie dans `notification_settings.notification_time`
+- ne doit contenir que des evenements encore pertinents au moment de l'envoi
+- doit respecter le filtre par categories suivies
 
-2. **Début de semaine** (`weekly`)
-   - L'utilisateur reçoit des notifications une fois par semaine (début de semaine)
+### Envoi debut de semaine
 
-3. **Jamais** (`never`)
-   - L'utilisateur ne reçoit aucune notification push (mais peut toujours activer les rappels d'événements)
+- cible uniquement les utilisateurs en `weekly`
+- part lui aussi a l'heure definie dans `notification_settings.notification_time`
+- doit utiliser une convention unique pour le debut de semaine
+- cette convention doit etre la meme partout dans l'admin, le backend et les statistiques
 
-#### Filtrage par Catégories
-L'utilisateur peut sélectionner les catégories d'événements pour lesquelles il souhaite recevoir des notifications :
-- Les catégories sélectionnées déterminent quels événements déclenchent une notification
-- Si aucune catégorie n'est sélectionnée, l'utilisateur ne reçoit pas de notifications push
+Recommandation produit : fixer explicitement le debut de semaine au lundi et ne pas laisser cette regle implicite.
 
-### Configuration Administrateur
+Implementation attendue :
 
-#### Activation Globale
-- L'administrateur peut activer/désactiver l'envoi de notifications pour tous les utilisateurs
-- Si désactivé, aucun utilisateur ne recevra de notifications push (même s'ils ont activé les notifications)
+- la passe `weekly` part le lundi
+- la fenetre couverte va du lundi au dimanche
+- l'heure d'envoi reste lue depuis `notification_settings.notification_time`
 
-#### Heure d'Envoi
-- L'administrateur peut configurer l'heure à laquelle les notifications sont envoyées
-- Format : HH:MM (ex: 09:00)
-- Cette heure s'applique à tous les utilisateurs qui ont choisi la fréquence "Tous les jours"
+## Regles de selection des evenements
 
-#### Notification de Test
-- L'administrateur peut envoyer une notification de test à son propre appareil
-- Utile pour vérifier que le système de notifications fonctionne correctement
+Pour chaque passe d'envoi :
 
----
+- ne garder que les evenements a venir
+- exclure les evenements deja termines
+- ne garder que les evenements appartenant aux categories suivies par l'utilisateur
+- ne pas envoyer un evenement hors fenetre de la passe concernee
+- agreger les evenements d'un meme utilisateur dans un seul envoi par passe
 
-## 3. Notifications de Test
+## Regles de selection des destinataires
 
-### Description
-Notifications envoyées par l'administrateur pour tester le système de notifications.
+Le backend ou l'admin doivent raisonner ainsi :
 
-### Caractéristiques
-- **Type** : Notification push de test
-- **Contrôle** : Uniquement par l'administrateur
-- **Destinataire** : L'administrateur qui envoie le test
-- **Format** : "Notification de test" + message personnalisé
+- une passe `daily` ne regarde que les utilisateurs `daily`
+- une passe `weekly` ne regarde que les utilisateurs `weekly`
+- un utilisateur sans categorie suivie ne doit rien recevoir
+- un utilisateur sans token push ne doit rien recevoir
+- un utilisateur desactive globalement ne doit rien recevoir
 
-### Utilisation
-- Accessible via l'écran "Paramètres de notifications" (admin uniquement)
-- Permet de vérifier que les permissions système sont correctement configurées
-- Permet de tester le format et l'affichage des notifications
+## Cas legacy a traiter
 
----
+Le projet contenait un ancien systeme de rappels individuels. Il faut le considerer comme obsolete.
 
-## Résumé des Contrôles Utilisateur
+- `event_notifications` ne doit plus etre utilise pour piloter les envois produit
+- `default_notification_timings` ne doit plus etre utilise
+- les anciens rappels locaux doivent etre consideres comme legacy
+- si des lignes legacy existent encore, elles ne doivent plus influencer la logique d'envoi admin
+- les endpoints legacy lies aux rappels individuels doivent etre desactives ou retournes comme obsoletes
 
-| Type de Notification | Contrôle Utilisateur | Contrôle Admin | Permissions Système Requises |
-|---------------------|---------------------|----------------|------------------------------|
-| Rappels d'événements | ✅ Par événement | ❌ | ✅ |
-| Notifications push | ✅ Préférences globales | ✅ Activation globale | ✅ |
-| Notifications de test | ❌ | ✅ | ✅ |
+## Convention recommandee pour l'admin
 
----
+Pour que l'admin soit clair et exploitable :
 
-## Notes Importantes pour l'Administrateur
+- un interrupteur pour activer ou couper tous les envois
+- une heure unique d'envoi
+- une distinction visuelle entre la passe `daily` et la passe `weekly`
+- un ecran de test qui n'impacte pas la logique produit
+- un recap du nombre de destinataires eligibles avant envoi si tu ajoutes une previsualisation
 
-1. **Permissions Système** : Tous les types de notifications nécessitent que l'utilisateur ait accordé les permissions système sur son appareil.
+## Notification de test admin
 
-2. **Activation Globale** : Si vous désactivez les notifications push dans les paramètres admin, aucun utilisateur ne recevra de notifications push, même s'ils ont activé les notifications dans leurs préférences.
+La notification de test doit rester separee des envois produit.
 
-3. **Fréquence et Catégories** : Les utilisateurs peuvent personnaliser leur expérience en choisissant la fréquence et les catégories d'événements qui les intéressent.
+- elle ne doit pas utiliser les categories suivies
+- elle ne doit pas dependre de la frequence `daily` ou `weekly`
+- elle sert seulement a verifier le pipeline push
 
-4. **Rappels d'Événements** : Ces notifications sont entièrement gérées par l'utilisateur et ne peuvent pas être désactivées par l'administrateur. Elles sont programmées localement sur l'appareil de l'utilisateur.
+## Points d'attention pour "bon moment" et "bons utilisateurs"
 
-5. **Compatibilité** : Les notifications push ne sont pas supportées sur le web. Seules les notifications locales (rappels d'événements) fonctionnent sur toutes les plateformes.
+### Bon moment
 
----
+- lire `notification_time` depuis `notification_settings`
+- utiliser toujours la meme timezone de reference
+- eviter les doubles envois sur une meme fenetre
+- definir clairement la fenetre couverte par `daily`
+- definir clairement la fenetre couverte par `weekly`
 
-## Messages de Notification
+### Bons utilisateurs
 
-### Rappels d'Événements
-- **Titre** : "Rappel : [Titre de l'événement]"
-- **Corps** : "L'événement a lieu [timing] à [lieu]"
-  - Exemples :
-    - "L'événement a lieu demain à Salle de concert"
-    - "L'événement a lieu dans 3h à Parc central"
-    - "L'événement a lieu dans 1h à Théâtre municipal"
+- filtrer d'abord sur `is_active` cote admin
+- filtrer ensuite sur `is_enabled` cote utilisateur
+- filtrer ensuite sur la frequence
+- filtrer ensuite sur l'intersection de categories
+- filtrer enfin sur la presence d'un token push
 
-### Notifications Push
-- **Titre** : Configuré par l'administrateur
-- **Corps** : Configuré par l'administrateur
-- **Timing** : Selon la fréquence choisie par l'utilisateur et l'heure configurée par l'admin
+## Anti-doublons et securite produit
 
----
+- un seul envoi par utilisateur et par passe
+- pas de multiplication d'envois si plusieurs categories matchent
+- pas d'envoi si aucun evenement ne correspond
+- pas d'envoi si la passe admin est desactivee
+- pas de fallback vers les anciens rappels evenementiels
 
-## Dépannage
+## Checklist de mise en oeuvre admin / backend
 
-### Si un utilisateur ne reçoit pas de notifications :
-1. Vérifier que les permissions système sont accordées
-2. Vérifier que les notifications sont activées dans les préférences utilisateur
-3. Vérifier que l'activation globale est activée (admin)
-4. Vérifier que l'utilisateur a sélectionné au moins une catégorie (pour les notifications push)
-5. Vérifier que la fréquence choisie correspond à l'heure d'envoi configurée
+- lire `notification_settings`
+- determiner la passe en cours : `daily` ou `weekly`
+- charger les utilisateurs eligibles
+- charger les evenements a venir de la bonne fenetre
+- croiser utilisateurs et categories suivies
+- construire un envoi unique par utilisateur
+- envoyer seulement si au moins un evenement matche
+- journaliser le resultat pour controle
 
-### Si les rappels d'événements ne fonctionnent pas :
-1. Vérifier que l'événement a lieu dans le futur
-2. Vérifier que le timing choisi est disponible (ex: "1 jour avant" nécessite > 24h)
-3. Vérifier que les permissions système sont accordées
+## Checklist de verification
+
+- un utilisateur `daily` ne recoit rien dans la passe `weekly`
+- un utilisateur `weekly` ne recoit rien dans la passe `daily`
+- un utilisateur sans categorie ne recoit rien
+- un utilisateur avec notifications desactivees ne recoit rien
+- un utilisateur avec categories suivies reçoit uniquement les evenements correspondants
+- aucun rappel individuel d'evenement n'est encore visible ou envoye
+
+
+
+
+
+
 
