@@ -27,6 +27,7 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 - **Migrations actives** : uniquement les fichiers SQL situés directement dans `supabase/migrations/`.
 - **Migrations archivées** : `supabase/migrations/archives/` est historique et **ne doit plus être appliqué**.
 - **Baseline** : `supabase/migrations/20251212120000_baseline.sql`.
+- **Source unique** : ce dossier est la seule source du schéma, y compris pour l'app Flutter (`../live`).
 
 Voir `supabase/migrations/README.md` et `supabase/migrations/MIGRATIONS_LOG.md`.
 
