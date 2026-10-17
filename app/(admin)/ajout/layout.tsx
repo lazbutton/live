@@ -15,8 +15,8 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
   },
   icons: {
-    icon: [{ url: "/ajout/app-icon/192", type: "image/png", sizes: "192x192" }],
-    apple: [{ url: "/ajout/app-icon/180", type: "image/png", sizes: "180x180" }],
+    icon: [{ url: "/ajout/app-icon/192?v=2", type: "image/png", sizes: "192x192" }],
+    apple: [{ url: "/ajout/app-icon/180?v=2", type: "image/png", sizes: "180x180" }],
   },
   alternates: { canonical: "/ajout" },
   robots: { index: false, follow: false },

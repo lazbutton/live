@@ -34,7 +34,7 @@ function Screen({ children }: { children: React.ReactNode }) {
 }
 
 function AppMark() {
-  return <Image src="/ajout/app-icon/192" alt="" width={56} height={56} unoptimized className="mx-auto rounded-2xl" />;
+  return <Image src="/ajout/app-icon/192?v=2" alt="" width={56} height={56} unoptimized className="mx-auto rounded-2xl" />;
 }
 
 function LoginScreen() {
