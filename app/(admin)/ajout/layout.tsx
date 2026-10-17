@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 
+import "./ajout.css";
+
 /*
  * Écran mobile d'ajout rapide, installable comme application (PWA limitée à /ajout).
+ * Palette propre à l'écran (ajout.css), claire ou sombre selon le téléphone.
  */
 
 export const metadata: Metadata = {
@@ -15,8 +18,8 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
   },
   icons: {
-    icon: [{ url: "/ajout/app-icon/192?v=2", type: "image/png", sizes: "192x192" }],
-    apple: [{ url: "/ajout/app-icon/180?v=2", type: "image/png", sizes: "180x180" }],
+    icon: [{ url: "/ajout/app-icon/192?v=3", type: "image/png", sizes: "192x192" }],
+    apple: [{ url: "/ajout/app-icon/180?v=3", type: "image/png", sizes: "180x180" }],
   },
   alternates: { canonical: "/ajout" },
   robots: { index: false, follow: false },

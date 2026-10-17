@@ -1,0 +1,71 @@
+/*
+ * Écran mobile /ajout : palette propre, claire ou sombre selon le réglage du téléphone,
+ * indépendante du thème de l'admin. Les utilitaires Tailwind (bg-background, text-muted-foreground…)
+ * lisent ces variables ; aucun composant partagé n'est utilisé, le rendu est donc le même partout.
+ */
+
+html:has([data-app-shell="ajout"]) {
+  --background: #f2f2f5;
+  --foreground: #0b0b0c;
+  --card: #ffffff;
+  --card-foreground: #0b0b0c;
+  --popover: #ffffff;
+  --popover-foreground: #0b0b0c;
+  --muted: #eaeaee;
+  --muted-foreground: #6c6c72;
+  --secondary: #eaeaee;
+  --secondary-foreground: #0b0b0c;
+  --accent: #eaeaee;
+  --accent-foreground: #0b0b0c;
+  --border: #e1e1e6;
+  --input: #ffffff;
+  --ring: #0b0b0c;
+  --primary: #0b0b0c;
+  --primary-foreground: #ffffff;
+  --success: #15803d;
+  --warning: #b45309;
+  --destructive: #d92d20;
+  background-color: var(--background);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:has([data-app-shell="ajout"]) {
+    --background: #000000;
+    --foreground: #f5f5f7;
+    --card: #141416;
+    --card-foreground: #f5f5f7;
+    --popover: #1c1c1f;
+    --popover-foreground: #f5f5f7;
+    --muted: #232327;
+    --muted-foreground: #9a9aa1;
+    --secondary: #232327;
+    --secondary-foreground: #f5f5f7;
+    --accent: #232327;
+    --accent-foreground: #f5f5f7;
+    --border: #2a2a2f;
+    --input: #141416;
+    --ring: #f5f5f7;
+    --primary: #f5f5f7;
+    --primary-foreground: #0b0b0c;
+    --success: #32d167;
+    --warning: #f5b83d;
+    --destructive: #ff6b5e;
+  }
+}
+
+html:has([data-app-shell="ajout"]) body {
+  background-color: var(--background);
+}
+
+[data-app-shell="ajout"] {
+  color-scheme: light;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-app-shell="ajout"] {
+    color-scheme: dark;
+  }
+}

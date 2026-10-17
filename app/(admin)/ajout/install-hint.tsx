@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Smartphone, X } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { buttonClass, Card } from "./ui";
 
 type BeforeInstallPromptEvent = Event & { prompt: () => Promise<void> };
 
@@ -49,37 +49,36 @@ export function InstallHint() {
   };
 
   return (
-    <div className="mb-5 flex items-start gap-3 rounded-lg border border-border bg-muted/40 p-3 text-[13px] leading-5">
-      <Smartphone className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-      <p className="flex-1 text-muted-foreground">
-        {isIos ? (
-          <>
-            Mets-la sur ton écran d&apos;accueil : <span className="text-foreground">Partager</span> puis{" "}
-            <span className="text-foreground">« Sur l&apos;écran d&apos;accueil »</span>.
-          </>
-        ) : promptEvent ? (
-          "Installe l'app : elle s'ouvre en un geste et reçoit les liens partagés depuis Instagram."
-        ) : (
-          <>
-            Installe l&apos;app depuis le menu du navigateur (<span className="text-foreground">« Installer l&apos;application »</span>).
-          </>
-        )}
-      </p>
-      {promptEvent ? (
-        <Button
-          size="sm"
-          onClick={async () => {
-            await promptEvent.prompt();
-            setPromptEvent(null);
-            dismiss();
-          }}
-        >
-          Installer
-        </Button>
-      ) : null}
-      <button type="button" aria-label="Masquer le conseil" onClick={dismiss} className="text-muted-foreground hover:text-foreground">
-        <X className="size-4" />
+    <Card className="flex items-start gap-3 p-4">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted">
+        <Smartphone className="size-[18px]" />
+      </span>
+      <div className="min-w-0 flex-1 space-y-2">
+        <p className="text-[15px] font-medium leading-tight">Garde-la sur ton écran d&apos;accueil</p>
+        <p className="text-[13px] leading-snug text-muted-foreground">
+          {isIos
+            ? "Dans Safari : Partager, puis « Sur l'écran d'accueil »."
+            : promptEvent
+              ? "Elle s'ouvrira en un geste et recevra les liens partagés depuis Instagram."
+              : "Menu du navigateur, puis « Installer l'application »."}
+        </p>
+        {promptEvent ? (
+          <button
+            type="button"
+            className={buttonClass({ size: "sm" })}
+            onClick={async () => {
+              await promptEvent.prompt();
+              setPromptEvent(null);
+              dismiss();
+            }}
+          >
+            Installer
+          </button>
+        ) : null}
+      </div>
+      <button type="button" aria-label="Masquer le conseil" onClick={dismiss} className="-m-1 p-1 text-muted-foreground">
+        <X className="size-[18px]" />
       </button>
-    </div>
+    </Card>
   );
 }

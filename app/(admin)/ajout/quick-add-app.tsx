@@ -3,15 +3,12 @@
 import * as React from "react";
 import Image from "next/image";
 import type { User } from "@supabase/supabase-js";
-import { Loader2 } from "lucide-react";
+import { ExternalLink, Loader2, LogOut } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabase/client";
 
-import { InstallHint } from "./install-hint";
 import { QuickAddForm } from "./quick-add-form";
+import { buttonClass, TextInput } from "./ui";
 
 type AuthState =
   | { status: "loading" }
@@ -19,22 +16,34 @@ type AuthState =
   | { status: "forbidden"; email: string }
   | { status: "ready"; email: string };
 
+const ICON = "/ajout/app-icon/192?v=3";
+
 function authStateOf(user: User | null): AuthState {
   if (!user) return { status: "signed-out" };
   const role = user.user_metadata?.role ?? user.app_metadata?.role;
   return role === "admin" ? { status: "ready", email: user.email ?? "" } : { status: "forbidden", email: user.email ?? "" };
 }
 
-function Screen({ children }: { children: React.ReactNode }) {
+function CenteredScreen({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-md flex-col px-4 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-[max(env(safe-area-inset-top),1.25rem)]">
+    <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col justify-center px-6 pb-[max(env(safe-area-inset-bottom),2rem)] pt-[max(env(safe-area-inset-top),2rem)]">
       {children}
     </div>
   );
 }
 
-function AppMark() {
-  return <Image src="/ajout/app-icon/192?v=2" alt="" width={56} height={56} unoptimized className="mx-auto rounded-2xl" />;
+function AppIcon({ size }: { size: number }) {
+  return (
+    <Image
+      src={ICON}
+      alt=""
+      width={size}
+      height={size}
+      unoptimized
+      className="shrink-0"
+      style={{ borderRadius: size * 0.27 }}
+    />
+  );
 }
 
 function LoginScreen() {
@@ -55,65 +64,115 @@ function LoginScreen() {
   }
 
   return (
-    <Screen>
-      <form onSubmit={submit} className="my-auto w-full space-y-5">
-        <div className="space-y-2 text-center">
-          <AppMark />
-          <h1 className="pt-2 text-xl font-semibold tracking-tight">OutLive Ajout</h1>
-          <p className="text-sm text-muted-foreground">Connecte-toi avec ton compte admin.</p>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            autoCapitalize="none"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="h-11"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="password">Mot de passe</Label>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="h-11"
-          />
-        </div>
+    <CenteredScreen>
+      <div className="flex flex-col items-center text-center">
+        <AppIcon size={72} />
+        <h1 className="mt-5 text-[28px] font-semibold tracking-tight">OutLive Ajout</h1>
+        <p className="mt-1.5 text-[15px] leading-snug text-muted-foreground">
+          Un lieu, une structure, un artiste : ajoute-les en quelques secondes, l&apos;IA trouve les événements.
+        </p>
+      </div>
+      <form onSubmit={submit} className="mt-9 space-y-3">
+        <label className="sr-only" htmlFor="login-email">
+          Email
+        </label>
+        <TextInput
+          id="login-email"
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          placeholder="Email"
+          required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
+        <label className="sr-only" htmlFor="login-password">
+          Mot de passe
+        </label>
+        <TextInput
+          id="login-password"
+          type="password"
+          autoComplete="current-password"
+          placeholder="Mot de passe"
+          required
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
         {error ? (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="px-1 text-[14px] text-destructive">
             {error}
           </p>
         ) : null}
-        <Button type="submit" size="lg" className="w-full" disabled={pending}>
+        <button type="submit" className={`${buttonClass()} mt-2 w-full`} disabled={pending}>
           {pending ? <Loader2 className="animate-spin" /> : null}
           Se connecter
-        </Button>
+        </button>
       </form>
-    </Screen>
+      <p className="mt-6 text-center text-[13px] text-muted-foreground">Réservé aux comptes administrateur.</p>
+    </CenteredScreen>
   );
 }
 
 function ForbiddenScreen({ email }: { email: string }) {
   return (
-    <Screen>
-      <div className="my-auto space-y-4 text-center">
-        <AppMark />
-        <h1 className="text-xl font-semibold tracking-tight">Accès réservé aux admins</h1>
-        <p className="text-sm text-muted-foreground">Le compte {email || "connecté"} n&apos;a pas l&apos;accès administrateur.</p>
-        <Button variant="outline" size="lg" className="w-full" onClick={() => supabase.auth.signOut()}>
-          Changer de compte
-        </Button>
+    <CenteredScreen>
+      <div className="flex flex-col items-center text-center">
+        <AppIcon size={72} />
+        <h1 className="mt-5 text-[26px] font-semibold tracking-tight">Accès réservé aux admins</h1>
+        <p className="mt-1.5 text-[15px] text-muted-foreground">
+          Le compte {email || "connecté"} n&apos;a pas l&apos;accès administrateur.
+        </p>
       </div>
-    </Screen>
+      <button type="button" className={`${buttonClass({ variant: "secondary" })} mt-8 w-full`} onClick={() => supabase.auth.signOut()}>
+        Changer de compte
+      </button>
+    </CenteredScreen>
+  );
+}
+
+function AccountMenu({ email }: { email: string }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-label="Compte"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="flex size-9 items-center justify-center rounded-full bg-muted text-[15px] font-semibold uppercase text-foreground outline-none focus-visible:ring-4 focus-visible:ring-ring/15"
+      >
+        {(email || "?").charAt(0)}
+      </button>
+      {open ? (
+        <div className="absolute right-0 top-11 z-40 w-64 rounded-2xl border border-border bg-popover p-1.5 shadow-xl">
+          <p className="truncate px-3 py-2 text-[13px] text-muted-foreground">{email}</p>
+          <a href="/admin" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] active:bg-muted">
+            <ExternalLink className="size-[18px] text-muted-foreground" />
+            Ouvrir l&apos;admin
+          </a>
+          <button
+            type="button"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] text-destructive active:bg-muted"
+            onClick={() => supabase.auth.signOut()}
+          >
+            <LogOut className="size-[18px]" />
+            Se déconnecter
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -136,28 +195,24 @@ export function QuickAddApp({ sharedLink }: { sharedLink: string | null }) {
 
   if (auth.status === "loading") {
     return (
-      <Screen>
-        <Loader2 className="m-auto size-5 animate-spin text-muted-foreground" aria-label="Chargement" />
-      </Screen>
+      <CenteredScreen>
+        <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" aria-label="Chargement" />
+      </CenteredScreen>
     );
   }
   if (auth.status === "signed-out") return <LoginScreen />;
   if (auth.status === "forbidden") return <ForbiddenScreen email={auth.email} />;
 
   return (
-    <Screen>
-      <header className="pb-5">
-        <h1 className="text-xl font-semibold tracking-tight">Ajouter à OutLive</h1>
-        <p className="text-[13px] text-muted-foreground">Un lieu, une structure ou un artiste : l&apos;IA récupère ensuite les événements.</p>
+    <div className="min-h-svh">
+      <header className="mx-auto flex w-full max-w-md items-center justify-between px-4 pb-1 pt-[max(env(safe-area-inset-top),0.75rem)]">
+        <div className="flex items-center gap-2.5">
+          <AppIcon size={30} />
+          <span className="text-[17px] font-semibold tracking-tight">Ajout rapide</span>
+        </div>
+        <AccountMenu email={auth.email} />
       </header>
-      <InstallHint />
       <QuickAddForm sharedLink={sharedLink} />
-      <footer className="mt-auto pt-10 text-center text-xs text-muted-foreground">
-        {auth.email} ·{" "}
-        <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={() => supabase.auth.signOut()}>
-          Se déconnecter
-        </button>
-      </footer>
-    </Screen>
+    </div>
   );
 }

@@ -18,9 +18,9 @@ const manifest = {
   background_color: "#0a0a0a",
   theme_color: "#0a0a0a",
   icons: [
-    { src: "/ajout/app-icon/192?v=2", sizes: "192x192", type: "image/png", purpose: "any" },
-    { src: "/ajout/app-icon/512?v=2", sizes: "512x512", type: "image/png", purpose: "any" },
-    { src: "/ajout/app-icon/maskable?v=2", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    { src: "/ajout/app-icon/192?v=3", sizes: "192x192", type: "image/png", purpose: "any" },
+    { src: "/ajout/app-icon/512?v=3", sizes: "512x512", type: "image/png", purpose: "any" },
+    { src: "/ajout/app-icon/maskable?v=3", sizes: "512x512", type: "image/png", purpose: "maskable" },
   ],
   share_target: {
     action: "/ajout",
