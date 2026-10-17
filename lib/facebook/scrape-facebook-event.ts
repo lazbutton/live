@@ -1,4 +1,7 @@
+import type { EventData } from "facebook-event-scraper";
 import OpenAI from "openai";
+
+import { AI_MODEL_LIGHT, generationParams } from "@/lib/ai/openai-models";
 import { isFacebookEventUrl } from "./event-url";
 import { getZonedDateParts } from "@/lib/cron-timezone";
 import {
@@ -118,7 +121,7 @@ async function enrichFacebookTagsWithAI({
   try {
     const openai = new OpenAI({ apiKey });
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: AI_MODEL_LIGHT,
       messages: [
         {
           role: "system",
@@ -141,8 +144,7 @@ Contexte evenement:
 ${JSON.stringify(context, null, 2)}`,
         },
       ],
-      temperature: 0.3,
-      max_completion_tokens: 300,
+      ...generationParams(AI_MODEL_LIGHT, { temperature: 0.3, maxTokens: 300 }),
       response_format: { type: "json_object" },
     });
 
@@ -193,16 +195,16 @@ async function resolveFacebookCategoryWithAI({
   locationName?: string;
 }) {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey || categories.length === 0 || rawCategoryLabels.length === 0) {
+  // Facebook ne donne souvent aucune catégorie : le titre et la description suffisent à choisir.
+  if (!apiKey || categories.length === 0 || (rawCategoryLabels.length === 0 && !title && !description)) {
     return null;
   }
 
   try {
     const openai = new OpenAI({ apiKey });
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      temperature: 0.1,
-      max_completion_tokens: 220,
+      model: AI_MODEL_LIGHT,
+      ...generationParams(AI_MODEL_LIGHT, { temperature: 0.1, maxTokens: 220 }),
       response_format: { type: "json_object" },
       messages: [
         {
@@ -253,6 +255,44 @@ ${JSON.stringify(
   }
 }
 
+/**
+ * Lecture d'un événement public. La bibliothèque abandonne tout dès qu'un bloc manque
+ * (« No end date & timezone details found » depuis que Facebook a déplacé la fin et le fuseau) :
+ * on refait alors sa lecture morceau par morceau, sans la fin, plutôt que de tout perdre.
+ */
+async function readFacebookEvent(url: string): Promise<EventData> {
+  const { scrapeFbEvent } = await import("facebook-event-scraper");
+  try {
+    return await scrapeFbEvent(url);
+  } catch (error) {
+    if (!(error instanceof Error) || !/end date|timezone/i.test(error.message)) throw error;
+  }
+  const { validateAndFormatUrl } = await import("facebook-event-scraper/dist/utils/url");
+  const { fetchEvent } = await import("facebook-event-scraper/dist/utils/network");
+  const parser = await import("facebook-event-scraper/dist/utils/htmlParser");
+  const html: string = await fetchEvent(validateAndFormatUrl(url));
+  const basic = parser.getBasicData(html);
+  const optional = <T,>(read: () => T, fallback: T): T => {
+    try {
+      return read() ?? fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  return {
+    ...basic,
+    endTimestamp: null,
+    timezone: "Europe/Paris",
+    location: basic.isOnline ? null : optional(() => parser.getLocation(html), null),
+    onlineDetails: basic.isOnline ? optional(() => parser.getOnlineDetails(html), null) : null,
+    description: optional(() => parser.getDescription(html), ""),
+    ticketUrl: optional(() => parser.getTicketUrl(html), null),
+    categories: optional(() => parser.getCategories(html), []),
+    hosts: optional(() => parser.getHosts(html), []),
+    usersResponded: optional(() => parser.getUserStats(html).usersResponded, null),
+  } as EventData;
+}
+
 export async function scrapeFacebookEvent(url: string) {
   if (!isFacebookEventUrl(url)) {
     return {
@@ -273,8 +313,7 @@ export async function scrapeFacebookEvent(url: string) {
       .order("name", { ascending: true });
     if (categoriesError) throw categoriesError;
 
-    const { scrapeFbEvent } = await import("facebook-event-scraper");
-    const event = await scrapeFbEvent(url);
+    const event = await readFacebookEvent(url);
 
     const categories = uniqueStrings(event.categories.map((category) => category.label));
     const organizerNames = uniqueStrings(event.hosts.map((host) => host.name));

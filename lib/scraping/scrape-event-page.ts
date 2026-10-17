@@ -1,15 +1,42 @@
 import * as cheerio from "cheerio";
-import { isValid, parse } from "date-fns";
-import { fr } from "date-fns/locale";
 import OpenAI from "openai";
-import { getZonedDateParts, zonedTimeToUtc } from "@/lib/cron-timezone";
+
+import { AI_MODEL_FULL, AI_MODEL_LIGHT, generationParams } from "@/lib/ai/openai-models";
+import { splitArtistNames } from "@/lib/events/artist-names";
+
+import { fetchHtml, FetchHtmlError } from "./fetch-html";
+import { checkDateAgainstText, parisToday, toParisWallClock } from "./dates";
+import {
+  dateOptionsForPage,
+  decodeHtmlText,
+  extractEmbeddedDates,
+  extractStructuredEvents,
+  type CheerioDocument,
+  type StructuredEvent,
+} from "./structured-event";
+
+/*
+ * Lecture d'une page d'événement, par ordre de fiabilité :
+ *   1. sélecteurs CSS configurés pour la source ;
+ *   2. données structurées schema.org (JSON-LD, microdata) ;
+ *   3. IA, seulement pour ce qui manque (modèle léger si l'essentiel est déjà connu) ;
+ *   4. métadonnées Open Graph.
+ * Les dates sont rendues en heure murale de Paris (`YYYY-MM-DDTHH:mm:00`).
+ */
 
 export interface ScrapedEventData {
   title?: string;
   description?: string;
   date?: string;
   end_date?: string;
+  /** Autres dates du même événement (plusieurs séances). */
+  occurrences?: Array<{ date: string; end_date?: string }>;
+  /** Faux quand seule la date est connue, pas l'heure. */
+  time_known?: boolean;
   price?: string;
+  price_min?: number;
+  price_max?: number;
+  is_pay_what_you_want?: boolean;
   presale_price?: string;
   subscriber_price?: string;
   location?: string;
@@ -17,591 +44,659 @@ export interface ScrapedEventData {
   image_url?: string;
   external_url?: string;
   organizer?: string;
+  artists?: string[];
   category?: string;
   tags?: string[];
   capacity?: string;
   door_opening_time?: string;
   is_full?: boolean;
+  is_cancelled?: boolean;
+  /** Date douteuse (page qui se contredit) : à faire vérifier avant toute publication. */
+  date_warning?: string;
+  /** Correction appliquée à la date lue (année déduite du jour de la semaine). */
+  date_note?: string;
 }
+
+export type ScrapeMethod = "structured" | "structured+ai" | "ai" | "basic";
+
+export type ScrapeEventPageResult =
+  | {
+      ok: true;
+      data: ScrapedEventData;
+      metadata: {
+        scraped: true;
+        url: string;
+        final_url: string;
+        method: ScrapeMethod;
+        ai_processed: boolean;
+        ai_model?: string;
+        structured_source?: StructuredEvent["source"];
+        duration_ms: number;
+      };
+    }
+  | { ok: false; error: string; status: number };
 
 export interface ScrapeEventPageArgs {
   url: string;
   organizer_id?: string | null;
   location_id?: string | null;
-  /** Supabase client (server/service) used to load scraping configs + ai fields */
+  /** Client Supabase (serveur ou service) : configurations de scraping et catégories. */
   supabase: any;
+  /** HTML déjà récupéré (évite un second téléchargement). */
+  prefetched?: { html: string; finalUrl: string };
+  /** Désactive l'IA (tests, cron économe). */
+  disableAI?: boolean;
 }
 
-const DATE_PATTERNS_WITH_YEAR = [
-  "d/M/yyyy HH:mm",
-  "d/M/yyyy H:mm",
-  "d-M-yyyy HH:mm",
-  "d-M-yyyy H:mm",
-  "d.M.yyyy HH:mm",
-  "d.M.yyyy H:mm",
-  "d/M/yyyy",
-  "d-M-yyyy",
-  "d.M.yyyy",
-  "d MMMM yyyy HH:mm",
-  "d MMMM yyyy H:mm",
-  "d MMM yyyy HH:mm",
-  "d MMM yyyy H:mm",
-  "d MMMM yyyy",
-  "d MMM yyyy",
-  "EEEE d MMMM yyyy HH:mm",
-  "EEEE d MMMM yyyy H:mm",
-  "EEEE d MMM yyyy HH:mm",
-  "EEEE d MMM yyyy H:mm",
-  "EEEE d MMMM yyyy",
-  "EEEE d MMM yyyy",
-  "EEE d MMMM yyyy HH:mm",
-  "EEE d MMMM yyyy H:mm",
-  "EEE d MMM yyyy HH:mm",
-  "EEE d MMM yyyy H:mm",
-  "EEE d MMMM yyyy",
-  "EEE d MMM yyyy",
-];
 
-const DATE_PATTERNS_WITHOUT_YEAR = [
-  "d/M HH:mm",
-  "d/M H:mm",
-  "d-M HH:mm",
-  "d-M H:mm",
-  "d.M HH:mm",
-  "d.M H:mm",
-  "d/M",
-  "d-M",
-  "d.M",
-  "d MMMM HH:mm",
-  "d MMMM H:mm",
-  "d MMM HH:mm",
-  "d MMM H:mm",
-  "d MMMM",
-  "d MMM",
-  "EEEE d MMMM HH:mm",
-  "EEEE d MMMM H:mm",
-  "EEEE d MMM HH:mm",
-  "EEEE d MMM H:mm",
-  "EEEE d MMMM",
-  "EEEE d MMM",
-  "EEE d MMMM HH:mm",
-  "EEE d MMMM H:mm",
-  "EEE d MMM HH:mm",
-  "EEE d MMM H:mm",
-  "EEE d MMMM",
-  "EEE d MMM",
-];
+/* ------------------------------------------------------------------ */
+/* Configuration de la source                                          */
+/* ------------------------------------------------------------------ */
 
-function sanitizeScrapedDateValue(value: string) {
-  return value
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/\s*,\s*/g, " ")
-    .replace(/\s+[•–-]\s+/g, " ")
-    .replace(/\s+à\s+/gi, " ")
-    .replace(/\b([a-zàâçéèêëîïôûùüÿœæ]{3,})\./giu, "$1")
-    .replace(/(\d{1,2})\s*h\s*(\d{2})/gi, "$1:$2")
-    .replace(/(\d{1,2})\s*h\b/gi, "$1:00");
+type SourceConfig = {
+  cssData: Partial<Record<keyof ScrapedEventData, string>>;
+  aiHints: Record<string, string>;
+  /** Champs que l'IA peut remplir (null : tous). */
+  aiFields: Set<string> | null;
+  categories: string[];
+};
+
+/** Corrige les sélecteurs saisis sous forme d'attribut (`class="a b"`, `data-x="y"`). */
+function normalizeConfiguredSelector(raw: string) {
+  const selector = raw.trim();
+  if (/^[.#[:]/.test(selector) || !selector.includes("=") || selector.includes("[")) return selector;
+  const equalIndex = selector.indexOf("=");
+  const attrName = selector.slice(0, equalIndex).trim();
+  const quoted = /^(["'])(.*)\1$/.exec(selector.slice(equalIndex + 1).trim());
+  if (!quoted) return `[${selector}]`;
+  const attrValue = quoted[2];
+  if (attrName === "class" || attrName === "className") {
+    return attrValue
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((name) => (/[[\]()]/.test(name) ? `[class*="${name}"]` : `.${name.replace(/([.#:])/g, "\\$1")}`))
+      .join("");
+  }
+  if (attrName === "id") return `#${attrValue.replace(/([[\](){}.#:,_])/g, "\\$1")}`;
+  return `[${attrName}="${attrValue.replace(/"/g, '\\"')}"]`;
 }
 
-function hasExplicitYear(value: string) {
-  return /\b(19|20)\d{2}\b/.test(value);
-}
+async function loadSourceConfig($: CheerioDocument, args: ScrapeEventPageArgs): Promise<SourceConfig> {
+  const config: SourceConfig = { cssData: {}, aiHints: {}, aiFields: null, categories: [] };
+  const { supabase, organizer_id, location_id } = args;
 
-function parseScrapedDateValue(value: string, referenceDate: Date) {
-  const patterns = hasExplicitYear(value)
-    ? DATE_PATTERNS_WITH_YEAR
-    : DATE_PATTERNS_WITHOUT_YEAR;
+  const [cssResult, aiResult, categoriesResult] = await Promise.all([
+    organizer_id || location_id
+      ? (organizer_id
+          ? supabase.from("organizer_scraping_configs").select("*").eq("organizer_id", organizer_id)
+          : supabase.from("organizer_scraping_configs").select("*").eq("location_id", location_id)
+        ).then((result: any) => result, () => ({ data: null }))
+      : Promise.resolve({ data: null }),
+    organizer_id || location_id
+      ? (organizer_id
+          ? supabase.from("organizer_ai_fields").select("field_name, enabled, ai_hint").eq("organizer_id", organizer_id).is("location_id", null)
+          : supabase.from("organizer_ai_fields").select("field_name, enabled, ai_hint").eq("location_id", location_id).is("organizer_id", null)
+        ).then((result: any) => result, () => ({ data: null }))
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("categories")
+      .select("name")
+      .eq("is_active", true)
+      .then((result: any) => result, () => ({ data: null })),
+  ]);
 
-  for (const pattern of patterns) {
-    const parsed = parse(value, pattern, referenceDate, { locale: fr });
-    if (isValid(parsed)) {
-      return parsed;
-    }
-  }
-
-  return null;
-}
-
-function normalizeScrapedDate(
-  value: string | undefined,
-  scrapedAt: Date,
-): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
-    return trimmed;
-  }
-
-  const cleaned = sanitizeScrapedDateValue(trimmed);
-  const scrapedParts = getZonedDateParts(scrapedAt);
-  const referenceDate = new Date(
-    Date.UTC(scrapedParts.year, scrapedParts.month - 1, scrapedParts.day, 0, 0, 0),
-  );
-  const parsed = parseScrapedDateValue(cleaned, referenceDate);
-
-  if (!parsed) {
-    return trimmed;
-  }
-
-  const utcDate = zonedTimeToUtc({
-    year: parsed.getFullYear(),
-    month: parsed.getMonth() + 1,
-    day: parsed.getDate(),
-    hour: parsed.getHours(),
-    minute: parsed.getMinutes(),
-    second: parsed.getSeconds(),
-  });
-
-  return utcDate.toISOString();
-}
-
-export async function scrapeEventPage({ url, organizer_id, location_id, supabase }: ScrapeEventPageArgs) {
-  // Valider l'URL
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(url);
-  } catch {
-    return {
-      ok: false as const,
-      error: "URL invalide",
-      status: 400,
-    };
-  }
-
-  // Scraper la page web
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-      "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
-    },
-  });
-
-  if (!response.ok) {
-    return {
-      ok: false as const,
-      error: `Impossible d'accéder à l'URL: ${response.status} ${response.statusText}`,
-      status: response.status,
-    };
-  }
-
-  const html = await response.text();
-  const $ = cheerio.load(html);
-
-  // Extraire les métadonnées Open Graph et Twitter Cards
-  const metadata: Record<string, string> = {};
-
-  $('meta[property^="og:"]').each((_, el) => {
-    const property = $(el).attr("property")?.replace("og:", "");
-    const content = $(el).attr("content");
-    if (property && content) metadata[property] = content;
-  });
-
-  $('meta[name^="twitter:"]').each((_, el) => {
-    const name = $(el).attr("name")?.replace("twitter:", "");
-    const content = $(el).attr("content");
-    if (name && content) metadata[name] = content;
-  });
-
-  // Extraire le texte principal
-  $("script, style, nav, header, footer, aside, .cookie-banner, .cookie-consent, .gdpr-banner").remove();
-
-  const mainContentSelectors = [
-    "main",
-    "article",
-    "[role='main']",
-    ".content",
-    ".main-content",
-    "#content",
-    ".event-details",
-    ".event-info",
-    ".description",
-  ];
-
-  let mainText = "";
-  for (const selector of mainContentSelectors) {
-    const content = $(selector).first().text();
-    if (content.length > mainText.length) mainText = content;
-  }
-
-  if (!mainText || mainText.length < 200) {
-    mainText = $("body").text();
-  }
-  mainText = mainText.replace(/\s+/g, " ").trim().substring(0, 15000);
-
-  const structuredContent: string[] = [];
-  $("p, li, h1, h2, h3, h4, .description, .event-details, .price, .date, .location").each((_, el) => {
-    const text = $(el).text().trim();
-    if (text && text.length > 10 && text.length < 500) structuredContent.push(text);
-  });
-
-  const title = metadata.title || $("title").text() || $("h1").first().text() || "";
-  const description = metadata.description || $('meta[name="description"]').attr("content") || $("p").first().text() || "";
-  const imageUrl = metadata.image || $('meta[property="og:image"]').attr("content") || $("img").first().attr("src") || "";
-
-  let normalizedImageUrl = imageUrl;
-  if (imageUrl && !imageUrl.startsWith("http")) {
-    normalizedImageUrl = new URL(imageUrl, parsedUrl.origin).href;
-  }
-
-  // Charger les configurations CSS personnalisées
-  const customScrapingData: Partial<ScrapedEventData> = {};
-  const configOwnerId = organizer_id || location_id;
-  if (configOwnerId) {
+  for (const row of (cssResult?.data || []) as any[]) {
     try {
-      let query = supabase.from("organizer_scraping_configs").select("*");
-      if (organizer_id) query = query.eq("organizer_id", organizer_id);
-      else if (location_id) query = query.eq("location_id", location_id);
-
-      const { data: configs, error: configError } = await query;
-      if (!configError && configs && configs.length > 0) {
-        for (const config of configs) {
-          try {
-            let selector = (config.css_selector || "").trim();
-
-            // Correction automatique attributs sans crochets (copié du route existant)
-            if (!selector.match(/^[.#\[:]/) && selector.includes("=") && !selector.includes("[")) {
-              const equalIndex = selector.indexOf("=");
-              if (equalIndex > 0) {
-                const attrName = selector.substring(0, equalIndex).trim();
-                const afterEqual = selector.substring(equalIndex + 1).trim();
-                let attrValue: string | null = null;
-                if (afterEqual.startsWith('"')) {
-                  const endQuote = afterEqual.indexOf('"', 1);
-                  if (endQuote > 0) attrValue = afterEqual.substring(1, endQuote);
-                } else if (afterEqual.startsWith("'")) {
-                  const endQuote = afterEqual.indexOf("'", 1);
-                  if (endQuote > 0) attrValue = afterEqual.substring(1, endQuote);
-                }
-
-                if (attrValue !== null) {
-                  if (attrName === "class" || attrName === "className") {
-                    if (attrValue.match(/[\[\]()]/)) {
-                      const allClasses = attrValue.split(/\s+/).filter((c: string) => c.trim());
-                      selector =
-                        allClasses.length === 1
-                          ? `[class*="${allClasses[0]}"]`
-                          : allClasses.map((c: string) => `[class*="${c.trim()}"]`).join("");
-                    } else {
-                      const classes = attrValue
-                        .split(/\s+/)
-                        .filter((c: string) => c.trim())
-                        .map((c: string) => "." + c.trim().replace(/([.#:])/g, "\\$1"))
-                        .join("");
-                      selector = classes || `.${attrValue.replace(/\s+/g, "-")}`;
-                    }
-                  } else if (attrName === "id") {
-                    selector = "#" + attrValue.replace(/([\[\](){}.#:,_])/g, "\\$1");
-                  } else {
-                    selector = `[${attrName}="${attrValue.replace(/"/g, '\\"')}"]`;
-                  }
-                } else {
-                  selector = `[${selector.replace(/"/g, '\\"')}]`;
-                }
-              } else {
-                selector = `[${selector.replace(/"/g, '\\"')}]`;
-              }
-            }
-
-            const elements = $(selector);
-            if (elements.length > 0) {
-              let extractedValue: string | null = null;
-              if (config.attribute === "textContent" || !config.attribute) extractedValue = elements.first().text().trim();
-              else if (config.attribute === "innerHTML") extractedValue = elements.first().html() || null;
-              else extractedValue = elements.first().attr(config.attribute) || null;
-
-              if (extractedValue) {
-                if (config.text_prefix && config.text_prefix.trim() !== "") {
-                  const prefix = config.text_prefix.trim();
-                  const prefixIndex = extractedValue.indexOf(prefix);
-                  if (prefixIndex !== -1) extractedValue = extractedValue.substring(prefixIndex + prefix.length).trim();
-                  else {
-                    const lowerExtracted = extractedValue.toLowerCase();
-                    const lowerPrefix = prefix.toLowerCase();
-                    const lowerPrefixIndex = lowerExtracted.indexOf(lowerPrefix);
-                    if (lowerPrefixIndex !== -1)
-                      extractedValue = extractedValue.substring(lowerPrefixIndex + prefix.length).trim();
-                    else extractedValue = null;
-                  }
-                }
-
-                if (extractedValue) {
-                  if (config.transform_function === "price") {
-                    const priceMatch = extractedValue.match(/[\d.,]+/);
-                    (customScrapingData as any)[config.event_field] = (priceMatch
-                      ? priceMatch[0].replace(",", ".")
-                      : extractedValue) as any;
-                  } else {
-                    (customScrapingData as any)[config.event_field] = extractedValue as any;
-                  }
-                }
-              }
-            }
-          } catch {
-            // ignore a single selector failure
-          }
-        }
+      const elements = $(normalizeConfiguredSelector(row.css_selector || ""));
+      if (elements.length === 0) continue;
+      let value: string | null | undefined;
+      if (!row.attribute || row.attribute === "textContent") value = elements.first().text().trim();
+      else if (row.attribute === "innerHTML") value = elements.first().html();
+      else value = elements.first().attr(row.attribute);
+      if (!value) continue;
+      if (row.text_prefix?.trim()) {
+        const index = value.toLowerCase().indexOf(row.text_prefix.trim().toLowerCase());
+        if (index === -1) continue;
+        value = value.slice(index + row.text_prefix.trim().length).trim();
       }
+      if (row.transform_function === "price") value = /[\d.,]+/.exec(value)?.[0]?.replace(",", ".") || value;
+      if (value) config.cssData[row.event_field as keyof ScrapedEventData] = value;
     } catch {
-      // ignore config load failures
+      // Un sélecteur invalide n'empêche pas le reste.
     }
   }
 
-  // Champs IA activés
-  let enabledAIFields: string[] = [];
-  const aiHintsMap: Record<string, string | null> = {};
+  const aiRows = (aiResult?.data || []) as Array<{ field_name: string; enabled: boolean; ai_hint: string | null }>;
+  if (aiRows.length > 0) {
+    config.aiFields = new Set(aiRows.filter((row) => row.enabled).map((row) => row.field_name));
+    for (const row of aiRows) if (row.ai_hint) config.aiHints[row.field_name] = row.ai_hint;
+  }
+  config.categories = ((categoriesResult?.data || []) as Array<{ name: string }>).map((row) => row.name);
+  return config;
+}
 
+/* ------------------------------------------------------------------ */
+/* Lecture de la page                                                  */
+/* ------------------------------------------------------------------ */
+
+function readMeta($: CheerioDocument) {
+  const meta: Record<string, string> = {};
+  $("meta[property], meta[name]").each((_index: number, element: any) => {
+    const key = ($(element).attr("property") || $(element).attr("name") || "").toLowerCase();
+    const content = $(element).attr("content");
+    if (key && content && !meta[key]) meta[key] = content;
+  });
+  return meta;
+}
+
+const TITLE_NOISE = /^(billetterie|billets?|tickets?|r[ée]servation|r[ée]server|accueil|home|agenda)\b|billetterie officielle|^billetweb$|^weezevent$|^helloasso$|^shotgun$|^mapado$/i;
+
+/** Retire « Billetterie : », le nom du site et les suffixes de billetterie d'un titre. */
+function cleanTitle(raw: string | undefined, siteNames: string[]) {
+  if (!raw) return undefined;
+  let title = decodeHtmlText(raw).replace(/^(billetterie|billets?|tickets?)\s*[:–-]\s*/i, "");
+  const normalizedSites = siteNames.map((name) => name.toLowerCase()).filter(Boolean);
+  for (let guard = 0; guard < 4; guard += 1) {
+    const match = /^(.*\S)\s+[|–—-]\s+([^|–—]+)$/.exec(title);
+    if (!match) break;
+    const suffix = match[2].trim().toLowerCase();
+    const isSite = normalizedSites.some((site) => suffix === site || site.includes(suffix) || suffix.includes(site));
+    if (!isSite && !TITLE_NOISE.test(suffix)) break;
+    title = match[1].trim();
+  }
+  return title || undefined;
+}
+
+function mainText($: CheerioDocument, maxLength: number) {
+  const $copy = cheerio.load($.html());
+  $copy(
+    "script, style, noscript, svg, iframe, form, nav, aside, [role='navigation'], [aria-hidden='true'], .cookie, .cookies, .cookie-banner, #cookie-banner, .gdpr, .newsletter",
+  ).remove();
+  // En-tête et pied de page du site, mais pas ceux d'un article (titre et date de la fiche).
+  $copy("header, footer")
+    .filter((_index: number, element: any) => $copy(element).closest("article, main").length === 0)
+    .remove();
+  // Un bloc par ligne : « mercredi 7 octobre » et « 18h » ne se collent pas en « octobre18h ».
+  $copy("br").replaceWith("\n");
+  $copy("p, div, li, h1, h2, h3, h4, h5, h6, tr, td, th, dt, dd, section, article, header, footer, time").append("\n");
+  let best = "";
+  for (const selector of ["main", "article", "[role='main']", "#content", ".content", ".event", ".event-details", ".entry-content"]) {
+    const text = $copy(selector).first().text();
+    if (text.length > best.length) best = text;
+  }
+  if (best.trim().length < 300) best = $copy("body").text();
+  return best.replace(/[ \t\u00a0]+/g, " ").replace(/\s*\n\s*/g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, maxLength);
+}
+
+function absolute(value: string | undefined, baseUrl: string) {
+  if (!value) return undefined;
   try {
-    let aiFieldsQuery = supabase.from("organizer_ai_fields").select("field_name, enabled, ai_hint").eq("enabled", true);
-    if (organizer_id) aiFieldsQuery = aiFieldsQuery.eq("organizer_id", organizer_id).is("location_id", null);
-    else if (location_id) aiFieldsQuery = aiFieldsQuery.eq("location_id", location_id).is("organizer_id", null);
-
-    const { data: aiFieldsData } = await aiFieldsQuery;
-    if (aiFieldsData && aiFieldsData.length > 0) {
-      enabledAIFields = aiFieldsData.filter((f: any) => f.enabled).map((f: any) => f.field_name);
-      aiFieldsData.forEach((f: any) => {
-        if (f.ai_hint) aiHintsMap[f.field_name] = f.ai_hint;
-      });
-    } else {
-      enabledAIFields = [
-        "title",
-        "description",
-        "date",
-        "end_date",
-        "price",
-        "presale_price",
-        "subscriber_price",
-        "location",
-        "address",
-        "image_url",
-        "organizer",
-        "category",
-        "tags",
-        "capacity",
-        "door_opening_time",
-        "is_full",
-      ];
-    }
+    return new URL(value, baseUrl).toString();
   } catch {
-    enabledAIFields = [
-      "title",
-      "description",
-      "date",
-      "end_date",
-      "price",
-      "presale_price",
-      "subscriber_price",
-      "location",
-      "address",
-      "image_url",
-      "organizer",
-      "category",
-      "tags",
-      "capacity",
-      "door_opening_time",
-      "is_full",
-    ];
+    return undefined;
   }
+}
 
-  const scrapedAt = new Date();
-  const scrapedYear = getZonedDateParts(scrapedAt).year;
+/**
+ * Visuel principal d'une page sans image de partage (WordPress sans og:image, par exemple) :
+ * image mise en avant, sinon la plus grande image du contenu, hors logos, icônes et décors.
+ */
+function mainImage($: CheerioDocument, pageUrl: string) {
+  const declared = $("link[rel='image_src']").attr("href") || $("meta[itemprop='image']").attr("content");
+  if (declared) return absolute(declared, pageUrl);
+  let best: { src: string; score: number } | undefined;
+  $("img").each((_index: number, element: any) => {
+    const $img = $(element);
+    const chrome = $img.closest("header, footer, nav, aside, [role='banner'], [role='contentinfo']");
+    if (chrome.length && chrome.closest("article, main").length === 0) return;
+    const src =
+      $img.attr("src") || $img.attr("data-src") || $img.attr("data-lazy-src") || ($img.attr("srcset") || "").trim().split(/\s+/)[0];
+    if (!src || src.startsWith("data:") || /\.svg(\?|$)/i.test(src) || /(logo|icon|avatar|sprite|placeholder|spinner|emoji)/i.test(src)) {
+      return;
+    }
+    const width = Number($img.attr("width")) || 0;
+    const height = Number($img.attr("height")) || 0;
+    if ((width && width < 200) || (height && height < 200)) return;
+    const featured = $img.is("[fetchpriority='high'], .wp-post-image, .attachment-large, .attachment-full");
+    const score = (width * height || 10_000) * (featured ? 4 : 1);
+    if (!best || score > best.score) best = { src, score };
+  });
+  return best ? absolute(best.src, pageUrl) : undefined;
+}
 
-  const contextForAI = `
-URL: ${url}
-Titre de la page: ${title}
-Description: ${description}
-Métadonnées Open Graph et Twitter Cards: ${JSON.stringify(metadata, null, 2)}
-Contenu structuré (paragraphes, listes, titres): ${structuredContent.slice(0, 50).join("\n")}
-Texte principal complet: ${mainText}
-${Object.keys(customScrapingData).length > 0 ? `\nDonnées extraites via sélecteurs CSS personnalisés:\n${JSON.stringify(customScrapingData, null, 2)}` : ""}
-`;
+/** « Drache Nationale - Théâtre de la Tête Noire » → « Drache Nationale » : le lieu a sa fiche. */
+function withoutLocationSuffix(title: string | undefined, location: string | undefined) {
+  if (!title || !location) return title;
+  const match = /^(.*\S)\s+[-–—|]\s+([^-–—|]+)$/.exec(title);
+  const comparable = (value: string) =>
+    value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return match && comparable(match[2]) === comparable(location) ? match[1].trim() : title;
+}
 
-  const openaiApiKey = process.env.OPENAI_API_KEY;
-  if (!openaiApiKey) {
-    return {
-      ok: true as const,
-      data: {
-        title: title.trim() || undefined,
-        description: description.trim() || undefined,
-        image_url: normalizedImageUrl || undefined,
-        external_url: url,
-      } satisfies ScrapedEventData,
-      metadata: { scraped: true, ai_processed: false, url },
-    };
-  }
+function sameUrl(a?: string, b?: string) {
+  if (!a || !b) return false;
+  const normalize = (value: string) => value.replace(/^https?:\/\/(www\.)?/i, "").replace(/[?#].*$/, "").replace(/\/$/, "");
+  return normalize(a) === normalize(b);
+}
 
-  const openai = new OpenAI({ apiKey: openaiApiKey });
+/** Événement principal de la page parmi les données structurées. */
+function pickPrimaryEvent(events: StructuredEvent[], pageUrl: string) {
+  if (events.length === 0) return undefined;
+  const today = parisToday();
+  return (
+    events.find((event) => sameUrl(event.url, pageUrl)) ||
+    events.find((event) => event.date && event.date.slice(0, 10) >= today) ||
+    events[0]
+  );
+}
 
-  const fieldsToExtract = enabledAIFields
-    .map((fieldName, index) => {
-      const fieldLabels: Record<string, string> = {
-        title: "Le titre de l'événement (doit être accrocheur mais précis)",
-        description:
-          "Une description riche et détaillée (3-5 phrases minimum, incluant le contexte, l'ambiance, les points forts)",
-        date: "Les dates et heures de début",
-        end_date: "Les dates et heures de fin",
-        price: "Les informations de prix (prix normal, réduit, gratuit, sur donation, etc.)",
-        presale_price: "Le tarif prévente si mentionné (prix réduit avant une date limite)",
-        subscriber_price: "Le tarif pour les abonnés si mentionné",
-        location: "Le lieu exact",
-        address: "L'adresse complète du lieu",
-        image_url: "L'URL de l'image principale de l'événement",
-        organizer: "L'organisateur ou les organisateurs",
-        category:
-          "La catégorie principale parmi: musique, théâtre, danse, sport, conférence, exposition, festival, concert, spectacle, atelier, autre",
-        tags: "Des tags pertinents et variés (minimum 3-5 tags)",
-        capacity: "La capacité si mentionnée",
-        door_opening_time: "L'heure d'ouverture des portes si disponible",
-        is_full: "Indique si l'événement est complet (sold out) - true ou false uniquement",
-      };
-      const baseLabel = fieldLabels[fieldName] || fieldName;
-      const customHint = aiHintsMap[fieldName];
-      const finalLabel = customHint ? `${baseLabel}. Indication spécifique: ${customHint}` : baseLabel;
-      return `${index + 1}. ${finalLabel}`;
-    })
+/* ------------------------------------------------------------------ */
+/* IA                                                                  */
+/* ------------------------------------------------------------------ */
+
+const NULLABLE_STRING = { type: ["string", "null"] };
+
+const FULL_FIELDS: Record<string, unknown> = {
+  title: NULLABLE_STRING,
+  description: NULLABLE_STRING,
+  date: { type: ["string", "null"], description: "Début, heure de Paris, format YYYY-MM-DDTHH:mm" },
+  end_date: { type: ["string", "null"], description: "Fin, heure de Paris, format YYYY-MM-DDTHH:mm" },
+  other_dates: {
+    type: "array",
+    description: "Autres séances du même événement",
+    items: {
+      type: "object",
+      additionalProperties: false,
+      properties: { date: { type: "string" }, end_date: NULLABLE_STRING },
+      required: ["date", "end_date"],
+    },
+  },
+  location: NULLABLE_STRING,
+  address: NULLABLE_STRING,
+  organizer: NULLABLE_STRING,
+  artists: { type: "array", items: { type: "string" } },
+  category: NULLABLE_STRING,
+  tags: { type: "array", items: { type: "string" } },
+  price_min: { type: ["number", "null"] },
+  price_max: { type: ["number", "null"] },
+  is_free: { type: ["boolean", "null"] },
+  is_pay_what_you_want: { type: ["boolean", "null"] },
+  is_full: { type: ["boolean", "null"] },
+  is_cancelled: { type: ["boolean", "null"] },
+  door_opening_time: { type: ["string", "null"], description: "HH:mm" },
+  capacity: { type: ["integer", "null"] },
+  image_url: NULLABLE_STRING,
+};
+
+/** Champs réglables par source dans « Champs IA » (organizer_ai_fields). */
+const LEGACY_AI_FIELDS = new Set([
+  "title",
+  "description",
+  "date",
+  "end_date",
+  "price",
+  "location",
+  "address",
+  "image_url",
+  "organizer",
+  "category",
+  "tags",
+  "capacity",
+  "door_opening_time",
+  "is_full",
+]);
+
+const COMPLEMENT_FIELDS = [
+  "description",
+  "category",
+  "tags",
+  "artists",
+  "door_opening_time",
+  "price_min",
+  "price_max",
+  "is_free",
+  "is_pay_what_you_want",
+];
+
+const FIELD_GUIDANCE: Record<string, string> = {
+  title: "titre exact de l'événement, sans le nom du lieu ni de la billetterie",
+  description: "présentation fidèle (3 à 6 phrases), sans inventer",
+  date: "date et heure de début (heure du spectacle, pas l'ouverture des portes)",
+  end_date: "fin si indiquée ou déductible d'une durée explicite",
+  other_dates: "autres séances du même événement",
+  location: "nom du lieu",
+  address: "adresse postale",
+  organizer: "structure organisatrice",
+  artists: "artistes musicaux programmés : musiciens, chanteurs, groupes, DJ (noms seuls) ; ni compagnie, ni comédien, ni danseur, ni intervenant",
+  category: "catégorie",
+  tags: "3 à 5 mots-clés courts en minuscules (style, public, thème)",
+  price_min: "tarif le plus bas en euros",
+  price_max: "tarif le plus haut en euros si différent",
+  is_free: "gratuit / entrée libre",
+  is_pay_what_you_want: "prix libre / participation libre",
+  is_full: "complet / sold out",
+  is_cancelled: "annulé",
+  door_opening_time: "ouverture des portes",
+  capacity: "jauge",
+  image_url: "image principale",
+};
+
+async function extractWithAI(args: {
+  mode: "full" | "complement";
+  url: string;
+  context: string;
+  known: Partial<ScrapedEventData>;
+  config: SourceConfig;
+  /** Champs ajoutés au complément (ex. titre peu lisible). */
+  extraFields?: string[];
+}) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+
+  const baseFields = args.mode === "full" ? Object.keys(FULL_FIELDS) : [...(args.extraFields || []), ...COMPLEMENT_FIELDS];
+  const fieldNames = baseFields.filter((field) => {
+    if (!args.config.aiFields) return true;
+    const configKey =
+      field.startsWith("price") || field === "is_free" || field === "is_pay_what_you_want"
+        ? "price"
+        : field === "other_dates"
+          ? "date"
+          : field;
+    // Les champs absents des réglages historiques (artistes, annulation…) restent toujours permis.
+    return !LEGACY_AI_FIELDS.has(configKey) || args.config.aiFields.has(configKey);
+  });
+  if (fieldNames.length === 0) return null;
+
+  const properties = Object.fromEntries(fieldNames.map((field) => [field, FULL_FIELDS[field]]));
+  const today = parisToday();
+  const categoryRule = args.config.categories.length
+    ? `- « category » : choisis exactement une valeur parmi ${args.config.categories.join(", ")} (ou null).`
+    : "";
+  const hints = Object.entries(args.config.aiHints)
+    .map(([field, hint]) => `- ${field} : ${hint}`)
     .join("\n");
 
-  const jsonFields = enabledAIFields
-    .map((fieldName) => {
-      const fieldDefinitions: Record<string, string> = {
-        title: '"title": "Titre précis et accrocheur de l\'événement"',
-        description:
-          '"description": "Description complète et détaillée de l\'événement, incluant contexte, programme, artistes/intervenants, ambiance attendue. Minimum 3-5 phrases bien structurées."',
-        date: '"date": "Date et heure de début au format ISO 8601 avec fuseau horaire (ex: 2024-12-25T20:00:00+01:00)"',
-        end_date: '"end_date": "Date et heure de fin au format ISO 8601 (optionnel mais important si disponible)"',
-        price: '"price": "Prix numérique uniquement (0 pour gratuit, nombre décimal pour prix payant)"',
-        location: '"location": "Nom officiel du lieu/venue"',
-        address: '"address": "Adresse postale complète (numéro, rue, code postal, ville, pays si pertinent)"',
-        image_url: '"image_url": "URL complète de l\'image principale de l\'événement"',
-        organizer: '"organizer": "Nom de l\'organisateur, de l\'association, du collectif ou de l\'artiste principal"',
-        category:
-          '"category": "Catégorie principale (musique, théâtre, danse, sport, conférence, exposition, festival, concert, spectacle, atelier, autre)"',
-        tags: '"tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]',
-        capacity: '"capacity": "Capacité maximale en nombre (uniquement le chiffre)"',
-        door_opening_time: '"door_opening_time": "Heure d\'ouverture des portes au format HH:mm (ex: 19:30)"',
-        presale_price: '"presale_price": "Tarif prévente numérique uniquement (nombre décimal, null si non mentionné)"',
-        subscriber_price: '"subscriber_price": "Tarif abonné numérique uniquement (nombre décimal, null si non mentionné)"',
-        is_full:
-          '"is_full": "Booléen indiquant si l\'événement est complet (true si sold out, false sinon, null si non mentionné)"',
-      };
-      return fieldDefinitions[fieldName] || `"${fieldName}": "Valeur extraite"`;
-    })
-    .join(",\n  ");
+  const prompt = `Extrais les informations de l'événement décrit par cette page web.
 
-  const prompt = `Tu es un expert IA ultra-performant en extraction d'informations d'événements. Ta mission est d'analyser en profondeur une page web et d'extraire les informations pertinentes sur un événement avec une précision maximale.
+Champs attendus :
+${fieldNames.map((field) => `- ${field} : ${FIELD_GUIDANCE[field] || field}`).join("\n")}
 
-CONTEXTE DE LA PAGE WEB:
-${contextForAI}
+Règles :
+- N'invente rien : null (ou liste vide) si l'information n'est pas sur la page.
+- Dates en heure locale de Paris, format YYYY-MM-DDTHH:mm, sans fuseau. Nous sommes le ${today}.
+  Sans année explicite, prends l'année où le jour de la semaine écrit correspond (« mercredi 7 octobre »),
+  sinon la prochaine occurrence ; un événement déjà passé garde sa date passée.
+${categoryRule}
+${hints ? `Consignes propres à cette source :\n${hints}` : ""}
+${Object.keys(args.known).length ? `Déjà connu (ne pas contredire) : ${JSON.stringify(args.known)}` : ""}
 
-ANALYSE REQUISE:
-Analyse méthodiquement chaque élément du contenu pour extraire uniquement les champs suivants:
-${fieldsToExtract}
+Page : ${args.url}
+${args.context}`;
 
-${Object.keys(customScrapingData).length > 0 ? `\n⚠️ IMPORTANT: Les données suivantes ont déjà été extraites via des sélecteurs CSS personnalisés et ont la PRIORITÉ:\n${JSON.stringify(customScrapingData, null, 2)}\n\nTu ne dois PAS extraire ces champs à nouveau, sauf si nécessaire pour compléter des informations manquantes.\n` : ""}
-
-FORMAT DE SORTIE JSON ATTENDU:
-{
-  ${jsonFields}
-}
-
-RÈGLE IMPORTANTE SUR LES DATES:
-- Si la page mentionne une date sans année explicite, utilise l'année du jour du scraping.
-- Le jour du scraping à utiliser comme référence est ${scrapedYear}.
-- Retourne toujours les champs date/end_date dans un format ISO 8601 complet.
-
-Retourne UNIQUEMENT le JSON valide, sans texte avant ou après, sans commentaires, sans markdown.`;
-
+  const model = args.mode === "full" ? AI_MODEL_FULL : AI_MODEL_LIGHT;
+  const openai = new OpenAI({ apiKey });
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model,
+    ...generationParams(model, { temperature: 0.1, maxTokens: args.mode === "full" ? 1800 : 700 }),
     messages: [
       {
         role: "system",
-        content:
-          "Tu es un expert IA ultra-performant en extraction d'informations structurées depuis des pages web. Tu analyses en profondeur le contenu et retournes toujours du JSON valide, précis et complet.",
+        content: "Tu extrais des informations d'événements culturels depuis des pages web françaises, avec exactitude et sans invention.",
       },
       { role: "user", content: prompt },
     ],
-    temperature: 0.2,
-    max_completion_tokens: 3000,
-    response_format: { type: "json_object" },
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "event_extraction",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties,
+          required: fieldNames,
+        },
+      },
+    },
   });
 
-  const aiResponse = completion.choices[0]?.message?.content || "{}";
-
-  let extractedData: ScrapedEventData = {};
   try {
-    let cleanResponse = aiResponse.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
-    if (jsonMatch) cleanResponse = jsonMatch[0];
-    extractedData = JSON.parse(cleanResponse);
-    if (extractedData.title) extractedData.title = extractedData.title.trim().replace(/\s+/g, " ");
-    if (extractedData.description) extractedData.description = extractedData.description.trim().replace(/\n{3,}/g, "\n\n");
-    if (extractedData.tags && Array.isArray(extractedData.tags)) {
-      extractedData.tags = [...new Set(extractedData.tags.map((tag: string) => tag.trim().toLowerCase()))];
-    }
+    return { model, data: JSON.parse(completion.choices[0]?.message?.content || "{}") as Record<string, any> };
   } catch {
-    extractedData = { title: title.trim() || undefined, description: description.trim() || undefined };
+    return null;
   }
-
-  const filteredExtractedData: Partial<ScrapedEventData> = {};
-  if (extractedData) {
-    for (const field of enabledAIFields) {
-      const cssValue = (customScrapingData as any)[field];
-      const aiValue = (extractedData as any)[field];
-      if (!cssValue && aiValue !== undefined) (filteredExtractedData as any)[field] = aiValue;
-    }
-    if (enabledAIFields.includes("tags") && extractedData.tags) filteredExtractedData.tags = extractedData.tags;
-  }
-
-  const result: ScrapedEventData = {
-    title: (customScrapingData.title as string) || (filteredExtractedData.title as string) || title.trim() || undefined,
-    description:
-      (customScrapingData.description as string) ||
-      (filteredExtractedData.description as string) ||
-      description.trim() ||
-      undefined,
-    date: normalizeScrapedDate(
-      (customScrapingData.date as string) || (filteredExtractedData.date as string) || undefined,
-      scrapedAt,
-    ),
-    end_date: normalizeScrapedDate(
-      (customScrapingData.end_date as string) || (filteredExtractedData.end_date as string) || undefined,
-      scrapedAt,
-    ),
-    price: (customScrapingData.price as string) || (filteredExtractedData.price as string) || undefined,
-    presale_price: (customScrapingData.presale_price as string) || (filteredExtractedData.presale_price as string) || undefined,
-    subscriber_price: (customScrapingData.subscriber_price as string) || (filteredExtractedData.subscriber_price as string) || undefined,
-    location: (customScrapingData.location as string) || (filteredExtractedData.location as string) || undefined,
-    address: (customScrapingData.address as string) || (filteredExtractedData.address as string) || undefined,
-    image_url: (customScrapingData.image_url as string) || normalizedImageUrl || (filteredExtractedData.image_url as string) || undefined,
-    external_url: url,
-    organizer: (customScrapingData.organizer as string) || (filteredExtractedData.organizer as string) || undefined,
-    category: (customScrapingData.category as string) || (filteredExtractedData.category as string) || undefined,
-    tags: filteredExtractedData.tags || undefined,
-    capacity: (customScrapingData.capacity as string) || (filteredExtractedData.capacity as string) || undefined,
-    door_opening_time:
-      (customScrapingData.door_opening_time as string) || (filteredExtractedData.door_opening_time as string) || undefined,
-    is_full: (customScrapingData.is_full as any) ?? (filteredExtractedData.is_full as any),
-  };
-
-  return {
-    ok: true as const,
-    data: result,
-    metadata: { scraped: true, ai_processed: true, url },
-  };
 }
 
+/* ------------------------------------------------------------------ */
+/* Point d'entrée                                                      */
+/* ------------------------------------------------------------------ */
 
+function cleanList(values: unknown, max: number) {
+  if (!Array.isArray(values)) return undefined;
+  const cleaned = Array.from(
+    new Set(values.map((value) => (typeof value === "string" ? decodeHtmlText(value) : "")).filter((value) => value.length > 1 && value.length < 80)),
+  ).slice(0, max);
+  return cleaned.length ? cleaned : undefined;
+}
 
+/** Titre recopié d'une URL (« atelier-crochet-sam-17/10 ») : à remplacer si possible. */
+function looksLikeSlug(title: string) {
+  return !/\s/.test(title) && /[-_/]/.test(title);
+}
 
+function firstDefined<T>(...values: Array<T | null | undefined>) {
+  return values.find((value) => value !== undefined && value !== null && value !== "") ?? undefined;
+}
 
+export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<ScrapeEventPageResult> {
+  const startedAt = Date.now();
+  try {
+    new URL(args.url);
+  } catch {
+    return { ok: false, error: "URL invalide", status: 400 };
+  }
 
+  let page: { html: string; finalUrl: string };
+  try {
+    page = args.prefetched ?? (await fetchHtml(args.url));
+  } catch (error) {
+    const status = error instanceof FetchHtmlError ? error.status : 502;
+    return { ok: false, error: error instanceof Error ? error.message : "Page inaccessible", status };
+  }
+
+  const $ = cheerio.load(page.html);
+  const meta = readMeta($);
+  const siteNames = [meta["og:site_name"], meta["application-name"], new URL(page.finalUrl).hostname.replace(/^www\./, "").split(".")[0]]
+    .filter(Boolean) as string[];
+  const structuredEvents = extractStructuredEvents($, page.finalUrl);
+  const primary = pickPrimaryEvent(structuredEvents, page.finalUrl);
+  const config = await loadSourceConfig($, args);
+  const css = config.cssData;
+
+  // Le nom structuré est parfois celui du lieu ou de l'organisateur : on l'écarte alors.
+  const genericNames = [...siteNames, primary?.location, primary?.organizer]
+    .filter(Boolean)
+    .map((value) => (value as string).toLowerCase());
+  const structuredTitle =
+    primary?.title && !genericNames.includes(primary.title.toLowerCase()) ? primary.title : undefined;
+
+  // Les sélecteurs lisent souvent un attribut technique (`datetime`), en UTC sur les pages Odoo.
+  const pageDateOptions = dateOptionsForPage($);
+  const cssStart = toParisWallClock(css.date, undefined, pageDateOptions);
+  const cssEnd = toParisWallClock(css.end_date, undefined, pageDateOptions);
+  const otherStructured = structuredEvents
+    .filter((event) => event !== primary && event.date && primary?.title && event.title === primary.title)
+    .map((event) => ({ date: event.date as string, end_date: event.end_date }));
+
+  const data: ScrapedEventData = {
+    title: firstDefined(
+      css.title ? decodeHtmlText(css.title) : undefined,
+      structuredTitle,
+      cleanTitle(meta["og:title"], siteNames),
+      cleanTitle($("h1").first().text(), siteNames),
+      cleanTitle($("title").first().text(), siteNames),
+    ),
+    description: firstDefined(
+      css.description ? decodeHtmlText(css.description, { multiline: true }) : undefined,
+      primary?.description,
+    ),
+    date: cssStart?.value ?? primary?.date,
+    end_date: cssEnd?.value ?? primary?.end_date,
+    time_known: cssStart ? cssStart.timeKnown : primary?.time_known,
+    occurrences: otherStructured.length ? otherStructured : undefined,
+    location: firstDefined(css.location, primary?.location),
+    address: firstDefined(css.address, primary?.address),
+    image_url: firstDefined(
+      absolute(css.image_url, page.finalUrl),
+      primary?.image_url,
+      absolute(meta["og:image"] || meta["og:image:url"] || meta["twitter:image"], page.finalUrl),
+      mainImage($, page.finalUrl),
+    ),
+    external_url: primary?.ticket_url || page.finalUrl,
+    organizer: firstDefined(css.organizer, primary?.organizer),
+    artists: primary?.artists,
+    price_min: css.price !== undefined && Number.isFinite(Number(css.price)) ? Number(css.price) : primary?.price_min,
+    price_max: primary?.price_max,
+    is_full: primary?.is_full,
+    is_cancelled: primary?.is_cancelled,
+    door_opening_time: css.door_opening_time,
+    capacity: css.capacity,
+    category: css.category,
+  };
+  if (primary?.is_free) data.price_min = 0;
+
+  const weakTitle = !data.title || looksLikeSlug(data.title);
+  const hasEssentials = Boolean(data.title && !weakTitle && data.date);
+  const missingComplement =
+    !data.description || !data.category || !data.artists?.length || data.price_min === undefined;
+  let method: ScrapeMethod = primary ? "structured" : "basic";
+  let aiModel: string | undefined;
+
+  if (!args.disableAI && (!hasEssentials || missingComplement)) {
+    const fullMode = !hasEssentials;
+    const embeddedDates = extractEmbeddedDates($);
+    const context = [
+      `Titre de la page : ${$("title").first().text().trim()}`,
+      meta["og:title"] ? `Titre de partage : ${meta["og:title"]}` : "",
+      meta["og:description"] || meta.description ? `Résumé : ${meta["og:description"] || meta.description}` : "",
+      embeddedDates.length ? `Dates présentes dans les données techniques : ${embeddedDates.join(", ")}` : "",
+      `Contenu :\n${mainText($, fullMode ? 12_000 : 6_000)}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const known = Object.fromEntries(
+      Object.entries({
+        title: weakTitle ? undefined : data.title,
+        date: data.date,
+        location: data.location,
+        price_min: data.price_min,
+      }).filter(([, value]) => value !== undefined),
+    );
+
+    try {
+      const ai = await extractWithAI({
+        mode: fullMode ? "full" : "complement",
+        url: page.finalUrl,
+        context,
+        known,
+        config,
+        extraFields: weakTitle ? ["title"] : undefined,
+      });
+      if (ai) {
+        aiModel = ai.model;
+        method = primary ? "structured+ai" : "ai";
+        const extracted = ai.data;
+        const aiStart = toParisWallClock(extracted.date);
+        const aiEnd = toParisWallClock(extracted.end_date);
+        if ((weakTitle || !data.title) && extracted.title) data.title = decodeHtmlText(extracted.title);
+        data.description = data.description || extracted.description || undefined;
+        if (!data.date && aiStart) {
+          data.date = aiStart.value;
+          data.time_known = aiStart.timeKnown;
+        }
+        if (!data.end_date && aiEnd && (!data.date || aiEnd.value > data.date)) data.end_date = aiEnd.value;
+        if (!data.occurrences && Array.isArray(extracted.other_dates)) {
+          const occurrences = extracted.other_dates
+            .map((entry: any) => ({ start: toParisWallClock(entry?.date), end: toParisWallClock(entry?.end_date) }))
+            .filter((entry: any) => entry.start && entry.start.value !== data.date)
+            .map((entry: any) => ({ date: entry.start.value, end_date: entry.end?.value }));
+          if (occurrences.length) data.occurrences = occurrences.slice(0, 20);
+        }
+        data.location = data.location || extracted.location || undefined;
+        data.address = data.address || extracted.address || undefined;
+        data.organizer = data.organizer || extracted.organizer || undefined;
+        data.artists = data.artists?.length ? data.artists : cleanList(extracted.artists, 20);
+        data.category = data.category || extracted.category || undefined;
+        data.tags = cleanList(extracted.tags, 6)?.map((tag) => tag.toLowerCase());
+        if (data.price_min === undefined) {
+          if (extracted.is_free) data.price_min = 0;
+          else if (typeof extracted.price_min === "number") data.price_min = extracted.price_min;
+        }
+        if (data.price_max === undefined && typeof extracted.price_max === "number" && extracted.price_max !== data.price_min) {
+          data.price_max = extracted.price_max;
+        }
+        if (extracted.is_pay_what_you_want) data.is_pay_what_you_want = true;
+        data.is_full = data.is_full ?? (extracted.is_full || undefined);
+        data.is_cancelled = data.is_cancelled ?? (extracted.is_cancelled || undefined);
+        if (!data.door_opening_time && /^\d{1,2}:\d{2}$/.test(extracted.door_opening_time || "")) {
+          data.door_opening_time = extracted.door_opening_time.padStart(5, "0");
+        }
+        if (!data.capacity && Number.isInteger(extracted.capacity)) data.capacity = String(extracted.capacity);
+        data.image_url = data.image_url || absolute(extracted.image_url, page.finalUrl);
+      }
+    } catch (error) {
+      console.error("Extraction IA impossible:", error);
+    }
+  }
+
+  // Résumé de partage en dernier recours pour la description.
+  if (!data.description) {
+    const summary = meta["og:description"] || meta.description;
+    if (summary) data.description = decodeHtmlText(summary, { multiline: true });
+  }
+  data.title = withoutLocationSuffix(data.title, data.location);
+
+  // Date confrontée aux jours de semaine écrits sur la page : « mercredi 7 octobre » fixe l'année
+  // (2026 et non 2027) ; « dimanche 11 novembre 2026 » (un mercredi) rend la date douteuse.
+  if (data.date) {
+    const pageTexts = [data.title, meta["og:title"], meta["og:description"], mainText($, 12_000)];
+    const check = checkDateAgainstText(data.date, pageTexts);
+    if (check.corrected) {
+      const [wrongYear, rightYear] = [data.date.slice(0, 4), check.value.slice(0, 4)];
+      data.date_note = `Année corrigée d'après le jour de la semaine écrit sur la page (${wrongYear} → ${rightYear}).`;
+      data.date = check.value;
+      if (data.end_date?.startsWith(wrongYear)) data.end_date = `${rightYear}${data.end_date.slice(4)}`;
+    } else if (check.warning) {
+      data.date_warning = check.warning;
+    }
+    data.occurrences = data.occurrences?.map((occurrence) => {
+      const fixed = checkDateAgainstText(occurrence.date, pageTexts);
+      return fixed.corrected ? { ...occurrence, date: fixed.value } : occurrence;
+    });
+  }
+  if (data.price_min !== undefined) data.price = String(data.price_min);
+  // Une ouverture des portes identique au début n'apporte rien (souvent déduite à tort).
+  if (data.door_opening_time && data.date?.slice(11, 16) === data.door_opening_time) delete data.door_opening_time;
+  // Plateaux « A + B » et mentions « 1ère partie » (« RAZORLIGHT + 1ÈRE PARTIE ») : un nom par artiste.
+  const artists = splitArtistNames(data.artists);
+  data.artists = artists.length ? artists : undefined;
+
+  for (const key of Object.keys(data) as Array<keyof ScrapedEventData>) {
+    if (data[key] === undefined || data[key] === null || data[key] === "") delete data[key];
+  }
+
+  return {
+    ok: true,
+    data,
+    metadata: {
+      scraped: true,
+      url: args.url,
+      final_url: page.finalUrl,
+      method,
+      ai_processed: Boolean(aiModel),
+      ai_model: aiModel,
+      structured_source: primary?.source,
+      duration_ms: Date.now() - startedAt,
+    },
+  };
+}

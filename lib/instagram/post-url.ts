@@ -18,3 +18,13 @@ export function isInstagramPostUrl(value: string) {
     return false;
   }
 }
+
+/**
+ * Affiche d'un post (première image d'un carrousel) : `/p/<code>/media/?size=l` redirige vers
+ * l'image sans connexion, alors que les liens signés du CDN ne peuvent pas être recopiés.
+ */
+export function instagramPostImageUrl(value: string | null | undefined) {
+  if (!value || !isInstagramPostUrl(value)) return null;
+  const code = new URL(value.trim()).pathname.split("/").filter(Boolean)[1];
+  return code ? `https://www.instagram.com/p/${code}/media/?size=l` : null;
+}

@@ -1,0 +1,613 @@
+import { getSourceKind } from "@/lib/collecte/source-kind";
+import { fromDatetimeLocal } from "@/lib/date-utils";
+import { splitArtistNames } from "@/lib/events/artist-names";
+import {
+  buildEventFormPrefillFromImport,
+  matchExistingTagIds,
+  normalizeName,
+  resolveOrganizerFromName,
+} from "@/lib/events/import-prefill";
+import type { ImportedEventPayload } from "@/lib/events/imported-event-payload";
+import { fetchPotentialDuplicateEvents } from "@/lib/events/potential-duplicates";
+import { toNullablePrice } from "@/lib/events/price-utils";
+import { isFacebookEventUrl } from "@/lib/facebook/event-url";
+import { scrapeFacebookEvent } from "@/lib/facebook/scrape-facebook-event";
+import { instagramPostImageUrl, isInstagramPostUrl } from "@/lib/instagram/post-url";
+import { urlMatchKeys } from "@/lib/scraping/agenda";
+import { parisToday, stripDateFromTitle, titleDateConflict } from "@/lib/scraping/dates";
+import { scrapeEventPage } from "@/lib/scraping/scrape-event-page";
+
+import { findOrCreateArtist, type AgentArtistInput } from "./artists";
+import { logAgentAction } from "./audit";
+import { hasTimeLeft, loadAgentReferences, type AgentContext } from "./context";
+import { copyImageToStorage } from "./images";
+import { resolveKnownSource, type AgentSource } from "./sources";
+
+/*
+ * Création d'événements par l'agent. Règle de publication :
+ * - source suivie (active) ET fiche complète (heure, lieu, catégorie, affiche)
+ *   → publié directement ;
+ * - sinon → en attente de validation dans l'admin.
+ * Les doublons (même page, même créneau au même lieu, même titre le même jour) sont écartés.
+ * Une date douteuse (page qui se contredit, titre qui annonce un autre jour) n'est pas créée :
+ * l'agent relit la page et passe par create_event (statut « to_check »).
+ */
+
+export type AgentEventStatus = "published" | "pending" | "duplicate" | "to_check" | "skipped" | "error";
+
+export type AgentEventResult = {
+  status: AgentEventStatus;
+  url?: string | null;
+  title?: string;
+  start?: string;
+  event_ids?: string[];
+  occurrences?: number;
+  /** Ce qui manque pour une publication directe (événement laissé en attente). */
+  missing?: string[];
+  reason?: string;
+  duplicate_of?: { id: string; title: string | null; date: string | null };
+  source?: string | null;
+  location?: string | null;
+  /** Lieu annoncé sans fiche correspondante (à créer ou à préciser via search). */
+  location_unmatched?: string;
+  category?: string | null;
+  artists?: string[];
+  artists_created?: string[];
+  artists_unmatched?: string[];
+  /** Noms écartés à la création (événement non musical, titre, prénom seul, atelier…), avec la raison. */
+  artists_skipped?: Array<{ name: string; reason: string }>;
+  /** Correction appliquée à la date lue (année d'après le jour de la semaine…). */
+  date_note?: string;
+  dry_run?: boolean;
+};
+
+/** Événement lu par l'agent lui-même (post Instagram, page Facebook, affiche…). */
+export type AgentEventInput = {
+  title: string;
+  /** Début, heure de Paris : « 2026-11-20T20:30 » (ou « 2026-11-20 » si l'heure est inconnue). */
+  start: string;
+  end?: string;
+  additional_dates?: Array<{ start: string; end?: string }>;
+  location?: string;
+  location_id?: string;
+  address?: string;
+  organizers?: string[];
+  artists?: Array<string | AgentArtistInput>;
+  category?: string;
+  tags?: string[];
+  description?: string;
+  image_url?: string;
+  ticket_url?: string;
+  price_min?: number;
+  price_max?: number;
+  is_free?: boolean;
+  is_pay_what_you_want?: boolean;
+  is_full?: boolean;
+  is_cancelled?: boolean;
+  door_opening_time?: string;
+};
+
+type DuplicateMatch = { id: string; title: string | null; date: string | null; reason: string };
+
+const DUPLICATE_SELECT = "id, title, date, scraping_url, external_url, instagram_url, facebook_url";
+
+function titleTokens(value: string) {
+  return normalizeName(value)
+    .split(" ")
+    .filter((token) => token.length > 2);
+}
+
+/** Titres équivalents : identiques, l'un contenu dans l'autre, ou mots largement communs. */
+function similarTitles(left: string | null | undefined, right: string | null | undefined) {
+  const a = normalizeName(left || "");
+  const b = normalizeName(right || "");
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const shorter = a.length < b.length ? a : b;
+  if (shorter.length >= 6 && (a.includes(b) || b.includes(a))) return true;
+  const tokensA = new Set(titleTokens(a));
+  const tokensB = new Set(titleTokens(b));
+  if (tokensA.size === 0 || tokensB.size === 0) return false;
+  const common = [...tokensA].filter((token) => tokensB.has(token)).length;
+  return common / (tokensA.size + tokensB.size - common) >= 0.6;
+}
+
+function sameDay(left: string | null | undefined, right: string | null | undefined) {
+  return Boolean(left && right && left.slice(0, 10) === right.slice(0, 10));
+}
+
+async function findDuplicateEvent(
+  ctx: AgentContext,
+  { urls, title, start, end, locationId }: {
+    urls: Array<string | null | undefined>;
+    title: string;
+    /** Début au format du formulaire (« AAAA-MM-JJTHH:mm », heure de Paris). */
+    start: string;
+    end?: string;
+    locationId?: string;
+  },
+): Promise<DuplicateMatch | null> {
+  const startIso = fromDatetimeLocal(start);
+  const day = start.slice(0, 10);
+
+  // Même page déjà importée, pour un événement du même jour ou au même titre
+  // (un post peut annoncer plusieurs événements différents).
+  const keys = new Set(urls.flatMap((url) => urlMatchKeys(url)));
+  if (keys.size > 0) {
+    const { data } = await ctx.supabase.from("events").select(DUPLICATE_SELECT);
+    for (const row of (data || []) as any[]) {
+      const urlMatch = [row.scraping_url, row.external_url, row.instagram_url, row.facebook_url].some(
+        (value) => typeof value === "string" && urlMatchKeys(value).some((key) => keys.has(key)),
+      );
+      if (urlMatch && (sameDay(row.date, startIso) || similarTitles(row.title, title))) {
+        return { id: row.id, title: row.title, date: row.date, reason: "Page déjà importée" };
+      }
+    }
+  }
+
+  // Même lieu, même créneau.
+  if (locationId) {
+    const overlapping = await fetchPotentialDuplicateEvents({
+      supabase: ctx.supabase,
+      locationId,
+      startValue: startIso,
+      endValue: end ? fromDatetimeLocal(end) : startIso,
+    }).catch(() => []);
+    const exact = overlapping.find((event) => event.matchKind === "exact");
+    if (exact) return { id: exact.id, title: exact.title, date: exact.date, reason: "Même lieu, même horaire" };
+  }
+
+  // Même titre le même jour, où que ce soit.
+  const { data: sameDayEvents } = await ctx.supabase
+    .from("events")
+    .select("id, title, date")
+    .gte("date", `${day}T00:00:00.000Z`)
+    .lte("date", `${day}T23:59:59.999Z`);
+  const similar = ((sameDayEvents || []) as any[]).find((event) => similarTitles(event.title, title));
+  if (similar) return { id: similar.id, title: similar.title, date: similar.date, reason: "Même titre le même jour" };
+
+  return null;
+}
+
+/** Prévient les comptes organisateurs, comme lors d'une validation manuelle. */
+async function notifyOrganizersOfPublication(ctx: AgentContext, eventId: string, title: string) {
+  try {
+    const { data: links } = await ctx.supabase
+      .from("event_organizers")
+      .select("organizer_id, location_id")
+      .eq("event_id", eventId);
+    const organizerIds = ((links || []) as any[])
+      .map((row) => row.organizer_id || row.location_id)
+      .filter(Boolean);
+    if (organizerIds.length === 0) return;
+    const { data: members } = await ctx.supabase
+      .from("user_organizers")
+      .select("user_id")
+      .in("organizer_id", organizerIds);
+    const userIds = [...new Set(((members || []) as any[]).map((row) => row.user_id).filter(Boolean))];
+    if (userIds.length === 0) return;
+    await ctx.supabase.from("organizer_notifications").insert(
+      userIds.map((userId) => ({
+        user_id: userId,
+        event_id: eventId,
+        type: "event_approved",
+        title: "Événement publié",
+        message: `Votre événement "${title}" est maintenant visible sur la plateforme.`,
+        read: false,
+        metadata: { new_status: "approved", via: "agent" },
+      })),
+    );
+  } catch (error) {
+    console.warn("Notification des organisateurs ignorée:", error);
+  }
+}
+
+/**
+ * Crée un événement (une fiche par séance) à partir de données importées, après
+ * rapprochement avec les lieux, organisateurs, artistes, catégories et tags.
+ */
+export async function createAgentEvent(
+  ctx: AgentContext,
+  args: {
+    data: ImportedEventPayload;
+    sourceUrl: string | null;
+    /** Source suivie d'où vient l'événement (publication directe possible). */
+    source: AgentSource | null;
+    /** Lieu ou organisateur à rattacher quand aucune source n'est connue. */
+    ownerId?: string | null;
+    /** Organisateurs supplémentaires (identifiants). */
+    extraOrganizerIds?: string[];
+    /** Détails des artistes à créer (compte Instagram, photo…), par nom normalisé. */
+    artistDetails?: Map<string, AgentArtistInput>;
+    createMissingArtists: boolean;
+  },
+): Promise<AgentEventResult> {
+  const { data, sourceUrl, source } = args;
+  const references = await loadAgentReferences(ctx);
+  const ownerId = source?.owner?.id || args.ownerId || null;
+  const owner = ownerId ? references.organizers.find((entry) => entry.id === ownerId) : undefined;
+  const base: AgentEventResult = {
+    status: "skipped",
+    url: sourceUrl,
+    title: typeof data.title === "string" ? data.title.trim() : undefined,
+    source: source?.name ?? null,
+    dry_run: ctx.dryRun || undefined,
+  };
+
+  if (data.is_cancelled === true) return { ...base, reason: "Annoncé annulé" };
+
+  // Plateaux « A + B » et mentions « 1ère partie » : un nom par artiste, quelle que soit la source.
+  const artistNames = splitArtistNames(data.artists);
+  const { prefill, warnings } = await buildEventFormPrefillFromImport({
+    data: { ...data, artists: artistNames },
+    sourceUrl: sourceUrl || undefined,
+    owner,
+    categories: references.categories,
+    locations: references.locations,
+    organizers: references.organizers,
+    artists: references.artists,
+    findOrCreateTagIds: async (names) => matchExistingTagIds(names, references.tags),
+    defaultStatus: "pending",
+  });
+  const form = prefill.form || {};
+  // Lieu annoncé mais inconnu : on ne retombe pas sur le lieu de la source (événement « hors les murs »).
+  const locationWarning = warnings.find((warning) => warning.field === "location");
+  if (locationWarning && typeof data.location_id !== "string") form.location_id = "";
+  const rawTitle = (form.title || "").trim();
+  // L'agenda affiche déjà la date : on la retire du titre (« Atelier broderie - dim. 01/11 »).
+  const title = stripDateFromTitle(rawTitle);
+  if (!title) return { ...base, reason: "Titre introuvable" };
+  if (!form.date) return { ...base, title, reason: "Date introuvable" };
+
+  // Séances à venir ou en cours (une exposition ouverte jusqu'au 7 mars s'ajoute encore).
+  const today = parisToday();
+  const slots = [
+    { date: form.date, end_date: form.end_date || "" },
+    ...(prefill.additionalDates || []).map((slot) => ({ date: slot.date, end_date: slot.end_date || "" })),
+  ].filter(
+    (slot, index, all) =>
+      slot.date && (slot.end_date || slot.date).slice(0, 10) >= today && all.findIndex((other) => other.date === slot.date) === index,
+  );
+  if (slots.length === 0) return { ...base, title, start: form.date, reason: "Déjà passé" };
+  const start = slots[0].date;
+  const end = slots[0].end_date || undefined;
+
+  // Date douteuse : rien n'est créé, l'agent relit la page et utilise create_event avec la bonne date.
+  const dateWarning =
+    (typeof data.date_warning === "string" && data.date_warning) ||
+    titleDateConflict(rawTitle, [form.date, ...(prefill.additionalDates || []).map((slot) => slot.date)]);
+  if (dateWarning) return { ...base, status: "to_check", title, start, reason: `Date à vérifier : ${dateWarning}` };
+
+  const organizerIds = [...(prefill.organizerIds || [])];
+  for (const id of args.extraOrganizerIds || []) if (!organizerIds.includes(id)) organizerIds.push(id);
+
+  const duplicate = await findDuplicateEvent(ctx, {
+    urls: [sourceUrl, data.instagram_url as string, data.facebook_url as string],
+    title,
+    start,
+    end,
+    locationId: form.location_id || undefined,
+  });
+  if (duplicate) {
+    return {
+      ...base,
+      status: "duplicate",
+      title,
+      start,
+      reason: duplicate.reason,
+      duplicate_of: { id: duplicate.id, title: duplicate.title, date: duplicate.date },
+    };
+  }
+
+  const category = form.category ? references.categories.find((entry) => entry.id === form.category) || null : null;
+
+  // Artistes : fiches existantes, sinon création (artistes musicaux de concerts ou DJ sets uniquement,
+  // jamais au nom du titre de l'événement).
+  const artistIds = [...(prefill.artistIds || [])];
+  const matchedNames = new Set(
+    references.artists.filter((artist) => artistIds.includes(artist.id)).map((artist) => normalizeName(artist.name)),
+  );
+  const artistsCreated: string[] = [];
+  const artistsUnmatched: string[] = [];
+  const artistsSkipped: Array<{ name: string; reason: string }> = [];
+  for (const name of artistNames) {
+    if (matchedNames.has(normalizeName(name))) continue;
+    const detail = args.artistDetails?.get(normalizeName(name)) || { name };
+    const result = await findOrCreateArtist(ctx, detail, {
+      create: args.createMissingArtists,
+      event: { title, category: category?.name ?? null },
+    });
+    if (result.id && !artistIds.includes(result.id)) artistIds.push(result.id);
+    if (result.created) artistsCreated.push(result.name);
+    else if (!result.id && args.createMissingArtists && result.skipped) artistsSkipped.push({ name: result.name, reason: result.skipped });
+    else if (!result.id) artistsUnmatched.push(name);
+  }
+
+  // Post Instagram : son affiche, même sans lien d'image (les liens signés du CDN ne se recopient pas).
+  const imageSource =
+    instagramPostImageUrl(form.image_url) ||
+    form.image_url ||
+    instagramPostImageUrl(sourceUrl) ||
+    instagramPostImageUrl(data.instagram_url as string | undefined);
+  const image = imageSource
+    ? await copyImageToStorage(ctx, imageSource, { bucket: "event-images" })
+    : { url: "", copied: false };
+
+  const location = form.location_id ? references.locations.find((entry) => entry.id === form.location_id) || null : null;
+  const missing = [
+    data.time_known === false ? "heure" : null,
+    !location ? "lieu" : null,
+    !category ? "catégorie" : null,
+    !image.url ? "affiche" : null,
+  ].filter((value): value is string => Boolean(value));
+  const publish = Boolean(source && source.status === "active") && missing.length === 0;
+  const status = publish ? "approved" : "pending";
+
+  const isPayWhatYouWant = Boolean(form.is_pay_what_you_want);
+  const priceMin = toNullablePrice(form.price_min);
+  const priceMax = toNullablePrice(form.price_max);
+  const row = {
+    title,
+    description: (form.description || "").trim() || null,
+    category: form.category || "",
+    price: isPayWhatYouWant ? null : priceMin,
+    price_min: isPayWhatYouWant ? null : priceMin,
+    price_max: isPayWhatYouWant || priceMax === null || priceMin === null || priceMax <= priceMin ? null : priceMax,
+    is_pay_what_you_want: isPayWhatYouWant,
+    capacity: form.capacity ? Number.parseInt(form.capacity, 10) || null : null,
+    is_full: Boolean(form.is_full),
+    location_id: location?.id || null,
+    room_id: null,
+    door_opening_time: (form.door_opening_time || "").trim() || null,
+    external_url: (form.external_url || "").trim() || null,
+    external_url_label: (form.external_url_label || "").trim() || null,
+    instagram_url: (form.instagram_url || "").trim() || null,
+    facebook_url: (form.facebook_url || "").trim() || null,
+    scraping_url: (form.scraping_url || "").trim() || null,
+    image_url: image.url || null,
+    status,
+    is_featured: false,
+    hide_from_home: false,
+    tag_ids: prefill.tagIds || [],
+    address: location?.address || null,
+    latitude: location?.latitude || null,
+    longitude: location?.longitude || null,
+    created_by: null,
+  };
+  const result: AgentEventResult = {
+    ...base,
+    status: publish ? "published" : "pending",
+    title,
+    start,
+    occurrences: slots.length,
+    missing: missing.length ? missing : undefined,
+    reason: publish
+      ? undefined
+      : !source
+        ? "Source non suivie : à valider dans l'admin"
+        : source.status !== "active"
+          ? "Source en pause : à valider dans l'admin"
+          : `Fiche incomplète (${missing.join(", ")}) : à compléter et valider dans l'admin`,
+    location: location?.name ?? null,
+    location_unmatched: !location && locationWarning?.value ? locationWarning.value : undefined,
+    category: category?.name ?? null,
+    artists: references.artists.filter((artist) => artistIds.includes(artist.id)).map((artist) => artist.name),
+    artists_created: artistsCreated.length ? artistsCreated : undefined,
+    artists_unmatched: artistsUnmatched.length ? artistsUnmatched : undefined,
+    artists_skipped: artistsSkipped.length ? artistsSkipped : undefined,
+    date_note: typeof data.date_note === "string" ? data.date_note : undefined,
+  };
+  if (ctx.dryRun) return result;
+
+  const eventIds: string[] = [];
+  for (const slot of slots) {
+    const { data: created, error } = await ctx.supabase
+      .from("events")
+      .insert([
+        {
+          ...row,
+          date: fromDatetimeLocal(slot.date) || slot.date,
+          end_date: slot.end_date ? fromDatetimeLocal(slot.end_date) || null : null,
+        },
+      ])
+      .select("id")
+      .single();
+    if (error || !created) throw new Error(error?.message || "Événement non créé");
+    eventIds.push(created.id);
+
+    if (organizerIds.length) {
+      const { error: organizerError } = await ctx.supabase.from("event_organizers").insert(
+        organizerIds.map((id) =>
+          references.organizers.find((organizer) => organizer.id === id)?.type === "location"
+            ? { event_id: created.id, location_id: id, organizer_id: null }
+            : { event_id: created.id, organizer_id: id, location_id: null },
+        ),
+      );
+      if (organizerError) throw new Error(organizerError.message);
+    }
+    if (artistIds.length) {
+      const { error: artistError } = await ctx.supabase.from("event_artists").insert(
+        artistIds.map((artistId, index) => ({
+          event_id: created.id,
+          artist_id: artistId,
+          sort_index: index,
+          role_label: null,
+        })),
+      );
+      if (artistError) throw new Error(artistError.message);
+    }
+    if (publish) await notifyOrganizersOfPublication(ctx, created.id, title);
+  }
+
+  await logAgentAction(ctx, {
+    action: "event.create",
+    entityType: "event",
+    entityId: eventIds[0],
+    entityLabel: title,
+    metadata: {
+      status,
+      source_id: source?.id ?? null,
+      source_url: sourceUrl,
+      occurrences: eventIds.length,
+      missing,
+    },
+  });
+
+  return { ...result, event_ids: eventIds };
+}
+
+/** Données lues par l'agent → format d'import commun. */
+function toImportedPayload(input: AgentEventInput, sourceUrl: string | null): ImportedEventPayload {
+  const kind = sourceUrl ? getSourceKind(sourceUrl) : "website";
+  const artists = (input.artists || [])
+    .map((artist) => (typeof artist === "string" ? artist : artist?.name))
+    .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
+  return {
+    title: input.title,
+    description: input.description,
+    date: input.start,
+    end_date: input.end,
+    time_known: /T\d{1,2}:\d{2}/.test(input.start || ""),
+    occurrences: (input.additional_dates || []).map((slot) => ({ date: slot.start, end_date: slot.end })),
+    location: input.location,
+    location_id: input.location_id,
+    address: input.address,
+    artists,
+    category: input.category,
+    tags: input.tags,
+    image_url: input.image_url,
+    external_url: input.ticket_url,
+    external_url_label: input.ticket_url ? "Billetterie" : undefined,
+    price_min: input.is_free ? 0 : input.price_min,
+    price_max: input.is_free ? undefined : input.price_max,
+    is_pay_what_you_want: input.is_pay_what_you_want,
+    is_full: input.is_full,
+    is_cancelled: input.is_cancelled,
+    door_opening_time: input.door_opening_time,
+    instagram_url: kind === "instagram" ? sourceUrl ?? undefined : undefined,
+    facebook_url: kind === "facebook" ? sourceUrl ?? undefined : undefined,
+  };
+}
+
+/** Événement lu par l'agent dans le navigateur (post, page, affiche). */
+export async function createAgentEventFromInput(
+  ctx: AgentContext,
+  {
+    event,
+    sourceId,
+    sourceUrl,
+    createMissingArtists = true,
+  }: { event: AgentEventInput; sourceId?: string | null; sourceUrl?: string | null; createMissingArtists?: boolean },
+) {
+  const references = await loadAgentReferences(ctx);
+  const source = await resolveKnownSource(ctx, { sourceId, url: sourceUrl });
+  const extraOrganizerIds = (event.organizers || [])
+    .map((value) => references.organizers.find((organizer) => organizer.id === value) || resolveOrganizerFromName(references.organizers, value))
+    .filter((organizer): organizer is NonNullable<typeof organizer> => Boolean(organizer))
+    .map((organizer) => organizer.id);
+  const artistDetails = new Map<string, AgentArtistInput>();
+  for (const artist of event.artists || []) {
+    if (artist && typeof artist === "object" && artist.name) artistDetails.set(normalizeName(artist.name), artist);
+  }
+  return createAgentEvent(ctx, {
+    data: toImportedPayload(event, sourceUrl || null),
+    sourceUrl: sourceUrl || null,
+    source,
+    extraOrganizerIds,
+    artistDetails,
+    createMissingArtists,
+  });
+}
+
+/** Lit une page d'événement (site, billetterie, événement Facebook) puis crée l'événement. */
+export async function importAgentEventFromUrl(
+  ctx: AgentContext,
+  {
+    url,
+    source,
+    ownerId,
+    createMissingArtists = true,
+  }: { url: string; source: AgentSource | null; ownerId?: string | null; createMissingArtists?: boolean },
+): Promise<AgentEventResult> {
+  if (isInstagramPostUrl(url)) {
+    return {
+      status: "error",
+      url,
+      reason: "Post Instagram : lis-le dans le navigateur puis utilise create_event avec ce que tu as lu.",
+    };
+  }
+
+  let data: ImportedEventPayload;
+  if (isFacebookEventUrl(url)) {
+    const scraped = await scrapeFacebookEvent(url);
+    if (!scraped.ok) return { status: "error", url, reason: scraped.error };
+    data = scraped.data as ImportedEventPayload;
+  } else {
+    const owner = source?.owner || null;
+    const effectiveOwnerId = owner?.id || ownerId || null;
+    const references = effectiveOwnerId ? await loadAgentReferences(ctx) : null;
+    const ownerType = owner?.type || references?.organizers.find((entry) => entry.id === effectiveOwnerId)?.type;
+    const scraped = await scrapeEventPage({
+      url,
+      organizer_id: ownerType === "organizer" ? effectiveOwnerId : null,
+      location_id: ownerType === "location" ? effectiveOwnerId : null,
+      supabase: ctx.supabase,
+    });
+    if (!scraped.ok) return { status: "error", url, reason: scraped.error };
+    data = scraped.data as unknown as ImportedEventPayload;
+  }
+
+  return createAgentEvent(ctx, { data, sourceUrl: url, source, ownerId, createMissingArtists });
+}
+
+/** Importe plusieurs pages d'événements (3 en parallèle), dans le temps imparti. */
+export async function importAgentEventUrls(
+  ctx: AgentContext,
+  {
+    urls,
+    sourceId,
+    ownerId,
+    createMissingArtists = true,
+  }: { urls: string[]; sourceId?: string | null; ownerId?: string | null; createMissingArtists?: boolean },
+) {
+  const unique = [...new Set(urls.map((url) => url.trim()).filter(Boolean))];
+  const fixedSource = sourceId ? await resolveKnownSource(ctx, { sourceId }) : null;
+  const results: AgentEventResult[] = [];
+  const remaining: string[] = [];
+  let cursor = 0;
+
+  await Promise.all(
+    Array.from({ length: Math.min(3, unique.length) }, async () => {
+      while (cursor < unique.length) {
+        const url = unique[cursor];
+        cursor += 1;
+        // Une page prend jusqu'à ~20 s (lecture + IA) : au-delà de l'échéance, on rend la main.
+        if (!hasTimeLeft(ctx, 20_000)) {
+          remaining.push(url);
+          continue;
+        }
+        try {
+          const source = fixedSource || (await resolveKnownSource(ctx, { url }));
+          results.push(await importAgentEventFromUrl(ctx, { url, source, ownerId, createMissingArtists }));
+        } catch (error) {
+          results.push({ status: "error", url, reason: error instanceof Error ? error.message : "Erreur inconnue" });
+        }
+      }
+    }),
+  );
+
+  const count = (status: AgentEventStatus) => results.filter((result) => result.status === status).length;
+  return {
+    summary: {
+      published: count("published"),
+      pending: count("pending"),
+      duplicates: count("duplicate"),
+      to_check: count("to_check"),
+      skipped: count("skipped"),
+      errors: count("error"),
+    },
+    results,
+    remaining: remaining.length ? remaining : undefined,
+    dry_run: ctx.dryRun || undefined,
+  };
+}
