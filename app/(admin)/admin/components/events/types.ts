@@ -10,8 +10,6 @@ export type AdminEvent = {
   status: EventStatus;
   is_featured?: boolean | null;
   hide_from_home?: boolean | null;
-  show_on_app?: boolean | null;
-  agenda_types?: string[] | null;
   category: string;
   price: number | null;
   price_min: number | null;
@@ -114,8 +112,6 @@ export type EventFormData = {
   status: EventStatus;
   is_featured: boolean;
   hide_from_home: boolean;
-  show_on_app: boolean;
-  agenda_types: string[];
   major_event_id: string;
 };
 
