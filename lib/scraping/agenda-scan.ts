@@ -5,12 +5,14 @@ import { listFacebookPageEvents } from "@/lib/facebook/page-events";
 
 import { parisToday } from "./dates";
 import {
+  assessAgendaDiscovery,
   discoverAgendaEvents,
   isKnownUrl,
   isPastAgendaEvent,
   loadKnownEventUrlKeys,
   urlMatchKey,
   type AgendaDiscoveryResult,
+  type AgendaUnreadable,
 } from "./agenda";
 
 /** Billetteries partagées : un même domaine pour de nombreux organisateurs. */
@@ -36,6 +38,8 @@ export type AgendaScanResult = {
   usedConfig: boolean;
   /** Page d'agenda trouvée sur le site quand l'adresse scannée ne menait à rien. */
   agendaUrl?: string;
+  /** Rien d'exploitable (page bloquée, agenda en texte seul…) : la page est à lire autrement. */
+  unreadable?: AgendaUnreadable;
 };
 
 /** Page Facebook : événements à venir lisibles sans connexion, au format d'un agenda. */
@@ -141,5 +145,6 @@ export async function scanAgendaPage(
     errors: discovery.errors,
     usedConfig: Boolean(config),
     agendaUrl: discovery.agendaUrl,
+    unreadable: assessAgendaDiscovery(discovery) ?? undefined,
   };
 }

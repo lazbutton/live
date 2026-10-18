@@ -254,6 +254,14 @@ function findDateMentions(text: string): DateMention[] {
   return mentions;
 }
 
+/**
+ * Nombre de dates écrites dans un texte (« 28 février », « 12/02/2027 ») : un agenda en texte seul
+ * en cite plusieurs. Les « 24/7 » et autres chiffres sans mois écrit ni année ne comptent pas.
+ */
+export function countDateMentions(text: string) {
+  return findDateMentions(text).filter((mention) => /[a-zé]/i.test(mention.raw) || mention.year !== undefined).length;
+}
+
 export type DateCheck = {
   /** Date retenue (`YYYY-MM-DDTHH:mm:ss`), éventuellement avec l'année corrigée. */
   value: string;

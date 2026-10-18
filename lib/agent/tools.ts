@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { normalizeSearchValue } from "@/lib/events/import-prefill";
+import type { AgendaUnreadableReason } from "@/lib/scraping/agenda";
 import { scanAgendaPage } from "@/lib/scraping/agenda-scan";
 
 import { findOrCreateArtist } from "./artists";
@@ -65,6 +66,20 @@ const listSources = defineTool({
   },
 });
 
+/** Repli quand scan_agenda ne sait pas lire une page : l'agent la lit lui-même. */
+function unreadableNextStep(reason: AgendaUnreadableReason, pageUrl: string) {
+  const read =
+    reason === "blocked" || reason === "empty"
+      ? `Ouvre ${pageUrl} dans le navigateur (WebFetch risque d'être bloqué ou de ne pas voir l'agenda dessiné en JavaScript)`
+      : `Lis ${pageUrl} avec WebFetch ou dans le navigateur`;
+  return (
+    `${read}. Pour chaque événement à venir : import_urls s'il a sa propre page lisible, sinon create_event avec ` +
+    "source_id et source_url (sa page, ou cette page d'agenda). Marque la source revue seulement après cette lecture, " +
+    "avec le nombre d'événements créés (0 si la page n'annonce vraiment rien) ; si la page reste illisible, ne la " +
+    "marque pas et signale-la."
+  );
+}
+
 const scanAgenda = defineTool({
   name: "scan_agenda",
   title: "Scanner un agenda",
@@ -73,7 +88,10 @@ const scanAgenda = defineTool({
     "Facebook publique, et liste les événements trouvés en signalant ceux déjà importés (`known`), passés " +
     "(`past`, d'après une date indicative : une exposition déjà ouverte peut y figurer) ou annulés (`cancelled`). " +
     "`to_import` contient les URL à passer à import_urls. Si l'adresse ne mène à rien, le lien « Agenda » du site " +
-    "est suivi et renvoyé dans `agenda_url` (à signaler pour corriger la source). Aucune écriture.",
+    "est suivi et renvoyé dans `agenda_url` (à signaler pour corriger la source). `unreadable` : la page n'a rien " +
+    "donné d'exploitable (bloquée, agenda en texte seul, liens qui ne sont pas des événements) et `to_import` est " +
+    "vide ; un résultat vide ne veut pas dire qu'elle n'annonce rien : lis-la toi-même (voir `unreadable.next_step`) " +
+    "avant de marquer la source revue. Aucune écriture.",
   input: z
     .object({
       source_id: z.string().optional().describe("Source à scanner (list_sources) : sa page d'agenda est utilisée."),
@@ -91,7 +109,10 @@ const scanAgenda = defineTool({
       organizerId: source?.owner?.type === "organizer" ? source.owner.id : null,
       locationId: source?.owner?.type === "location" ? source.owner.id : null,
     });
-    const toImport = scan.events.filter((event) => !event.known && !event.past && !event.cancelled);
+    // Page inexploitable : rien à importer d'office (liens « Accueil », « Youtube »…), la page est à relire.
+    const toImport = scan.unreadable
+      ? []
+      : scan.events.filter((event) => !event.known && !event.past && !event.cancelled);
     return {
       source: source ? { id: source.id, name: source.name } : null,
       url,
@@ -99,6 +120,9 @@ const scanAgenda = defineTool({
       method: scan.method,
       pages_visited: scan.pagesVisited,
       errors: scan.errors.length ? scan.errors : undefined,
+      unreadable: scan.unreadable
+        ? { ...scan.unreadable, next_step: unreadableNextStep(scan.unreadable.reason, scan.agendaUrl || url) }
+        : undefined,
       counts: {
         found: scan.events.length,
         known: scan.events.filter((event) => event.known).length,

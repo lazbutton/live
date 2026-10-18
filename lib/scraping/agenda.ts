@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 
 import { fetchHtml, FetchHtmlError } from "./fetch-html";
-import { findDateInText, parisToday } from "./dates";
+import { countDateMentions, findDateInText, parisToday } from "./dates";
 import { fetchSocoopShows, readSocoopAgenda, socoopShowToAgendaEvent } from "./socoop";
 import { decodeHtmlText, extractStructuredEvents, type CheerioDocument, type StructuredEvent } from "./structured-event";
 
@@ -11,9 +11,11 @@ import { decodeHtmlText, extractStructuredEvents, type CheerioDocument, type Str
  *   - données structurées (liste d'événements JSON-LD) quand le site en publie ;
  *   - sinon liens ciblés par le sélecteur configuré ;
  *   - sinon détection automatique du groupe de liens qui ressemble à des fiches d'événement
- *     (hors menus, en-tête et pied de page).
+ *     (hors menus, en-tête et pied de page), liens vers une billetterie en ligne compris.
  * Si la page ne donne rien d'exploitable (lien mort, page d'accueil), le lien « Agenda » du site
  * est suivi. Chaque lien reçoit un titre et une date indicatifs (texte de la carte, URL).
+ * `assessAgendaDiscovery` dit quand le résultat n'est pas exploitable (page bloquée, agenda en
+ * texte seul…) : il faut alors lire la page autrement, pas conclure qu'elle est vide.
  */
 
 export type DiscoveredAgendaEvent = {
@@ -47,6 +49,10 @@ export type AgendaDiscoveryResult = {
   errors: string[];
   /** Page d'agenda trouvée sur le site quand l'adresse donnée ne menait à rien (à enregistrer). */
   agendaUrl?: string;
+  /** Dates écrites dans le contenu de la première page lue (agenda en texte seul). */
+  textDates?: number;
+  /** Code HTTP de la première page qui n'a pas pu être lue (403, 429…). */
+  failedStatus?: number;
 };
 
 const TRACKING_PARAM = /^(utm_\w+|fbclid|gclid|dclid|msclkid|mc_cid|mc_eid|igsh|igshid|_ga|ref|ref_src)$/i;
@@ -61,6 +67,18 @@ const CALL_TO_ACTION =
 /** « Annulé », « ANNULÉ », « annulée »… (sans \b, inopérant après une lettre accentuée). */
 const CANCELLED = /(^|[^a-zà-ÿ])(annul[ée]e?s?|cancel{1,2}ed)(?![a-zà-ÿ])/i;
 const FIXED_LAST_SEGMENTS = new Set(["register", "inscription", "billets", "tickets", "billetterie", "details", "detail", "info", "infos", "reservation"]);
+/**
+ * Billetteries en ligne : un agenda qui renvoie chaque concert vers sa billetterie (bouton
+ * « Billetterie » sous le texte) y donne la fiche de l'événement.
+ */
+const TICKETING_HOST =
+  /(^|\.)(billetweb\.fr|helloasso\.com|shotgun\.live|weezevent\.com|yurplan\.com|festik\.net|dice\.fm|eventbrite\.(fr|com)|mapado\.com|fnacspectacles\.com|ticketmaster\.fr|seetickets\.com|billetreduc\.com)$/i;
+/** Pages de ces billetteries qui ne sont pas des événements (dons, adhésions, boutique, fichiers). */
+const TICKETING_NOISE = /\/(formulaires?|collectes?|dons?|boutiques?|paiements?|adhesions?|memberships?|files|bo)(\/|$)/i;
+
+function isTicketingEventUrl(url: URL) {
+  return TICKETING_HOST.test(url.hostname) && !TICKETING_NOISE.test(url.pathname);
+}
 
 /** URL comparable : sans fragment ni paramètres de suivi. */
 export function canonicalizeUrl(raw: string, base?: string): string | null {
@@ -129,6 +147,11 @@ function urlShape(url: URL) {
   return `${url.hostname}/${shape.join("/")}${params ? `?${params}` : ""}`;
 }
 
+/** Forme d'adresse d'une fiche d'événement : mots d'agenda (« evenement/* ») ou billetterie en ligne. */
+function isEventShape(shape: string) {
+  return EVENT_HINT.test(shape) || TICKETING_HOST.test(shape.split(/[/?]/)[0]);
+}
+
 type LinkCandidate = { url: string; element: any };
 
 /** Titre lisible tiré du dernier segment de l'URL (« the-thing-de-john-carpenter »). */
@@ -159,23 +182,81 @@ function visibleText(node: ReturnType<CheerioDocument>) {
   return copy.text();
 }
 
-/** Texte et image de la « carte » qui contient un lien (titre, date, visuel). */
-function readCard($: CheerioDocument, element: any, pageUrl: string) {
+const compact = (value: string) => value.replace(/\s+/g, " ").trim();
+
+/** Séparateur entre deux blocs d'une page à plat (« *** », trait horizontal). */
+function isSeparator(node: ReturnType<CheerioDocument>) {
+  if (node.is("hr")) return true;
+  const text = visibleText(node).replace(/\s+/g, "");
+  return text.length >= 3 && /^[*•·~_=–—-]+$/.test(text);
+}
+
+/** Titre le plus en vue d'un bloc : premier intertitre non vide du plus haut niveau. */
+function prominentHeading($: CheerioDocument, block: ReturnType<CheerioDocument>) {
+  for (const level of ["h1", "h2", "h3", "h4", "h5"]) {
+    const heading = block
+      .find(level)
+      .toArray()
+      .map((node: any) => decodeHtmlText(visibleText($(node))))
+      .find((value: string) => value.length > 2 && !CALL_TO_ACTION.test(value) && !/^[*•·~_=–—-]+$/.test(value));
+    if (heading) return heading;
+  }
+  return "";
+}
+
+/**
+ * Texte et image de la « carte » qui contient un lien (titre, date, visuel). La carte s'arrête
+ * avant le bloc qui contient le lien d'un autre événement du groupe (`groupUrls`). Page à plat
+ * (titre, visuel et date en blocs frères, puis le bouton « Billetterie ») : la carte est faite
+ * des blocs qui précèdent le lien, jusqu'au séparateur ou à l'événement précédent.
+ */
+function readCard($: CheerioDocument, link: LinkCandidate, pageUrl: string, groupUrls: Set<string>) {
+  const { element } = link;
+  const holdsOtherEvent = (node: ReturnType<CheerioDocument>) =>
+    node
+      .find("a[href]")
+      .toArray()
+      .some((anchor: any) => {
+        const url = canonicalizeUrl($(anchor).attr("href") || "", pageUrl);
+        return Boolean(url && url !== link.url && groupUrls.has(url));
+      });
+
   let card = $(element);
+  let flat = false;
   for (let depth = 0; depth < 4; depth += 1) {
-    const text = visibleText(card).replace(/\s+/g, " ").trim();
+    const text = compact(visibleText(card));
     if (text.length >= 25 || card.find("img").length) break;
     const parent = card.parent();
     if (!parent.length || parent.is("body")) break;
+    if (holdsOtherEvent(parent)) {
+      flat = true;
+      break;
+    }
     card = parent;
   }
-  const heading = visibleText(card.find("h1, h2, h3, h4, h5, .title, [class*='title'], [class*='titre'], strong").first());
+
+  if (flat) {
+    const nodes: any[] = [card.get(0)];
+    let sibling = card.prev();
+    while (sibling.length && nodes.length <= 12 && !isSeparator(sibling) && !holdsOtherEvent(sibling)) {
+      nodes.unshift(sibling.get(0));
+      sibling = sibling.prev();
+    }
+    // Copie des blocs dans un conteneur, pour y chercher titres et images comme dans une carte.
+    const block = $("<div></div>");
+    for (const node of nodes) block.append($(node).clone());
+    card = block;
+  }
+
+  const heading = flat
+    ? prominentHeading($, card)
+    : visibleText(card.find("h1, h2, h3, h4, h5, .title, [class*='title'], [class*='titre'], strong").first());
   const anchorText = visibleText($(element));
-  const imageAlt = card.find("img").first().attr("alt");
-  const rawTitle = [heading, anchorText, imageAlt, slugTitle(pageUrl, $(element).attr("href"))]
+  // Page à plat : le visuel le plus proche du lien est celui de l'événement.
+  const image = flat ? card.find("img").last() : card.find("img").first();
+  const rawTitle = [heading, anchorText, image.attr("alt"), slugTitle(pageUrl, $(element).attr("href"))]
     .map((value) => (value ? decodeHtmlText(value) : ""))
     .find((value) => value.length > 2 && !CALL_TO_ACTION.test(value));
-  const image = card.find("img").first();
   const imageSrc = image.attr("src") || image.attr("data-src") || image.attr("data-lazy-src");
   let imageUrl: string | undefined;
   try {
@@ -183,9 +264,11 @@ function readCard($: CheerioDocument, element: any, pageUrl: string) {
   } catch {
     imageUrl = undefined;
   }
+  const text = compact(visibleText(card));
   return {
     title: rawTitle ? rawTitle.slice(0, 140) : undefined,
-    text: visibleText(card).replace(/\s+/g, " ").trim().slice(0, 400),
+    // Page à plat : la fin du bloc, au plus près du lien (date, lieu).
+    text: flat ? text.slice(-400) : text.slice(0, 400),
     imageUrl,
   };
 }
@@ -211,7 +294,10 @@ function inSiteChrome($: CheerioDocument, element: any) {
   return block.length > 0 && block.closest("article, main, [role='main']").length === 0;
 }
 
-/** Choisit le groupe de liens internes le plus probable (même forme d'URL, mots d'agenda). */
+/**
+ * Choisit le groupe de liens le plus probable (même forme d'URL, mots d'agenda) : liens internes,
+ * ou pages d'une billetterie en ligne.
+ */
 function autoDetectLinks($: CheerioDocument, pageUrl: string) {
   const page = new URL(pageUrl);
   const groups = new Map<string, LinkCandidate[]>();
@@ -220,7 +306,8 @@ function autoDetectLinks($: CheerioDocument, pageUrl: string) {
     const url = canonicalizeUrl($(element).attr("href") || "", pageUrl);
     if (!url) return;
     const parsed = new URL(url);
-    if (parsed.hostname.replace(/^www\./, "") !== page.hostname.replace(/^www\./, "")) return;
+    const sameSite = parsed.hostname.replace(/^www\./, "") === page.hostname.replace(/^www\./, "");
+    if (!sameSite && !isTicketingEventUrl(parsed)) return;
     if (isNoiseUrl(parsed, page)) return;
     const shape = urlShape(parsed);
     const group = groups.get(shape) || [];
@@ -233,8 +320,8 @@ function autoDetectLinks($: CheerioDocument, pageUrl: string) {
     const unique = new Set(links.map((link) => link.url)).size;
     // Un seul lien suffit quand sa forme désigne une fiche d'événement (« /event-details/* »),
     // mais tout groupe de plusieurs liens passe avant.
-    if (unique < 2 && !EVENT_HINT.test(shape)) continue;
-    const hint = EVENT_HINT.test(shape) ? 2.5 : 1;
+    if (unique < 2 && !isEventShape(shape)) continue;
+    const hint = isEventShape(shape) ? 2.5 : 1;
     const depthBonus = shape.split("/").length > 2 ? 1.2 : 1;
     const score = unique < 2 ? 0.5 : unique * hint * depthBonus;
     if (!best || score > best.score) best = { score, links };
@@ -288,9 +375,9 @@ function datedCount(result: AgendaDiscoveryResult) {
   return result.events.filter((event) => event.date).length;
 }
 
-/** Liens dont l'adresse désigne une fiche d'événement (« /evenement/kidiboum/ »). */
+/** Liens dont l'adresse désigne une fiche d'événement (« /evenement/kidiboum/ », billetterie). */
 function eventShapedCount(result: AgendaDiscoveryResult) {
-  return result.events.filter((event) => EVENT_HINT.test(urlShape(new URL(event.url)))).length;
+  return result.events.filter((event) => isEventShape(urlShape(new URL(event.url)))).length;
 }
 
 /** Rien d'exploitable : lien mort, rien trouvé, ou détection automatique sans aucune date. */
@@ -347,6 +434,8 @@ async function scanAgendaPages(options: AgendaDiscoveryOptions): Promise<Scanned
   let currentUrl: string | null = canonicalizeUrl(options.agendaUrl);
   let pagesVisited = 0;
   let firstPage: ScannedAgenda["firstPage"];
+  let textDates: number | undefined;
+  let failedStatus: number | undefined;
   const referenceDate = new Date();
 
   while (currentUrl && pagesVisited < maxPages && found.size < maxEvents) {
@@ -357,12 +446,14 @@ async function scanAgendaPages(options: AgendaDiscoveryOptions): Promise<Scanned
     try {
       page = pagesVisited === 0 && options.prefetched ? options.prefetched : await fetchHtml(currentUrl);
     } catch (error) {
+      if (error instanceof FetchHtmlError) failedStatus ??= error.status;
       errors.push(`${currentUrl} : ${error instanceof FetchHtmlError ? error.message : "page inaccessible"}`);
       break;
     }
     pagesVisited += 1;
     firstPage ??= page;
     const $ = cheerio.load(page.html);
+    textDates ??= countPageDates($);
 
     // 0. Billetterie Socoop : l'agenda vient de l'API publique de la page, qui n'a aucun lien.
     const socoop = pagesVisited === 1 ? readSocoopAgenda($, page.finalUrl) : null;
@@ -404,12 +495,13 @@ async function scanAgendaPages(options: AgendaDiscoveryOptions): Promise<Scanned
     // 2. Liens (sélecteur configuré ou détection automatique).
     const links = selector ? collectSelectorLinks($, page.finalUrl, selector, attribute) : autoDetectLinks($, page.finalUrl);
     const agenda = new URL(page.finalUrl);
+    const groupUrls = new Set(links.map((link) => link.url));
     for (const link of links) {
       const parsed = new URL(link.url);
       if (isNoiseUrl(parsed, agenda)) continue;
       const key = urlMatchKey(link.url) as string;
       if (found.has(key)) continue;
-      const card = readCard($, link.element, page.finalUrl);
+      const card = readCard($, link, page.finalUrl, groupUrls);
       const path = decodeURIComponent(parsed.pathname);
       // Date de la carte, sinon de l'adresse (« /ateliers/p/atelier-crochet-sam-17/10 »,
       // « /samedi-31-octobre-2026-cafe-reparation/ »).
@@ -437,7 +529,65 @@ async function scanAgendaPages(options: AgendaDiscoveryOptions): Promise<Scanned
     const dated = events.filter((event) => event.date).length;
     if (dated >= 3 && dated / events.length >= 0.6) events = events.filter((event) => event.date);
   }
-  return { result: { events, method, pagesVisited, errors }, firstPage };
+  return { result: { events, method, pagesVisited, errors, textDates, failedStatus }, firstPage };
+}
+
+/** Dates écrites dans le contenu de la page (hors menus, en-tête et pied de page du site). */
+function countPageDates($: CheerioDocument) {
+  const body = $("body").clone();
+  body.find("nav, [role='navigation']").remove();
+  body.find("header, footer, [role='banner'], [role='contentinfo']").each((_index: number, node: any) => {
+    if ($(node).closest("article, main, [role='main']").length === 0) $(node).remove();
+  });
+  return countDateMentions(visibleText(body));
+}
+
+export type AgendaUnreadableReason = "blocked" | "unreachable" | "text_only" | "empty" | "not_events";
+
+export type AgendaUnreadable = { reason: AgendaUnreadableReason; message: string };
+
+/** Pages qui refusent les robots : protection anti-robots, quota de requêtes. */
+const BLOCKED_STATUSES = new Set([401, 403, 429]);
+
+/**
+ * Découverte inexploitable : page bloquée ou morte, agenda sans aucun lien vers une fiche
+ * (dates en texte seul, page dessinée en JavaScript), ou seulement des liens qui ne sont pas
+ * des événements (« Accueil », « Youtube »). La page doit alors être lue autrement : un résultat
+ * vide ne veut pas dire qu'elle n'annonce rien.
+ */
+export function assessAgendaDiscovery(result: AgendaDiscoveryResult): AgendaUnreadable | null {
+  if (result.events.length === 0) {
+    const status = result.failedStatus;
+    if (status && BLOCKED_STATUSES.has(status)) {
+      return {
+        reason: "blocked",
+        message:
+          status === 429
+            ? "Le site limite la lecture automatique (erreur 429, trop de requêtes)."
+            : `Le site refuse la lecture automatique (erreur ${status}).`,
+      };
+    }
+    if (result.errors.length > 0) return { reason: "unreachable", message: `Page illisible : ${result.errors[0]}` };
+    if (result.method === "facebook") {
+      return { reason: "empty", message: "Aucun événement à venir lisible sans connexion sur cette page Facebook." };
+    }
+    if ((result.textDates ?? 0) >= 2) {
+      return {
+        reason: "text_only",
+        message: `Aucun lien vers une fiche d'événement, mais ${result.textDates} dates sont écrites dans la page : agenda en texte seul.`,
+      };
+    }
+    return { reason: "empty", message: "Aucun événement ni date lisible : agenda vide, ou affiché en JavaScript." };
+  }
+  const distinctDates = new Set(result.events.map((event) => event.date?.slice(0, 10)).filter(Boolean)).size;
+  if (result.method === "auto" && eventShapedCount(result) === 0 && distinctDates < 2) {
+    const titles = [...new Set(result.events.map((event) => event.title).filter(Boolean))].slice(0, 3);
+    return {
+      reason: "not_events",
+      message: `Les liens trouvés ne ressemblent pas à des fiches d'événement${titles.length ? ` (${titles.map((title) => `« ${title} »`).join(", ")})` : ""}.`,
+    };
+  }
+  return null;
 }
 
 /** Écarte les événements dont la date indicative est passée. */
