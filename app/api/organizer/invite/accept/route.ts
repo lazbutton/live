@@ -2,6 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { NextResponse } from "next/server";
 
+/** Réponse jsonb de la fonction SQL accept_organizer_invitation. */
+type AcceptInvitationResult = {
+  success?: boolean;
+  error?: string;
+  organizer_id?: string;
+  role?: string;
+};
+
 // POST : Accepter une invitation
 export async function POST(request: Request) {
   try {
@@ -42,8 +50,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Vérifier l'expiration
-    if (new Date(invitation.expires_at) < new Date()) {
+    // Vérifier l'expiration (sans date : expirée)
+    if (!invitation.expires_at || new Date(invitation.expires_at) < new Date()) {
       return NextResponse.json(
         { error: "Cette invitation a expiré" },
         { status: 410 }
@@ -79,7 +87,7 @@ export async function POST(request: Request) {
     }
 
     // Accepter l'invitation via la fonction SQL
-    const { data: result, error: acceptError } = await supabase.rpc(
+    const { data: acceptData, error: acceptError } = await supabase.rpc(
       "accept_organizer_invitation",
       {
         invitation_token: token,
@@ -94,6 +102,8 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    const result = acceptData as AcceptInvitationResult | null;
 
     if (result?.success === false) {
       return NextResponse.json(

@@ -230,7 +230,8 @@ export default function DashboardPage() {
       setPendingEvents(pendingEventsRes.count ?? 0);
       setWeekCount(weekCountRes.count ?? 0);
       setPendingRequests(pendingRequestsCount);
-      setWeekEvents((weekEventsRes.data || []) as AdminEvent[]);
+      // TODO(types): major_event_events est une relation 1-1 (event_id unique) : le type généré est un objet, AdminEvent attend un tableau.
+      setWeekEvents((weekEventsRes.data || []) as unknown as AdminEvent[]);
       setOverdueIntakeSources((overdueSourcesRes.data || []) as OverdueIntakeSource[]);
       setOverdueIntakeTotal(overdueSourcesRes.count ?? overdueSourcesRes.data?.length ?? 0);
     } catch (e) {

@@ -96,7 +96,11 @@ export async function POST(
 
     if (existingInvitation) {
       // Si l'invitation n'est pas acceptée et n'est pas expirée, renvoyer le même token
-      if (!existingInvitation.accepted_at && new Date(existingInvitation.expires_at) > new Date()) {
+      if (
+        !existingInvitation.accepted_at &&
+        existingInvitation.expires_at &&
+        new Date(existingInvitation.expires_at) > new Date()
+      ) {
         const { data: invitation, error: inviteFetchError } = await supabase
           .from("organizer_invitations")
           .select("token")

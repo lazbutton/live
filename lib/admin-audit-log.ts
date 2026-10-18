@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase } from "@/lib/supabase/client";
+import type { Json } from "@/lib/supabase/database.types";
 
 export type AdminAuditActionInput = {
   action: string;
@@ -23,7 +24,7 @@ export async function logAdminAction(input: AdminAuditActionInput) {
       entity_type: input.entityType,
       entity_id: input.entityId ?? null,
       entity_label: input.entityLabel ?? null,
-      metadata: input.metadata ?? {},
+      metadata: (input.metadata ?? {}) as Json,
     });
 
     if (error) {

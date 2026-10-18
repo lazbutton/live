@@ -326,7 +326,8 @@ export function EventsPage() {
       .order("date", { ascending: true });
 
     if (error) throw error;
-    setEvents((data || []) as AdminEvent[]);
+    // TODO(types): major_event_events est une relation 1-1 (event_id unique) : le type généré est un objet, AdminEvent attend un tableau.
+    setEvents((data || []) as unknown as AdminEvent[]);
   }, []);
 
   // Le filtre « Créés par l'agent » reste vide si le journal d'audit est illisible.

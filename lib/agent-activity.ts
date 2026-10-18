@@ -138,7 +138,7 @@ export async function fetchAgentEventIds(): Promise<Set<string>> {
       .order("created_at", { ascending: false })
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw error;
-    for (const row of data || []) ids.add(row.entity_id);
+    for (const row of data || []) if (row.entity_id) ids.add(row.entity_id);
     if (!data || data.length < PAGE_SIZE) return ids;
   }
 }

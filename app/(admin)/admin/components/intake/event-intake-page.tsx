@@ -252,7 +252,8 @@ async function fetchCollecte(): Promise<{ sources: CollecteSource[]; findings: F
   const sourceById = new Map(sources.map((source) => [source.id, source]));
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
-  const findings: Finding[] = ((findingsRes.data || []) as EventOpportunity[]).map((opportunity) => {
+  // TODO(types): import_warnings (jsonb, donc Json) est lu comme ImportedEventWarning[].
+  const findings: Finding[] = ((findingsRes.data || []) as unknown as EventOpportunity[]).map((opportunity) => {
     const date = opportunity.detected_date ? new Date(opportunity.detected_date) : null;
     const when = date && !Number.isNaN(date.getTime()) ? date : null;
     return {
@@ -457,7 +458,7 @@ export function EventIntakePage() {
       .insert({
         source_id: source.id,
         action: "scanned",
-        scanned_at: next.last_scanned_at,
+        scanned_at: next.last_scanned_at ?? undefined,
         ended_at: next.last_scanned_at,
         previous_next_scan_at: previous.next_scan_at,
         next_scan_at: next.next_scan_at,

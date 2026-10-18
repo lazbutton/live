@@ -191,7 +191,8 @@ export function OrganizersManagement() {
       if (organizersError) throw organizersError;
       if (locationsError) throw locationsError;
 
-      const allOrganizers: Organizer[] = [
+      // TODO(types): source_capture_mode (text + CHECK) est une union dans Organizer, les dates y sont non nulles.
+      const allOrganizers = [
         ...(organizersData || []).map((org) => ({ ...org, type: "organizer" as const })),
         ...(locationsData || []).map((loc) => ({
           id: loc.id,
@@ -209,7 +210,7 @@ export function OrganizersManagement() {
           updated_at: loc.updated_at,
           type: "location" as const,
         })),
-      ];
+      ] as Organizer[];
 
       setOrganizers(allOrganizers);
     } catch (error) {

@@ -84,8 +84,10 @@ export function CategoriesManagement() {
         .order("display_order", { ascending: true });
 
       if (error) throw error;
-      setCategories(data || []);
-      setFilteredCategories(data || []);
+      // TODO(types): is_active, display_order et les dates sont nullables en base, pas dans Category.
+      const rows = (data || []) as Category[];
+      setCategories(rows);
+      setFilteredCategories(rows);
     } catch (error) {
       console.error("Erreur lors du chargement des catégories:", error);
     } finally {

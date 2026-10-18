@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase/client";
+import type { Tables } from "@/lib/supabase/database.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,12 +15,7 @@ import { Plus, X, Check, Edit2, Trash2, Tag as TagIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DirectorySearch, DirectorySegments } from "./directory/directory";
 
-interface Tag {
-  id: string;
-  name: string;
-  created_at: string;
-  updated_at: string;
-}
+type Tag = Tables<"tags">;
 
 type TagSegment = "all" | "unused";
 
@@ -52,7 +48,7 @@ async function loadUsedTagIds() {
   await Promise.all([
     ...(["events", "artists", "major_events"] as const).map((table) =>
       collectTagIds(
-        (from, to) => supabase.from(table).select("tag_ids").neq("tag_ids", "{}").order("id").range(from, to),
+        (from, to) => supabase.from(table).select("tag_ids").filter("tag_ids", "neq", "{}").order("id").range(from, to),
         used,
       ),
     ),

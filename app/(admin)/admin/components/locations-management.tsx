@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
+import type { TablesInsert } from "@/lib/supabase/database.types";
 import { fetchRemoteImageBlob } from "@/lib/events/remote-image";
 import {
   Table,
@@ -188,11 +189,12 @@ export function LocationsManagement() {
       if (roomsError) throw roomsError;
 
       // Associer les salles aux lieux
+      // TODO(types): source_capture_mode (text + CHECK) est une union dans Location, les dates y sont non nulles.
       const locationsWithRooms = (locationsData || []).map((location) => ({
         ...location,
         city: Array.isArray(location.city) ? (location.city[0] ?? null) : (location.city ?? null),
         rooms: (roomsData || []).filter((room) => room.location_id === location.id),
-      }));
+      })) as Location[];
 
       setLocations(locationsWithRooms);
       setFilteredLocations(locationsWithRooms);
@@ -982,6 +984,7 @@ export function LocationDialog({
         }
       }
 
+      // TODO(types): address est NOT NULL dans les migrations ; ce formulaire envoie null s'il est vide.
       const submitData = {
         name: formData.name,
         address: formData.address || null,
@@ -1001,7 +1004,7 @@ export function LocationDialog({
         source_capture_mode: formData.source_capture_mode,
         is_organizer: formData.is_organizer || false,
         suggested: formData.suggested || false,
-      };
+      } as TablesInsert<"locations">;
 
       if (location) {
         // Mise à jour
