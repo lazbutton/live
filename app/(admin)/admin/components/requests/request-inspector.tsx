@@ -7,7 +7,6 @@ import {
   CalendarDays,
   CheckCircle2,
   Copy,
-  Download,
   ExternalLink,
   FileSearch,
   type LucideIcon,
@@ -63,7 +62,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="border-border/70 bg-card/80 shadow-sm">
+    <Card className="border-border bg-card/80 shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 pb-3">
         <CardTitle className="text-sm font-semibold">{title}</CardTitle>
         {action}
@@ -86,7 +85,7 @@ function FoldSection({
 }) {
   return (
     <details
-      className="rounded-xl border border-border/70 bg-card/70"
+      className="rounded-xl border border-border bg-card/70"
       open={defaultOpen}
     >
       <summary className="cursor-pointer list-none px-4 py-3">
@@ -100,7 +99,7 @@ function FoldSection({
           <span className="text-xs text-muted-foreground">Afficher</span>
         </div>
       </summary>
-      <div className="border-t border-border/70 px-4 py-4">{children}</div>
+      <div className="border-t border-border px-4 py-4">{children}</div>
     </details>
   );
 }
@@ -125,7 +124,7 @@ function InspectorMetric({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-xl border border-border/70 bg-background/80 p-3", className)}>
+    <div className={cn("rounded-xl border border-border bg-background/80 p-3", className)}>
       <div className="mb-1 flex items-center gap-2 text-[11px] text-muted-foreground">
         {icon}
         <span>{label}</span>
@@ -150,8 +149,8 @@ function ChecklistItem({
       className={cn(
         "rounded-xl border p-3",
         present
-          ? "border-emerald-500/20 bg-emerald-500/[0.05]"
-          : "border-amber-500/20 bg-amber-500/[0.05]",
+          ? "border-success/20 bg-success/[0.05]"
+          : "border-warning/20 bg-warning/[0.05]",
       )}
     >
       <div className="flex items-start gap-3">
@@ -159,8 +158,8 @@ function ChecklistItem({
           className={cn(
             "mt-0.5 shrink-0 rounded-full p-1",
             present
-              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-              : "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+              ? "bg-success/15 text-success"
+              : "bg-warning/15 text-warning",
           )}
         >
           <CheckCircle2 className="h-3.5 w-3.5" />
@@ -191,7 +190,7 @@ function getDecisionCallout(
     return {
       title: "Demande déjà convertie",
       toneClassName:
-        "border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-950 dark:text-emerald-100",
+        "border-success/20 bg-success/[0.07] text-foreground",
       icon: CheckCircle2,
     };
   }
@@ -200,7 +199,7 @@ function getDecisionCallout(
     return {
       title: "Demande déjà rejetée",
       toneClassName:
-        "border-rose-500/20 bg-rose-500/[0.07] text-rose-950 dark:text-rose-100",
+        "border-destructive/20 bg-destructive/[0.07] text-foreground",
       icon: AlertTriangle,
     };
   }
@@ -209,7 +208,7 @@ function getDecisionCallout(
     return {
       title: "Vérification doublon recommandée",
       toneClassName:
-        "border-amber-500/20 bg-amber-500/[0.08] text-amber-950 dark:text-amber-100",
+        "border-warning/20 bg-warning/[0.08] text-foreground",
       icon: AlertTriangle,
     };
   }
@@ -218,7 +217,7 @@ function getDecisionCallout(
     return {
       title: "Date passée ou imminente",
       toneClassName:
-        "border-rose-500/20 bg-rose-500/[0.07] text-rose-950 dark:text-rose-100",
+        "border-destructive/20 bg-destructive/[0.07] text-foreground",
       icon: AlertTriangle,
     };
   }
@@ -227,7 +226,7 @@ function getDecisionCallout(
     return {
       title: "Prête à convertir",
       toneClassName:
-        "border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-950 dark:text-emerald-100",
+        "border-success/20 bg-success/[0.07] text-foreground",
       icon: Sparkles,
     };
   }
@@ -236,7 +235,7 @@ function getDecisionCallout(
     return {
       title: "À fiabiliser depuis la source",
       toneClassName:
-        "border-sky-500/20 bg-sky-500/[0.07] text-sky-950 dark:text-sky-100",
+        "border-info/20 bg-info/[0.07] text-foreground",
       icon: Link2,
     };
   }
@@ -245,14 +244,14 @@ function getDecisionCallout(
     return {
       title: "Compléter avant conversion",
       toneClassName:
-        "border-amber-500/20 bg-amber-500/[0.08] text-amber-950 dark:text-amber-100",
+        "border-warning/20 bg-warning/[0.08] text-foreground",
       icon: FileSearch,
     };
   }
 
   return {
     title: "Relecture recommandée",
-    toneClassName: "border-border/70 bg-muted/30 text-foreground",
+    toneClassName: "border-border bg-muted/30 text-foreground",
     icon: FileSearch,
   };
 }
@@ -312,7 +311,7 @@ export function RequestInspector({
 }) {
   if (!item) {
     return (
-      <Card className={cn("border-dashed border-border/70 bg-card/60", panelMode && "h-full")}>
+      <Card className={cn("border-dashed border-border bg-card/60", panelMode && "h-full")}>
         <CardContent
           className={cn(
             "p-6 text-sm text-muted-foreground",
@@ -452,7 +451,7 @@ export function RequestInspector({
       <div className="space-y-4">
       <Card
         className={cn(
-          "border-border/70 bg-background/95 shadow-sm backdrop-blur",
+          "border-border bg-background/95 shadow-sm backdrop-blur",
           panelMode && "sticky top-0 z-10",
         )}
       >
@@ -565,7 +564,7 @@ export function RequestInspector({
             {item.missingFields.length > 0 ? (
               <Badge
                 variant="outline"
-                className="border-amber-500/30 bg-amber-500/[0.05] text-amber-800 dark:text-amber-200"
+                className="border-warning/30 bg-warning/[0.05] text-foreground"
               >
                 {item.missingFields.length} champ
                 {item.missingFields.length > 1 ? "s" : ""} à compléter
@@ -573,7 +572,7 @@ export function RequestInspector({
             ) : (
               <Badge
                 variant="outline"
-                className="border-emerald-500/30 bg-emerald-500/[0.05] text-emerald-800 dark:text-emerald-200"
+                className="border-success/30 bg-success/[0.05] text-foreground"
               >
                 Dossier exploitable
               </Badge>
@@ -581,7 +580,7 @@ export function RequestInspector({
             {collisionCount > 0 ? (
               <Badge
                 variant="outline"
-                className="border-rose-500/30 bg-rose-500/[0.05] text-rose-800 dark:text-rose-200"
+                className="border-destructive/30 bg-destructive/[0.05] text-foreground"
               >
                 {collisionCount} signal{collisionCount > 1 ? "s" : ""} de collision
               </Badge>
@@ -589,7 +588,7 @@ export function RequestInspector({
             {item.isPast ? (
               <Badge
                 variant="outline"
-                className="border-rose-500/30 bg-rose-500/[0.05] text-rose-800 dark:text-rose-200"
+                className="border-destructive/30 bg-destructive/[0.05] text-foreground"
               >
                 Date passée
               </Badge>
@@ -624,7 +623,7 @@ export function RequestInspector({
           </div>
 
           {description ? (
-            <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+            <div className="rounded-xl border border-border bg-muted/20 p-3">
               <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Aperçu du contenu
               </div>
@@ -653,7 +652,7 @@ export function RequestInspector({
             {sourceLinks.map((entry) => (
               <div
                 key={`${entry.label}-${entry.value}`}
-                className="rounded-xl border border-border/70 bg-background/70 p-3"
+                className="rounded-xl border border-border bg-background/70 p-3"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -694,26 +693,20 @@ export function RequestInspector({
             ))}
 
             {item.requestType === "event_from_url" && item.status === "pending" ? (
-              <div className="flex flex-wrap gap-2">
+              <div className="space-y-1.5">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => onEditWithPrefill(item, "url")}
+                  onClick={() => onEditWithPrefill(item, canUseFacebookPrefill ? "facebook" : "url")}
                 >
-                  <Link2 className="mr-2 h-4 w-4" />
-                  Préremplir depuis l’URL
+                  <Link2 />
+                  Importer depuis la source
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onEditWithPrefill(item, "facebook")}
-                  disabled={!canUseFacebookPrefill}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Préremplir Facebook
-                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Analyse la page (Facebook, Instagram, billetterie…) puis ouvre la fiche pré-remplie ; la demande
+                  est convertie à l’enregistrement.
+                </p>
               </div>
             ) : null}
           </div>
@@ -731,7 +724,7 @@ export function RequestInspector({
                 <Badge
                   key={field}
                   variant="outline"
-                  className="border-amber-500/30 bg-amber-500/[0.05] text-amber-800 dark:text-amber-200"
+                  className="border-warning/30 bg-warning/[0.05] text-foreground"
                 >
                   {field}
                 </Badge>
@@ -739,7 +732,7 @@ export function RequestInspector({
             ) : (
               <Badge
                 variant="outline"
-                className="border-emerald-500/30 bg-emerald-500/[0.05] text-emerald-800 dark:text-emerald-200"
+                className="border-success/30 bg-success/[0.05] text-foreground"
               >
                 Aucun champ critique manquant
               </Badge>
@@ -774,7 +767,7 @@ export function RequestInspector({
         }
       >
         <div className="space-y-4">
-          <div className="rounded-xl border border-border/70 bg-muted/20 p-3 text-xs text-muted-foreground">
+          <div className="rounded-xl border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
             Le message contributeur est visible côté app si la reprise est autorisée. Les notes internes restent privées.
           </div>
 

@@ -231,7 +231,7 @@ export function CronsManagement() {
                       <CardTitle className="text-lg">{getCronName(path)}</CardTitle>
                       <div className="flex items-center gap-2">
                         {result.success ? (
-                          <Badge variant="default" className="bg-success text-success-foreground">
+                          <Badge variant="success">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             Succès
                           </Badge>

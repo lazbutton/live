@@ -5,7 +5,7 @@ import { OrganizersManagement } from "../components/organizers-management";
 
 export default function OrganizersPage() {
   return (
-    <AdminLayout title="Organisateurs" breadcrumbItems={[{ label: "Organisateurs" }]}>
+    <AdminLayout breadcrumbItems={[{ label: "Organisateurs" }]}>
       <OrganizersManagement />
     </AdminLayout>
   );

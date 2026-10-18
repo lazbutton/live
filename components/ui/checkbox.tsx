@@ -11,12 +11,9 @@ const Checkbox = React.forwardRef<
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      "peer inline-flex h-5 w-5 shrink-0 items-center justify-center border border-border/90 bg-card text-primary-foreground shadow-sm transition-all duration-150 ring-offset-background hover:border-primary/70 hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:shadow-md data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:shadow-md dark:border-white/20 dark:bg-white/[0.04] dark:hover:border-primary/80 dark:hover:bg-white/[0.08] cursor-pointer",
+      "peer inline-flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-[4px] border border-input bg-background text-primary-foreground shadow-xs outline-none transition-[color,background-color,border-color,box-shadow] duration-150 hover:border-foreground/40 focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary dark:data-[state=unchecked]:bg-input/25",
       className
     )}
-    style={{
-      borderRadius: "calc(var(--radius-sm) + 1px)",
-    }}
     checked={checked}
     {...props}
   >
@@ -24,9 +21,9 @@ const Checkbox = React.forwardRef<
       className={cn("flex items-center justify-center text-current")}
     >
       {checked === "indeterminate" ? (
-        <Minus className="h-3.5 w-3.5 stroke-[3]" />
+        <Minus className="size-3 stroke-[3]" />
       ) : (
-        <Check className="h-3.5 w-3.5 stroke-[3]" />
+        <Check className="size-3 stroke-[3]" />
       )}
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>

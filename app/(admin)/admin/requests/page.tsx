@@ -5,7 +5,7 @@ import { RequestsWorkspaceKanban } from "../components/requests/requests-workspa
 
 export default function RequestsPage() {
   return (
-    <AdminLayout title="Demandes" breadcrumbItems={[{ label: "Demandes" }]}>
+    <AdminLayout breadcrumbItems={[{ label: "Demandes" }]}>
       <RequestsWorkspaceKanban />
     </AdminLayout>
   );

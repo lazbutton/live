@@ -57,7 +57,7 @@ registry.registerPath({
   tags: ["Partners"],
   summary: "Agenda Radio Campus Orléans (embed rapide)",
   description:
-    "Point d'entrée dédié au site Radio Campus : payload allégé (sans artistes), avec description, fenêtre 12 mois, cache CDN 60s. Aucun paramètre. CORS `*`.",
+    "Point d'entrée dédié au site Radio Campus : payload allégé (sans artistes), avec description et badges agenda, fenêtre 12 mois, cache CDN 60s. Inclut les événements hors app. Aucun paramètre. CORS `*`.",
   responses: {
     200: {
       description: "Événements Radio Campus à venir ou en cours",

@@ -122,11 +122,11 @@ export function MultiSelectCreatable({
           type="button"
           disabled={disabled}
           className={cn(
-            "flex min-h-[44px] w-full items-center justify-between whitespace-nowrap rounded-lg border border-border/30 bg-input/50 backdrop-blur-sm px-4 py-2 text-sm ring-offset-background cursor-pointer data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background focus:border-ring/50 hover:border-border/50 disabled:cursor-not-allowed disabled:opacity-40 shadow-sm hover:shadow-md",
+            "flex min-h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-1.5 text-left text-sm text-foreground shadow-xs outline-none transition-[color,border-color,box-shadow] duration-150 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30 data-[state=open]:border-ring disabled:cursor-not-allowed disabled:opacity-50 max-md:min-h-10 dark:bg-input/25",
             className
           )}
         >
-          <div className="flex flex-wrap gap-1 flex-1">
+          <div className="flex min-w-0 flex-1 flex-wrap gap-1">
             {selected.length === 0 ? (
               <span className="text-muted-foreground">{placeholder}</span>
             ) : (
@@ -137,7 +137,7 @@ export function MultiSelectCreatable({
                   <Badge
                     key={value}
                     variant="secondary"
-                    className="mr-1 mb-1 cursor-pointer"
+                    className="cursor-pointer gap-1 pr-1"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -148,7 +148,7 @@ export function MultiSelectCreatable({
                     <span
                       role="button"
                       tabIndex={0}
-                      className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer inline-flex items-center justify-center"
+                      className="-mr-0.5 inline-flex items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
@@ -166,18 +166,18 @@ export function MultiSelectCreatable({
                         handleUnselect(value);
                       }}
                     >
-                      <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                      <X className="h-3 w-3" />
                     </span>
                   </Badge>
                 );
               })
             )}
           </div>
-          <ChevronDown className="h-4 w-4 opacity-60 shrink-0" />
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-full p-0 rounded-xl border border-border/30 bg-popover/95 backdrop-blur-xl shadow-2xl"
+        className="w-full overflow-hidden p-0"
         align="start"
         portalled={false}
         style={{ width: "var(--radix-popover-trigger-width)" }}
@@ -190,7 +190,7 @@ export function MultiSelectCreatable({
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={createPlaceholder}
-            className="min-h-[36px] text-base"
+            className="h-9"
           />
         </div>
         <div className="max-h-60 overflow-auto p-1" style={{ overscrollBehavior: "contain" }}>
@@ -203,13 +203,13 @@ export function MultiSelectCreatable({
               {showCreateOption && onCreate && (
                 <div
                   className={cn(
-                    "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2.5 px-3 text-sm outline-none hover:bg-accent/40 hover:text-accent-foreground transition-colors",
-                    isCreating && "opacity-50 cursor-wait"
+                    "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground max-md:py-2.5",
+                    isCreating && "cursor-wait opacity-50"
                   )}
                   onClick={handleCreate}
                 >
                   <div className="flex items-center gap-2 flex-1">
-                    <Plus className="h-4 w-4 text-primary" />
+                    <Plus className="h-4 w-4 text-muted-foreground" />
                     <span>
                       Créer "{inputValue.trim()}"
                     </span>
@@ -222,18 +222,18 @@ export function MultiSelectCreatable({
                   <div
                     key={option.value}
                     className={cn(
-                      "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2.5 px-3 text-sm outline-none hover:bg-accent/40 hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground transition-colors",
-                      isSelected && "bg-accent/60 text-accent-foreground"
+                      "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground max-md:py-2.5",
+                      isSelected && "font-medium"
                     )}
                     onClick={() => handleSelect(option.value)}
                   >
                     <div className="flex items-center gap-2 flex-1">
                       <div
                         className={cn(
-                          "flex h-4 w-4 items-center justify-center rounded-sm border border-primary transition-colors",
+                          "flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
                           isSelected
-                            ? "bg-primary text-primary-foreground"
-                            : "opacity-50"
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-input"
                         )}
                       >
                         {isSelected && <Check className="h-3 w-3" />}

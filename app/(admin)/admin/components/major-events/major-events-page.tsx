@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -27,6 +27,11 @@ import {
 } from "@/components/ui/table";
 
 import type { AdminMajorEvent, MajorEventStatus } from "./types";
+import {
+  ManagementHero,
+  ManagementStat,
+  ManagementStatGrid,
+} from "../management-page-primitives";
 
 function formatDateRange(startAt: string, endAt: string) {
   const formatter = new Intl.DateTimeFormat("fr-FR", {
@@ -41,17 +46,19 @@ function formatDateRange(startAt: string, endAt: string) {
   }
 }
 
-function getStatusBadgeVariant(status: MajorEventStatus): "default" | "secondary" | "outline" {
+function getStatusBadgeVariant(
+  status: MajorEventStatus,
+): "success" | "warning" | "muted" | "outline" {
   switch (status) {
     case "approved":
-      return "default";
+      return "success";
     case "pending":
-      return "outline";
+      return "warning";
     case "archived":
-      return "secondary";
+      return "muted";
     case "draft":
     default:
-      return "secondary";
+      return "outline";
   }
 }
 
@@ -153,42 +160,40 @@ export function MajorEventsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Total Multi-événements</CardDescription>
-            <CardTitle className="text-3xl">{majorEvents.length}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Multi-événements publiés</CardDescription>
-            <CardTitle className="text-3xl">{publishedCount}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Événements liés</CardDescription>
-            <CardTitle className="text-3xl">{totalEventsLinked}</CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
+      <ManagementHero
+        title="Multi-événements"
+        description="Base éditoriale des fêtes, festivals et programmations qui regroupent plusieurs événements."
+        actions={
+          <>
+            <Button type="button" variant="outline" size="sm" onClick={() => void loadMajorEvents()} disabled={loading}>
+              <RefreshCw className={loading ? "animate-spin" : ""} />
+              Actualiser
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/admin/major-events/create">
+                <Plus />
+                Créer un Multi-événements
+              </Link>
+            </Button>
+          </>
+        }
+      >
+        <ManagementStatGrid className="xl:grid-cols-3">
+          <ManagementStat label="Multi-événements" value={majorEvents.length} hint={`${featuredCount} mis en avant`} />
+          <ManagementStat label="Publiés" value={publishedCount} />
+          <ManagementStat label="Événements liés" value={totalEventsLinked} />
+        </ManagementStatGrid>
+      </ManagementHero>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Multi-événements</CardTitle>
-          <CardDescription>
-            Base éditoriale pour les fêtes, festivals et programmations liées
-            à plusieurs événements.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+      <Card className="overflow-hidden">
+        <CardContent className="space-y-4 p-0">
+          <div className="flex flex-col gap-3 border-b border-border p-3 lg:flex-row lg:items-center">
             <Input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Rechercher par titre, slug ou ville"
               className="lg:max-w-sm"
+              aria-label="Rechercher un Multi-événements"
             />
 
             <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as "all" | MajorEventStatus)}>
@@ -204,26 +209,14 @@ export function MajorEventsPage() {
               </SelectContent>
             </Select>
 
-            <div className="flex gap-2 lg:ml-auto">
-              <Button type="button" variant="outline" onClick={() => void loadMajorEvents()} disabled={loading}>
-                <RefreshCw className={loading ? "animate-spin" : ""} />
-                Actualiser
-              </Button>
-              <Button asChild>
-                <Link href="/admin/major-events/create">
-                  <Plus />
-                  Créer un Multi-événements
-                </Link>
-              </Button>
-            </div>
           </div>
 
           {loading ? (
-            <div className="rounded-lg border border-dashed p-8 text-sm text-muted-foreground">
-              Chargement des Multi-événements...
+            <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+              Chargement des Multi-événements…
             </div>
           ) : filteredMajorEvents.length == 0 ? (
-            <div className="rounded-lg border border-dashed p-8 text-center">
+            <div className="px-5 py-12 text-center">
               <p className="text-sm text-muted-foreground">
                 Aucun Multi-événements ne correspond aux filtres actuels.
               </p>
@@ -256,7 +249,7 @@ export function MajorEventsPage() {
                         <div className="font-medium">{majorEvent.title}</div>
                         <div className="text-xs text-muted-foreground">
                           /{majorEvent.slug}
-                          {majorEvent.city_name ? ` • ${majorEvent.city_name}` : ""}
+                          {majorEvent.city_name ? ` · ${majorEvent.city_name}` : ""}
                         </div>
                       </div>
                     </TableCell>
@@ -269,15 +262,13 @@ export function MajorEventsPage() {
                       {formatDateRange(majorEvent.start_at, majorEvent.end_at)}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                        <Badge variant="outline">{majorEvent.events_count || 0} événements</Badge>
-                        <Badge variant="outline">{majorEvent.locations_count || 0} lieux</Badge>
-                        <Badge variant="outline">{majorEvent.organizers_count || 0} organisateurs</Badge>
+                      <div className="text-sm tabular-nums text-muted-foreground">
+                        {majorEvent.events_count || 0} év. · {majorEvent.locations_count || 0} lieux · {majorEvent.organizers_count || 0} orga.
                       </div>
                     </TableCell>
                     <TableCell>
                       {majorEvent.is_featured ? (
-                        <Badge>Mis en avant</Badge>
+                        <Badge variant="outline">Mis en avant</Badge>
                       ) : (
                         <span className="text-sm text-muted-foreground">Standard</span>
                       )}
@@ -297,8 +288,8 @@ export function MajorEventsPage() {
           )}
 
           {!loading && majorEvents.length > 0 ? (
-            <p className="text-xs text-muted-foreground">
-              {filteredMajorEvents.length} Multi-événements affiché(s) • {featuredCount} mis en avant.
+            <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
+              {filteredMajorEvents.length} Multi-événements affiché{filteredMajorEvents.length > 1 ? "s" : ""} · {featuredCount} mis en avant
             </p>
           ) : null}
         </CardContent>

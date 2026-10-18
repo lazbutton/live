@@ -13,6 +13,7 @@ import type {
 import { getRequestTypeLabel } from "@/lib/admin-requests";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Select,
   SelectContent,
@@ -108,9 +109,9 @@ export function RequestFiltersBar({
   ];
 
   return (
-    <div className="sticky top-14 z-10 border-b border-border/60 bg-background/95 pb-3 pt-1 backdrop-blur md:top-16">
-      <div className="space-y-3 rounded-xl border border-border/70 bg-background/90 px-3 py-3 shadow-sm">
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+    <div className="sticky top-12 z-20 -mx-4 bg-background/90 px-4 py-2 backdrop-blur-md supports-[backdrop-filter]:bg-background/75 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
+      <div className="space-y-3 rounded-xl border border-border bg-card px-3 py-3 shadow-xs">
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
           {queueStats.map((stat) => {
             const active = activeTab === "queue" && queueFilter === stat.id;
 
@@ -118,11 +119,12 @@ export function RequestFiltersBar({
               <button
                 key={stat.id}
                 type="button"
+                aria-pressed={active}
                 className={cn(
-                  "rounded-xl border px-3 py-2 text-left transition-colors",
+                  "rounded-lg border px-3 py-2 text-left outline-none transition-[border-color,background-color,box-shadow] focus-visible:ring-[3px] focus-visible:ring-ring/40",
                   active
-                    ? "border-primary/40 bg-primary/10"
-                    : "border-border/70 bg-card/60 hover:bg-accent/50",
+                    ? "border-foreground/40 bg-background shadow-xs dark:bg-input/30"
+                    : "border-border bg-muted/30 hover:bg-muted/60",
                 )}
                 onClick={() => {
                   onTabChange("queue");
@@ -130,14 +132,14 @@ export function RequestFiltersBar({
                 }}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-medium text-muted-foreground">
+                  <span className={cn("text-xs font-medium", active ? "text-foreground" : "text-muted-foreground")}>
                     {stat.label}
                   </span>
-                  <span className="text-xl font-semibold tracking-tight">
+                  <span className="text-lg font-semibold tracking-tight tabular-nums">
                     {stat.count}
                   </span>
                 </div>
-                <div className="mt-1 truncate text-[11px] text-muted-foreground">
+                <div className="mt-0.5 hidden truncate text-[11px] text-muted-foreground sm:block">
                   {stat.hint}
                 </div>
               </button>
@@ -145,122 +147,104 @@ export function RequestFiltersBar({
           })}
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-sm transition-colors",
-                activeTab === tab.id
-                  ? "border-primary/40 bg-primary/10 font-medium text-primary"
-                  : "border-border/70 bg-background text-muted-foreground hover:bg-accent/50",
-              )}
-              onClick={() => onTabChange(tab.id)}
-            >
-              {tab.label}
-              <span className="ml-2 rounded-full bg-muted px-1.5 py-0 text-[11px] text-muted-foreground">
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_160px_150px_auto_auto]">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Rechercher une demande"
-              className="h-9 pl-9"
-            />
-          </div>
-
-          <Select
-            value={typeFilter}
-            onValueChange={(value) =>
-              onTypeFilterChange(value as AdminRequestTypeFilter)
-            }
-          >
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les types</SelectItem>
-              <SelectItem value="event_creation">
-                {getRequestTypeLabel("event_creation")}
-              </SelectItem>
-              <SelectItem value="event_from_url">
-                {getRequestTypeLabel("event_from_url")}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={periodFilter}
-            onValueChange={(value) =>
-              onPeriodFilterChange(value as AdminRequestPeriodFilter)
-            }
-          >
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="Période" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Toutes les dates</SelectItem>
-              <SelectItem value="24h">24h</SelectItem>
-              <SelectItem value="7d">7 jours</SelectItem>
-              <SelectItem value="30d">30 jours</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <div className="flex items-center justify-center rounded-md border border-border/70 px-3 text-xs font-medium text-muted-foreground">
-            {actionableCount} actionnable{actionableCount > 1 ? "s" : ""}
-          </div>
-
-          <div className="flex items-center justify-end gap-2">
-            {hasActiveFilters ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-9 px-2.5"
-                onClick={() => {
-                  onSearchChange("");
-                  onTypeFilterChange("all");
-                  onPeriodFilterChange("all");
-                  onQueueFilterChange("all");
-                }}
-              >
-                Réinitialiser
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-9"
-              onClick={onRefresh}
-              disabled={refreshing}
-            >
-              {refreshing ? (
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              Rafraîchir
-            </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <SegmentedControl
+            aria-label="Vue"
+            size="sm"
+            value={activeTab}
+            onValueChange={onTabChange}
+            items={tabs.map((tab) => ({ value: tab.id, label: tab.label, count: tab.count }))}
+          />
+          <div className="flex items-center gap-1">
             <Button
               type="button"
               size="sm"
               variant="ghost"
-              className="h-9 px-2.5"
+              className="text-muted-foreground"
               onClick={onShowShortcuts}
             >
-              <Keyboard className="mr-2 h-4 w-4" />
-              Raccourcis
+              <Keyboard />
+              <span className="hidden sm:inline">Raccourcis</span>
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw className={cn(refreshing && "animate-spin")} />
+              Rafraîchir
             </Button>
           </div>
+        </div>
+
+        <div className="flex flex-col gap-2 md:flex-row md:items-center">
+          <div className="relative min-w-0 md:flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Rechercher une demande…"
+              className="pl-9"
+            />
+          </div>
+
+          <div className="flex gap-2 md:shrink-0">
+            <Select
+              value={typeFilter}
+              onValueChange={(value) =>
+                onTypeFilterChange(value as AdminRequestTypeFilter)
+              }
+            >
+              <SelectTrigger className="flex-1 md:w-44 md:flex-none" aria-label="Type">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les types</SelectItem>
+                <SelectItem value="event_creation">
+                  {getRequestTypeLabel("event_creation")}
+                </SelectItem>
+                <SelectItem value="event_from_url">
+                  {getRequestTypeLabel("event_from_url")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={periodFilter}
+              onValueChange={(value) =>
+                onPeriodFilterChange(value as AdminRequestPeriodFilter)
+              }
+            >
+              <SelectTrigger className="flex-1 md:w-40 md:flex-none" aria-label="Période">
+                <SelectValue placeholder="Période" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes les dates</SelectItem>
+                <SelectItem value="24h">24h</SelectItem>
+                <SelectItem value="7d">7 jours</SelectItem>
+                <SelectItem value="30d">30 jours</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {hasActiveFilters ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="self-start text-muted-foreground md:self-auto"
+              onClick={() => {
+                onSearchChange("");
+                onTypeFilterChange("all");
+                onPeriodFilterChange("all");
+                onQueueFilterChange("all");
+              }}
+            >
+              Réinitialiser
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>

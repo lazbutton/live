@@ -10,8 +10,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Plus, Search, X, Check, Edit2, Trash2, Tag as TagIcon } from "lucide-react";
+import { Plus, X, Check, Edit2, Trash2, Tag as TagIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DirectorySearch, DirectorySegments } from "./directory/directory";
 
 interface Tag {
   id: string;
@@ -20,11 +21,73 @@ interface Tag {
   updated_at: string;
 }
 
+type TagSegment = "all" | "unused";
+
+const PAGE_SIZE = 1000;
+// Fiches encore ouvertes, comme sur la page Collecte.
+const OPEN_INTAKE_STATUSES = ["spotted", "needs_info", "ready_to_create", "recheck"];
+
+type TagIdsPage = PromiseLike<{ data: Array<{ tag_ids?: unknown }> | null; error: unknown }>;
+
+/** Parcourt toutes les pages d'une requête et ajoute les identifiants de tags trouvés. */
+async function collectTagIds(fetchPage: (from: number, to: number) => TagIdsPage, into: Set<string>) {
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await fetchPage(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    for (const row of data || []) {
+      if (!Array.isArray(row.tag_ids)) continue;
+      for (const id of row.tag_ids) if (typeof id === "string") into.add(id);
+    }
+    if (!data || data.length < PAGE_SIZE) return;
+  }
+}
+
+/**
+ * Tags en service : portés par un événement, un artiste ou un grand événement,
+ * ou proposés par une fiche de collecte ouverte ou une demande en attente
+ * (leurs tags sont recopiés à la création de l'événement).
+ */
+async function loadUsedTagIds() {
+  const used = new Set<string>();
+  await Promise.all([
+    ...(["events", "artists", "major_events"] as const).map((table) =>
+      collectTagIds(
+        (from, to) => supabase.from(table).select("tag_ids").neq("tag_ids", "{}").order("id").range(from, to),
+        used,
+      ),
+    ),
+    collectTagIds(
+      (from, to) =>
+        supabase
+          .from("event_opportunities")
+          .select("tag_ids:import_payload->eventPrefill->tagIds")
+          .in("status", OPEN_INTAKE_STATUSES)
+          .order("id")
+          .range(from, to),
+      used,
+    ),
+    collectTagIds(
+      (from, to) =>
+        supabase
+          .from("user_requests")
+          .select("tag_ids:event_data->tag_ids")
+          .eq("status", "pending")
+          .order("id")
+          .range(from, to),
+      used,
+    ),
+  ]);
+  return used;
+}
+
 export function TagsManagement() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [filteredTags, setFilteredTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [segment, setSegment] = useState<TagSegment>("all");
+  const [usedTagIds, setUsedTagIds] = useState<Set<string> | null>(null);
+  const [usageUnavailable, setUsageUnavailable] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [newTagValue, setNewTagValue] = useState("");
@@ -35,13 +98,33 @@ export function TagsManagement() {
   }, []);
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredTags(tags);
-    } else {
-      const query = searchQuery.toLowerCase();
-      setFilteredTags(tags.filter((tag) => tag.name.toLowerCase().includes(query)));
-    }
-  }, [tags, searchQuery]);
+    let cancelled = false;
+    loadUsedTagIds()
+      .then((ids) => {
+        if (!cancelled) setUsedTagIds(ids);
+      })
+      .catch((error) => {
+        console.error("Utilisation des tags indisponible:", error);
+        if (!cancelled) setUsageUnavailable(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const query = searchQuery.trim() ? searchQuery.toLowerCase() : "";
+    setFilteredTags(
+      tags.filter(
+        (tag) =>
+          // Tant que l'utilisation n'est pas connue, aucun tag n'est présenté comme inutilisé.
+          (segment === "all" || (usedTagIds !== null && !usedTagIds.has(tag.id))) &&
+          (!query || tag.name.toLowerCase().includes(query)),
+      ),
+    );
+  }, [tags, searchQuery, segment, usedTagIds]);
+
+  const unusedCount = usedTagIds ? tags.filter((tag) => !usedTagIds.has(tag.id)).length : undefined;
 
   async function loadTags() {
     try {
@@ -171,7 +254,7 @@ export function TagsManagement() {
             <h2 className="text-xl font-semibold">Tags</h2>
             <p className="text-sm text-muted-foreground">
               {filteredTags.length} tag{filteredTags.length > 1 ? "s" : ""}
-              {searchQuery && ` sur ${tags.length}`}
+              {(searchQuery || segment !== "all") && ` sur ${tags.length}`}
             </p>
           </div>
         </div>
@@ -185,17 +268,23 @@ export function TagsManagement() {
         </Button>
       </div>
 
-      {/* Recherche et création inline */}
+      {/* Filtres, recherche et création inline */}
       <div className="space-y-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher un tag..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-10"
-          />
-        </div>
+        <DirectorySegments
+          value={segment}
+          onValueChange={setSegment}
+          items={[
+            { value: "all", label: "Tous", count: tags.length },
+            { value: "unused", label: "Inutilisés", count: unusedCount, attention: true },
+          ]}
+        />
+        {segment === "unused" ? (
+          <p className="text-sm text-muted-foreground">
+            Tags absents des événements, des artistes et des grands événements, et qu&apos;aucune fiche de
+            collecte ni demande en cours ne propose.
+          </p>
+        ) : null}
+        <DirectorySearch value={searchQuery} onChange={setSearchQuery} placeholder="Rechercher un tag…" />
 
         {/* Création inline */}
         {isCreating && (
@@ -245,8 +334,14 @@ export function TagsManagement() {
               <TagIcon className="h-12 w-12 mx-auto opacity-20" />
               <p>Aucun tag. Cliquez sur "Ajouter" pour commencer.</p>
             </div>
-          ) : (
+          ) : searchQuery ? (
             <p>Aucun résultat pour "{searchQuery}"</p>
+          ) : usageUnavailable ? (
+            <p>Impossible de vérifier l&apos;utilisation des tags.</p>
+          ) : usedTagIds === null ? (
+            <p>Vérification de l&apos;utilisation des tags…</p>
+          ) : (
+            <p>Aucun tag inutilisé.</p>
           )}
         </div>
       ) : (
@@ -255,8 +350,7 @@ export function TagsManagement() {
             <div
               key={tag.id}
               className={cn(
-                "group relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full border bg-card hover:bg-accent transition-all duration-200",
-                "hover:shadow-md hover:scale-105 cursor-pointer",
+                "group relative inline-flex cursor-pointer items-center gap-2 rounded-md border bg-card px-2.5 py-1 text-sm transition-colors hover:bg-accent",
                 editingId === tag.id && "ring-2 ring-primary"
               )}
               onDoubleClick={() => startEdit(tag)}
@@ -274,7 +368,7 @@ export function TagsManagement() {
                         cancelEdit();
                       }
                     }}
-                    className="h-7 px-2 text-sm border-0 bg-background focus-visible:ring-0"
+                    className="h-7 px-2 text-sm border-0 focus-visible:ring-0"
                     autoFocus
                     onClick={(e) => e.stopPropagation()}
                   />

@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { Loader2 } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
+import { AdminShell } from "./components/admin-shell";
 
 export default function AdminLayout({
   children,
@@ -100,10 +101,10 @@ export default function AdminLayout({
 
   if (isChecking) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
-          <p className="text-muted-foreground">Vérification des permissions...</p>
+      <div data-app-shell="admin" className="flex min-h-svh items-center justify-center bg-background">
+        <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Vérification des accès…
         </div>
       </div>
     );
@@ -113,9 +114,18 @@ export default function AdminLayout({
     return null;
   }
 
+  if (pathname === "/admin/login") {
+    return (
+      <>
+        {children}
+        <Toaster />
+      </>
+    );
+  }
+
   return (
     <>
-      {children}
+      <AdminShell>{children}</AdminShell>
       <Toaster />
     </>
   );

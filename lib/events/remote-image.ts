@@ -35,3 +35,19 @@ export function resolveCropSource(params: {
     ? buildAdminProxyImageUrl(source)
     : source;
 }
+
+/**
+ * Télécharge une image distante en passant par le proxy admin : la plupart des
+ * sites (billetteries, CMS) n'autorisent pas la lecture directe depuis le navigateur.
+ */
+export async function fetchRemoteImageBlob(url: string): Promise<Blob> {
+  const response = await fetch(buildAdminProxyImageUrl(url), { credentials: "same-origin" });
+  if (!response.ok) {
+    throw new Error(
+      response.status === 415
+        ? "Le lien ne pointe pas vers une image."
+        : `Image distante inaccessible (${response.status}).`,
+    );
+  }
+  return response.blob();
+}

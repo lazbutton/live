@@ -5,7 +5,11 @@ import { SettingsPage } from "../components/settings/settings-page";
 
 export default function AdminSettingsPage() {
   return (
-    <AdminLayout title="Réglages" breadcrumbItems={[{ label: "Réglages" }]}>
+    <AdminLayout
+      title="Réglages"
+      description="Catégories et tags, utilisateurs, notifications et santé du système."
+      breadcrumbItems={[{ label: "Réglages" }]}
+    >
       <SettingsPage />
     </AdminLayout>
   );

@@ -4,9 +4,8 @@ import * as React from "react";
 import { addDays, format, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
 
-import { Card } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { enumerateEventDisplayDays, startOfLocalDay, toLocalDayKey } from "@/lib/events/display-days";
 
 import type { AdminEvent } from "../events/types";
@@ -23,6 +22,25 @@ export type WeekTimelineProps = {
   className?: string;
 };
 
+function DayHeading({ day }: { day: Date }) {
+  const isToday = isSameDay(day, new Date());
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className={cn(
+          "flex size-7 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
+          isToday ? "bg-foreground text-background" : "text-foreground",
+        )}
+      >
+        {format(day, "d", { locale: fr })}
+      </span>
+      <span className={cn("text-xs font-medium capitalize", isToday ? "text-foreground" : "text-muted-foreground")}>
+        {isToday ? "Aujourd'hui" : format(day, "EEEE", { locale: fr })}
+      </span>
+    </div>
+  );
+}
+
 export function WeekTimeline({
   events,
   onEventClick,
@@ -32,7 +50,6 @@ export function WeekTimeline({
   onQuickApprove,
   className,
 }: WeekTimelineProps) {
-  const isMobile = useIsMobile();
   const today = React.useMemo(() => startOfLocalDay(new Date()), []);
   const days = React.useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(today, i)), [today]);
   const [contextMenu, setContextMenu] = React.useState<{
@@ -86,68 +103,70 @@ export function WeekTimeline({
     setContextMenu(null);
   }, [events]);
 
-  if (isMobile) {
-    return (
-      <div className={cn("space-y-3", className)}>
-        <div className="text-sm font-semibold">Timeline • 7 jours</div>
-        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2">
-          {days.map((day) => {
-            const key = toLocalDayKey(day);
-            const list = eventsByDay.get(key) || [];
-            const isToday = isSameDay(day, new Date());
-            return (
-              <div key={key} className="min-w-full snap-start">
-                <Card className="p-3">
-                  <div className={cn("font-semibold", isToday && "text-primary")}>
-                    {format(day, "EEE d MMM", { locale: fr })}
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    {list.length === 0 ? (
-                      <div className="rounded-lg border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                        Aucun
-                      </div>
-                    ) : (
-                      list.map((ev) => (
-                        <EventCard
-                          key={ev.id}
-                          event={ev}
-                          compact
-                          onClick={() => onEventClick(ev)}
-                          onContextMenu={(mouseEvent) => openContextMenu(mouseEvent, ev)}
-                        />
-                      ))
-                    )}
-                  </div>
-                </Card>
-              </div>
-            );
-          })}
-        </div>
+  const totalCount = events.length;
+
+  const header = (
+    <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
+      <div className="space-y-1">
+        <CardTitle>7 prochains jours</CardTitle>
+        <CardDescription>
+          {totalCount === 0
+            ? "Aucun événement programmé."
+            : `${totalCount} événement${totalCount > 1 ? "s" : ""} programmé${totalCount > 1 ? "s" : ""}.`}
+        </CardDescription>
       </div>
-    );
-  }
+    </CardHeader>
+  );
 
   return (
-    <div className={cn("space-y-3", className)}>
-      <div className="text-sm font-semibold">Timeline • 7 jours</div>
-      <div className="grid gap-3 md:grid-cols-7">
+    <Card className={cn("@container/timeline overflow-hidden", className)}>
+      {header}
+
+      {/* Conteneur étroit : liste jour par jour */}
+      <div className="divide-y divide-border @4xl/timeline:hidden">
         {days.map((day) => {
           const key = toLocalDayKey(day);
           const list = eventsByDay.get(key) || [];
           const isToday = isSameDay(day, new Date());
 
           return (
-            <Card key={key} className={cn("p-3 min-h-[220px]", isToday && "ring-1 ring-primary/30")}>
-              <div className="flex items-baseline justify-between gap-2">
-                <div className={cn("text-sm font-semibold", isToday && "text-primary")}>
-                  {format(day, "EEE", { locale: fr })}
-                </div>
-                <div className="text-xs text-muted-foreground">{format(day, "d MMM", { locale: fr })}</div>
+            <div key={key} className={cn("flex items-start gap-3 px-4 py-2.5", isToday && "bg-muted/30")}>
+              <div className="w-28 shrink-0 pt-0.5">
+                <DayHeading day={day} />
               </div>
-
-              <div className="mt-3 space-y-2">
+              <div className="min-w-0 flex-1 space-y-1.5">
                 {list.length === 0 ? (
-                  <div className="text-xs text-muted-foreground italic">Aucun</div>
+                  <div className="py-1 text-sm text-muted-foreground/70">Rien de prévu</div>
+                ) : (
+                  list.map((ev) => (
+                    <EventCard
+                      key={ev.id}
+                      event={ev}
+                      onClick={() => onEventClick(ev)}
+                      onQuickApprove={ev.status === "pending" ? () => onQuickApprove(ev) : undefined}
+                      onContextMenu={(mouseEvent) => openContextMenu(mouseEvent, ev)}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Conteneur large : grille 7 colonnes */}
+      <div className="hidden grid-cols-7 divide-x divide-border @4xl/timeline:grid">
+        {days.map((day) => {
+          const key = toLocalDayKey(day);
+          const list = eventsByDay.get(key) || [];
+          const isToday = isSameDay(day, new Date());
+
+          return (
+            <div key={key} className={cn("min-h-[220px] min-w-0 space-y-3 p-3", isToday && "bg-muted/30")}>
+              <DayHeading day={day} />
+              <div className="space-y-1.5">
+                {list.length === 0 ? (
+                  <div className="px-1 text-xs text-muted-foreground/70">—</div>
                 ) : (
                   list.map((ev) => (
                     <EventCard
@@ -155,12 +174,13 @@ export function WeekTimeline({
                       event={ev}
                       compact
                       onClick={() => onEventClick(ev)}
+                      onQuickApprove={ev.status === "pending" ? () => onQuickApprove(ev) : undefined}
                       onContextMenu={(mouseEvent) => openContextMenu(mouseEvent, ev)}
                     />
                   ))
                 )}
               </div>
-            </Card>
+            </div>
           );
         })}
       </div>
@@ -179,7 +199,6 @@ export function WeekTimeline({
           onQuickApprove={onQuickApprove}
         />
       ) : null}
-    </div>
+    </Card>
   );
 }
-

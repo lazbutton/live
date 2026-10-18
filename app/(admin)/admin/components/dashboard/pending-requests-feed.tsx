@@ -14,29 +14,29 @@ import {
 } from "@/lib/admin-requests";
 import { formatRequestDateTime } from "../requests/request-ui";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ChevronRight } from "lucide-react";
 
 export type PendingRequestsFeedProps = {
   refreshKey?: number;
 };
 
-function getLaneBadgeClassName(lane: AdminRequestLane) {
+function getLaneBadgeVariant(lane: AdminRequestLane): BadgeProps["variant"] {
   switch (lane) {
     case "ready":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+      return "success";
     case "to_process":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+      return "warning";
     case "from_url":
-      return "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300";
+      return "info";
     case "blocked":
-      return "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300";
+      return "destructive";
     case "processed":
-      return "border-border bg-muted text-muted-foreground";
+      return "muted";
   }
 }
 
@@ -75,21 +75,20 @@ export function PendingRequestsFeed({ refreshKey }: PendingRequestsFeedProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Demandes en attente</CardTitle>
+          <CardTitle>Demandes à traiter</CardTitle>
           <CardDescription>Chargement…</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <div className="divide-y divide-border">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="rounded-lg border p-4">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="mt-2 h-3 w-1/3" />
-              <div className="mt-3 flex gap-2">
-                <Skeleton className="h-9 w-36" />
-                <Skeleton className="h-9 w-24" />
+            <div key={i} className="flex items-center gap-4 px-5 py-3.5">
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-3 w-1/3" />
               </div>
+              <Skeleton className="h-5 w-20" />
             </div>
           ))}
-        </CardContent>
+        </div>
       </Card>
     );
   }
@@ -97,62 +96,56 @@ export function PendingRequestsFeed({ refreshKey }: PendingRequestsFeedProps) {
   if (requests.length === 0) return null;
 
   return (
-    <Card>
-      <CardHeader className="gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <CardTitle className="text-lg">Demandes</CardTitle>
-          <CardDescription>Aperçu cohérent de la file. Le traitement complet se fait dans l'inbox dédiée.</CardDescription>
+    <Card className="overflow-hidden">
+      <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
+        <div className="space-y-1">
+          <CardTitle>Demandes à traiter</CardTitle>
+          <CardDescription>Aperçu de la file. Le traitement complet se fait dans la file dédiée.</CardDescription>
         </div>
-        <Button type="button" variant="outline" onClick={() => router.push("/admin/requests")}>
-          Voir toute la file
-          <ArrowRight className="ml-2 h-4 w-4" />
+        <Button type="button" variant="outline" size="sm" onClick={() => router.push("/admin/requests")}>
+          Voir la file
+          <ArrowRight />
         </Button>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <ul className="divide-y divide-border">
         {requests.map((r) => {
           const proposedDate = r.eventDate || null;
           const requestedAt = formatRequestDateTime(r.requestedAt);
           const age = formatRequestAgeShort(r.requestedAt);
+          const meta = [
+            `Demandée ${requestedAt}${age ? ` (${age})` : ""}`,
+            proposedDate ? `Événement ${formatDateWithoutTimezone(proposedDate, "PPp")}` : null,
+            r.locationSummary || null,
+          ].filter(Boolean);
 
           return (
-            <div key={r.id} className="rounded-lg border bg-card p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="font-semibold truncate">{r.title}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Demandée {requestedAt}
-                    {age ? ` • ${age}` : ""}
-                    {proposedDate ? ` • Événement ${formatDateWithoutTimezone(proposedDate, "PPp")}` : ""}
-                    {r.locationSummary ? ` • ${r.locationSummary}` : ""}
-                  </div>
+            <li key={r.id}>
+              <button
+                type="button"
+                onClick={() => router.push(`/admin/requests?request=${r.id}`)}
+                className="group flex w-full items-center gap-4 px-5 py-3.5 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:bg-muted/40"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{r.title}</div>
+                  <div className="mt-0.5 truncate text-xs text-muted-foreground">{meta.join(" · ")}</div>
                 </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  <Badge className={getLaneBadgeClassName(r.lane)}>{getRequestLaneLabel(r.lane)}</Badge>
-                  <Badge variant={r.requestType === "event_from_url" ? "outline" : "secondary"}>{getRequestTypeLabel(r.requestType)}</Badge>
+                <div className="hidden shrink-0 flex-wrap items-center justify-end gap-1.5 sm:flex">
+                  {r.missingFields.length > 0 ? (
+                    <Badge variant="outline" className="text-muted-foreground">
+                      {r.missingFields.length} champ{r.missingFields.length > 1 ? "s" : ""} manquant{r.missingFields.length > 1 ? "s" : ""}
+                    </Badge>
+                  ) : null}
+                  <Badge variant="outline" className="text-muted-foreground">
+                    {getRequestTypeLabel(r.requestType)}
+                  </Badge>
+                  <Badge variant={getLaneBadgeVariant(r.lane)}>{getRequestLaneLabel(r.lane)}</Badge>
                 </div>
-              </div>
-
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap gap-2">
-                  {r.missingFields.length > 0 && <Badge variant="outline">{r.missingFields.length} champ(s) manquant(s)</Badge>}
-                  {r.sourceUrl && <Badge variant="outline">Source disponible</Badge>}
-                </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => router.push(`/admin/requests?request=${r.id}`)}
-                >
-                  Ouvrir
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+              </button>
+            </li>
           );
         })}
-      </CardContent>
+      </ul>
     </Card>
   );
 }
-

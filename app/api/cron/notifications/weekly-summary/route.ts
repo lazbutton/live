@@ -119,6 +119,7 @@ export async function GET(request: NextRequest) {
       .select("id, title, date, end_date, category, location:locations(name, address), event_organizers(organizer:organizers(name))")
       .eq("status", "approved")
       .or("is_full.is.null,is_full.eq.false") // Exclure les événements complets
+      .eq("show_on_app", true)
       .gte("date", weekStartIso)
       .lt("date", nextWeekStartIso)
       .order("date", { ascending: true })

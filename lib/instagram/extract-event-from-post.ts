@@ -4,6 +4,8 @@ import { promisify } from "node:util";
 
 import OpenAI from "openai";
 
+import { AI_MODEL_FULL, generationParams } from "@/lib/ai/openai-models";
+
 import type { ImportedEventPayload } from "@/lib/events/imported-event-payload";
 
 const execFileAsync = promisify(execFile);
@@ -139,10 +141,9 @@ async function enrichWithOpenAI(
 
   const openai = new OpenAI({ apiKey: openaiApiKey });
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: AI_MODEL_FULL,
     response_format: { type: "json_object" },
-    temperature: 0.2,
-    max_completion_tokens: 1800,
+    ...generationParams(AI_MODEL_FULL, { temperature: 0.2, maxTokens: 1800 }),
     messages: [
       {
         role: "system",

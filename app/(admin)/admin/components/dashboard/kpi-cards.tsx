@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { AlertCircle, CalendarClock, FileText } from "lucide-react";
+import { ArrowUpRight, CalendarClock, CalendarCheck2, Inbox } from "lucide-react";
 
-import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export type KpiCardsProps = {
@@ -16,59 +15,62 @@ export type KpiCardsProps = {
 function KpiCard({
   title,
   value,
+  hint,
   icon: Icon,
   href,
   onClick,
-  tone,
-  emphasize,
+  needsAttention,
 }: {
   title: string;
   value: number;
+  hint: string;
   icon: React.ComponentType<{ className?: string }>;
   href?: string;
   onClick?: () => void;
-  tone: "warning" | "info" | "cyan";
-  emphasize?: boolean;
+  needsAttention?: boolean;
 }) {
-  const tones: Record<"warning" | "info" | "cyan", { gradient: string; icon: string }> = {
-    warning: { gradient: "from-amber-500/20 via-orange-500/10 to-red-500/20", icon: "text-amber-600" },
-    info: { gradient: "from-blue-500/20 via-indigo-500/10 to-purple-500/20", icon: "text-blue-600" },
-    cyan: { gradient: "from-cyan-500/20 via-sky-500/10 to-blue-500/20", icon: "text-cyan-600" },
-  } as const;
-
-  const wrapClass = cn(
-    "group relative overflow-hidden transition-all duration-300",
-    "hover:shadow-xl hover:scale-[1.02] hover:border-primary/50",
-    emphasize && value > 0 && "ring-2 ring-offset-2 ring-offset-background ring-amber-500/20 border-amber-500/30",
+  const inner = (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <span className="line-clamp-2 text-xs font-medium text-muted-foreground sm:text-sm">{title}</span>
+        <Icon className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" />
+      </div>
+      <div className="mt-2 flex items-center gap-2 sm:mt-3">
+        <span className="text-2xl font-semibold leading-none tracking-tight tabular-nums sm:text-3xl">
+          {value}
+        </span>
+        {needsAttention && value > 0 ? (
+          <>
+            <span className="size-2 rounded-full bg-warning sm:hidden" aria-label="À traiter" />
+            <span className="hidden items-center gap-1.5 rounded-md border border-warning/25 bg-warning/10 px-1.5 py-0.5 text-xs font-medium text-warning sm:inline-flex">
+              <span className="size-1.5 rounded-full bg-warning" />
+              À traiter
+            </span>
+          </>
+        ) : null}
+      </div>
+      <div className="mt-3 hidden items-center gap-1 text-xs text-muted-foreground transition-colors group-hover:text-foreground sm:flex">
+        {hint}
+        <ArrowUpRight className="h-3.5 w-3.5" />
+      </div>
+    </>
   );
 
-  const inner = (
-    <Card className={wrapClass}>
-      <div className={cn("absolute inset-0 bg-gradient-to-br opacity-60 pointer-events-none", tones[tone].gradient)} />
-      <CardContent className="relative z-10 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-foreground/90">{title}</div>
-            <div className="mt-2 text-4xl font-bold tracking-tight tabular-nums">{value}</div>
-          </div>
-          <div className="rounded-xl bg-background/80 backdrop-blur-sm p-2.5 transition-transform group-hover:scale-110">
-            <Icon className={cn("h-5 w-5", tones[tone].icon)} />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+  const className = cn(
+    "group block w-full rounded-xl border border-border bg-card p-3 text-left shadow-xs outline-none transition-[border-color,box-shadow] duration-150 sm:p-4",
+    "hover:border-foreground/20 hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/40",
   );
 
   if (href) {
     return (
-      <Link href={href} className="block">
+      <Link href={href} className={className}>
         {inner}
       </Link>
     );
   }
 
   return (
-    <button type="button" onClick={onClick} className="block w-full text-left">
+    <button type="button" onClick={onClick} className={className}>
       {inner}
     </button>
   );
@@ -84,31 +86,30 @@ function todayLocalDateKey() {
 
 export function KpiCards({ pendingEvents, weekCount, pendingRequests, onRequestsClick }: KpiCardsProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-3 gap-2 sm:gap-3">
       <KpiCard
-        title="Événements pending"
+        title="Événements en attente"
         value={pendingEvents}
-        icon={AlertCircle}
+        hint="Valider les événements"
+        icon={CalendarCheck2}
         href="/admin/events?status=pending"
-        tone="warning"
-        emphasize
+        needsAttention
       />
       <KpiCard
-        title="Cette semaine"
+        title="7 prochains jours"
         value={weekCount}
+        hint="Ouvrir l'agenda"
         icon={CalendarClock}
         href={`/admin/events?view=agenda&start=${todayLocalDateKey()}`}
-        tone="info"
       />
       <KpiCard
         title="Demandes en attente"
         value={pendingRequests}
-        icon={FileText}
+        hint="Traiter la file"
+        icon={Inbox}
         onClick={onRequestsClick}
-        tone="cyan"
-        emphasize={pendingRequests > 0}
+        needsAttention
       />
     </div>
   );
 }
-

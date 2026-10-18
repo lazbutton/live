@@ -1,7 +1,7 @@
 "use client";
 
 import type { EventFormPrefill } from "@/app/(admin)/admin/components/events/types";
-import { toDatetimeLocal } from "@/lib/date-utils";
+import { format } from "date-fns";
 import type { EventOpportunity, EventSource, IntakeImportPayload } from "./intake-types";
 
 export const INTAKE_EVENT_PREFILL_STORAGE_KEY = "outlive:intake-event-prefill";
@@ -62,6 +62,13 @@ export function clearIntakeEventPrefill() {
   window.localStorage.removeItem(INTAKE_EVENT_PREFILL_STORAGE_KEY);
 }
 
+/** La date repérée est enregistrée en UTC réel : on la ramène à l'heure locale du formulaire. */
+function toLocalInputValue(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : format(date, "yyyy-MM-dd'T'HH:mm");
+}
+
 export function buildEventFormPrefillFromIntakePayload(args: {
   payload: IntakeEventPrefillPayload;
   categories: Array<{ id: string; name: string }>;
@@ -91,7 +98,7 @@ export function buildEventFormPrefillFromIntakePayload(args: {
     form: {
       title: args.payload.title,
       description: args.payload.notes || "",
-      date: args.payload.detectedDate ? toDatetimeLocal(args.payload.detectedDate) : "",
+      date: toLocalInputValue(args.payload.detectedDate),
       category: categoryId,
       location_id: "",
       external_url: args.payload.sourceUrl || "",

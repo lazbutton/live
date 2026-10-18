@@ -265,7 +265,7 @@ export function AddressInput({
         <div
           ref={suggestionsRef}
           data-address-suggestions
-          className="fixed bg-popover border border-border/30 rounded-lg shadow-2xl max-h-[300px] overflow-y-auto"
+          className="fixed max-h-[300px] overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg"
           style={{
             zIndex: 9999999,
             position: 'fixed',
@@ -293,10 +293,10 @@ export function AddressInput({
             <div
               key={index}
               className={cn(
-                "px-3 py-2 text-sm cursor-pointer transition-colors",
+                "cursor-pointer rounded-md px-2 py-1.5 text-sm transition-colors",
                 index === selectedIndex
                   ? "bg-accent text-accent-foreground"
-                  : "hover:bg-accent/50 hover:text-accent-foreground"
+                  : "hover:bg-accent hover:text-accent-foreground"
               )}
               style={{ pointerEvents: 'auto' }}
               onClick={(e) => {

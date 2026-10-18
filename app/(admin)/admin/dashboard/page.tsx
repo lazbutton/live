@@ -7,10 +7,10 @@ import { fetchPendingAdminRequestsCount } from "@/lib/admin-requests";
 import { AdminLayout } from "../components/admin-layout";
 import { toast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, ListChecks } from "lucide-react";
+import { AlertTriangle, ArrowRight } from "lucide-react";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 
 import type {
   AdminEvent,
@@ -24,10 +24,10 @@ import type {
 import { KpiCards } from "../components/dashboard/kpi-cards";
 import { WeekTimeline } from "../components/dashboard/week-timeline";
 import { PendingRequestsFeed } from "../components/dashboard/pending-requests-feed";
-import { QuickActions } from "../components/dashboard/quick-actions";
 import { EventArtistsQuickDialog } from "../components/events/event-artists-quick-dialog";
 import { EventFormSheet } from "../components/events/event-form-sheet";
 import { logAdminAction } from "@/lib/admin-audit-log";
+import { useAdminEventsChanged } from "../components/events/event-creation-provider";
 
 function startOfLocalDay(date: Date) {
   const d = new Date(date);
@@ -38,45 +38,78 @@ function startOfLocalDay(date: Date) {
 type OverdueIntakeSource = {
   id: string;
   name: string;
-  priority: "p0" | "p1" | "p2" | "p3";
-  next_scan_at: string | null;
-  last_scanned_at: string | null;
 };
 
 function IntakeOverdueCard({
   sources,
+  total,
   onOpenIntake,
 }: {
   sources: OverdueIntakeSource[];
+  /** Nombre total de sources à revoir (la liste n'en montre qu'une partie). */
+  total: number;
   onOpenIntake: () => void;
 }) {
-  if (sources.length === 0) return null;
+  if (total === 0) return null;
 
   return (
-    <Card className="border-amber-500/30 bg-amber-500/[0.04]">
-      <CardHeader className="flex flex-row items-start justify-between gap-4">
-        <div className="space-y-1">
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-amber-600" />
-            Collecte à relancer
-          </CardTitle>
-          <CardDescription>
-            {sources.length} source{sources.length > 1 ? "s" : ""} P0/P1 sont dues ou en retard.
-          </CardDescription>
+    <div className="flex flex-col gap-3 rounded-xl border border-warning/30 bg-warning/[0.06] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-start gap-3">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+        <div className="min-w-0 space-y-1.5">
+          <p className="text-sm font-medium">
+            {total} source{total > 1 ? "s" : ""} de collecte à revoir
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {sources.map((source) => (
+              <span
+                key={source.id}
+                className="inline-flex items-center rounded-md border border-border bg-background px-1.5 py-0.5 text-xs"
+              >
+                <span className="max-w-[180px] truncate">{source.name}</span>
+              </span>
+            ))}
+            {total > sources.length ? (
+              <span className="px-1 py-0.5 text-xs text-muted-foreground">+{total - sources.length}</span>
+            ) : null}
+          </div>
         </div>
-        <Button type="button" className="gap-2" onClick={onOpenIntake}>
-          <ListChecks className="h-4 w-4" />
-          Ouvrir Collecte
-        </Button>
-      </CardHeader>
-      <CardContent className="flex flex-wrap gap-2">
-        {sources.slice(0, 8).map((source) => (
-          <Badge key={source.id} variant="outline" className="bg-background/80">
-            {source.priority.toUpperCase()} · {source.name}
-          </Badge>
+      </div>
+      <Button type="button" variant="outline" size="sm" className="shrink-0 bg-background" onClick={onOpenIntake}>
+        Ouvrir la collecte
+        <ArrowRight />
+      </Button>
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-3 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="rounded-xl border border-border bg-card p-4">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="mt-4 h-8 w-16" />
+            <Skeleton className="mt-4 h-3 w-24" />
+          </div>
         ))}
-      </CardContent>
-    </Card>
+      </div>
+      <div className="rounded-xl border border-border bg-card">
+        <div className="border-b px-5 py-4">
+          <Skeleton className="h-4 w-36" />
+          <Skeleton className="mt-2 h-3 w-48" />
+        </div>
+        <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-7">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-6 w-20" />
+              <Skeleton className="h-14 w-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -91,6 +124,7 @@ export default function DashboardPage() {
   const [overdueIntakeSources, setOverdueIntakeSources] = React.useState<
     OverdueIntakeSource[]
   >([]);
+  const [overdueIntakeTotal, setOverdueIntakeTotal] = React.useState(0);
 
   const [weekEvents, setWeekEvents] = React.useState<AdminEvent[]>([]);
 
@@ -180,13 +214,11 @@ export default function DashboardPage() {
         fetchPendingAdminRequestsCount(),
         supabase
           .from("event_sources")
-          .select("id,name,priority,next_scan_at,last_scanned_at")
+          .select("id,name", { count: "exact" })
           .eq("status", "active")
-          .in("priority", ["p0", "p1"])
-          .or(`next_scan_at.lte.${new Date().toISOString()},last_scanned_at.is.null`)
-          .order("priority")
-          .order("next_scan_at", { ascending: true })
-          .limit(12),
+          .or(`next_scan_at.lte.${new Date().toISOString()},next_scan_at.is.null`)
+          .order("next_scan_at", { ascending: true, nullsFirst: true })
+          .limit(8),
       ]);
 
       if (pendingEventsRes.error) throw pendingEventsRes.error;
@@ -199,6 +231,7 @@ export default function DashboardPage() {
       setPendingRequests(pendingRequestsCount);
       setWeekEvents((weekEventsRes.data || []) as AdminEvent[]);
       setOverdueIntakeSources((overdueSourcesRes.data || []) as OverdueIntakeSource[]);
+      setOverdueIntakeTotal(overdueSourcesRes.count ?? overdueSourcesRes.data?.length ?? 0);
     } catch (e) {
       console.error("Erreur dashboard:", e);
       toast({
@@ -214,6 +247,11 @@ export default function DashboardPage() {
   React.useEffect(() => {
     void Promise.all([loadRefs(), loadDashboardData()]);
   }, [loadDashboardData, loadRefs]);
+
+  // Rafraîchit le tableau de bord après une création depuis le lanceur global.
+  useAdminEventsChanged(() => {
+    void loadDashboardData();
+  });
 
   function openRequestsInbox() {
     router.push("/admin/requests");
@@ -346,21 +384,24 @@ export default function DashboardPage() {
     }
   }
 
+  const todayLabel = format(new Date(), "EEEE d MMMM yyyy", { locale: fr });
+  const pageHeader = {
+    title: "Tableau de bord",
+    description: todayLabel.charAt(0).toUpperCase() + todayLabel.slice(1),
+    breadcrumbItems: [{ label: "Tableau de bord" }],
+  };
+
   if (loading) {
     return (
-      <AdminLayout title="Dashboard" breadcrumbItems={[{ label: "Dashboard" }]}>
-        <div className="space-y-4">
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-64 w-full" />
-        </div>
+      <AdminLayout {...pageHeader}>
+        <DashboardSkeleton />
       </AdminLayout>
     );
   }
 
   return (
-    <AdminLayout title="Dashboard" breadcrumbItems={[{ label: "Dashboard" }]}>
-      <div className="space-y-8">
+    <AdminLayout {...pageHeader}>
+      <div className="space-y-6">
         <KpiCards
           pendingEvents={pendingEvents}
           weekCount={weekCount}
@@ -368,14 +409,9 @@ export default function DashboardPage() {
           onRequestsClick={openRequestsInbox}
         />
 
-        <QuickActions
-          onCreateEvent={() => router.push("/admin/events?create=1")}
-          onImportFromUrl={() => router.push("/admin/events?import=1")}
-          onImportFromFacebook={() => router.push("/admin/events?facebook_import=1")}
-        />
-
         <IntakeOverdueCard
           sources={overdueIntakeSources}
+          total={overdueIntakeTotal}
           onOpenIntake={() => router.push("/admin/intake?filter=overdue")}
         />
 

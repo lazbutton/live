@@ -395,6 +395,17 @@ export const radioCampusEventSchema = z
     url: z.string().openapi({
       description: "Page publique OutLive de l'événement",
     }),
+    badges: z
+      .array(
+        z.object({
+          type: z.enum(["evenement", "emission", "festival", "benevolat"]),
+          label: z.string(),
+        }),
+      )
+      .openapi({
+        description:
+          "Types agenda partenaires (Événement, Émission spéciale, Festival, Bénévolat)",
+      }),
   })
   .openapi("RadioCampusEvent");
 

@@ -2,12 +2,9 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 import type {
@@ -19,23 +16,17 @@ import type {
   OrganizerOption,
   TagOption,
 } from "./types";
-import {
-  buildEventFormPrefillFromImport,
-  resolveTagIdsForImport,
-} from "./event-import-utils";
 import { EventFiltersBar } from "./event-filters-bar";
 import { EventsCalendar } from "./events-calendar";
-import { EventCard } from "./event-card";
+import { EventsTable } from "./events-table";
+import { buildEventFormPrefillFromEvent } from "./event-duplicate-utils";
 import { EventArtistsQuickDialog } from "./event-artists-quick-dialog";
 import { EventFormSheet } from "./event-form-sheet";
 import {
-  EventImportDialog,
-  type ScrapedEventPayload,
-} from "./event-import-dialog";
-import { EventImageImportDialog } from "./event-image-import-dialog";
-import { FacebookEventImportDialog } from "./facebook-event-import-dialog";
-import { InstagramEventImportDialog } from "./instagram-event-import-dialog";
-import { parseDateWithoutTimezone, toDatetimeLocal } from "@/lib/date-utils";
+  buildEventFormPrefillFromRequest,
+  markRequestConverted,
+} from "./event-request-utils";
+import { parseDateWithoutTimezone } from "@/lib/date-utils";
 import {
   buildEventFormPrefillFromIntakePayload,
   clearIntakeEventPrefill,
@@ -43,12 +34,15 @@ import {
   type IntakeEventPrefillPayload,
 } from "../intake/intake-event-prefill";
 import { logAdminAction } from "@/lib/admin-audit-log";
+import { ManagementEmptyState } from "../management-page-primitives";
+import { CalendarDays, Check, X } from "lucide-react";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import { useAlertDialog } from "@/hooks/use-alert-dialog";
+import { DirectoryHeader, SelectionBar } from "../directory/directory";
 import {
-  ManagementHero,
-  ManagementStat,
-  ManagementStatGrid,
-} from "../management-page-primitives";
-import { CalendarDays } from "lucide-react";
+  useAdminEventsChanged,
+  useEventCreation,
+} from "./event-creation-provider";
 
 function normalizeSearchText(value: string) {
   return value
@@ -157,59 +151,10 @@ function isEventLongerThan24Hours(
   return end.getTime() - start.getTime() > 24 * 60 * 60 * 1000;
 }
 
-type ListMonthGroup = {
-  key: string;
-  label: string;
-  events: AdminEvent[];
-};
+const EVENTS_VIEW_STORAGE_KEY = "admin.events.view";
 
-function formatListMonthLabel(date: Date) {
-  return format(date, "MMMM yyyy", { locale: fr });
-}
+type ListPeriod = "upcoming" | "past" | "all";
 
-function buildEventFormPrefillFromRequest(request: any): EventFormPrefill {
-  const eventData = request?.event_data || {};
-  const sourceUrl =
-    eventData.external_url || eventData.scraping_url || request?.source_url || "";
-  const priceValue =
-    eventData.price ?? eventData.price_min ?? eventData.presale_price ?? null;
-
-  const organizerIds = [
-    eventData.organizer_id,
-    eventData.location_organizer_id,
-    request?.organizer_id,
-  ].filter(Boolean) as string[];
-
-  return {
-    form: {
-      title: eventData.title || eventData.name || "",
-      description: eventData.description || request?.notes || "",
-      date: toDatetimeLocal(eventData.date),
-      end_date: toDatetimeLocal(eventData.end_date),
-      category: eventData.category || "",
-      location_id: eventData.location_id || request?.location_id || "",
-      price_min: priceValue !== null && priceValue !== undefined ? String(priceValue) : "",
-      price_max:
-        eventData.price_max !== null && eventData.price_max !== undefined
-          ? String(eventData.price_max)
-          : "",
-      is_pay_what_you_want: Boolean(eventData.is_pay_what_you_want),
-      capacity:
-        eventData.capacity !== null && eventData.capacity !== undefined
-          ? String(eventData.capacity)
-          : "",
-      external_url: sourceUrl,
-      external_url_label: eventData.external_url_label || "",
-      scraping_url: eventData.scraping_url || request?.source_url || "",
-      instagram_url: eventData.instagram_url || "",
-      facebook_url: eventData.facebook_url || "",
-      image_url: eventData.image_url || "",
-      status: "pending",
-    },
-    organizerIds,
-    tagIds: Array.isArray(eventData.tag_ids) ? eventData.tag_ids : [],
-  };
-}
 
 export function EventsPage() {
   const router = useRouter();
@@ -224,7 +169,19 @@ export function EventsPage() {
   const [categories, setCategories] = React.useState<CategoryOption[]>([]);
 
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [viewMode, setViewMode] = React.useState<"calendar" | "list">("calendar");
+  const [viewMode, setViewModeState] = React.useState<"calendar" | "list">("list");
+  const setViewMode = React.useCallback((mode: "calendar" | "list") => {
+    setViewModeState(mode);
+    try {
+      localStorage.setItem(EVENTS_VIEW_STORAGE_KEY, mode);
+    } catch {
+      // Stockage indisponible : le choix vaut pour la session uniquement.
+    }
+  }, []);
+  const [listPeriod, setListPeriod] = React.useState<ListPeriod>("upcoming");
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(() => new Set());
+  const [filterLocation, setFilterLocation] = React.useState<string>("all");
+  const { showConfirm, AlertDialogComponent } = useAlertDialog();
   const [filterStatus, setFilterStatus] = React.useState<
     "all" | "pending" | "approved"
   >("all");
@@ -232,6 +189,9 @@ export function EventsPage() {
     "all" | "__none__" | string
   >("all");
   const [hideLongEvents, setHideLongEvents] = React.useState(false);
+  const [filterAppVisibility, setFilterAppVisibility] = React.useState<
+    "all" | "app" | "off_app"
+  >("all");
 
   const [selectedEvent, setSelectedEvent] = React.useState<AdminEvent | null>(
     null,
@@ -240,11 +200,6 @@ export function EventsPage() {
   const [artistsDialogEvent, setArtistsDialogEvent] =
     React.useState<AdminEvent | null>(null);
   const [isArtistsDialogOpen, setIsArtistsDialogOpen] = React.useState(false);
-  const [isImportOpen, setIsImportOpen] = React.useState(false);
-  const [isImageImportOpen, setIsImageImportOpen] = React.useState(false);
-  const [isFacebookImportOpen, setIsFacebookImportOpen] = React.useState(false);
-  const [isInstagramImportOpen, setIsInstagramImportOpen] =
-    React.useState(false);
   const [defaultDate, setDefaultDate] = React.useState<Date | undefined>(
     undefined,
   );
@@ -398,20 +353,16 @@ export function EventsPage() {
     loadTags,
   ]);
 
-  const findOrCreateTagIds = React.useCallback(
-    async (rawTagNames: string[]) => {
-      return resolveTagIdsForImport({
-        rawTagNames,
-        tags,
-        onTagsChanged: loadTags,
-      });
-    },
-    [loadTags, tags],
-  );
-
   React.useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  const { openEventCreation } = useEventCreation();
+
+  // Créations faites depuis le lanceur global (en-tête, raccourci N, ⌘K…).
+  useAdminEventsChanged(() => {
+    void loadEvents();
+  });
 
   React.useEffect(() => {
     if (!searchParams) return;
@@ -419,10 +370,11 @@ export function EventsPage() {
     const viewParam = searchParams.get("view");
     const startParam = searchParams.get("start");
 
+    // Vue imposée par un lien : elle ne remplace pas la préférence mémorisée.
     if (viewParam === "agenda" || viewParam === "calendar") {
-      setViewMode("calendar");
+      setViewModeState("calendar");
     } else if (viewParam === "list") {
-      setViewMode("list");
+      setViewModeState("list");
     }
 
     if (startParam) {
@@ -461,20 +413,17 @@ export function EventsPage() {
     const shouldOpenFacebookImport = facebookImportParam === "1";
     const shouldOpenInstagramImport = instagramImportParam === "1";
 
-    if (shouldOpenCreate) {
-      openCreate();
+    // Anciens liens (?create=1, ?import=1…) : ils ouvrent désormais le lanceur unifié.
+    if (
+      shouldOpenCreate ||
+      shouldOpenImport ||
+      shouldOpenFacebookImport ||
+      shouldOpenInstagramImport
+    ) {
+      openEventCreation();
       params.delete("create");
-    }
-    if (shouldOpenImport) {
-      setIsImportOpen(true);
       params.delete("import");
-    }
-    if (shouldOpenFacebookImport) {
-      setIsFacebookImportOpen(true);
       params.delete("facebook_import");
-    }
-    if (shouldOpenInstagramImport) {
-      setIsInstagramImportOpen(true);
       params.delete("instagram_import");
     }
 
@@ -487,7 +436,7 @@ export function EventsPage() {
       const q = params.toString();
       router.replace(q ? `/admin/events?${q}` : "/admin/events");
     }
-  }, [searchParams, router]);
+  }, [openEventCreation, searchParams, router]);
 
   const didApplyIntakePrefill = React.useRef(false);
   React.useEffect(() => {
@@ -607,6 +556,20 @@ export function EventsPage() {
       filtered = filtered.filter((ev) => !isEventLongerThan24Hours(ev));
     }
 
+    if (filterAppVisibility === "app") {
+      filtered = filtered.filter((ev) => ev.show_on_app !== false);
+    } else if (filterAppVisibility === "off_app") {
+      filtered = filtered.filter((ev) => ev.show_on_app === false);
+    }
+
+    if (filterLocation !== "all") {
+      filtered = filtered.filter(
+        (ev) =>
+          ev.location_id === filterLocation ||
+          (ev.event_organizers ?? []).some((entry) => entry.location?.id === filterLocation),
+      );
+    }
+
     filtered.sort(
       (a, b) =>
         (parseDateWithoutTimezone(a.date)?.getTime() ?? 0) -
@@ -618,6 +581,8 @@ export function EventsPage() {
     events,
     filterCategory,
     filterStatus,
+    filterAppVisibility,
+    filterLocation,
     hideLongEvents,
     normalizedCategoryIdSet,
     normalizedCategoryNameSet,
@@ -629,37 +594,69 @@ export function EventsPage() {
     todayStart.setHours(0, 0, 0, 0);
     const todayStartTimestamp = todayStart.getTime();
 
-    return filteredEvents.filter((event) => {
-      const eventDate = parseDateWithoutTimezone(event.date);
-      if (!eventDate) return false;
-      return eventDate.getTime() >= todayStartTimestamp;
-    });
+    const withTime = filteredEvents.map((event) => ({
+      event,
+      time: parseDateWithoutTimezone(event.date)?.getTime() ?? 0,
+    }));
+
+    if (listPeriod === "upcoming") {
+      return withTime
+        .filter((entry) => entry.time >= todayStartTimestamp)
+        .map((entry) => entry.event);
+    }
+    if (listPeriod === "past") {
+      return withTime
+        .filter((entry) => entry.time < todayStartTimestamp)
+        .sort((a, b) => b.time - a.time)
+        .map((entry) => entry.event);
+    }
+    return [...withTime].sort((a, b) => b.time - a.time).map((entry) => entry.event);
+  }, [filteredEvents, listPeriod]);
+
+  const periodCounts = React.useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    let upcoming = 0;
+    for (const event of filteredEvents) {
+      if ((parseDateWithoutTimezone(event.date)?.getTime() ?? 0) >= todayStart.getTime()) upcoming += 1;
+    }
+    return { upcoming, past: filteredEvents.length - upcoming, all: filteredEvents.length };
   }, [filteredEvents]);
 
-  const listViewMonthGroups = React.useMemo<ListMonthGroup[]>(() => {
-    const groups = new Map<string, ListMonthGroup>();
-
-    for (const event of listViewEvents) {
-      const eventDate = parseDateWithoutTimezone(event.date);
-      if (!eventDate) continue;
-
-      const key = format(eventDate, "yyyy-MM");
-      const existing = groups.get(key);
-
-      if (existing) {
-        existing.events.push(event);
-        continue;
-      }
-
-      groups.set(key, {
-        key,
-        label: formatListMonthLabel(eventDate),
-        events: [event],
-      });
+  // Chiffres de l'en-tête : sur l'ensemble des événements, indépendamment des filtres.
+  const headerStats = React.useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    let upcoming = 0;
+    let pending = 0;
+    for (const event of events) {
+      if ((parseDateWithoutTimezone(event.date)?.getTime() ?? 0) >= todayStart.getTime()) upcoming += 1;
+      if (event.status === "pending") pending += 1;
     }
+    return { upcoming, pending, total: events.length };
+  }, [events]);
 
-    return Array.from(groups.values());
+  // La sélection ne garde que les événements encore visibles.
+  React.useEffect(() => {
+    setSelectedIds((current) => {
+      if (current.size === 0) return current;
+      const visible = new Set(listViewEvents.map((event) => event.id));
+      const next = new Set([...current].filter((id) => visible.has(id)));
+      return next.size === current.size ? current : next;
+    });
   }, [listViewEvents]);
+
+  // Restaure la dernière vue choisie (liste ou calendrier), sauf si un lien en impose une.
+  const hasViewParam = Boolean(searchParams?.get("view"));
+  React.useEffect(() => {
+    if (hasViewParam) return;
+    try {
+      const saved = localStorage.getItem(EVENTS_VIEW_STORAGE_KEY);
+      if (saved === "calendar" || saved === "list") setViewModeState(saved);
+    } catch {
+      // Stockage indisponible : vue par défaut.
+    }
+  }, [hasViewParam]);
 
   const pendingCount = React.useMemo(() => {
     // count pending with current search, independent of status toggle
@@ -709,7 +706,7 @@ export function EventsPage() {
 
   React.useEffect(() => {
     if (searchQuery.trim()) {
-      setViewMode("list");
+      setViewModeState("list");
     }
   }, [searchQuery]);
 
@@ -718,14 +715,57 @@ export function EventsPage() {
     setFilterStatus("all");
     setFilterCategory("all");
     setHideLongEvents(false);
+    setFilterAppVisibility("all");
+    setFilterLocation("all");
   }
 
-  function openCreate(date?: Date) {
-    setSelectedEvent(null);
-    setPrefill(undefined);
-    setActiveIntakePrefill(null);
-    setDefaultDate(date);
-    setIsFormOpen(true);
+  function duplicateEvent(event: AdminEvent) {
+    openEventCreation({
+      prefill: buildEventFormPrefillFromEvent(event),
+      sourceLabel: `une copie de « ${event.title || "Sans titre"} »`,
+    });
+  }
+
+  async function bulkReject(eventIds: string[]) {
+    if (eventIds.length === 0) return;
+    try {
+      const { error } = await supabase
+        .from("events")
+        .update({ status: "rejected" })
+        .in("id", eventIds);
+      if (error) throw error;
+      await logAdminAction({
+        action: "event.bulk_reject",
+        entityType: "event",
+        metadata: { event_ids: eventIds, count: eventIds.length },
+      });
+      toast({
+        title: `${eventIds.length} événement${eventIds.length > 1 ? "s" : ""} refusé${eventIds.length > 1 ? "s" : ""}`,
+        variant: "success",
+      });
+      setSelectedIds(new Set());
+      await loadEvents();
+    } catch (e: any) {
+      console.error("Erreur bulk reject:", e);
+      toast({
+        title: "Refus en lot impossible",
+        description: e?.message || "Une erreur est survenue.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  function confirmBulkReject(eventIds: string[]) {
+    showConfirm({
+      title: `Refuser ${eventIds.length} événement${eventIds.length > 1 ? "s" : ""} ?`,
+      description: "Ils ne seront plus visibles dans l’app. Tu pourras les rouvrir un par un depuis leur fiche.",
+      confirmText: "Refuser",
+      cancelText: "Annuler",
+      variant: "destructive",
+      onConfirm: async () => {
+        await bulkReject(eventIds);
+      },
+    });
   }
 
   function openEditEvent(event: AdminEvent) {
@@ -908,80 +948,12 @@ export function EventsPage() {
     }
   }
 
-  async function handleImported(payload: {
-    sourceUrl: string;
-    owner?: OrganizerOption;
-    data: ScrapedEventPayload;
-  }) {
-    const { prefill: importedPrefill } = await buildEventFormPrefillFromImport({
-      data: payload.data || {},
-      sourceUrl: payload.sourceUrl,
-      owner: payload.owner,
-      categories,
-      locations,
-      organizers,
-      findOrCreateTagIds,
-      defaultStatus: "pending",
-    });
-
-    setPrefill(importedPrefill);
-    setDefaultDate(undefined);
-    setSelectedEvent(null);
-    setIsFormOpen(true);
-  }
-
-  async function handleImageImported(payload: { data: ScrapedEventPayload }) {
-    const { prefill: importedPrefill } = await buildEventFormPrefillFromImport({
-      data: payload.data || {},
-      categories,
-      locations,
-      organizers,
-      findOrCreateTagIds,
-      defaultStatus: "pending",
-    });
-
-    setPrefill(importedPrefill);
-    setDefaultDate(undefined);
-    setSelectedEvent(null);
-    setIsFormOpen(true);
-  }
-
   async function handleEventSaved(eventId: string) {
     await loadEvents();
 
     if (activeRequestPrefillId) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      const { error } = await supabase
-        .from("user_requests")
-        .update({
-          status: "converted",
-          converted_event_id: eventId,
-          converted_at: new Date().toISOString(),
-          reviewed_by: user?.id || null,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq("id", activeRequestPrefillId);
-
-      if (error) {
-        toast({
-          title: "Demande non synchronisée",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        await logAdminAction({
-          action: "request.convert",
-          entityType: "request",
-          entityId: activeRequestPrefillId,
-          entityLabel: `Événement ${eventId}`,
-          metadata: { created_event_id: eventId, source: "event_form_sheet" },
-        });
-        setActiveRequestPrefillId(null);
-        toast({ title: "Demande marquée convertie", variant: "success" });
-      }
+      const converted = await markRequestConverted(activeRequestPrefillId, eventId);
+      if (converted) setActiveRequestPrefillId(null);
     }
 
     if (!activeIntakePrefill?.opportunityId) return;
@@ -1010,30 +982,33 @@ export function EventsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-11 w-full" />
-        <div className="grid gap-3 md:grid-cols-3">
-          <Skeleton className="h-40" />
-          <Skeleton className="h-40" />
-          <Skeleton className="h-40" />
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="h-4 w-72" />
         </div>
+        <div className="flex flex-wrap gap-2">
+          <Skeleton className="h-9 w-72" />
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-9 w-40" />
+        </div>
+        <Skeleton className="h-[420px] w-full rounded-xl" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <ManagementHero
-        icon={<CalendarDays className="h-5 w-5" />}
+    <div className="space-y-5">
+      <DirectoryHeader
         title="Événements"
-        description="Pilote le calendrier, les imports et les validations depuis un poste unique."
-      >
-        <ManagementStatGrid className="xl:grid-cols-3">
-          <ManagementStat label="Total" value={events.length} hint="Événements chargés" />
-          <ManagementStat label="En attente" value={pendingCount} hint="À valider" />
-          <ManagementStat label="Résultat filtré" value={filteredEvents.length} hint="Vue courante" />
-        </ManagementStatGrid>
-      </ManagementHero>
+        meta={[
+          `${headerStats.upcoming} à venir`,
+          headerStats.pending > 0
+            ? `${headerStats.pending} en attente de validation`
+            : "Aucun événement en attente",
+          `${headerStats.total} au total`,
+        ]}
+      />
 
       <EventFiltersBar
         searchQuery={searchQuery}
@@ -1045,12 +1020,12 @@ export function EventsPage() {
         categories={categories}
         hideLongEvents={hideLongEvents}
         onHideLongEventsChange={setHideLongEvents}
+        filterAppVisibility={filterAppVisibility}
+        onFilterAppVisibilityChange={setFilterAppVisibility}
+        filterLocation={filterLocation}
+        onFilterLocationChange={setFilterLocation}
+        locations={locations}
         pendingCount={pendingCount}
-        onCreateClick={() => openCreate()}
-        onImportFromImageClick={() => setIsImageImportOpen(true)}
-        onImportFromUrlClick={() => setIsImportOpen(true)}
-        onImportFromFacebookClick={() => setIsFacebookImportOpen(true)}
-        onImportFromInstagramClick={() => setIsInstagramImportOpen(true)}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onResetFilters={resetFilters}
@@ -1060,7 +1035,7 @@ export function EventsPage() {
         <EventsCalendar
           events={filteredEvents}
           onEventClick={openEditEvent}
-          onCreateAtDate={(date) => openCreate(date)}
+          onCreateAtDate={(date) => openEventCreation({ date })}
           onQuickApprove={quickApprove}
           onBulkApprove={bulkApprove}
           onOpenArtistsDialog={openArtistsDialog}
@@ -1070,16 +1045,24 @@ export function EventsPage() {
           initialView="week"
         />
       ) : (
-        <Card className="p-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="text-sm text-muted-foreground">
-              {listViewEvents.length} événement{listViewEvents.length > 1 ? "s" : ""}
-            </div>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <SegmentedControl
+              aria-label="Période"
+              size="sm"
+              value={listPeriod}
+              onValueChange={setListPeriod}
+              items={[
+                { value: "upcoming", label: "À venir", count: periodCounts.upcoming },
+                { value: "past", label: "Passés", count: periodCounts.past },
+                { value: "all", label: "Tous", count: periodCounts.all },
+              ]}
+            />
             {listViewEvents.some((event) => event.status === "pending") ? (
               <Button
                 type="button"
                 size="sm"
-                className="bg-amber-600 hover:bg-amber-700"
+                variant="outline"
                 onClick={() =>
                   void bulkApprove(
                     listViewEvents
@@ -1088,52 +1071,81 @@ export function EventsPage() {
                   )
                 }
               >
-                Tout approuver (liste)
+                <Check className="text-success" />
+                Tout approuver ({listViewEvents.filter((event) => event.status === "pending").length})
               </Button>
             ) : null}
           </div>
 
-          {listViewMonthGroups.length === 0 ? (
-            <div className="rounded-lg border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-              Aucun événement trouvé pour ces filtres.
-            </div>
+          {listViewEvents.length === 0 ? (
+            <ManagementEmptyState
+              icon={<CalendarDays />}
+              title="Aucun événement"
+              description={
+                listPeriod === "upcoming"
+                  ? "Aucun événement à venir ne correspond à ces filtres."
+                  : "Aucun événement ne correspond à ces filtres. Modifie la recherche ou réinitialise les filtres."
+              }
+            />
           ) : (
-            <div className="space-y-6">
-              {listViewMonthGroups.map((group, groupIndex) => (
-                <section key={group.key} className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    {groupIndex > 0 ? (
-                      <div className="hidden h-px flex-1 bg-border/60 md:block" aria-hidden="true" />
-                    ) : null}
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold capitalize text-foreground">
-                        {group.label}
-                      </div>
-                    </div>
-                    <div className="h-px flex-1 bg-border/60" aria-hidden="true" />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {group.events.map((event) => (
-                      <EventCard
-                        key={event.id}
-                        event={event}
-                        showDateHeader
-                        onClick={() => openEditEvent(event)}
-                        onQuickApprove={
-                          event.status === "pending"
-                            ? () => quickApprove(event.id)
-                            : undefined
-                        }
-                      />
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
+            <EventsTable
+              events={listViewEvents}
+              categories={categories}
+              selectedIds={selectedIds}
+              onSelectedIdsChange={setSelectedIds}
+              onOpen={openEditEvent}
+              onQuickApprove={quickApprove}
+              onDuplicate={duplicateEvent}
+              onEditArtists={openArtistsDialog}
+              onToggleFeatured={toggleEventFeatured}
+              onToggleFull={toggleEventFull}
+              onCreateAtDate={(date) => openEventCreation({ date })}
+            />
           )}
-        </Card>
+        </div>
       )}
+
+      <SelectionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="text-success hover:bg-success/10 hover:text-success"
+          disabled={
+            !listViewEvents.some((event) => selectedIds.has(event.id) && event.status === "pending")
+          }
+          onClick={() => {
+            const ids = listViewEvents
+              .filter((event) => selectedIds.has(event.id) && event.status === "pending")
+              .map((event) => event.id);
+            void bulkApprove(ids).then(() => setSelectedIds(new Set()));
+          }}
+        >
+          <Check />
+          Approuver
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          disabled={
+            !listViewEvents.some((event) => selectedIds.has(event.id) && event.status !== "rejected")
+          }
+          onClick={() =>
+            confirmBulkReject(
+              listViewEvents
+                .filter((event) => selectedIds.has(event.id) && event.status !== "rejected")
+                .map((event) => event.id),
+            )
+          }
+        >
+          <X />
+          Refuser
+        </Button>
+      </SelectionBar>
+
+      <AlertDialogComponent />
 
       <EventFormSheet
         event={selectedEvent}
@@ -1172,32 +1184,6 @@ export function EventsPage() {
         onSave={saveQuickArtists}
       />
 
-      <EventImportDialog
-        open={isImportOpen}
-        onOpenChange={setIsImportOpen}
-        organizers={organizers}
-        onImported={handleImported}
-      />
-
-      <EventImageImportDialog
-        open={isImageImportOpen}
-        onOpenChange={setIsImageImportOpen}
-        onImported={({ data }) => handleImageImported({ data })}
-      />
-
-      <FacebookEventImportDialog
-        open={isFacebookImportOpen}
-        onOpenChange={setIsFacebookImportOpen}
-        organizers={organizers}
-        onImported={handleImported}
-      />
-
-      <InstagramEventImportDialog
-        open={isInstagramImportOpen}
-        onOpenChange={setIsInstagramImportOpen}
-        organizers={organizers}
-        onImported={handleImported}
-      />
     </div>
   );
 }

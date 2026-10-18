@@ -20,7 +20,7 @@ import {
 import { SelectSearchable } from "@/components/ui/select-searchable";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Download, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, Download, CheckCircle2, AlertCircle, MapPin } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Organizer {
@@ -479,8 +479,9 @@ export function FacebookEventsImporter({
                             {startDate}
                           </div>
                           {event.place?.name && (
-                            <div className="text-sm text-muted-foreground">
-                              📍 {event.place.name}
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                              <MapPin className="h-3.5 w-3.5 shrink-0" />
+                              {event.place.name}
                             </div>
                           )}
                           {event.description && (

@@ -3,12 +3,12 @@
 import * as React from "react";
 import { addDays, addMonths, addWeeks, format, isSameDay, isSameMonth, startOfMonth, startOfWeek, subMonths, subWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
-import { CalendarDays, ChevronLeft, ChevronRight, LayoutGrid, Loader2, Plus } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/utils";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { parseDateWithoutTimezone } from "@/lib/date-utils";
 import { enumerateEventDisplayDays, startOfLocalDay, toLocalDayKey } from "@/lib/events/display-days";
 
@@ -41,7 +41,6 @@ export function EventsCalendar({
   initialAnchor,
   initialView,
 }: EventsCalendarProps) {
-  const isMobile = useIsMobile();
 
   const [view, setView] = React.useState<"week" | "month">("week");
   const [anchor, setAnchor] = React.useState<Date>(() => startOfLocalDay(new Date()));
@@ -160,163 +159,155 @@ export function EventsCalendar({
   const titleLabel = React.useMemo(() => {
     if (view === "week") {
       const end = addDays(weekStart, 6);
-      return `${format(weekStart, "d MMM", { locale: fr })} → ${format(end, "d MMM", { locale: fr })}`;
+      const sameMonth = weekStart.getMonth() === end.getMonth();
+      return sameMonth
+        ? `${format(weekStart, "d", { locale: fr })} – ${format(end, "d MMM yyyy", { locale: fr })}`
+        : `${format(weekStart, "d MMM", { locale: fr })} – ${format(end, "d MMM yyyy", { locale: fr })}`;
     }
     return format(monthStart, "MMMM yyyy", { locale: fr });
   }, [monthStart, view, weekStart]);
 
   return (
-    <div className="space-y-4">
-      <Card className="p-3 md:p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-2">
-            <CalendarDays className="h-5 w-5 text-muted-foreground" />
-            <div className="font-semibold">{titleLabel}</div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 rounded-lg border bg-background p-1">
-              <Button
-                type="button"
-                size="sm"
-                variant={view === "week" ? "default" : "ghost"}
-                className="h-8 px-3"
-                onClick={() => setView("week")}
-              >
-                Semaine
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={view === "month" ? "default" : "ghost"}
-                className="h-8 px-3"
-                onClick={() => setView("month")}
-              >
-                <LayoutGrid className="h-4 w-4 mr-1.5" />
-                Mois
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setAnchor((d) => (view === "week" ? subWeeks(d, 1) : subMonths(d, 1)))}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setAnchor(startOfLocalDay(new Date()))}
-              >
-                Aujourd’hui
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setAnchor((d) => (view === "week" ? addWeeks(d, 1) : addMonths(d, 1)))}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {pendingVisibleIds.length > 0 ? (
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2">
-            <div className="text-sm">
-              <span className="font-semibold">{pendingVisibleIds.length}</span> événement{pendingVisibleIds.length > 1 ? "s" : ""} en attente
-            </div>
+    <Card className="@container/calendar overflow-hidden">
+      {/* Barre d'outils */}
+      <div className="flex flex-col gap-3 border-b border-border px-3 py-3 md:flex-row md:items-center md:justify-between md:px-4">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center">
             <Button
               type="button"
-              size="sm"
-              className="bg-amber-600 hover:bg-amber-700"
-              onClick={() => void handleBulkApprove()}
-              disabled={bulkApproving}
+              size="icon-sm"
+              variant="ghost"
+              aria-label={view === "week" ? "Semaine précédente" : "Mois précédent"}
+              onClick={() => setAnchor((d) => (view === "week" ? subWeeks(d, 1) : subMonths(d, 1)))}
             >
-              {bulkApproving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Tout approuver
+              <ChevronLeft />
+            </Button>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              aria-label={view === "week" ? "Semaine suivante" : "Mois suivant"}
+              onClick={() => setAnchor((d) => (view === "week" ? addWeeks(d, 1) : addMonths(d, 1)))}
+            >
+              <ChevronRight />
             </Button>
           </div>
-        ) : null}
-      </Card>
+          <h2 className="text-[15px] font-semibold tracking-tight first-letter:uppercase">{titleLabel}</h2>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="ml-1"
+            onClick={() => setAnchor(startOfLocalDay(new Date()))}
+          >
+            Aujourd’hui
+          </Button>
+        </div>
 
-      {/* Week */}
+        <SegmentedControl
+          aria-label="Période"
+          className="self-start md:self-auto"
+          size="sm"
+          value={view}
+          onValueChange={setView}
+          items={[
+            { value: "week", label: "Semaine" },
+            { value: "month", label: "Mois" },
+          ]}
+        />
+      </div>
+
+      {pendingVisibleIds.length > 0 ? (
+        <div className="flex items-center justify-between gap-3 border-b border-border bg-warning/[0.06] px-3 py-2 md:px-4">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="size-1.5 rounded-full bg-warning" />
+            <span>
+              <span className="font-semibold tabular-nums">{pendingVisibleIds.length}</span> événement
+              {pendingVisibleIds.length > 1 ? "s" : ""} en attente sur cette période
+            </span>
+          </div>
+          <Button
+            type="button"
+            size="xs"
+            variant="outline"
+            className="bg-background"
+            onClick={() => void handleBulkApprove()}
+            disabled={bulkApproving}
+          >
+            {bulkApproving ? <Loader2 className="animate-spin" /> : <Check className="text-success" />}
+            Tout approuver
+          </Button>
+        </div>
+      ) : null}
+
+      {/* Semaine : liste agenda si le conteneur est étroit, grille 7 colonnes sinon */}
       {view === "week" ? (
-        isMobile ? (
-          <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2">
+        <>
+          <div className="divide-y divide-border @4xl/calendar:hidden">
             {weekDays.map((day) => {
               const key = toLocalDayKey(day);
               const list = eventsByDay.get(key) || [];
               const isToday = isSameDay(day, new Date());
 
               return (
-                <div key={key} className="min-w-full snap-start">
-                  <Card className="p-3">
-                    <div className={cn("flex items-center justify-between gap-2 pb-3", isToday && "text-primary")}>
-                      <div className="font-semibold">
-                        {format(day, "EEE d MMM", { locale: fr })}
-                      </div>
-                      <Button type="button" size="sm" onClick={() => onCreateAtDate(day)} className="gap-2">
-                        <Plus className="h-4 w-4" />
-                        Créer
-                      </Button>
-                    </div>
-                    <div className="space-y-2">
-                      {list.length === 0 ? (
-                        <div className="rounded-lg border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                          Aucun événement
-                        </div>
-                      ) : (
-                        list.map((ev) => (
-                          <EventCard
-                            key={`${key}-${ev.id}`}
-                            event={ev}
-                            compact={false}
-                            onClick={() => onEventClick(ev)}
-                            onQuickApprove={ev.status === "pending" ? () => onQuickApprove(ev.id) : undefined}
-                            onContextMenu={(mouseEvent) => openContextMenu(mouseEvent, ev)}
-                          />
-                        ))
-                      )}
-                    </div>
-                  </Card>
+                <div key={key} className={cn("flex items-start gap-2.5 px-2.5 py-2.5 md:gap-3 md:px-4", isToday && "bg-muted/30")}>
+                  <div className="w-10 shrink-0 @lg/calendar:w-20 @lg/calendar:pt-1">
+                    <DayLabel day={day} isToday={isToday} stackOnNarrow />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    {list.length === 0 ? (
+                      <div className="py-1.5 text-sm text-muted-foreground/70">Aucun événement</div>
+                    ) : (
+                      list.map((ev) => (
+                        <EventCard
+                          key={`${key}-${ev.id}`}
+                          event={ev}
+                          onClick={() => onEventClick(ev)}
+                          onQuickApprove={ev.status === "pending" ? () => onQuickApprove(ev.id) : undefined}
+                          onContextMenu={(mouseEvent) => openContextMenu(mouseEvent, ev)}
+                        />
+                      ))
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    className="shrink-0 text-muted-foreground"
+                    onClick={() => onCreateAtDate(day)}
+                    title="Créer un événement ce jour"
+                    aria-label={`Créer un événement le ${format(day, "d MMMM", { locale: fr })}`}
+                  >
+                    <Plus />
+                  </Button>
                 </div>
               );
             })}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+
+          <div className="hidden grid-cols-7 divide-x divide-border @4xl/calendar:grid">
             {weekDays.map((day) => {
               const key = toLocalDayKey(day);
               const list = eventsByDay.get(key) || [];
               const isToday = isSameDay(day, new Date());
 
               return (
-                <Card key={key} className={cn("p-3 min-h-[240px]", isToday && "ring-1 ring-primary/30")}>
-                  <div className="flex items-start justify-between gap-2 pb-3">
-                    <div className="min-w-0">
-                      <div className={cn("text-sm font-semibold truncate", isToday && "text-primary")}>
-                        {format(day, "EEE", { locale: fr })}
-                      </div>
-                      <div className="text-xs text-muted-foreground">{format(day, "d MMM", { locale: fr })}</div>
-                    </div>
+                <div key={key} className={cn("group/day min-h-[420px] min-w-0", isToday && "bg-muted/30")}>
+                  <div className="flex items-center justify-between gap-1 px-2.5 pb-2 pt-2.5">
+                    <DayLabel day={day} isToday={isToday} />
                     <Button
                       type="button"
-                      size="icon"
-                      variant="outline"
-                      className="h-9 w-9"
+                      size="icon-xs"
+                      variant="ghost"
+                      className="text-muted-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover/day:opacity-100"
                       onClick={() => onCreateAtDate(day)}
-                      title="Créer"
+                      title="Créer un événement ce jour"
+                      aria-label={`Créer un événement le ${format(day, "d MMMM", { locale: fr })}`}
                     >
-                      <Plus className="h-4 w-4" />
+                      <Plus />
                     </Button>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5 px-2 pb-3">
                     {list.map((ev) => (
                       <EventCard
                         key={`${key}-${ev.id}`}
@@ -326,71 +317,97 @@ export function EventsCalendar({
                         onContextMenu={(mouseEvent) => openContextMenu(mouseEvent, ev)}
                       />
                     ))}
-                    {list.length === 0 ? (
-                      <div className="text-xs text-muted-foreground italic">Aucun</div>
-                    ) : null}
                   </div>
-                </Card>
+                </div>
               );
             })}
           </div>
-        )
+        </>
       ) : null}
 
-      {/* Month */}
+      {/* Mois */}
       {view === "month" ? (
-        <div className="grid grid-cols-7 gap-2">
-          {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => (
-            <div key={d} className="text-xs font-semibold text-muted-foreground px-1">
-              {d}
-            </div>
-          ))}
-          {monthGridDays.map((day) => {
-            const key = toLocalDayKey(day);
-            const list = eventsByDay.get(key) || [];
-            const inMonth = isSameMonth(day, monthStart);
-            const isToday = isSameDay(day, new Date());
-
-            return (
+        <div className="overflow-x-auto">
+          <div className="grid min-w-[720px] grid-cols-7">
+            {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => (
               <div
-                key={key}
-                className={cn(
-                  "rounded-lg border bg-card p-2 min-h-[96px] flex flex-col gap-2",
-                  !inMonth && "opacity-50",
-                  isToday && "ring-1 ring-primary/30",
-                )}
+                key={d}
+                className="border-b border-border px-2.5 py-2 text-xs font-medium text-muted-foreground [&:not(:nth-child(7n))]:border-r"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div className={cn("text-xs font-semibold", isToday && "text-primary")}>{format(day, "d")}</div>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    onClick={() => onCreateAtDate(day)}
-                    title="Créer"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {list.slice(0, 3).map((ev) => (
-                    <EventCard
-                      key={`${key}-${ev.id}`}
-                      event={ev}
-                      compact
-                      onClick={() => onEventClick(ev)}
-                      onQuickApprove={ev.status === "pending" ? () => onQuickApprove(ev.id) : undefined}
-                      onContextMenu={(mouseEvent) => openContextMenu(mouseEvent, ev)}
-                    />
-                  ))}
-                  {list.length > 3 ? (
-                    <div className="text-[11px] text-muted-foreground">+{list.length - 3}</div>
-                  ) : null}
-                </div>
+                {d}
               </div>
-            );
-          })}
+            ))}
+            {monthGridDays.map((day, index) => {
+              const key = toLocalDayKey(day);
+              const list = eventsByDay.get(key) || [];
+              const inMonth = isSameMonth(day, monthStart);
+              const isToday = isSameDay(day, new Date());
+              const isLastColumn = (index + 1) % 7 === 0;
+              const isLastRow = index >= monthGridDays.length - 7;
+
+              return (
+                <div
+                  key={key}
+                  className={cn(
+                    "group/day flex min-h-[112px] min-w-0 flex-col gap-1 p-1.5",
+                    !isLastColumn && "border-r border-border",
+                    !isLastRow && "border-b border-border",
+                    !inMonth && "bg-muted/30",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-1 px-0.5">
+                    <span
+                      className={cn(
+                        "flex size-6 items-center justify-center rounded-full text-xs tabular-nums",
+                        isToday
+                          ? "bg-foreground font-semibold text-background"
+                          : inMonth
+                            ? "font-medium text-foreground"
+                            : "text-muted-foreground/60",
+                      )}
+                    >
+                      {format(day, "d")}
+                    </span>
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant="ghost"
+                      className="size-6 text-muted-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover/day:opacity-100"
+                      onClick={() => onCreateAtDate(day)}
+                      title="Créer un événement ce jour"
+                      aria-label={`Créer un événement le ${format(day, "d MMMM", { locale: fr })}`}
+                    >
+                      <Plus />
+                    </Button>
+                  </div>
+                  <div className="space-y-1">
+                    {list.slice(0, 3).map((ev) => (
+                      <EventCard
+                        key={`${key}-${ev.id}`}
+                        event={ev}
+                        compact
+                        onClick={() => onEventClick(ev)}
+                        onQuickApprove={ev.status === "pending" ? () => onQuickApprove(ev.id) : undefined}
+                        onContextMenu={(mouseEvent) => openContextMenu(mouseEvent, ev)}
+                      />
+                    ))}
+                    {list.length > 3 ? (
+                      <button
+                        type="button"
+                        className="w-full rounded px-1.5 py-0.5 text-left text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+                        onClick={() => {
+                          setAnchor(startOfLocalDay(day));
+                          setView("week");
+                        }}
+                      >
+                        +{list.length - 3} autre{list.length - 3 > 1 ? "s" : ""}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       ) : null}
 
@@ -408,7 +425,38 @@ export function EventsCalendar({
           onQuickApprove={(event) => onQuickApprove(event.id)}
         />
       ) : null}
-    </div>
+    </Card>
   );
 }
 
+function DayLabel({
+  day,
+  isToday,
+  stackOnNarrow = false,
+}: {
+  day: Date;
+  isToday: boolean;
+  /** Numéro au-dessus du jour quand le calendrier est étroit (liste mobile). */
+  stackOnNarrow?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 items-center gap-1.5",
+        stackOnNarrow && "flex-col gap-0.5 @lg/calendar:flex-row @lg/calendar:gap-1.5",
+      )}
+    >
+      <span
+        className={cn(
+          "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
+          isToday ? "bg-foreground text-background" : "text-foreground",
+        )}
+      >
+        {format(day, "d", { locale: fr })}
+      </span>
+      <span className={cn("truncate text-xs font-medium capitalize", isToday ? "text-foreground" : "text-muted-foreground")}>
+        {format(day, "EEE", { locale: fr })}
+      </span>
+    </div>
+  );
+}

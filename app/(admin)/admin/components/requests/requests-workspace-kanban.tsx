@@ -1,8 +1,8 @@
 "use client";
 
+import type { ImportedEventPayload } from "@/lib/events/imported-event-payload";
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Inbox } from "lucide-react";
 
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
@@ -58,10 +58,13 @@ import { RequestShortcutsDialog } from "./request-shortcuts-dialog";
 import type { DuplicateEvent } from "./request-types";
 import { getLaneMeta, getQueueGroupMeta, REQUEST_LANES } from "./request-ui";
 import { logAdminAction } from "@/lib/admin-audit-log";
+import { useEventCreation } from "../events/event-creation-provider";
+import {
+  buildEventFormPrefillFromRequest,
+  markRequestConverted,
+} from "../events/event-request-utils";
 import {
   ManagementHero,
-  ManagementStat,
-  ManagementStatGrid,
 } from "../management-page-primitives";
 
 function toLocalDayKey(date: Date) {
@@ -275,6 +278,8 @@ export function RequestsWorkspaceKanban() {
     },
     [router, searchParams],
   );
+
+  const { openEventCreation } = useEventCreation();
 
   const loadItems = React.useCallback(async () => {
     const nextItems = await fetchAdminRequestItems();
@@ -719,18 +724,59 @@ export function RequestsWorkspaceKanban() {
     [getVisibleItems, isMobile, queueFilter, syncParams],
   );
 
-  const openFullReview = React.useCallback(
-    (item: AdminRequestItem) => {
-      router.push(`/admin/events?request_id=${item.id}`);
+  // Conversion sur place : le formulaire s'ouvre par-dessus la file, la demande
+  // est marquée convertie à l'enregistrement puis la file se rafraîchit.
+  const convertRequestInPlace = React.useCallback(
+    (item: AdminRequestItem, options?: { importSource?: boolean }) => {
+      const onSaved = async (eventId: string) => {
+        await markRequestConverted(item.id, eventId);
+        await loadItems();
+      };
+      const sourceUrl = item.sourceUrl || item.raw.source_url || null;
+
+      if (options?.importSource && sourceUrl) {
+        openEventCreation({ importUrl: sourceUrl, onSaved });
+        return;
+      }
+
+      // Demande scrapée : rapprochement complet (catégorie, lieu, artistes, tags, séances).
+      const eventData = item.raw.event_data || {};
+      if (item.raw.request_type === "event_from_url" && (eventData.title || eventData.date)) {
+        openEventCreation({
+          importData: {
+            data: {
+              // Les valeurs nulles de la demande sont ignorées.
+              ...(Object.fromEntries(
+                Object.entries(eventData).filter(([, value]) => value !== null && value !== undefined),
+              ) as ImportedEventPayload),
+              location_id: eventData.location_id || item.raw.location_id || undefined,
+              description: eventData.description || item.raw.notes || undefined,
+            },
+            sourceUrl: eventData.scraping_url || sourceUrl || undefined,
+            sourceLabel: `la demande « ${item.title} »`,
+          },
+          onSaved,
+        });
+        return;
+      }
+
+      openEventCreation({
+        prefill: buildEventFormPrefillFromRequest(item.raw),
+        sourceLabel: `la demande « ${item.title} »`,
+        onSaved,
+      });
     },
-    [router],
+    [loadItems, openEventCreation],
+  );
+
+  const openFullReview = React.useCallback(
+    (item: AdminRequestItem) => convertRequestInPlace(item),
+    [convertRequestInPlace],
   );
 
   const openFullReviewWithPrefill = React.useCallback(
-    (item: AdminRequestItem, mode: "url" | "facebook") => {
-      router.push(`/admin/events?request_id=${item.id}&prefill=${mode}`);
-    },
-    [router],
+    (item: AdminRequestItem) => convertRequestInPlace(item, { importSource: true }),
+    [convertRequestInPlace],
   );
 
   const openUrl = React.useCallback(
@@ -1155,17 +1201,9 @@ export function RequestsWorkspaceKanban() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <ManagementHero
-        icon={<Inbox className="h-5 w-5" />}
         title="Demandes"
-        description="File unifiée pour convertir, compléter ou modérer les contributions utilisateurs."
-      >
-        <ManagementStatGrid className="xl:grid-cols-4">
-          <ManagementStat label="Actionnables" value={actionableCount} hint="À traiter" />
-          <ManagementStat label="Prêtes" value={laneCounts.ready} hint="Conversion rapide" />
-          <ManagementStat label="Bloquées" value={laneCounts.blocked} hint="À trancher" />
-          <ManagementStat label="Traitées" value={laneCounts.processed} hint="Historique" />
-        </ManagementStatGrid>
-      </ManagementHero>
+        description={`File unifiée des contributions : ${actionableCount} à traiter, ${laneCounts.ready} prête${laneCounts.ready > 1 ? "s" : ""} à convertir.`}
+      />
 
       <RequestFiltersBar
         searchQuery={searchQuery}

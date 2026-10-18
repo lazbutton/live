@@ -723,16 +723,16 @@ function TeamManagementContent() {
                   >
                     <div className="mt-1">
                       {log.action === "role_changed" && (
-                        <Edit2 className="h-4 w-4 text-blue-500" />
+                        <Edit2 className="h-4 w-4 text-info" />
                       )}
                       {log.action === "user_added" && (
-                        <UserPlus className="h-4 w-4 text-green-500" />
+                        <UserPlus className="h-4 w-4 text-success" />
                       )}
                       {log.action === "user_removed" && (
-                        <UserMinus className="h-4 w-4 text-red-500" />
+                        <UserMinus className="h-4 w-4 text-destructive" />
                       )}
                       {log.action.startsWith("invitation_") && (
-                        <Mail className="h-4 w-4 text-orange-500" />
+                        <Mail className="h-4 w-4 text-warning" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">

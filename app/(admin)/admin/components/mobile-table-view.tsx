@@ -113,7 +113,7 @@ interface MobileCardActionsProps {
 
 export function MobileCardActions({ children, className }: MobileCardActionsProps) {
   return (
-    <div className={cn("flex gap-2 pt-2 border-t border-border/20", className)}>
+    <div className={cn("flex gap-2 pt-2 border-t border-border", className)}>
       {children}
     </div>
   );

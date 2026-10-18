@@ -51,12 +51,10 @@ export function SettingsPage() {
       }}
       className="w-full"
     >
-      <div className="sticky top-14 md:top-16 z-10 -mx-3 md:-mx-4 lg:-mx-6 xl:-mx-8 px-3 md:px-4 lg:px-6 xl:px-8 pb-3 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b border-border/40">
+      <div className="sticky top-12 z-20 -mx-4 bg-background/90 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/75 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
         <TabsList
-          className={cn(
-            "w-full justify-start",
-            isMobile && "overflow-x-auto whitespace-nowrap",
-          )}
+          variant="line"
+          className={cn(isMobile && "overflow-x-auto overflow-y-hidden")}
         >
           <TabsTrigger value="categories">Catégories & Tags</TabsTrigger>
           <TabsTrigger value="users">Utilisateurs</TabsTrigger>

@@ -6,8 +6,8 @@ import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
+import { AdminLogoMark } from "@/app/(admin)/admin/components/admin-brand";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getUserType } from "@/lib/auth-helpers";
 
@@ -63,18 +63,20 @@ export default function OrganizerLoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center mb-4">
-            <Calendar className="h-12 w-12 text-primary" />
+    <div
+      data-app-shell="organizer"
+      className="flex min-h-svh flex-col items-center justify-center bg-muted/40 px-4 py-10 dark:bg-background"
+    >
+      <div className="w-full max-w-sm">
+        <div className="mb-8 flex flex-col items-center gap-4 text-center">
+          <AdminLogoMark className="size-10 rounded-lg" />
+          <div className="space-y-1">
+            <h1 className="text-xl font-semibold tracking-tight">Espace organisateur</h1>
+            <p className="text-sm text-muted-foreground">Connecte-toi pour gérer tes événements OutLive</p>
           </div>
-          <CardTitle className="text-2xl text-center">Organisateur</CardTitle>
-          <CardDescription className="text-center">
-            Connectez-vous avec vos identifiants organisateur
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
           <form onSubmit={handleLogin} className="space-y-4">
             {error && (
               <Alert variant="destructive">
@@ -88,7 +90,8 @@ export default function OrganizerLoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="organisateur@example.com"
+                autoComplete="email"
+                placeholder="vous@exemple.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -101,6 +104,7 @@ export default function OrganizerLoginPage() {
               <Input
                 id="password"
                 type="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -109,13 +113,18 @@ export default function OrganizerLoginPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Connexion..." : "Se connecter"}
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" />
+                  Connexion…
+                </>
+              ) : (
+                "Se connecter"
+              )}
             </Button>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
-
-

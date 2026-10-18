@@ -27,37 +27,18 @@ import {
   StatusBadge,
 } from "./request-ui";
 
-function getCardTone(item: AdminRequestItem) {
-  if (item.status !== "pending") {
-    return "border-border/70 bg-card/80 hover:bg-card";
-  }
-
-  switch (item.lane) {
-    case "ready":
-      return "border-emerald-500/20 bg-emerald-500/[0.04] hover:bg-emerald-500/[0.07]";
-    case "to_process":
-      return "border-amber-500/20 bg-amber-500/[0.045] hover:bg-amber-500/[0.075]";
-    case "from_url":
-      return "border-sky-500/20 bg-sky-500/[0.045] hover:bg-sky-500/[0.075]";
-    case "blocked":
-      return "border-rose-500/20 bg-rose-500/[0.045] hover:bg-rose-500/[0.075]";
-    case "processed":
-      return "border-border/70 bg-card/80 hover:bg-card";
-  }
-}
-
 function getCardAccent(item: AdminRequestItem) {
   if (item.status !== "pending") return "bg-muted-foreground/30";
 
   switch (item.lane) {
     case "ready":
-      return "bg-emerald-500";
+      return "bg-success";
     case "to_process":
-      return "bg-amber-500";
+      return "bg-warning";
     case "from_url":
-      return "bg-sky-500";
+      return "bg-info";
     case "blocked":
-      return "bg-rose-500";
+      return "bg-destructive";
     case "processed":
       return "bg-muted-foreground/30";
   }
@@ -124,13 +105,14 @@ export function RequestCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border p-3 pl-4 shadow-sm transition-all",
-        getCardTone(item),
-        active && "ring-2 ring-primary/30",
+        "relative overflow-hidden rounded-lg border p-3 pl-4 shadow-xs transition-[background-color,border-color,box-shadow]",
+        // Carte neutre : le statut est porté par la barre d'accent et les badges.
+        "border-border bg-card hover:bg-muted/30",
+        active && "border-foreground/40 ring-1 ring-foreground/20",
       )}
     >
       <div
-        className={cn("absolute inset-y-0 left-0 w-1.5", getCardAccent(item))}
+        className={cn("absolute inset-y-0 left-0 w-0.5", getCardAccent(item))}
       />
 
       <button
@@ -141,7 +123,7 @@ export function RequestCard({
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={item.status} />
-            <Badge variant="outline" className="text-[11px]">
+            <Badge variant="outline" className="text-muted-foreground">
               {signal}
             </Badge>
             {item.moderationReason ? (
@@ -150,7 +132,7 @@ export function RequestCard({
           </div>
           {item.requestedAt ? (
             <span
-              className="rounded-full bg-background/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+              className="text-[11px] tabular-nums text-muted-foreground"
               title={requestedAtLabel}
             >
               {requestedAtLabel}
@@ -159,14 +141,14 @@ export function RequestCard({
         </div>
 
         <div className="mt-3 space-y-1.5">
-          <div className="line-clamp-2 text-[15px] font-semibold leading-5">
+          <div className="line-clamp-2 text-sm font-semibold leading-5">
             {item.title}
           </div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <span className="truncate">{contributor}</span>
             {sourceDomain ? (
               <>
-                <span className="text-muted-foreground/50">•</span>
+                <span className="text-muted-foreground/50">·</span>
                 <span className="truncate">{sourceDomain}</span>
               </>
             ) : null}
@@ -178,11 +160,11 @@ export function RequestCard({
             <Clock3 className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">
               Demandée {requestedAtLabel}
-              {requestedAge ? ` • ${requestedAge}` : ""}
+              {requestedAge ? ` · ${requestedAge}` : ""}
             </span>
           </span>
           <span className="inline-flex min-w-0 items-center gap-1.5 text-foreground">
-            <CalendarDays className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <CalendarDays className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate font-medium">
               Événement {formatRelativeEventDate(item.eventDate)}
             </span>
@@ -218,7 +200,7 @@ export function RequestCard({
         ) : null}
       </button>
 
-      <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border/50 pt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
         {canConvert ? (
           <Button
             type="button"

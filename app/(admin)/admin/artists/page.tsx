@@ -5,7 +5,7 @@ import { ArtistsManagement } from "../components/artists-management";
 
 export default function AdminArtistsPage() {
   return (
-    <AdminLayout title="Artistes" breadcrumbItems={[{ label: "Artistes" }]}>
+    <AdminLayout breadcrumbItems={[{ label: "Artistes" }]}>
       <ArtistsManagement />
     </AdminLayout>
   );

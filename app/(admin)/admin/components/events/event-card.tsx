@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, MapPin, Star } from "lucide-react";
+import { Check, EyeOff, Layers, MapPin, Star } from "lucide-react";
 import { format, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -18,31 +18,16 @@ export type EventCardProps = {
   showDateHeader?: boolean;
 };
 
-function hashToIndex(input: string, modulo: number) {
-  let h = 0;
-  for (let i = 0; i < input.length; i++) {
-    h = (h * 31 + input.charCodeAt(i)) >>> 0;
-  }
-  return modulo === 0 ? 0 : h % modulo;
-}
-
-function getFallbackBg(category: string) {
-  const palette = [
-    "bg-indigo-500/15",
-    "bg-sky-500/15",
-    "bg-emerald-500/15",
-    "bg-amber-500/15",
-    "bg-rose-500/15",
-    "bg-violet-500/15",
-    "bg-teal-500/15",
-  ];
-  return palette[hashToIndex(category || "event", palette.length)];
-}
-
 function getStatusDot(status: AdminEvent["status"]) {
-  if (status === "approved") return "bg-emerald-500";
-  if (status === "pending") return "bg-amber-500";
-  return "bg-red-500";
+  if (status === "approved") return "bg-success";
+  if (status === "pending") return "bg-warning";
+  return "bg-destructive";
+}
+
+function getStatusLabel(status: AdminEvent["status"]) {
+  if (status === "approved") return "Validé";
+  if (status === "pending") return "En attente";
+  return "Refusé";
 }
 
 export function EventCard({
@@ -88,6 +73,8 @@ export function EventCard({
   const isRejected = event.status === "rejected";
 
   const hasImage = Boolean(event.image_url);
+  const hasMeta = Boolean((!showDateHeader && timeLabel) || locationName);
+  const hasFlags = event.show_on_app === false || Boolean(event.is_featured) || Boolean(linkedMajorEventTitle);
 
   return (
     <div
@@ -107,153 +94,113 @@ export function EventCard({
         }
       }}
       className={cn(
-        "group relative w-full text-left rounded-xl border bg-card overflow-hidden transition-all duration-200",
-        "hover:shadow-md hover:scale-[1.01] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
-        isPending && "border-amber-500/30 bg-amber-50/60 dark:bg-amber-950/20 border-l-4 border-l-amber-500",
+        "@container/event group relative w-full cursor-pointer overflow-hidden rounded-lg border border-border bg-card text-left shadow-xs outline-none transition-[border-color,box-shadow] duration-150",
+        "hover:border-foreground/20 hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/40",
+        isPending && "border-l-2 border-l-warning",
         isRejected && "opacity-60",
       )}
     >
-      {/* background */}
-      <div
-        className={cn(
-          "absolute inset-0",
-          hasImage ? "bg-center bg-cover" : getFallbackBg(event.category),
-        )}
-        style={hasImage ? { backgroundImage: `url(${event.image_url})` } : undefined}
-        aria-hidden="true"
-      />
-      {/* overlay for readability when image */}
-      {hasImage ? (
-        <div
-          className={cn(
-            "absolute inset-0",
-            "bg-gradient-to-t from-black/55 via-black/20 to-black/10",
-          )}
-          aria-hidden="true"
-        />
-      ) : null}
-
-      <div className={cn("relative p-3", compact ? "py-2" : "py-3")}>
-        <div className="flex items-start gap-3">
-          <span
-            className={cn(
-              "mt-1 h-2 w-2 rounded-full shrink-0",
-              getStatusDot(event.status),
-              hasImage && "ring-2 ring-black/20",
-            )}
+      <div className={cn("flex items-start gap-2.5", compact ? "px-2 py-1.5" : "p-2.5")}>
+        {hasImage && !compact ? (
+          <div
+            className="hidden size-11 shrink-0 rounded-md border border-border bg-muted bg-cover bg-center @[15rem]/event:block"
+            style={{ backgroundImage: `url(${event.image_url})` }}
             aria-hidden="true"
           />
+        ) : null}
 
-          <div className="min-w-0 flex-1">
-            <div className={cn("flex items-start justify-between gap-2")}>
-              <div className="min-w-0">
-                {showDateHeader && dateHeaderLabel ? (
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold",
-                        hasImage
-                          ? "border-white/20 bg-black/25 text-white"
-                          : "border-border/70 bg-background/80 text-foreground",
-                      )}
-                    >
-                      {dateHeaderLabel}
-                    </span>
-                    {timeLabel ? (
-                      <span
-                        className={cn(
-                          "inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-medium tabular-nums",
-                          hasImage
-                            ? "border-white/15 bg-black/20 text-white/90"
-                            : "border-border/60 bg-muted/60 text-muted-foreground",
-                        )}
-                      >
-                        {timeLabel}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-                <div
-                  className={cn(
-                    "font-semibold leading-snug line-clamp-2",
-                    hasImage ? "text-white" : "text-foreground",
-                    compact ? "text-sm" : "text-[15px]",
-                  )}
-                >
-                  {event.title || "(Sans titre)"}
-                </div>
-                {event.is_featured ? (
-                  <div
-                    className={cn(
-                      "mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                      hasImage
-                        ? "border-white/20 bg-black/25 text-white"
-                        : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-                    )}
-                  >
-                    <Star className="h-3 w-3" />
-                    A la une
-                  </div>
-                ) : null}
-                {linkedMajorEventTitle ? (
-                  <div
-                    className={cn(
-                      "mt-2 inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                      hasImage
-                        ? "border-white/20 bg-black/25 text-white"
-                        : "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
-                    )}
-                  >
-                    <span className="truncate">Multi-événements · {linkedMajorEventTitle}</span>
-                  </div>
-                ) : null}
-                <div
-                  className={cn(
-                    "mt-2 flex items-center gap-2 text-xs",
-                    hasImage ? "text-white/80" : "text-muted-foreground",
-                  )}
-                >
-                  {!showDateHeader && timeLabel ? (
-                    <span className="tabular-nums">{timeLabel}</span>
-                  ) : null}
-                  {locationName ? (
-                    <>
-                      {!showDateHeader && timeLabel ? (
-                        <span className="opacity-60">•</span>
-                      ) : null}
-                      <span className="min-w-0 truncate inline-flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5 opacity-80" />
-                        <span className="truncate">{locationName}</span>
-                      </span>
-                    </>
-                  ) : null}
-                </div>
-              </div>
+        <div className="min-w-0 flex-1">
+          {showDateHeader && dateHeaderLabel ? (
+            <div className="mb-1 flex flex-wrap items-center gap-x-1.5 text-xs font-medium text-muted-foreground">
+              <span className="capitalize">{dateHeaderLabel}</span>
+              {timeLabel ? (
+                <>
+                  <span aria-hidden>·</span>
+                  <span className="tabular-nums">{timeLabel}</span>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="flex items-start gap-1.5">
+            <span
+              className={cn("mt-[0.4rem] size-1.5 shrink-0 rounded-full", getStatusDot(event.status))}
+              title={getStatusLabel(event.status)}
+              aria-label={getStatusLabel(event.status)}
+            />
+            <div
+              className={cn(
+                "line-clamp-2 font-medium leading-snug text-foreground",
+                compact ? "text-xs" : "text-[13px]",
+              )}
+            >
+              {event.title || "(Sans titre)"}
             </div>
           </div>
 
-          {isPending && onQuickApprove ? (
-            <button
-              type="button"
-              className={cn(
-                "relative z-10 shrink-0 rounded-full p-2",
-                "bg-emerald-600 text-white shadow-sm",
-                "hover:bg-emerald-700 active:scale-95 transition",
-                "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-              )}
-              title="Approuver"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                void onQuickApprove();
-              }}
-            >
-              <CheckCircle2 className="h-4 w-4" />
-            </button>
+          {hasMeta ? (
+            <div className="mt-1 flex min-w-0 items-center gap-1.5 pl-3 text-xs text-muted-foreground">
+              {!showDateHeader && timeLabel ? (
+                <span className="shrink-0 tabular-nums">{timeLabel}</span>
+              ) : null}
+              {locationName ? (
+                <>
+                  {!showDateHeader && timeLabel ? <span aria-hidden>·</span> : null}
+                  <span className="inline-flex min-w-0 items-center gap-1">
+                    <MapPin className="size-3 shrink-0 opacity-70" />
+                    <span className="truncate">{locationName}</span>
+                  </span>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          {hasFlags && !compact ? (
+            <div className="mt-1.5 flex flex-wrap gap-1 pl-3">
+              {event.show_on_app === false ? (
+                <span className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1 py-px text-[10px] font-medium text-muted-foreground">
+                  <EyeOff className="size-2.5" />
+                  Hors app
+                </span>
+              ) : null}
+              {event.is_featured ? (
+                <span className="inline-flex items-center gap-1 rounded border border-border px-1 py-px text-[10px] font-medium text-foreground">
+                  <Star className="size-2.5 fill-current" />
+                  À la une
+                </span>
+              ) : null}
+              {linkedMajorEventTitle ? (
+                <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded border border-border px-1 py-px text-[10px] font-medium text-muted-foreground">
+                  <Layers className="size-2.5 shrink-0" />
+                  <span className="truncate">{linkedMajorEventTitle}</span>
+                </span>
+              ) : null}
+            </div>
           ) : null}
         </div>
+
+        {isPending && onQuickApprove ? (
+          <button
+            type="button"
+            className={cn(
+              "z-10 flex size-6 shrink-0 items-center justify-center rounded-md border border-border bg-background text-success shadow-xs outline-none transition-[color,background-color,border-color,opacity]",
+              "hover:border-success/40 hover:bg-success/10 focus-visible:ring-[3px] focus-visible:ring-ring/40 max-md:size-8",
+              compact
+                ? "absolute right-1 top-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                : "relative",
+            )}
+            title="Approuver"
+            aria-label="Approuver l'événement"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void onQuickApprove();
+            }}
+          >
+            <Check className="size-3.5" strokeWidth={2.5} />
+          </button>
+        ) : null}
       </div>
     </div>
   );
 }
-

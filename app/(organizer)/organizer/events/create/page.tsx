@@ -848,7 +848,6 @@ function CreateEventContent() {
                         onChange={(e) =>
                           setFormData((prev) => ({ ...prev, door_opening_time: e.target.value }))
                         }
-                        className="h-11"
                       />
                     </div>
 

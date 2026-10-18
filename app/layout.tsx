@@ -107,30 +107,39 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" suppressHydrationWarning>
-      <body
-        suppressHydrationWarning
-        className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} antialiased`}
-      >
+    <html
+      lang="fr"
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable} ${inter.variable}`}
+    >
+      <body suppressHydrationWarning className="antialiased">
         <Script
           id="theme-init"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                const html = document.documentElement;
-                const savedTheme = localStorage.getItem('theme');
-                if (savedTheme === 'light') {
-                  html.classList.remove('dark');
-                  html.style.colorScheme = 'light';
-                } else if (savedTheme === 'dark') {
-                  html.classList.add('dark');
-                  html.style.colorScheme = 'dark';
-                } else {
-                  // Par défaut, utiliser dark si pas de préférence sauvegardée
-                  html.classList.add('dark');
-                  html.style.colorScheme = 'dark';
+                var html = document.documentElement;
+                var media = window.matchMedia('(prefers-color-scheme: dark)');
+                function readPreference() {
+                  try {
+                    var saved = localStorage.getItem('theme');
+                    return saved === 'light' || saved === 'dark' ? saved : 'system';
+                  } catch (e) {
+                    return 'system';
+                  }
                 }
+                function apply() {
+                  var preference = readPreference();
+                  var isDark = preference === 'dark' || (preference === 'system' && media.matches);
+                  html.classList.toggle('dark', isDark);
+                  html.style.colorScheme = isDark ? 'dark' : 'light';
+                }
+                apply();
+                // Sans préférence enregistrée, on suit le thème du système en direct.
+                media.addEventListener('change', function() {
+                  if (readPreference() === 'system') apply();
+                });
               })();
             `,
           }}

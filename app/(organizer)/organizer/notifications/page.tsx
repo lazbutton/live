@@ -101,14 +101,14 @@ function NotificationsContent() {
   function getNotificationIcon(type: string) {
     switch (type) {
       case "event_approved":
-        return <CheckCircle2 className="h-5 w-5 text-green-600" />;
+        return <CheckCircle2 className="h-5 w-5 text-success" />;
       case "event_rejected":
-        return <XCircle className="h-5 w-5 text-red-600" />;
+        return <XCircle className="h-5 w-5 text-destructive" />;
       case "event_created":
       case "event_updated":
-        return <Calendar className="h-5 w-5 text-blue-600" />;
+        return <Calendar className="h-5 w-5 text-info" />;
       default:
-        return <Bell className="h-5 w-5 text-gray-600" />;
+        return <Bell className="h-5 w-5 text-muted-foreground" />;
     }
   }
 

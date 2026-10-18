@@ -1,78 +1,70 @@
 "use client";
 
 import * as React from "react";
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import { AdminSidebar } from "./admin-sidebar";
-import { AdminCommandPalette } from "./admin-command-palette";
-import { MobileBottomNav } from "./mobile-bottom-nav";
-import { ThemeToggle } from "./theme-toggle";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import { useAdminBreadcrumbs, type AdminBreadcrumbItem } from "./admin-shell";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
   title?: string;
-  breadcrumbItems?: Array<{ label: string; href?: string }>;
+  description?: React.ReactNode;
+  actions?: React.ReactNode;
+  breadcrumbItems?: AdminBreadcrumbItem[];
+  className?: string;
 }
 
-export function AdminLayout({ children, title, breadcrumbItems = [] }: AdminLayoutProps) {
-  const isMobile = useIsMobile();
-
+export function AdminPageHeader({
+  title,
+  description,
+  actions,
+  className,
+}: {
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  actions?: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <TooltipProvider>
-      <SidebarProvider defaultOpen={!isMobile} className="flex h-screen">
-        <AdminSidebar />
-      <SidebarInset className="min-h-0 flex-1 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0" style={{ minWidth: 0, maxWidth: '100%', width: '100%' }}>
-        <header className="sticky top-0 z-10 flex h-14 md:h-16 shrink-0 items-center gap-2 md:gap-4 border-b border-border px-3 md:px-6 bg-background">
-          <SidebarTrigger className="cursor-pointer hover:bg-accent/20 rounded-lg transition-all duration-200 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0" />
-          <Separator orientation="vertical" className="mr-1 h-5 opacity-20 hidden md:block" />
-          <div className="flex-1 min-w-0 flex items-center">
-            <Breadcrumb>
-              <BreadcrumbList className="items-center">
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="/admin/dashboard">Admin</BreadcrumbLink>
-                </BreadcrumbItem>
-                {breadcrumbItems.map((item, index) => (
-                  <React.Fragment key={index}>
-                    <BreadcrumbSeparator className="hidden md:block" />
-                    <BreadcrumbItem className="flex items-center">
-                      {item.href ? (
-                        <BreadcrumbLink href={item.href} className="truncate">{item.label}</BreadcrumbLink>
-                      ) : (
-                        <BreadcrumbPage className="truncate">{item.label}</BreadcrumbPage>
-                      )}
-                    </BreadcrumbItem>
-                  </React.Fragment>
-                ))}
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
-          <div className="flex items-center gap-2">
-            <AdminCommandPalette />
-            <ThemeToggle />
-          </div>
-        </header>
-        <div className="flex min-h-0 flex-1 flex-col gap-4 p-3 md:p-4 lg:p-6 xl:p-8">
-          {title && (
-            <div className="flex shrink-0 items-center justify-between">
-              <h1 className="text-xl md:text-2xl font-semibold truncate">{title}</h1>
-            </div>
-          )}
-          {children}
-        </div>
-      </SidebarInset>
-      <MobileBottomNav />
-    </SidebarProvider>
-    </TooltipProvider>
+    <div
+      className={cn(
+        "flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-6",
+        className,
+      )}
+    >
+      <div className="min-w-0 space-y-1">
+        <h1 className="truncate text-xl font-semibold tracking-tight md:text-2xl">{title}</h1>
+        {description ? (
+          <p className="max-w-3xl text-sm text-muted-foreground">{description}</p>
+        ) : null}
+      </div>
+      {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+    </div>
   );
 }
 
+/**
+ * Contenu d'une page admin. La sidebar et l'en-tête sont rendus une seule fois
+ * par le shell persistant (voir `admin-shell.tsx` et `admin/layout.tsx`).
+ */
+export function AdminLayout({
+  children,
+  title,
+  description,
+  actions,
+  breadcrumbItems = [],
+  className,
+}: AdminLayoutProps) {
+  useAdminBreadcrumbs(breadcrumbItems);
+
+  return (
+    <div
+      className={cn(
+        "mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col gap-6 px-4 py-5 md:px-6 md:py-6 lg:px-8",
+        className,
+      )}
+    >
+      {title ? <AdminPageHeader title={title} description={description} actions={actions} /> : null}
+      {children}
+    </div>
+  );
+}

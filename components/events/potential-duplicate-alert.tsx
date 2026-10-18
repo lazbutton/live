@@ -31,8 +31,8 @@ export function PotentialDuplicateAlert({
 }: PotentialDuplicateAlertProps) {
   if (loading) {
     return (
-      <Alert className="border-amber-500/25 bg-amber-500/10">
-        <AlertTriangle className="h-4 w-4 text-amber-600" />
+      <Alert className="border-warning/25 bg-warning/10">
+        <AlertTriangle className="h-4 w-4 text-warning" />
         <AlertTitle>Vérification des doublons potentiels…</AlertTitle>
         <AlertDescription>
           Recherche d&apos;événements au même lieu sur des créneaux qui se croisent.
@@ -46,8 +46,8 @@ export function PotentialDuplicateAlert({
   }
 
   return (
-    <Alert className="border-amber-500/25 bg-amber-500/10">
-      <AlertTriangle className="h-4 w-4 text-amber-600" />
+    <Alert className="border-warning/25 bg-warning/10">
+      <AlertTriangle className="h-4 w-4 text-warning" />
       <AlertTitle>
         Doublon potentiel détecté
       </AlertTitle>
@@ -66,7 +66,7 @@ export function PotentialDuplicateAlert({
             >
               <Badge
                 variant="outline"
-                className="cursor-pointer border-amber-500/30 bg-background/80 px-3 py-1 text-foreground hover:bg-background"
+                className="cursor-pointer border-warning/30 bg-background/80 px-3 py-1 text-foreground hover:bg-background"
               >
                 {duplicate.matchKind === "exact" ? "Identique" : "Chevauchement"} ·{" "}
                 {duplicate.title?.trim() || "Sans titre"}

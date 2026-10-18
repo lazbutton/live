@@ -45,7 +45,7 @@ export function RequestQueueBoard({
   return (
     <section
       className={cn(
-        "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-card/55 shadow-sm",
+        "flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card/55 shadow-sm",
         className,
       )}
     >

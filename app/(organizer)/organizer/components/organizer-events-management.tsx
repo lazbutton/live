@@ -92,10 +92,10 @@ function startOfLocalDay(date: Date) {
 }
 
 const statusConfig = {
-  draft: { label: "Brouillon", color: "bg-gray-500", icon: FileText },
-  pending: { label: "En attente", color: "bg-yellow-500", icon: Clock },
-  approved: { label: "Approuvé", color: "bg-green-500", icon: CheckCircle2 },
-  rejected: { label: "Rejeté", color: "bg-red-500", icon: XCircle },
+  draft: { label: "Brouillon", color: "bg-muted-foreground", icon: FileText },
+  pending: { label: "En attente", color: "bg-warning", icon: Clock },
+  approved: { label: "Approuvé", color: "bg-success", icon: CheckCircle2 },
+  rejected: { label: "Rejeté", color: "bg-destructive", icon: XCircle },
 };
 
 export function OrganizerEventsManagement() {

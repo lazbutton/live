@@ -69,7 +69,8 @@ export function SelectSearchable({
           aria-expanded={open}
           disabled={disabled}
           className={cn(
-            "w-full justify-between min-h-[44px] text-base cursor-pointer",
+            "w-full justify-between px-3 font-normal has-[>svg]:px-3",
+            !selectedOption && "text-muted-foreground",
             className
           )}
         >
@@ -80,14 +81,14 @@ export function SelectSearchable({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="p-0"
+        className="overflow-hidden p-0"
         align="start"
         portalled={false}
         style={{ width: "var(--radix-popover-trigger-width)" }}
       >
-        <div className="p-2">
+        <div className="border-b p-2">
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={searchPlaceholder}
               value={searchQuery}
@@ -113,8 +114,8 @@ export function SelectSearchable({
                 <div
                   key={option.value}
                   className={cn(
-                    "relative flex cursor-pointer select-none items-center rounded-lg px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors",
-                    value === option.value && "bg-accent text-accent-foreground"
+                    "relative flex cursor-pointer select-none items-center rounded-md px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground max-md:py-2.5",
+                    value === option.value && "font-medium"
                   )}
                   onClick={() => {
                     onValueChange(option.value);

@@ -122,20 +122,20 @@ export default function TestNotificationsPage() {
       if (response.ok && data.success) {
         setResult({
           success: true,
-          message: `✅ Notification envoyée avec succès ! ${data.sent} admin(s) notifié(s)`,
+          message: `Notification envoyée avec succès ! ${data.sent} admin(s) notifié(s)`,
           details: data,
         });
       } else {
         setResult({
           success: false,
-          message: `❌ Erreur : ${data.error || "Erreur inconnue"}`,
+          message: `Erreur : ${data.error || "Erreur inconnue"}`,
           details: data,
         });
       }
     } catch (error: any) {
       setResult({
         success: false,
-        message: `❌ Erreur réseau : ${error.message}`,
+        message: `Erreur réseau : ${error.message}`,
       });
     } finally {
       setLoading(false);
@@ -160,20 +160,20 @@ export default function TestNotificationsPage() {
       if (response.ok && data.success) {
         setResult({
           success: true,
-          message: `✅ Notification envoyée avec succès ! ${data.sent} admin(s) notifié(s)`,
+          message: `Notification envoyée avec succès ! ${data.sent} admin(s) notifié(s)`,
           details: data,
         });
       } else {
         setResult({
           success: false,
-          message: `❌ Erreur : ${data.error || "Erreur inconnue"}`,
+          message: `Erreur : ${data.error || "Erreur inconnue"}`,
           details: data,
         });
       }
     } catch (error: any) {
       setResult({
         success: false,
-        message: `❌ Erreur réseau : ${error.message}`,
+        message: `Erreur réseau : ${error.message}`,
       });
     } finally {
       setLoading(false);
@@ -208,14 +208,14 @@ export default function TestNotificationsPage() {
         success: response.ok && Boolean(data?.success),
         message:
           response.ok && data?.success
-            ? `✅ Envoi ciblé terminé (${data.sent} envoyé(s), ${data.failed} échec(s))`
-            : `❌ Envoi ciblé en échec : ${data?.error || data?.errors?.[0] || "Erreur inconnue"}`,
+            ? `Envoi ciblé terminé (${data.sent} envoyé(s), ${data.failed} échec(s))`
+            : `Envoi ciblé en échec : ${data?.error || data?.errors?.[0] || "Erreur inconnue"}`,
         details: data,
       });
     } catch (error: any) {
       setResult({
         success: false,
-        message: `❌ Erreur réseau : ${error.message}`,
+        message: `Erreur réseau : ${error.message}`,
       });
     } finally {
       setLoading(false);
@@ -249,14 +249,14 @@ export default function TestNotificationsPage() {
         success: response.ok && Boolean(data?.success),
         message:
           response.ok && data?.success
-            ? `✅ Envoi global terminé (${data.sent} envoyé(s), ${data.failed} échec(s))`
-            : `❌ Envoi global en échec : ${data?.error || data?.errors?.[0] || "Erreur inconnue"}`,
+            ? `Envoi global terminé (${data.sent} envoyé(s), ${data.failed} échec(s))`
+            : `Envoi global en échec : ${data?.error || data?.errors?.[0] || "Erreur inconnue"}`,
         details: data,
       });
     } catch (error: any) {
       setResult({
         success: false,
-        message: `❌ Erreur réseau : ${error.message}`,
+        message: `Erreur réseau : ${error.message}`,
       });
     } finally {
       setLoading(false);
@@ -281,14 +281,14 @@ export default function TestNotificationsPage() {
         success: response.ok && Boolean(data?.success),
         message:
           response.ok && data?.success
-            ? `✅ Cron ${flow} exécuté (${data.notificationsSent ?? 0} envoi(s))`
-            : `❌ Cron ${flow} en échec : ${data?.error || data?.message || "Erreur inconnue"}`,
+            ? `Cron ${flow} exécuté (${data.notificationsSent ?? 0} envoi(s))`
+            : `Cron ${flow} en échec : ${data?.error || data?.message || "Erreur inconnue"}`,
         details: data,
       });
     } catch (error: any) {
       setResult({
         success: false,
-        message: `❌ Erreur réseau : ${error.message}`,
+        message: `Erreur réseau : ${error.message}`,
       });
     } finally {
       setCronLoading(null);
@@ -342,7 +342,7 @@ export default function TestNotificationsPage() {
         </Card>
 
         {result && (
-          <Alert variant={result.success ? "default" : "destructive"}>
+          <Alert variant={result.success ? "success" : "destructive"}>
             {result.success ? (
               <CheckCircle2 className="h-4 w-4" />
             ) : (
@@ -769,11 +769,11 @@ export default function TestNotificationsPage() {
                     <div className="text-xs text-muted-foreground">Tokens totaux</div>
                   </div>
                   <div className="p-3 bg-muted rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">{tokensData.stats?.ios_tokens || 0}</div>
+                    <div className="text-2xl font-bold text-info">{tokensData.stats?.ios_tokens || 0}</div>
                     <div className="text-xs text-muted-foreground">Tokens iOS</div>
                   </div>
                   <div className="p-3 bg-muted rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">{tokensData.stats?.android_tokens || 0}</div>
+                    <div className="text-2xl font-bold text-success">{tokensData.stats?.android_tokens || 0}</div>
                     <div className="text-xs text-muted-foreground">Tokens Android</div>
                   </div>
                 </div>
@@ -800,9 +800,9 @@ export default function TestNotificationsPage() {
                             <div key={idx} className="text-xs bg-muted p-2 rounded">
                               <div className="flex items-center gap-2">
                                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                  token.platform === "ios" ? "bg-blue-100 text-blue-700" :
-                                  token.platform === "android" ? "bg-green-100 text-green-700" :
-                                  "bg-gray-100 text-gray-700"
+                                  token.platform === "ios" ? "bg-info/10 text-info" :
+                                  token.platform === "android" ? "bg-success/10 text-success" :
+                                  "bg-muted text-foreground"
                                 }`}>
                                   {token.platform.toUpperCase()}
                                 </span>

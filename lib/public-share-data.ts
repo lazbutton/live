@@ -72,6 +72,7 @@ type RawEventRow = {
   description: string | null;
   date: string;
   end_date: string | null;
+  show_on_app?: boolean | null;
   category: string | null;
   tag_ids?: string[] | null;
   image_url: string | null;
@@ -682,6 +683,7 @@ export const getEventSharePageData = cache(
       )
       .eq("status", "approved")
       .eq("archived", false)
+      .eq("show_on_app", true)
       .eq("id", eventId)
       .maybeSingle();
 
@@ -845,6 +847,7 @@ export const getLocationSharePageData = cache(
         )
         .eq("status", "approved")
         .eq("archived", false)
+        .eq("show_on_app", true)
         .eq("location_id", location.id)
         .order("date", { ascending: true }),
       supabase
@@ -948,6 +951,7 @@ export const getOrganizerSharePageData = cache(
         )
         .eq("status", "approved")
         .eq("archived", false)
+        .eq("show_on_app", true)
         .eq("event_organizers.organizer_id", organizer.id)
         .order("date", { ascending: true }),
       supabase
@@ -1031,6 +1035,7 @@ export const getHubSharePageData = cache(
               description,
               date,
               end_date,
+              show_on_app,
               category,
               image_url,
               external_url,
@@ -1099,7 +1104,10 @@ export const getHubSharePageData = cache(
       event?: SingleOrArray<RawEventRow>;
     }>)
       .map((row) => normalizeSingle(row.event))
-      .filter((event): event is RawEventRow => Boolean(event));
+      .filter(
+        (event): event is RawEventRow =>
+          event != null && event.show_on_app !== false,
+      );
 
     const categoryNameById = await resolveCategoryNames(rawEvents.map((event) => event.category));
     const locations = ((hub.major_event_locations || []) as Array<{

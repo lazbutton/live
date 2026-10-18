@@ -6,9 +6,9 @@ import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AdminLogoMark } from "../components/admin-brand";
 import { checkIsAdmin, checkIsOrganizer } from "@/lib/auth";
 import { getUserType } from "@/lib/auth-helpers";
 
@@ -65,18 +65,22 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center mb-4">
-            <Shield className="h-12 w-12 text-primary" />
+    <div
+      data-app-shell="admin"
+      className="flex min-h-svh flex-col items-center justify-center bg-muted/40 px-4 py-10 dark:bg-background"
+    >
+      <div className="w-full max-w-sm">
+        <div className="mb-8 flex flex-col items-center gap-4 text-center">
+          <AdminLogoMark className="size-10 rounded-lg" />
+          <div className="space-y-1">
+            <h1 className="text-xl font-semibold tracking-tight">Connexion à OutLive</h1>
+            <p className="text-sm text-muted-foreground">
+              Espace administrateur et organisateur
+            </p>
           </div>
-          <CardTitle className="text-2xl text-center">Administration</CardTitle>
-          <CardDescription className="text-center">
-            Connectez-vous avec vos identifiants administrateur ou organisateur
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
           <form onSubmit={handleLogin} className="space-y-4">
             {error && (
               <Alert variant="destructive">
@@ -90,7 +94,8 @@ export default function AdminLoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@example.com"
+                autoComplete="email"
+                placeholder="vous@exemple.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -103,6 +108,7 @@ export default function AdminLoginPage() {
               <Input
                 id="password"
                 type="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -111,12 +117,18 @@ export default function AdminLoginPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Connexion..." : "Se connecter"}
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" />
+                  Connexion…
+                </>
+              ) : (
+                "Se connecter"
+              )}
             </Button>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
-

@@ -5,7 +5,7 @@ import { EventsPage } from "../components/events/events-page";
 
 export default function AdminEventsPage() {
   return (
-    <AdminLayout title="Événements" breadcrumbItems={[{ label: "Événements" }]}>
+    <AdminLayout breadcrumbItems={[{ label: "Événements" }]}>
       <EventsPage />
     </AdminLayout>
   );

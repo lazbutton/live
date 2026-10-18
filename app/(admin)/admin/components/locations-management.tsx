@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
+import { fetchRemoteImageBlob } from "@/lib/events/remote-image";
 import {
   Table,
   TableBody,
@@ -12,20 +14,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,39 +26,65 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Image as ImageIcon, X, Search, Link as LinkIcon, Save, Building2, ExternalLink, Code, Edit2, Globe, Instagram, Facebook, Users, Music, ChevronLeft, LayoutGrid, List as ListIcon, RotateCw } from "lucide-react";
+import {
+  Building2,
+  Code,
+  Edit2,
+  ExternalLink,
+  Facebook,
+  Globe,
+  Instagram,
+  LayoutGrid,
+  List as ListIcon,
+  Music,
+  Plus,
+  RotateCw,
+  Star,
+  Trash2,
+  Users,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import {
+  DirectoryHeader,
+  DirectorySearch,
+  DirectorySegments,
+  DirectoryTableCard,
+  EntityAvatar,
+  MissingHints,
+  RowActionsMenu,
+  SortableHead,
+  UpcomingEventsCell,
+  compareText,
+  formatShortDate,
+  getInitials,
+  useDirectoryView,
+  useSortState,
+} from "./directory/directory";
+import { useUpcomingEventStats } from "./directory/use-upcoming-events";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Switch } from "@/components/ui/switch";
-import { useIsMobile } from "@/hooks/use-mobile";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RoomsManagement } from "./rooms-management";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EntityRelatedEvents } from "./directory/entity-related-events";
 import { compressImage } from "@/lib/image-compression";
 import { removeReplacedStorageObject } from "@/lib/supabase/image-utils";
-import Cropper, { Area } from "react-easy-crop";
-import Link from "next/link";
 import { useAlertDialog } from "@/hooks/use-alert-dialog";
 import { toast } from "@/components/ui/use-toast";
+import { ManagementEmptyState } from "./management-page-primitives";
 import {
-  ManagementEmptyState,
-  ManagementHero,
-  ManagementPill,
-  ManagementSectionLabel,
-  ManagementStat,
-  ManagementStatGrid,
-  ManagementToolbar,
-} from "./management-page-primitives";
+  ENTITY_SHEET_CLASSNAME,
+  EntityFormSection,
+  EntityImageField,
+  EntitySheetBody,
+  EntitySheetFooter,
+  EntitySheetHeader,
+  EntitySwitchRow,
+} from "./directory/entity-sheet";
+import { ImageCropDialog } from "./directory/image-crop-dialog";
 
 interface Room {
   id: string;
@@ -107,19 +122,14 @@ export interface Location {
   rooms?: Room[];
 }
 
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
-function getCaptureModeLabel(mode: Location["source_capture_mode"]) {
-  if (mode === "image") return "Capture image";
-  if (mode === "facebook") return "Capture Facebook";
-  return "Capture URL";
+/** Informations manquantes d'un lieu (affichées dans « À compléter »). */
+function getLocationMissing(location: Location) {
+  return [
+    !location.image_url ? "Sans image" : null,
+    !location.short_description?.trim() ? "Sans description" : null,
+    !location.city ? "Sans ville" : null,
+    location.latitude == null || location.longitude == null ? "Sans coordonnées" : null,
+  ].filter(Boolean) as string[];
 }
 
 export function LocationsManagement() {
@@ -134,10 +144,11 @@ export function LocationsManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
+  const [viewMode, setViewMode] = useDirectoryView("admin.locations.view");
   const [cityFilter, setCityFilter] = useState<string>("all");
-  const [organizerFilter, setOrganizerFilter] = useState<"all" | "organizer" | "non_organizer">("all");
-  const [suggestedFilter, setSuggestedFilter] = useState<"all" | "suggested" | "non_suggested">("all");
+  const [segment, setSegment] = useState<"all" | "organizers" | "suggested" | "incomplete">("all");
+  const { sortKey, sortDirection, toggleSort } = useSortState<"name" | "city" | "rooms" | "upcoming" | "updated">("name");
+  const upcoming = useUpcomingEventStats("location");
   const [isRoomsDialogOpen, setIsRoomsDialogOpen] = useState(false);
   const [selectedLocationForRooms, setSelectedLocationForRooms] = useState<Location | null>(null);
   const { showAlert, showConfirm, AlertDialogComponent } = useAlertDialog();
@@ -192,7 +203,7 @@ export function LocationsManagement() {
     }
   }
 
-  // Filtrer les lieux par recherche
+  // Filtrer et trier les lieux (recherche, ville, segment, tri)
   useEffect(() => {
     const query = searchQuery.trim().toLowerCase();
     const next = locations.filter((location) => {
@@ -202,20 +213,33 @@ export function LocationsManagement() {
         location.address?.toLowerCase().includes(query) ||
         location.city?.label.toLowerCase().includes(query);
       const matchesCity = cityFilter === "all" || location.city?.id === cityFilter;
-      const matchesOrganizer =
-        organizerFilter === "all" ||
-        (organizerFilter === "organizer"
-          ? Boolean(location.is_organizer)
-          : !Boolean(location.is_organizer));
-      const matchesSuggested =
-        suggestedFilter === "all" ||
-        (suggestedFilter === "suggested"
-          ? Boolean(location.suggested)
-          : !Boolean(location.suggested));
-      return matchesQuery && matchesCity && matchesOrganizer && matchesSuggested;
+      const matchesSegment =
+        segment === "all" ||
+        (segment === "organizers" && Boolean(location.is_organizer)) ||
+        (segment === "suggested" && Boolean(location.suggested)) ||
+        (segment === "incomplete" && getLocationMissing(location).length > 0);
+      return matchesQuery && matchesCity && matchesSegment;
+    });
+    const direction = sortDirection === "asc" ? 1 : -1;
+    next.sort((a, b) => {
+      switch (sortKey) {
+        case "city":
+          return direction * (compareText(a.city?.label, b.city?.label) || compareText(a.name, b.name));
+        case "rooms":
+          return direction * ((a.rooms?.length || 0) - (b.rooms?.length || 0));
+        case "upcoming":
+          return (
+            direction * ((upcoming?.get(a.id)?.count || 0) - (upcoming?.get(b.id)?.count || 0)) ||
+            compareText(a.name, b.name)
+          );
+        case "updated":
+          return direction * (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime());
+        default:
+          return direction * compareText(a.name, b.name);
+      }
     });
     setFilteredLocations(next);
-  }, [locations, searchQuery, cityFilter, organizerFilter, suggestedFilter]);
+  }, [locations, searchQuery, cityFilter, segment, sortKey, sortDirection, upcoming]);
 
   async function deleteLocation(id: string) {
     showConfirm({
@@ -283,20 +307,8 @@ export function LocationsManagement() {
     setIsDialogOpen(true);
   }
 
-  function getLocationLinkCount(location: Location) {
-    return [
-      location.website_url,
-      location.instagram_url,
-      location.facebook_url,
-      location.tiktok_url,
-    ].filter(Boolean).length;
-  }
-
   const hasActiveFilters =
-    searchQuery.trim().length > 0 ||
-    cityFilter !== "all" ||
-    organizerFilter !== "all" ||
-    suggestedFilter !== "all";
+    searchQuery.trim().length > 0 || cityFilter !== "all" || segment !== "all";
   const cityOptions = Array.from(
     new Map(
       locations
@@ -305,566 +317,379 @@ export function LocationsManagement() {
     ).entries(),
   ).map(([id, label]) => ({ id, label }));
   const organizerLocationsCount = locations.filter((loc) => Boolean(loc.is_organizer)).length;
-  const withoutImageCount = locations.filter((loc) => !loc.image_url).length;
-  const withRoomsCount = locations.filter((loc) => (loc.rooms?.length || 0) > 0).length;
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center space-y-2">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
-          <p className="text-sm text-muted-foreground">Chargement...</p>
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <div className="h-7 w-32 animate-pulse rounded-md bg-muted" />
+          <div className="h-4 w-72 animate-pulse rounded-md bg-muted" />
         </div>
+        <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
+        <div className="h-[420px] w-full animate-pulse rounded-xl bg-muted" />
       </div>
     );
   }
 
-  return (
-    <TooltipProvider delayDuration={300}>
-      <div className="space-y-5">
-        <ManagementHero
-          icon={<Building2 className="h-5 w-5" />}
-          title="Lieux"
-          description="Gérez les lieux, les salles associées, les pages source et la mise en avant dans une interface plus lisible et plus rapide à exploiter."
-          actions={
-            <>
-              <div className="flex items-center gap-2 rounded-xl border border-border/70 bg-background/90 px-3 py-2 shadow-sm">
-                <span className="text-sm font-medium">Recommandés</span>
-                <Badge
-                  variant={suggestedCount >= 6 ? "destructive" : suggestedCount >= 4 ? "default" : "secondary"}
-                  className="rounded-full"
-                >
-                  {suggestedCount}/6
-                </Badge>
-              </div>
-              <div className="flex items-center gap-1 rounded-xl border border-border/70 bg-background/90 p-1 shadow-sm">
-                <Button
-                  type="button"
-                  variant={viewMode === "list" ? "default" : "ghost"}
-                  size="sm"
-                  className="h-8 px-2"
-                  onClick={() => setViewMode("list")}
-                  title="Vue liste"
-                >
-                  <ListIcon className="h-4 w-4" />
-                  <span className="hidden md:inline">Liste</span>
-                </Button>
-                <Button
-                  type="button"
-                  variant={viewMode === "grid" ? "default" : "ghost"}
-                  size="sm"
-                  className="h-8 px-2"
-                  onClick={() => setViewMode("grid")}
-                  title="Vue grille"
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                  <span className="hidden md:inline">Grille</span>
-                </Button>
-              </div>
-              <Button onClick={() => handleOpenDialog()} size="sm" className="h-9 rounded-xl">
-                <Plus className="mr-1.5 h-4 w-4" />
-                Nouveau lieu
-              </Button>
-            </>
-          }
+  const incompleteCount = locations.filter((location) => getLocationMissing(location).length > 0).length;
+
+  function renderLocationActions(location: Location) {
+    return (
+      <RowActionsMenu label={`Actions pour ${location.name}`}>
+        <DropdownMenuItem onSelect={() => handleOpenDialog(location)}>
+          <Edit2 />
+          Modifier
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            setSelectedLocationForRooms(location);
+            setIsRoomsDialogOpen(true);
+          }}
         >
-          <ManagementStatGrid>
-            <ManagementStat label="Résultats visibles" value={filteredLocations.length} hint={`${locations.length} au total`} />
-            <ManagementStat label="Lieux-organisateurs" value={organizerLocationsCount} hint="Peuvent créer une source" />
-            <ManagementStat label="Avec salles" value={withRoomsCount} hint="Gestion rapide des rooms" />
-            <ManagementStat label="Image & mise en avant" value={`${suggestedCount}/6`} hint={`${withoutImageCount} sans image`} />
-          </ManagementStatGrid>
-        </ManagementHero>
+          <LayoutGrid />
+          Salles
+        </DropdownMenuItem>
+        {location.is_organizer ? (
+          <DropdownMenuItem onSelect={() => router.push(`/admin/organizers/${location.id}/team`)}>
+            <Users />
+            Équipe
+          </DropdownMenuItem>
+        ) : null}
+        {location.scraping_example_url ? (
+          <>
+            <DropdownMenuItem onSelect={() => router.push(`/admin/scraping/${location.id}`)}>
+              <Code />
+              Configurer le scraping
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href={location.scraping_example_url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink />
+                Ouvrir l’URL source
+              </a>
+            </DropdownMenuItem>
+          </>
+        ) : null}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => void toggleSuggested(location.id, Boolean(location.suggested))}>
+          <Star className={cn(location.suggested && "fill-current")} />
+          {location.suggested ? "Retirer des recommandés" : "Recommander"}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => deleteLocation(location.id)}
+          className="text-destructive focus:text-destructive [&>svg]:!text-destructive"
+        >
+          <Trash2 />
+          Supprimer
+        </DropdownMenuItem>
+      </RowActionsMenu>
+    );
+  }
 
-        <ManagementToolbar>
-          <div className="space-y-3">
-            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.2fr_repeat(3,minmax(0,0.9fr))_auto]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher un lieu, une adresse ou une ville..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-11 rounded-xl pl-9"
-                />
-              </div>
-              <Select value={cityFilter} onValueChange={setCityFilter}>
-                <SelectTrigger className="h-11 rounded-xl">
-                  <SelectValue placeholder="Ville" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toutes les villes</SelectItem>
-                  {cityOptions.map((city) => (
-                    <SelectItem key={city.id} value={city.id}>
-                      {city.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={organizerFilter}
-                onValueChange={(value) => setOrganizerFilter(value as typeof organizerFilter)}
-              >
-                <SelectTrigger className="h-11 rounded-xl">
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les lieux</SelectItem>
-                  <SelectItem value="organizer">Lieux-organisateurs</SelectItem>
-                  <SelectItem value="non_organizer">Lieux simples</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={suggestedFilter}
-                onValueChange={(value) => setSuggestedFilter(value as typeof suggestedFilter)}
-              >
-                <SelectTrigger className="h-11 rounded-xl">
-                  <SelectValue placeholder="Recommandation" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous</SelectItem>
-                  <SelectItem value="suggested">Recommandés</SelectItem>
-                  <SelectItem value="non_suggested">Non recommandés</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-11 rounded-xl"
-                disabled={!hasActiveFilters}
-                onClick={() => {
-                  setSearchQuery("");
-                  setCityFilter("all");
-                  setOrganizerFilter("all");
-                  setSuggestedFilter("all");
-                }}
-              >
-                <RotateCw className="mr-2 h-4 w-4" />
-                Réinitialiser
-              </Button>
-            </div>
-            {hasActiveFilters ? (
-              <div className="flex flex-wrap gap-2">
-                {searchQuery.trim() ? <ManagementPill tone="muted">Recherche: {searchQuery.trim()}</ManagementPill> : null}
-                {cityFilter !== "all" ? (
-                  <ManagementPill tone="muted">
-                    Ville: {cityOptions.find((city) => city.id === cityFilter)?.label || cityFilter}
-                  </ManagementPill>
-                ) : null}
-                {organizerFilter !== "all" ? (
-                  <ManagementPill tone="muted">
-                    {organizerFilter === "organizer" ? "Lieux-organisateurs" : "Lieux simples"}
-                  </ManagementPill>
-                ) : null}
-                {suggestedFilter !== "all" ? (
-                  <ManagementPill tone="muted">
-                    {suggestedFilter === "suggested" ? "Recommandés" : "Non recommandés"}
-                  </ManagementPill>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </ManagementToolbar>
+  function renderSuggestedToggle(location: Location) {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        onClick={(event) => {
+          event.stopPropagation();
+          void toggleSuggested(location.id, Boolean(location.suggested));
+        }}
+        className={cn(location.suggested ? "text-foreground" : "text-muted-foreground/50 hover:text-foreground")}
+        aria-pressed={Boolean(location.suggested)}
+        title={location.suggested ? "Recommandé — cliquer pour retirer" : "Recommander ce lieu"}
+        aria-label={location.suggested ? `Retirer ${location.name} des recommandés` : `Recommander ${location.name}`}
+      >
+        <Star className={cn(location.suggested && "fill-current")} />
+      </Button>
+    );
+  }
 
-        {/* Liste / Grille */}
-        {filteredLocations.length === 0 ? (
-          <ManagementEmptyState
-            icon={<Building2 className="h-6 w-6" />}
-            title={locations.length === 0 ? "Aucun lieu pour le moment" : "Aucun résultat"}
-            description={
-              locations.length === 0
-                ? "Ajoutez votre premier lieu pour structurer l’offre, les salles et les pages source."
-                : `Aucun lieu ne correspond aux filtres actuels${searchQuery.trim() ? ` pour "${searchQuery.trim()}"` : ""}.`
-            }
-          />
-        ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {filteredLocations.map((location) => (
-              <div
-                key={location.id}
-                onClick={() => handleOpenDialog(location)}
-                className="group relative flex min-h-[320px] flex-col overflow-hidden rounded-3xl border border-border/70 bg-card/95 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg cursor-pointer"
-              >
-                <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-r from-primary/5 via-primary/0 to-transparent" />
-                <div className="relative flex items-start gap-3">
-                  <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-border/70 shadow-sm">
-                    <AvatarImage src={location.image_url || undefined} alt={location.name} />
-                    <AvatarFallback className="rounded-2xl bg-primary/10 text-primary font-semibold">
-                      {getInitials(location.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate text-base font-semibold">{location.name}</h3>
-                      {location.is_organizer && (
-                        <Badge variant="outline" className="rounded-full border-border/70 bg-background/80 text-[11px]">
-                          Lieu-organisateur
-                        </Badge>
-                      )}
-                      {location.suggested && (
-                        <Badge variant="secondary" className="rounded-full text-[11px]">
-                          Recommandé
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {location.city?.label ? <ManagementPill tone="muted">{location.city.label}</ManagementPill> : null}
-                      <ManagementPill tone={location.image_url ? "default" : "warning"}>
-                        {location.image_url ? "Image OK" : "Image manquante"}
-                      </ManagementPill>
-                    </div>
-                  </div>
-                </div>
+  return (
+    <div className="space-y-5">
+      <DirectoryHeader
+        title="Lieux"
+        meta={[
+          `${locations.length} lieux`,
+          `${organizerLocationsCount} lieux-organisateurs`,
+          `${suggestedCount}/6 recommandés`,
+        ]}
+        actions={
+          <>
+            <SegmentedControl
+              aria-label="Affichage"
+              size="sm"
+              value={viewMode}
+              onValueChange={setViewMode}
+              items={[
+                { value: "list", label: <span className="max-sm:sr-only">Tableau</span>, icon: <ListIcon />, title: "Tableau" },
+                { value: "grid", label: <span className="max-sm:sr-only">Grille</span>, icon: <LayoutGrid />, title: "Grille" },
+              ]}
+            />
+            <Button size="sm" onClick={() => handleOpenDialog()}>
+              <Plus />
+              Nouveau lieu
+            </Button>
+          </>
+        }
+      />
 
-                <div className="mt-4 min-h-[72px] space-y-2">
-                  <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                    {location.address || "Aucune adresse renseignée"}
-                  </p>
-                  <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                    {location.short_description?.trim() ||
-                      "Ajoutez une description courte pour mieux qualifier l’ambiance, l’accès ou la spécialité du lieu."}
-                  </p>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-1.5">
-                  <ManagementPill tone="muted">
-                    {(location.rooms?.length || 0)} salle{(location.rooms?.length || 0) > 1 ? "s" : ""}
-                  </ManagementPill>
-                  {location.capacity ? (
-                    <ManagementPill tone="muted">Capacité {location.capacity}</ManagementPill>
-                  ) : null}
-                  {location.is_organizer ? (
-                    <ManagementPill tone={location.scraping_example_url ? "positive" : "muted"}>
-                      {location.scraping_example_url ? "Source prête" : getCaptureModeLabel(location.source_capture_mode)}
-                    </ManagementPill>
-                  ) : null}
-                </div>
-
-                {(location.instagram_url || location.facebook_url || location.tiktok_url || location.website_url) && (
-                  <div className="mt-4 flex items-center gap-1.5 flex-wrap">
-                    {location.website_url && (
-                      <a
-                        href={location.website_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="rounded-xl border border-border/70 bg-background/80 p-2 hover:bg-accent transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                      </a>
-                    )}
-                    {location.instagram_url && (
-                      <a
-                        href={location.instagram_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      className="rounded-xl border border-border/70 bg-background/80 p-2 hover:bg-accent transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Instagram className="h-3.5 w-3.5 text-muted-foreground" />
-                      </a>
-                    )}
-                    {location.facebook_url && (
-                      <a
-                        href={location.facebook_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      className="rounded-xl border border-border/70 bg-background/80 p-2 hover:bg-accent transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Facebook className="h-3.5 w-3.5 text-muted-foreground" />
-                      </a>
-                    )}
-                    {location.tiktok_url && (
-                      <a
-                        href={location.tiktok_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      className="rounded-xl border border-border/70 bg-background/80 p-2 hover:bg-accent transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Music className="h-3.5 w-3.5 text-muted-foreground" />
-                      </a>
-                    )}
-                  </div>
-                )}
-
-                <div className="mt-auto pt-4">
-                  <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-3">
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8 rounded-xl bg-background/80"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedLocationForRooms(location);
-                          setIsRoomsDialogOpen(true);
-                        }}
-                      >
-                        <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
-                        Salles
-                      </Button>
-                      {location.is_organizer ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-8 rounded-xl bg-background/80"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/admin/organizers/${location.id}/team`);
-                          }}
-                        >
-                          <Users className="mr-1.5 h-3.5 w-3.5" />
-                          Équipe
-                        </Button>
-                      ) : null}
-                    </div>
-                    <div className="flex items-center gap-1">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div
-                          className="flex items-center"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Switch
-                            checked={location.suggested || false}
-                            onCheckedChange={() => toggleSuggested(location.id, location.suggested || false)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="cursor-pointer"
-                          />
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{location.suggested ? "Recommandé" : "Non recommandé"}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 rounded-xl"
-                        title="Supprimer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteLocation(location.id);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-3xl border border-border/70 bg-card/95 shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Lieu</TableHead>
-                  <TableHead className="hidden lg:table-cell">Signaux</TableHead>
-                  <TableHead className="hidden xl:table-cell">Capacité & salles</TableHead>
-                  <TableHead className="hidden md:table-cell text-right">Recommandé</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLocations.map((location) => (
-                  <TableRow
-                    key={location.id}
-                    className="cursor-pointer hover:bg-muted/20"
-                    onClick={() => handleOpenDialog(location)}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Avatar className="h-11 w-11 shrink-0 rounded-2xl border border-border/70 shadow-sm">
-                          <AvatarImage src={location.image_url || undefined} alt={location.name} />
-                          <AvatarFallback className="rounded-2xl bg-primary/10 text-primary font-semibold">
-                            {getInitials(location.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <div className="font-medium truncate">{location.name}</div>
-                            {location.is_organizer ? <Badge variant="outline" className="rounded-full text-[10px]">Orga</Badge> : null}
-                            {location.suggested ? <Badge variant="secondary" className="rounded-full text-[10px]">Recommandé</Badge> : null}
-                          </div>
-                          <div className="truncate text-xs text-muted-foreground">{location.address || "Adresse non renseignée"}</div>
-                          {location.city?.label && (
-                            <div className="mt-1">
-                              <Badge variant="secondary" className="rounded-full text-[10px]">
-                                {location.city.label}
-                              </Badge>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <div className="flex flex-wrap gap-1.5">
-                        <ManagementPill tone={location.is_organizer ? "default" : "muted"}>
-                          {location.is_organizer ? getCaptureModeLabel(location.source_capture_mode) : "Lieu simple"}
-                        </ManagementPill>
-                        <ManagementPill tone={location.scraping_example_url ? "positive" : "muted"}>
-                          {location.scraping_example_url ? "Scraping prêt" : "Pas de scraping"}
-                        </ManagementPill>
-                        <ManagementPill tone={location.image_url ? "default" : "warning"}>
-                          {location.image_url ? "Image OK" : "Image manquante"}
-                        </ManagementPill>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden xl:table-cell">
-                      <div className="flex flex-wrap gap-1.5">
-                        <ManagementPill tone="muted">
-                          {(location.rooms?.length || 0)} salle{(location.rooms?.length || 0) > 1 ? "s" : ""}
-                        </ManagementPill>
-                        {location.capacity ? (
-                          <ManagementPill tone="muted">Capacité {location.capacity}</ManagementPill>
-                        ) : null}
-                        <ManagementPill tone="muted">
-                          {getLocationLinkCount(location)} lien{getLocationLinkCount(location) > 1 ? "s" : ""}
-                        </ManagementPill>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <div
-                        className="flex justify-end"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Switch
-                          checked={location.suggested || false}
-                          onCheckedChange={() => toggleSuggested(location.id, location.suggested || false)}
-                          className="cursor-pointer"
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        {location.is_organizer ? (
-                          <Button asChild variant="ghost" size="icon" className="rounded-xl">
-                            <Link
-                              href={`/admin/organizers/${location.id}/team`}
-                              title="Équipe"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Users className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                        ) : null}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="rounded-xl"
-                          title={location.scraping_example_url ? "Configuration scraping" : "Aucune URL de scraping"}
-                          disabled={!location.scraping_example_url}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!location.scraping_example_url) return;
-                            router.push(`/admin/scraping/${location.id}`);
-                          }}
-                        >
-                          <Code className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="rounded-xl"
-                          title="Gérer les salles"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedLocationForRooms(location);
-                            setIsRoomsDialogOpen(true);
-                          }}
-                        >
-                          <LayoutGrid className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="rounded-xl"
-                          title="Modifier"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenDialog(location);
-                          }}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="rounded-xl"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-52 rounded-xl">
-                            {location.scraping_example_url ? (
-                              <DropdownMenuItem asChild className="cursor-pointer">
-                                <a
-                                  href={location.scraping_example_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <ExternalLink className="mr-2 h-4 w-4" />
-                                  Ouvrir l'URL source
-                                </a>
-                              </DropdownMenuItem>
-                            ) : null}
-                            <DropdownMenuItem
-                              onClick={() => deleteLocation(location.id)}
-                              className="cursor-pointer text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Supprimer
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-
-        <LocationDialog
-          location={editingLocation}
-          open={isDialogOpen}
-          onOpenChange={setIsDialogOpen}
-          onSuccess={loadLocations}
+      <div className="space-y-3">
+        <DirectorySegments
+          value={segment}
+          onValueChange={setSegment}
+          items={[
+            { value: "all", label: "Tous", count: locations.length },
+            { value: "organizers", label: "Lieux-organisateurs", count: organizerLocationsCount },
+            { value: "suggested", label: "Recommandés", count: suggestedCount },
+            { value: "incomplete", label: "À compléter", count: incompleteCount, attention: true },
+          ]}
         />
 
-        {selectedLocationForRooms && (
-          <RoomsManagement
-            locationId={selectedLocationForRooms.id}
-            locationName={selectedLocationForRooms.name}
-            open={isRoomsDialogOpen}
-            onOpenChange={(open) => {
-              setIsRoomsDialogOpen(open);
-              if (!open) {
-                setSelectedLocationForRooms(null);
-                loadLocations();
-              }
-            }}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <DirectorySearch
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Rechercher un lieu, une adresse…"
           />
-        )}
-        <AlertDialogComponent />
+          <Select value={cityFilter} onValueChange={setCityFilter}>
+            <SelectTrigger className="sm:w-48" aria-label="Ville">
+              <SelectValue placeholder="Toutes les villes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les villes</SelectItem>
+              {cityOptions.map((city) => (
+                <SelectItem key={city.id} value={city.id}>
+                  {city.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {hasActiveFilters ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => {
+                setSearchQuery("");
+                setCityFilter("all");
+                setSegment("all");
+              }}
+            >
+              <RotateCw />
+              Réinitialiser
+            </Button>
+          ) : null}
+          <span className="text-sm text-muted-foreground sm:ml-auto">
+            {filteredLocations.length} résultat{filteredLocations.length > 1 ? "s" : ""}
+          </span>
+        </div>
       </div>
-    </TooltipProvider>
+
+      {filteredLocations.length === 0 ? (
+        <ManagementEmptyState
+          icon={<Building2 />}
+          title={locations.length === 0 ? "Aucun lieu pour le moment" : "Aucun résultat"}
+          description={
+            locations.length === 0
+              ? "Ajoute un premier lieu pour y rattacher des événements, des salles et une source de collecte."
+              : "Aucun lieu ne correspond à ces filtres."
+          }
+          action={
+            locations.length === 0 ? (
+              <Button size="sm" onClick={() => handleOpenDialog()}>
+                <Plus />
+                Nouveau lieu
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : viewMode === "list" ? (
+        <DirectoryTableCard>
+          <Table containerClassName="mx-0 px-0" className="table-fixed">
+            <TableHeader>
+              <TableRow>
+                <SortableHead
+                  label="Lieu"
+                  active={sortKey === "name"}
+                  direction={sortDirection}
+                  onSort={() => toggleSort("name")}
+                  className="pl-4"
+                />
+                <SortableHead
+                  label="À venir"
+                  active={sortKey === "upcoming"}
+                  direction={sortDirection}
+                  onSort={() => toggleSort("upcoming", "desc")}
+                  className="hidden w-28 @xl:table-cell"
+                />
+                <SortableHead
+                  label="Ville"
+                  active={sortKey === "city"}
+                  direction={sortDirection}
+                  onSort={() => toggleSort("city")}
+                  className="hidden w-40 @2xl:table-cell"
+                />
+                <SortableHead
+                  label="Salles"
+                  active={sortKey === "rooms"}
+                  direction={sortDirection}
+                  onSort={() => toggleSort("rooms", "desc")}
+                  className="hidden w-20 @3xl:table-cell"
+                />
+                <TableHead className="hidden w-40 @4xl:table-cell">Type</TableHead>
+                <TableHead className="hidden w-56 @5xl:table-cell">À compléter</TableHead>
+                <SortableHead
+                  label="Modifié"
+                  active={sortKey === "updated"}
+                  direction={sortDirection}
+                  onSort={() => toggleSort("updated", "desc")}
+                  className="hidden w-32 @7xl:table-cell"
+                />
+                <TableHead className="w-24 pr-4 text-right">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredLocations.map((location) => (
+                <TableRow
+                  key={location.id}
+                  className="cursor-pointer"
+                  onClick={() => handleOpenDialog(location)}
+                >
+                  <TableCell className="pl-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <EntityAvatar src={location.image_url} name={location.name} />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{location.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {location.address || "Adresse non renseignée"}
+                        </p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden @xl:table-cell">
+                    <UpcomingEventsCell stats={upcoming?.get(location.id)} loading={!upcoming} />
+                  </TableCell>
+                  <TableCell className="hidden truncate text-muted-foreground @2xl:table-cell">
+                    {location.city?.label || "—"}
+                  </TableCell>
+                  <TableCell className="hidden tabular-nums text-muted-foreground @3xl:table-cell">
+                    {location.rooms?.length || 0}
+                  </TableCell>
+                  <TableCell className="hidden @4xl:table-cell">
+                    {location.is_organizer ? (
+                      <Badge variant="outline">Lieu-organisateur</Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Lieu</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden @5xl:table-cell">
+                    <MissingHints items={getLocationMissing(location)} />
+                  </TableCell>
+                  <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground @7xl:table-cell">
+                    {formatShortDate(location.updated_at)}
+                  </TableCell>
+                  <TableCell className="pr-4" onClick={(event) => event.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-0.5">
+                      {renderSuggestedToggle(location)}
+                      {renderLocationActions(location)}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </DirectoryTableCard>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {filteredLocations.map((location) => (
+            <div
+              key={location.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => handleOpenDialog(location)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") handleOpenDialog(location);
+              }}
+              className="group flex cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card text-left shadow-xs outline-none transition-[border-color,box-shadow] hover:border-foreground/20 hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/40"
+            >
+              <div className="relative aspect-[16/9] w-full border-b border-border bg-muted">
+                {location.image_url ? (
+                  <span
+                    className="absolute inset-0 bg-cover bg-center"
+                    style={{ backgroundImage: `url(${location.image_url})` }}
+                    aria-hidden
+                  />
+                ) : (
+                  <span className="absolute inset-0 flex items-center justify-center text-2xl font-semibold text-muted-foreground/60">
+                    {getInitials(location.name)}
+                  </span>
+                )}
+                {location.suggested ? (
+                  <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md border border-border bg-background/90 px-1.5 py-0.5 text-[11px] font-medium backdrop-blur">
+                    <Star className="h-3 w-3 fill-current" />
+                    Recommandé
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex flex-1 flex-col gap-2 p-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{location.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {[location.city?.label, location.is_organizer ? "Lieu-organisateur" : null]
+                        .filter(Boolean)
+                        .join(" · ") || "Ville non renseignée"}
+                    </p>
+                  </div>
+                  <div onClick={(event) => event.stopPropagation()} className="-mr-1 -mt-1">
+                    {renderLocationActions(location)}
+                  </div>
+                </div>
+                <p className="line-clamp-2 text-sm text-muted-foreground">
+                  {location.short_description?.trim() || location.address || ""}
+                </p>
+                <div className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
+                  <MissingHints items={getLocationMissing(location)} />
+                  <span className="shrink-0 tabular-nums">
+                    {location.rooms?.length || 0} salle{(location.rooms?.length || 0) > 1 ? "s" : ""}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <LocationDialog
+        location={editingLocation}
+        open={isDialogOpen}
+        onOpenChange={(next) => {
+          setIsDialogOpen(next);
+          if (!next && openLocationId) router.replace("/admin/locations", { scroll: false });
+        }}
+        onSuccess={loadLocations}
+      />
+
+      {selectedLocationForRooms && (
+        <RoomsManagement
+          locationId={selectedLocationForRooms.id}
+          locationName={selectedLocationForRooms.name}
+          open={isRoomsDialogOpen}
+          onOpenChange={(open) => {
+            setIsRoomsDialogOpen(open);
+            if (!open) {
+              setSelectedLocationForRooms(null);
+              loadLocations();
+            }
+          }}
+        />
+      )}
+      <AlertDialogComponent />
+    </div>
   );
 }
 
@@ -879,7 +704,6 @@ export function LocationDialog({
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }) {
-  const isMobile = useIsMobile();
   const { showAlert, AlertDialogComponent } = useAlertDialog();
   const [cities, setCities] = useState<Array<{ id: string; label: string }>>([]);
   const [formData, setFormData] = useState({
@@ -905,15 +729,17 @@ export function LocationDialog({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState("details");
+  const [roomsOpen, setRoomsOpen] = useState(false);
+
+  // Chaque ouverture repart sur la fiche.
+  useEffect(() => {
+    if (open) setActiveTab("details");
+  }, [open, location?.id]);
   
-  // Image cropping states
+  // Recadrage de l'image
   const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
-  const [showCropper, setShowCropper] = useState(false);
-  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
-  const [aspectRatio, setAspectRatio] = useState<number | undefined>(3 / 2);
+  const [cropSource, setCropSource] = useState<string | null>(null);
 
   useEffect(() => {
     if (location) {
@@ -965,6 +791,7 @@ export function LocationDialog({
       setOriginalImageSrc(null);
       setImageFile(null);
     }
+    setCropSource(null);
   }, [location, open]);
 
   useEffect(() => {
@@ -982,114 +809,28 @@ export function LocationDialog({
     })();
   }, [open]);
 
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith("image/")) {
-        showAlert({
-          title: "Image invalide",
-          description: "Veuillez sélectionner une image.",
-          confirmText: "OK",
-        });
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUrl = reader.result as string;
-        setOriginalImageSrc(dataUrl);
-        setCropImageSrc(dataUrl);
-        setShowCropper(true);
-      };
-      reader.readAsDataURL(file);
-    }
+  function handleImageSelected(dataUrl: string) {
+    setOriginalImageSrc(dataUrl);
+    setCropSource(dataUrl);
   }
 
-  const onCropComplete = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  }, []);
-
-  async function createCroppedImage(imageSrc: string, pixelCrop: Area): Promise<Blob> {
-    return new Promise((resolve, reject) => {
-      const image = new Image();
-      image.crossOrigin = "anonymous";
-      image.src = imageSrc;
-
-      image.onload = () => {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-
-        if (!ctx) {
-          reject(new Error("Impossible de créer le contexte canvas"));
-          return;
-        }
-
-        canvas.width = pixelCrop.width;
-        canvas.height = pixelCrop.height;
-
-        ctx.drawImage(
-          image,
-          pixelCrop.x,
-          pixelCrop.y,
-          pixelCrop.width,
-          pixelCrop.height,
-          0,
-          0,
-          pixelCrop.width,
-          pixelCrop.height
-        );
-
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              reject(new Error("Erreur lors de la création du blob"));
-              return;
-            }
-            resolve(blob);
-          },
-          "image/jpeg",
-          0.9
-        );
-      };
-
-      image.onerror = () => {
-        reject(new Error("Erreur lors du chargement de l'image"));
-      };
-    });
+  function handleCropConfirm(blob: Blob) {
+    setImageFile(new File([blob], `cropped-${Date.now()}.jpg`, { type: "image/jpeg" }));
+    setImagePreview(URL.createObjectURL(blob));
   }
 
-  async function handleCropComplete() {
-    if (!cropImageSrc || !croppedAreaPixels) return;
-
-    try {
-      const croppedImageBlob = await createCroppedImage(cropImageSrc, croppedAreaPixels);
-      const croppedImageFile = new File([croppedImageBlob], `cropped-${Date.now()}.jpg`, {
-        type: "image/jpeg",
-      });
-
-      setImageFile(croppedImageFile);
-      setImagePreview(URL.createObjectURL(croppedImageBlob));
-      setShowCropper(false);
-      setCropImageSrc(null);
-      setCrop({ x: 0, y: 0 });
-      setZoom(1);
-      setCroppedAreaPixels(null);
-      setAspectRatio(3 / 2);
-    } catch (error) {
-      console.error("Erreur lors du cropping:", error);
-      showAlert({
-        title: "Rognage impossible",
-        description: "Erreur lors du rognage de l'image",
-        confirmText: "OK",
-      });
-    }
+  function handleImageRemove() {
+    setImagePreview(null);
+    setImageFile(null);
+    setOriginalImageSrc(null);
+    setFormData((current) => ({ ...current, image_url: "" }));
   }
 
-  function handleImageClick() {
-    if (originalImageSrc) {
-      setCropImageSrc(originalImageSrc);
-      setShowCropper(true);
-    }
+  function handleImageUrlChange(value: string) {
+    setFormData((current) => ({ ...current, image_url: value }));
+    const trimmed = value.trim();
+    setImagePreview(trimmed || null);
+    setOriginalImageSrc(trimmed || null);
   }
 
   async function handleImageUpload(): Promise<string | null> {
@@ -1099,11 +840,7 @@ export function LocationDialog({
 
     async function uploadFromRemoteUrl(url: string): Promise<string | null> {
       try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Image distante inaccessible (${response.status})`);
-        }
-        const blob = await response.blob();
+        const blob = await fetchRemoteImageBlob(url);
         const contentType = blob.type || "image/jpeg";
         if (!contentType.startsWith("image/")) {
           throw new Error("L'URL fournie n'est pas une image valide.");
@@ -1303,561 +1040,342 @@ export function LocationDialog({
     }
   }
 
+  const cityLabel = cities.find((city) => city.id === formData.city_id)?.label;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-full overflow-y-auto bg-background sm:w-[66.666vw] [@media(min-width:1440px)]:w-[66.666vw] [@media(min-width:1600px)]:max-w-2xl"
-      >
-        <SheetHeader className="mb-5 border-b border-border/70 pb-5">
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="-ml-2 h-9 w-9"
-              onClick={() => onOpenChange(false)}
-            >
-              <ChevronLeft className="h-5 w-5" />
-              <span className="sr-only">Fermer</span>
-            </Button>
-            <SheetTitle className="text-xl md:text-2xl">
-              {location ? "Modifier le lieu" : "Nouveau lieu"}
-            </SheetTitle>
-          </div>
-          <SheetDescription className="mt-2">
-            {location ? "Modifiez les informations du lieu" : "Ajoutez un nouveau lieu pour les événements"}
-          </SheetDescription>
-        </SheetHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 pb-24">
-          <div className="rounded-2xl border border-border/70 bg-muted/15 p-4">
-            <div className="flex items-start gap-3">
-              <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-border/70 shadow-sm">
-                <AvatarImage src={imagePreview || undefined} alt={formData.name || "Lieu"} />
-                <AvatarFallback className="rounded-2xl bg-primary/10 text-primary font-semibold">
-                  {getInitials(formData.name || location?.name || "NA")}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1 space-y-2">
-                <div>
-                  <div className="truncate text-base font-semibold">
-                    {formData.name.trim() || "Nouveau lieu"}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Centralisez les infos d’accès, les salles, la source et la mise en avant dans une fiche plus claire.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {formData.city_id ? (
-                    <ManagementPill tone="muted">
-                      {cities.find((city) => city.id === formData.city_id)?.label || "Ville sélectionnée"}
-                    </ManagementPill>
-                  ) : null}
-                  <ManagementPill tone={imagePreview ? "default" : "warning"}>
-                    {imagePreview ? "Image prête" : "Image manquante"}
-                  </ManagementPill>
-                  {formData.is_organizer ? (
-                    <ManagementPill tone={formData.scraping_example_url ? "positive" : "muted"}>
-                      {formData.scraping_example_url ? "Source prête" : getCaptureModeLabel(formData.source_capture_mode)}
-                    </ManagementPill>
-                  ) : null}
-                  {formData.suggested ? <ManagementPill tone="positive">Recommandé</ManagementPill> : null}
-                </div>
-              </div>
-            </div>
-          </div>
+      <SheetContent side="right" className={ENTITY_SHEET_CLASSNAME}>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
+          <EntitySheetHeader
+            imageSrc={imagePreview}
+            name={formData.name || location?.name || "Lieu"}
+            title={location ? formData.name.trim() || location.name : "Nouveau lieu"}
+            description={
+              location
+                ? [
+                    cityLabel,
+                    formData.is_organizer ? "Lieu-organisateur" : "Lieu",
+                    formData.suggested ? "Recommandé" : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                : "Ajoute un lieu pour y rattacher des événements, des salles et une source."
+            }
+            onClose={() => onOpenChange(false)}
+          >
+            {location ? (
+              <TabsList variant="line" className="border-b-0">
+                <TabsTrigger value="details">Fiche</TabsTrigger>
+                <TabsTrigger value="events">Événements</TabsTrigger>
+                <TabsTrigger value="rooms">
+                  Salles
+                  <span className="rounded bg-muted px-1 text-[11px] tabular-nums text-muted-foreground">
+                    {location.rooms?.length || 0}
+                  </span>
+                </TabsTrigger>
+              </TabsList>
+            ) : null}
+          </EntitySheetHeader>
 
-          <ManagementSectionLabel>Essentiel</ManagementSectionLabel>
-          <div className="space-y-2">
-            <Label htmlFor="name">Nom *</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="address">Adresse *</Label>
-            <AddressInput
-              id="address"
-              value={formData.address}
-              onChange={(address) => setFormData({ ...formData, address })}
-              onAddressSelect={(address, coordinates) => {
-                setFormData({
-                  ...formData,
-                  address,
-                  latitude: coordinates?.latitude?.toString() || "",
-                  longitude: coordinates?.longitude?.toString() || "",
-                });
-              }}
-              placeholder="Commencez à taper une adresse..."
-              className="cursor-pointer"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="city_id">Ville</Label>
-            <Select
-              value={formData.city_id || "none"}
-              onValueChange={(value) =>
-                setFormData({
-                  ...formData,
-                  city_id: value === "none" ? "" : value,
-                })
-              }
-            >
-              <SelectTrigger id="city_id" className="min-h-[44px] text-base">
-                <SelectValue placeholder="Sélectionner une ville" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Aucune ville</SelectItem>
-                {cities.map((city) => (
-                  <SelectItem key={city.id} value={city.id}>
-                    {city.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <ManagementSectionLabel>Coordonnées & accès</ManagementSectionLabel>
-
-          <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
-            <div className="space-y-2">
-              <Label htmlFor="latitude">Latitude</Label>
-              <Input
-                id="latitude"
-                type="number"
-                step="any"
-                value={formData.latitude}
-                onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
-                placeholder="48.8566"
-                className="cursor-pointer min-h-[44px] text-base"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="longitude">Longitude</Label>
-              <Input
-                id="longitude"
-                type="number"
-                step="any"
-                value={formData.longitude}
-                onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
-                placeholder="2.3522"
-                className="cursor-pointer min-h-[44px] text-base"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="short_description">Courte description</Label>
-            <Textarea
-              id="short_description"
-              value={formData.short_description}
-              onChange={(e) => setFormData({ ...formData, short_description: e.target.value })}
-              placeholder="Description courte du lieu..."
-              rows={3}
-              className="cursor-pointer resize-none min-h-[60px] text-base"
-            />
-          </div>
-
-          <ManagementSectionLabel>Réseaux & diffusion</ManagementSectionLabel>
-
-          <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
-            <div className="space-y-2">
-              <Label htmlFor="capacity">Capacité</Label>
-              <Input
-                id="capacity"
-                type="number"
-                value={formData.capacity}
-                onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
-                placeholder="Nombre de places"
-                className="cursor-pointer min-h-[44px] text-base"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="directions">Comment s'y rendre</Label>
-            <Textarea
-              id="directions"
-              value={formData.directions}
-              onChange={(e) => setFormData({ ...formData, directions: e.target.value })}
-              placeholder="Instructions pour accéder au lieu (transport, parking, etc.)"
-              rows={4}
-              className="cursor-pointer resize-none min-h-[80px] text-base"
-            />
-          </div>
-
-          <div className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}>
-            <div className="space-y-2">
-              <Label htmlFor="instagram_url" className="flex items-center gap-2">
-                <LinkIcon className="h-4 w-4" />
-                Instagram
-              </Label>
-              <Input
-                id="instagram_url"
-                type="url"
-                value={formData.instagram_url}
-                onChange={(e) => setFormData({ ...formData, instagram_url: e.target.value })}
-                placeholder="https://instagram.com/..."
-                className="cursor-pointer min-h-[44px] text-base"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="facebook_url" className="flex items-center gap-2">
-                <LinkIcon className="h-4 w-4" />
-                Facebook
-              </Label>
-              <Input
-                id="facebook_url"
-                type="url"
-                value={formData.facebook_url}
-                onChange={(e) => setFormData({ ...formData, facebook_url: e.target.value })}
-                placeholder="https://facebook.com/..."
-                className="cursor-pointer min-h-[44px] text-base"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-3">
-          <div className="flex items-center space-x-2 p-4 border rounded-lg">
-            <Switch
-              id="is_organizer"
-              checked={formData.is_organizer}
-              onCheckedChange={(checked) => setFormData({ ...formData, is_organizer: checked })}
-            />
-            <Label htmlFor="is_organizer" className="cursor-pointer">
-              Ce lieu peut aussi être utilisé comme organisateur
-            </Label>
-            </div>
-            <div className="flex items-center space-x-2 p-4 border rounded-lg">
-              <Switch
-                id="suggested"
-                checked={formData.suggested}
-                onCheckedChange={(checked) => setFormData({ ...formData, suggested: checked })}
-              />
-              <Label htmlFor="suggested" className="cursor-pointer">
-                Lieu recommandé (maximum 6 lieux recommandés)
-              </Label>
-            </div>
-          </div>
-
-          {formData.is_organizer && (
-            <div className="space-y-2">
-              <Label htmlFor="source_capture_mode" className="flex items-center gap-2">
-                <LinkIcon className="h-4 w-4" />
-                Type de lien pour la source
-              </Label>
-              <Select
-                value={formData.source_capture_mode}
-                onValueChange={(value: "url" | "image" | "facebook") =>
-                  setFormData({ ...formData, source_capture_mode: value })
-                }
-              >
-                <SelectTrigger id="source_capture_mode" className="min-h-[44px] text-base">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="url">URL</SelectItem>
-                  <SelectItem value="image">Photo / image</SelectItem>
-                  <SelectItem value="facebook">Facebook</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Ce choix pilote le mode d'entree de la source synchronisee dans l'intake.
-              </p>
-            </div>
-          )}
-
-          {formData.is_organizer && (
-            <div className="space-y-2">
-              <Label htmlFor="facebook_page_id" className="flex items-center gap-2">
-                <LinkIcon className="h-4 w-4" />
-                ID de page Facebook
-              </Label>
-              <Input
-                id="facebook_page_id"
-                type="text"
-                value={formData.facebook_page_id}
-                onChange={(e) => setFormData({ ...formData, facebook_page_id: e.target.value })}
-                placeholder="123456789"
-                className="cursor-pointer min-h-[44px] text-base"
-              />
-              <p className="text-xs text-muted-foreground">
-                ID numérique de la page Facebook (nécessaire pour importer les événements depuis Facebook)
-              </p>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="tiktok_url" className="flex items-center gap-2">
-              <LinkIcon className="h-4 w-4" />
-              TikTok
-            </Label>
-            <Input
-              id="tiktok_url"
-              type="url"
-              value={formData.tiktok_url}
-              onChange={(e) => setFormData({ ...formData, tiktok_url: e.target.value })}
-              placeholder="https://tiktok.com/@..."
-              className="cursor-pointer min-h-[44px] text-base"
-            />
-          </div>
-
-          {formData.is_organizer && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="website_url" className="flex items-center gap-2">
-                  <LinkIcon className="h-4 w-4" />
-                  Site web
-                </Label>
-                <Input
-                  id="website_url"
-                  type="url"
-                  value={formData.website_url}
-                  onChange={(e) => setFormData({ ...formData, website_url: e.target.value })}
-                  placeholder="https://example.com"
-                  className="cursor-pointer min-h-[44px] text-base"
-                />
-                <p className="text-xs text-muted-foreground">
-                  URL du site web du lieu-organisateur. Utilisée pour le scraping automatique d'événements.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="scraping_example_url" className="flex items-center gap-2">
-                  <Code className="h-4 w-4" />
-                  URL d'exemple pour le scraping
-                </Label>
-                <Input
-                  id="scraping_example_url"
-                  type="url"
-                  value={formData.scraping_example_url}
-                  onChange={(e) => setFormData({ ...formData, scraping_example_url: e.target.value })}
-                  placeholder="https://example.com/events"
-                  className="cursor-pointer min-h-[44px] text-base"
-                />
-                <p className="text-xs text-muted-foreground">
-                  URL d'exemple d'une page à scraper. Cette URL servira de modèle pour le scraping automatique d'événements.
-                </p>
-              </div>
-
-            </>
-          )}
-
-          <ManagementSectionLabel>Média</ManagementSectionLabel>
-
-          <div className="space-y-2">
-            <Label htmlFor="image" className="flex items-center gap-2">
-              <ImageIcon className="h-4 w-4" />
-              Image du lieu
-            </Label>
-            {imagePreview && !showCropper && (
-              <div className="relative w-full aspect-video max-w-xs rounded-lg overflow-hidden border group cursor-pointer" onClick={handleImageClick}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={imagePreview}
-                  alt="Aperçu"
-                  className="w-full h-full object-contain bg-muted/20"
-                />
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center admin-overlay">
-                  <div className="text-sm font-medium">
-                    Cliquer pour rogner
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  className="absolute top-2 right-2 cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setImagePreview(null);
-                    setImageFile(null);
-                    setOriginalImageSrc(null);
-                    setFormData({ ...formData, image_url: "" });
-                    const fileInput = document.getElementById("location-image-upload") as HTMLInputElement;
-                    if (fileInput) fileInput.value = "";
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Input
-                id="location-image-upload"
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="cursor-pointer"
-              />
-              <Label
-                htmlFor="location-image-upload"
-                className="text-xs text-muted-foreground"
-              >
-                Ou entrez une URL
-              </Label>
-              <Input
-                id="image_url"
-                type="url"
-                value={formData.image_url}
-                onChange={(e) => {
-                  setFormData({ ...formData, image_url: e.target.value });
-                  if (e.target.value) {
-                    setImagePreview(e.target.value);
-                    setOriginalImageSrc(e.target.value);
-                    setImageFile(null);
-                  }
-                }}
-                placeholder="https://example.com/image.jpg"
-                disabled={!!imageFile}
-                className="cursor-pointer"
-              />
-            </div>
-          </div>
-
-          <div className="sticky bottom-0 z-10 -mx-6 mt-6 border-t border-border/70 bg-background/95 px-6 py-3 backdrop-blur">
-            <div className={`flex gap-2 ${isMobile ? "flex-col" : "justify-end"}`}>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={uploading}
-                className="min-h-[44px] w-full md:w-auto"
-              >
-                Annuler
-              </Button>
-              <Button
-                type="submit"
-                disabled={uploading}
-                className="min-h-[44px] w-full md:w-auto"
-              >
-                {uploading ? "Upload..." : location ? "Enregistrer" : "Créer"}
-              </Button>
-            </div>
-          </div>
-        </form>
-
-        {/* Cropper Dialog */}
-        <Dialog open={showCropper} onOpenChange={setShowCropper}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
-            <DialogHeader className="px-6 pt-6 pb-4">
-              <DialogTitle>Rogner l'image</DialogTitle>
-              <DialogDescription>
-                Ajustez la zone de l'image à utiliser
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="px-6 pb-4 space-y-4">
-              {/* Aspect Ratio Selector */}
-              <div className="flex items-center gap-4">
-                <Label htmlFor="aspect-ratio" className="text-sm font-medium">
-                  Format:
-                </Label>
-                <Select
-                  value={aspectRatio?.toString() || "none"}
-                  onValueChange={(value) => {
-                    if (value === "none") {
-                      setAspectRatio(undefined);
-                    } else {
-                      setAspectRatio(parseFloat(value));
-                    }
-                  }}
-                >
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Format" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Libre</SelectItem>
-                    <SelectItem value="1">1:1 (Carré)</SelectItem>
-                    <SelectItem value="1.3333333333333333">4:3</SelectItem>
-                    <SelectItem value="1.5">3:2</SelectItem>
-                    <SelectItem value="1.7777777777777777">16:9</SelectItem>
-                    <SelectItem value="0.75">3:4 (Portrait)</SelectItem>
-                    <SelectItem value="0.5625">9:16 (Portrait)</SelectItem>
-                    <SelectItem value="0.6666666666666666">2:3 (Portrait)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Cropper Area */}
-              <div className="relative w-full h-[400px] bg-muted rounded-lg overflow-hidden">
-                {cropImageSrc && (
-                  <Cropper
-                    image={cropImageSrc}
-                    crop={crop}
-                    zoom={zoom}
-                    aspect={aspectRatio}
-                    onCropChange={setCrop}
-                    onZoomChange={setZoom}
-                    onCropComplete={onCropComplete}
-                    style={{
-                      containerStyle: {
-                        width: "100%",
-                        height: "100%",
-                        position: "relative",
-                      },
+          <EntitySheetBody>
+            {location ? (
+              <>
+                <TabsContent value="events" className="mt-0 pb-8">
+                  <EntityRelatedEvents scope={{ kind: "location", id: location.id }} />
+                </TabsContent>
+                <TabsContent value="rooms" className="mt-0 space-y-3 pb-8">
+                  {(location.rooms?.length || 0) === 0 ? (
+                    <p className="text-sm text-muted-foreground">Aucune salle pour ce lieu.</p>
+                  ) : (
+                    <div className="divide-y divide-border rounded-lg border border-border">
+                      {location.rooms?.map((room) => (
+                        <div key={room.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                          <span className="font-medium">{room.name}</span>
+                          <span className="text-xs tabular-nums text-muted-foreground">
+                            {room.capacity ? `${room.capacity} places` : "Capacité non renseignée"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Button type="button" variant="outline" size="sm" onClick={() => setRoomsOpen(true)}>
+                    <LayoutGrid />
+                    Gérer les salles
+                  </Button>
+                  <RoomsManagement
+                    locationId={location.id}
+                    locationName={location.name}
+                    open={roomsOpen}
+                    onOpenChange={(next) => {
+                      setRoomsOpen(next);
+                      if (!next) onSuccess();
                     }}
                   />
-                )}
-              </div>
+                </TabsContent>
+              </>
+            ) : null}
 
-              {/* Zoom Control */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Zoom</Label>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min="1"
-                    max="3"
-                    step="0.1"
-                    value={zoom}
-                    onChange={(e) => setZoom(parseFloat(e.target.value))}
-                    className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+            <TabsContent value="details" className="mt-0">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <EntityFormSection title="Identité">
+                  <EntityImageField
+                    id="location-image"
+                    name={formData.name}
+                    shape="wide"
+                    preview={imagePreview}
+                    url={formData.image_url}
+                    onUrlChange={handleImageUrlChange}
+                    onFileSelected={handleImageSelected}
+                    onRecrop={() => setCropSource(originalImageSrc || imagePreview)}
+                    onRemove={handleImageRemove}
+                    hasLocalFile={Boolean(imageFile)}
                   />
-                  <span className="text-sm text-muted-foreground w-12 text-right">
-                    {Math.round(zoom * 100)}%
-                  </span>
-                </div>
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nom *</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="short_description">Description courte</Label>
+                    <Textarea
+                      id="short_description"
+                      value={formData.short_description}
+                      onChange={(e) => setFormData({ ...formData, short_description: e.target.value })}
+                      placeholder="Ambiance, horaires, ce qu’on y trouve…"
+                      rows={3}
+                    />
+                  </div>
+                </EntityFormSection>
 
-              {/* Actions */}
-              <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowCropper(false);
-                    setCropImageSrc(null);
-                    setCrop({ x: 0, y: 0 });
-                    setZoom(1);
-                    setCroppedAreaPixels(null);
-                    setAspectRatio(3 / 2);
-                  }}
-                  className="cursor-pointer"
-                >
-                  Annuler
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleCropComplete}
-                  className="cursor-pointer"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Enregistrer
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+                <EntityFormSection title="Adresse et accès">
+                  <div className="space-y-2">
+                    <Label htmlFor="address">Adresse *</Label>
+                    <AddressInput
+                      id="address"
+                      value={formData.address}
+                      onChange={(address) => setFormData({ ...formData, address })}
+                      onAddressSelect={(address, coordinates) => {
+                        setFormData({
+                          ...formData,
+                          address,
+                          latitude: coordinates?.latitude?.toString() || "",
+                          longitude: coordinates?.longitude?.toString() || "",
+                        });
+                      }}
+                      placeholder="Commencez à taper une adresse…"
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="city_id">Ville</Label>
+                      <Select
+                        value={formData.city_id || "none"}
+                        onValueChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            city_id: value === "none" ? "" : value,
+                          })
+                        }
+                      >
+                        <SelectTrigger id="city_id">
+                          <SelectValue placeholder="Sélectionner une ville" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Aucune ville</SelectItem>
+                          {cities.map((city) => (
+                            <SelectItem key={city.id} value={city.id}>
+                              {city.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="capacity">Capacité</Label>
+                      <Input
+                        id="capacity"
+                        type="number"
+                        min={0}
+                        value={formData.capacity}
+                        onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
+                        placeholder="Nombre de places"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="latitude">Latitude</Label>
+                        <Input
+                          id="latitude"
+                          type="number"
+                          step="any"
+                          value={formData.latitude}
+                          onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                          placeholder="47.9029"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="longitude">Longitude</Label>
+                        <Input
+                          id="longitude"
+                          type="number"
+                          step="any"
+                          value={formData.longitude}
+                          onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                          placeholder="1.9093"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Remplies automatiquement quand une adresse est choisie dans la liste.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="directions">Comment s’y rendre</Label>
+                    <Textarea
+                      id="directions"
+                      value={formData.directions}
+                      onChange={(e) => setFormData({ ...formData, directions: e.target.value })}
+                      placeholder="Transports, parking, accès PMR…"
+                      rows={3}
+                    />
+                  </div>
+                </EntityFormSection>
+
+                <EntityFormSection title="Liens publics">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {(
+                      [
+                        { key: "website_url", label: "Site web", icon: Globe, placeholder: "https://…" },
+                        { key: "instagram_url", label: "Instagram", icon: Instagram, placeholder: "https://instagram.com/…" },
+                        { key: "facebook_url", label: "Facebook", icon: Facebook, placeholder: "https://facebook.com/…" },
+                        { key: "tiktok_url", label: "TikTok", icon: Music, placeholder: "https://tiktok.com/@…" },
+                      ] as const
+                    ).map((field) => {
+                      const Icon = field.icon;
+                      return (
+                        <div key={field.key} className="space-y-2">
+                          <Label htmlFor={field.key} className="flex items-center gap-1.5">
+                            <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                            {field.label}
+                          </Label>
+                          <Input
+                            id={field.key}
+                            type="url"
+                            value={formData[field.key]}
+                            onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
+                            placeholder={field.placeholder}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </EntityFormSection>
+
+                <EntityFormSection title="Rôle et mise en avant">
+                  <EntitySwitchRow
+                    id="is_organizer"
+                    title="Lieu-organisateur"
+                    description="Le lieu peut aussi être choisi comme organisateur d’un événement."
+                    checked={formData.is_organizer}
+                    onCheckedChange={(checked) => setFormData({ ...formData, is_organizer: checked })}
+                  />
+                  <EntitySwitchRow
+                    id="suggested"
+                    title="Lieu recommandé"
+                    description="Mis en avant dans l’app, 6 lieux maximum."
+                    checked={formData.suggested}
+                    onCheckedChange={(checked) => setFormData({ ...formData, suggested: checked })}
+                  />
+                </EntityFormSection>
+
+                {formData.is_organizer ? (
+                  <EntityFormSection
+                    title="Collecte d’événements"
+                    description="Comment OutLive récupère les événements de ce lieu."
+                  >
+                    <div className="space-y-2">
+                      <Label htmlFor="source_capture_mode">Type de source</Label>
+                      <Select
+                        value={formData.source_capture_mode}
+                        onValueChange={(value: "url" | "image" | "facebook") =>
+                          setFormData({ ...formData, source_capture_mode: value })
+                        }
+                      >
+                        <SelectTrigger id="source_capture_mode">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="url">Page web (URL)</SelectItem>
+                          <SelectItem value="image">Photo / affiche</SelectItem>
+                          <SelectItem value="facebook">Facebook</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Détermine le mode d’import proposé pour cette source dans la collecte.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor="scraping_example_url">URL d’exemple pour le scraping</Label>
+                        {location && formData.scraping_example_url ? (
+                          <Link
+                            href={`/admin/scraping/${location.id}`}
+                            className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                          >
+                            Configurer
+                          </Link>
+                        ) : null}
+                      </div>
+                      <Input
+                        id="scraping_example_url"
+                        type="url"
+                        value={formData.scraping_example_url}
+                        onChange={(e) => setFormData({ ...formData, scraping_example_url: e.target.value })}
+                        placeholder="https://…/agenda"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="facebook_page_id">ID de la page Facebook</Label>
+                      <Input
+                        id="facebook_page_id"
+                        value={formData.facebook_page_id}
+                        onChange={(e) => setFormData({ ...formData, facebook_page_id: e.target.value })}
+                        placeholder="Ex. 123456789012345"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Nécessaire pour importer les événements depuis Facebook.
+                      </p>
+                    </div>
+                  </EntityFormSection>
+                ) : null}
+
+                <EntitySheetFooter
+                  onCancel={() => onOpenChange(false)}
+                  submitLabel={location ? "Enregistrer" : "Créer le lieu"}
+                  busy={uploading}
+                />
+              </form>
+            </TabsContent>
+          </EntitySheetBody>
+        </Tabs>
+
+        <ImageCropDialog
+          imageSrc={cropSource}
+          onOpenChange={(next) => {
+            if (!next) setCropSource(null);
+          }}
+          defaultAspect={3 / 2}
+          onConfirm={handleCropConfirm}
+        />
         <AlertDialogComponent />
       </SheetContent>
     </Sheet>
   );
 }
-

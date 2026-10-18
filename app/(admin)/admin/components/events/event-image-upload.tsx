@@ -1,353 +1,316 @@
 "use client";
 
 import * as React from "react";
-import Cropper, { Area } from "react-easy-crop";
-import { Image as ImageIcon, Upload, X } from "lucide-react";
+import { Crop, ImagePlus, Link2, Loader2, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { compressImage } from "@/lib/image-compression";
 import { fetchAdminProxiedImageObjectUrl, isHttpImageUrl } from "@/lib/events/remote-image";
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { ImageCropDialog } from "../directory/image-crop-dialog";
 
 export type EventImageUploadProps = {
+  /** Aperçu courant : URL distante, URL de stockage ou objet local (blob:). */
   currentImageUrl: string | null;
   onImageChange: (file: File | null, previewUrl: string | null) => void;
   onUrlChange: (url: string) => void;
   disabled?: boolean;
   className?: string;
+  /** Accepte une image collée (⌘V) hors des champs de saisie. */
+  enablePaste?: boolean;
 };
 
-async function createCroppedImage(imageSrc: string, pixelCrop: Area): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.src = imageSrc;
+const MAX_FILE_SIZE = 15 * 1024 * 1024;
+const EVENT_IMAGE_ASPECT = 3 / 2;
 
-    image.onload = () => {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        reject(new Error("Impossible de créer le contexte canvas"));
-        return;
-      }
-
-      canvas.width = pixelCrop.width;
-      canvas.height = pixelCrop.height;
-
-      ctx.drawImage(
-        image,
-        pixelCrop.x,
-        pixelCrop.y,
-        pixelCrop.width,
-        pixelCrop.height,
-        0,
-        0,
-        pixelCrop.width,
-        pixelCrop.height,
-      );
-
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            reject(new Error("Erreur lors de la création du blob"));
-            return;
-          }
-          resolve(blob);
-        },
-        "image/jpeg",
-        0.9,
-      );
-    };
-
-    image.onerror = () => reject(new Error("Erreur lors du chargement de l'image"));
-  });
+function isTypingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }
 
+function isStoredEventImage(url: string) {
+  return /\/storage\/v1\/object\/public\/event-images\//.test(url);
+}
+
+/** Affiche de l'événement : glisser-déposer, import, collage, URL et recadrage 3:2. */
 export function EventImageUpload({
   currentImageUrl,
   onImageChange,
   onUrlChange,
   disabled,
   className,
+  enablePaste = false,
 }: EventImageUploadProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const remoteObjectUrlRef = React.useRef<string | null>(null);
+  const [cropSource, setCropSource] = React.useState<string | null>(null);
+  const [preparing, setPreparing] = React.useState(false);
+  const [dragging, setDragging] = React.useState(false);
+  const [showUrlField, setShowUrlField] = React.useState(false);
 
-  const [previewUrl, setPreviewUrl] = React.useState<string | null>(currentImageUrl);
-  const [imageFile, setImageFile] = React.useState<File | null>(null);
-
-  const [showCropper, setShowCropper] = React.useState(false);
-  const [cropImageSrc, setCropImageSrc] = React.useState<string | null>(null);
-  const [crop, setCrop] = React.useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = React.useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = React.useState<Area | null>(null);
-  const remoteCropImageUrlRef = React.useRef<string | null>(null);
+  const preview = currentImageUrl;
+  const isRemote = Boolean(preview && isHttpImageUrl(preview));
+  const [urlDraft, setUrlDraft] = React.useState(isRemote ? (preview as string) : "");
 
   React.useEffect(() => {
-    // sync externe -> interne seulement si pas de file locale
-    if (!imageFile) {
-      setPreviewUrl(currentImageUrl);
-    }
-  }, [currentImageUrl, imageFile]);
+    setUrlDraft(currentImageUrl && isHttpImageUrl(currentImageUrl) ? currentImageUrl : "");
+  }, [currentImageUrl]);
 
-  const onCropComplete = React.useCallback((_a: Area, pixels: Area) => {
-    setCroppedAreaPixels(pixels);
+  const releaseRemoteObjectUrl = React.useCallback(() => {
+    if (remoteObjectUrlRef.current) {
+      URL.revokeObjectURL(remoteObjectUrlRef.current);
+      remoteObjectUrlRef.current = null;
+    }
   }, []);
 
-  const revokeRemoteCropImageUrl = React.useCallback(() => {
-    if (!remoteCropImageUrlRef.current) {
+  React.useEffect(() => releaseRemoteObjectUrl, [releaseRemoteObjectUrl]);
+
+  const handleFile = React.useCallback((file: File | undefined | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Fichier invalide", description: "Choisis une image (JPG, PNG, WebP).", variant: "destructive" });
       return;
     }
-    URL.revokeObjectURL(remoteCropImageUrlRef.current);
-    remoteCropImageUrlRef.current = null;
+    if (file.size > MAX_FILE_SIZE) {
+      toast({ title: "Image trop lourde", description: "15 Mo maximum.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => setCropSource(reader.result as string);
+    reader.readAsDataURL(file);
   }, []);
 
-  async function openCropperFromUrl(rawUrl: string) {
-    revokeRemoteCropImageUrl();
+  // Collage d'une affiche (⌘V) hors des champs de saisie.
+  React.useEffect(() => {
+    if (!enablePaste || disabled) return;
+    function handlePaste(event: ClipboardEvent) {
+      if (cropSource || isTypingTarget(event.target)) return;
+      const file = Array.from(event.clipboardData?.files ?? []).find((entry) => entry.type.startsWith("image/"));
+      if (!file) return;
+      event.preventDefault();
+      handleFile(file);
+    }
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [cropSource, disabled, enablePaste, handleFile]);
 
-    if (!isHttpImageUrl(rawUrl)) {
-      setCropImageSrc(rawUrl);
-      setShowCropper(true);
+  async function openRecrop() {
+    if (!preview || disabled) return;
+    if (!isHttpImageUrl(preview)) {
+      setCropSource(preview);
       return;
     }
-
+    // Les images distantes passent par le proxy admin (CORS) avant recadrage.
+    setPreparing(true);
     try {
       const { data } = await supabase.auth.getSession();
       const accessToken = data.session?.access_token;
-
-      if (!accessToken) {
-        throw new Error("Missing admin session for remote crop.");
-      }
-
-      const objectUrl = await fetchAdminProxiedImageObjectUrl({
-        source: rawUrl,
-        accessToken,
-      });
-
-      remoteCropImageUrlRef.current = objectUrl;
-      setCropImageSrc(objectUrl);
-      setShowCropper(true);
+      if (!accessToken) throw new Error("Session admin absente.");
+      releaseRemoteObjectUrl();
+      const objectUrl = await fetchAdminProxiedImageObjectUrl({ source: preview, accessToken });
+      remoteObjectUrlRef.current = objectUrl;
+      setCropSource(objectUrl);
     } catch (error) {
-      console.error("Erreur préparation crop image distante:", error);
+      console.error("Erreur préparation recadrage:", error);
       toast({
-        title: "Préparation de l'image impossible",
-        description: "Réessaie dans un instant ou remplace l'image manuellement.",
+        title: "Recadrage indisponible",
+        description: "L’image distante n’a pas pu être chargée. Importe le fichier directement.",
         variant: "destructive",
       });
+    } finally {
+      setPreparing(false);
     }
   }
 
-  async function openCropperFromFile(file: File) {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string;
-      setCropImageSrc(dataUrl);
-      setShowCropper(true);
-    };
-    reader.readAsDataURL(file);
-  }
-
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast({ title: "Fichier invalide", description: "Sélectionne une image.", variant: "destructive" });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "Image trop lourde", description: "Maximum 5MB.", variant: "destructive" });
-      return;
-    }
-
-    setImageFile(file);
-    onUrlChange(""); // si on upload un fichier, on privilégie le fichier
-    await openCropperFromFile(file);
-  }
-
-  async function applyCrop() {
-    if (!cropImageSrc || !croppedAreaPixels) return;
-
+  async function handleCropConfirm(blob: Blob) {
+    setPreparing(true);
     try {
-      const blob = await createCroppedImage(cropImageSrc, croppedAreaPixels);
       const cropped = new File([blob], `event-${Date.now()}.jpg`, { type: "image/jpeg" });
       const compressed = await compressImage(cropped, 2);
-
-      const nextPreview = URL.createObjectURL(compressed);
-      setImageFile(compressed);
-      setPreviewUrl(nextPreview);
-      onImageChange(compressed, nextPreview);
-      setShowCropper(false);
-      revokeRemoteCropImageUrl();
-      setCropImageSrc(null);
-      setCrop({ x: 0, y: 0 });
-      setZoom(1);
-      setCroppedAreaPixels(null);
-    } catch (e) {
-      console.error("Erreur crop image:", e);
-      toast({ title: "Crop impossible", description: "Réessaie avec une autre image.", variant: "destructive" });
+      onImageChange(compressed, URL.createObjectURL(compressed));
+      setShowUrlField(false);
+    } catch (error) {
+      console.error("Erreur compression image:", error);
+      toast({ title: "Image inutilisable", description: "Réessaie avec une autre image.", variant: "destructive" });
+    } finally {
+      setPreparing(false);
     }
   }
 
   function clearImage() {
-    setImageFile(null);
-    setPreviewUrl(null);
-    revokeRemoteCropImageUrl();
-    setCropImageSrc(null);
-    setShowCropper(false);
-    setCrop({ x: 0, y: 0 });
-    setZoom(1);
-    setCroppedAreaPixels(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    onUrlChange("");
+    setUrlDraft("");
     onImageChange(null, null);
   }
 
+  function commitUrl() {
+    const next = urlDraft.trim();
+    const current = isRemote ? (preview as string) : "";
+    if (next === current) return;
+    if (!next) {
+      clearImage();
+      return;
+    }
+    onUrlChange(next);
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    setDragging(false);
+    if (disabled) return;
+    const file = Array.from(event.dataTransfer.files).find((entry) => entry.type.startsWith("image/"));
+    if (file) {
+      handleFile(file);
+      return;
+    }
+    const droppedUrl = event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain");
+    if (droppedUrl && isHttpImageUrl(droppedUrl.trim())) {
+      setUrlDraft(droppedUrl.trim());
+      onUrlChange(droppedUrl.trim());
+    }
+  }
+
+  const dropHandlers = {
+    onDragOver: (event: React.DragEvent<HTMLElement>) => {
+      if (disabled) return;
+      event.preventDefault();
+      setDragging(true);
+    },
+    onDragLeave: () => setDragging(false),
+    onDrop: handleDrop,
+  };
+
   return (
     <div className={cn("space-y-3", className)}>
-      <div className="grid gap-4 md:grid-cols-2 md:items-start">
-        <div className="min-w-0">
-          {previewUrl ? (
-            <div className="relative h-44 w-full overflow-hidden rounded-xl border bg-muted md:h-48">
-              <img
-                src={previewUrl}
-                alt="Aperçu"
-                className="h-full w-full cursor-pointer object-cover transition-opacity hover:opacity-95"
-                onClick={() => {
-                  if (disabled) return;
-                  void openCropperFromUrl(previewUrl);
-                }}
-              />
-              {!disabled ? (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  className="absolute right-2 top-2"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    clearImage();
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              ) : null}
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
-                <div className="flex items-center gap-2 text-xs text-white/90">
-                  <ImageIcon className="h-3.5 w-3.5" />
-                  Cliquer pour rogner
-                </div>
+      {preview ? (
+        <div className="space-y-2">
+          <div
+            {...dropHandlers}
+            className={cn(
+              "relative aspect-[3/2] overflow-hidden rounded-lg border border-border bg-muted",
+              dragging && "ring-[3px] ring-ring/40",
+            )}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={preview} alt="Affiche de l’événement" className="h-full w-full object-cover" />
+            {preparing ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+                <Loader2 className="h-5 w-5 animate-spin" />
               </div>
-            </div>
-          ) : (
-            <div className="flex h-44 w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/30 text-sm text-muted-foreground md:h-48">
-              Aucun visuel
-            </div>
-          )}
-        </div>
-
-        <div className="min-w-0 space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="event-image-file">Fichier</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                ref={fileInputRef}
-                id="event-image-file"
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                disabled={disabled}
-                className="cursor-pointer"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                disabled={disabled}
-                onClick={() => fileInputRef.current?.click()}
-                aria-label="Choisir un fichier"
-              >
-                <Upload className="h-4 w-4" />
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Après sélection, un crop 3:2 est proposé automatiquement.
-            </p>
+            ) : null}
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="event-image-url">Ou URL</Label>
-            <Input
-              id="event-image-url"
-              type="url"
-              placeholder="https://…"
-              defaultValue={currentImageUrl || ""}
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               disabled={disabled}
-              onBlur={(e) => {
-                const next = e.target.value.trim();
-                onUrlChange(next);
-                if (next) {
-                  setPreviewUrl(next);
-                  setImageFile(null);
-                  onImageChange(null, next);
-                }
-              }}
-            />
-            <p className="text-xs text-muted-foreground">
-              Conseillé si l’image est déjà hébergée (sinon, privilégier l’upload).
-            </p>
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <ImagePlus />
+              Remplacer
+            </Button>
+            <Button type="button" variant="ghost" size="sm" disabled={disabled || preparing} onClick={() => void openRecrop()}>
+              <Crop />
+              Recadrer
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={disabled}
+              onClick={clearImage}
+              className="ml-auto text-muted-foreground hover:text-destructive"
+              aria-label="Retirer l’affiche"
+              title="Retirer l’affiche"
+            >
+              <Trash2 />
+            </Button>
           </div>
         </div>
-      </div>
+      ) : (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => fileInputRef.current?.click()}
+          {...dropHandlers}
+          className={cn(
+            "flex aspect-[3/2] w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-background px-4 text-center outline-none transition-colors hover:border-foreground/30 hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:opacity-50",
+            dragging && "border-foreground/40 bg-accent/60",
+          )}
+        >
+          <span className="flex size-9 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
+            <ImagePlus className="h-4 w-4" />
+          </span>
+          <span className="text-sm font-medium">Ajouter une affiche</span>
+          <span className="text-xs text-muted-foreground">
+            Glisse une image, clique pour choisir{enablePaste ? " ou colle-la (⌘V)" : ""}
+          </span>
+        </button>
+      )}
 
-      <Dialog
-        open={showCropper}
-        onOpenChange={(open) => {
-          if (disabled) return;
-          setShowCropper(open);
-          if (!open) {
-            revokeRemoteCropImageUrl();
-            setCropImageSrc(null);
+      {showUrlField || isRemote ? (
+        <div className="space-y-1.5">
+          <Input
+            type="url"
+            value={urlDraft}
+            onChange={(event) => setUrlDraft(event.target.value)}
+            onBlur={commitUrl}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commitUrl();
+              }
+            }}
+            placeholder="https://… (URL de l’image)"
+            disabled={disabled}
+            aria-label="URL de l’image"
+            className="h-8 text-xs"
+          />
+          {isRemote && preview && !isStoredEventImage(preview) ? (
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Image distante : elle sera copiée dans le stockage OutLive à l’enregistrement.
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setShowUrlField(true)}
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:underline"
+        >
+          <Link2 className="h-3.5 w-3.5" />
+          Utiliser une URL
+        </button>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(event) => {
+          handleFile(event.target.files?.[0]);
+          event.target.value = "";
+        }}
+      />
+
+      <ImageCropDialog
+        imageSrc={cropSource}
+        onOpenChange={(next) => {
+          if (!next) {
+            setCropSource(null);
+            releaseRemoteObjectUrl();
           }
         }}
-      >
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Rogner l’image</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="relative w-full aspect-[3/2] rounded-xl overflow-hidden border bg-muted">
-              {cropImageSrc ? (
-                <Cropper
-                  image={cropImageSrc}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={3 / 2}
-                  onCropChange={setCrop}
-                  onZoomChange={setZoom}
-                  onCropComplete={onCropComplete}
-                />
-              ) : null}
-            </div>
-
-            <div className="flex items-center justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setShowCropper(false)}>
-                Annuler
-              </Button>
-              <Button type="button" onClick={() => void applyCrop()}>
-                Appliquer
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        defaultAspect={EVENT_IMAGE_ASPECT}
+        lockAspect
+        title="Recadrer l’affiche"
+        onConfirm={(blob) => void handleCropConfirm(blob)}
+      />
     </div>
   );
 }
-

@@ -3,7 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getSiteUrl } from "@/lib/metadata";
 import { buildEventPath } from "@/lib/mobile-app-links";
-import { createAnonClient } from "@/lib/api/v1/supabase";
+import { createServiceClient } from "@/lib/supabase/service";
+import {
+  agendaTypeBadges,
+  parseAgendaTypes,
+} from "@/lib/events/agenda-types";
 import { resolveDateWindow } from "./service";
 import type { RadioCampusEvent, RadioCampusResponse } from "./schemas";
 
@@ -26,6 +30,7 @@ const SLIM_SELECT = [
   "address",
   "external_url",
   "external_url_label",
+  "agenda_types",
   "locations(name)",
   "event_organizers!inner(organizer_id, location_id)",
 ].join(", ");
@@ -72,6 +77,7 @@ function mapSlimEvent(row: Record<string, unknown>): RadioCampusEvent | null {
     externalUrl: asString(row.external_url),
     externalUrlLabel: asString(row.external_url_label),
     url: `${getSiteUrl()}${buildEventPath(id)}`,
+    badges: agendaTypeBadges(parseAgendaTypes(row.agenda_types)),
   };
 }
 
@@ -90,6 +96,7 @@ export async function listRadioCampusEvents(
     .select(SLIM_SELECT)
     .eq("status", "approved")
     .eq("archived", false)
+    .eq("is_safety_hidden", false)
     .or(
       `organizer_id.eq.${RADIO_CAMPUS_ORGANIZER_ID},location_id.eq.${RADIO_CAMPUS_ORGANIZER_ID}`,
       { referencedTable: "event_organizers" },
@@ -124,7 +131,7 @@ export async function listRadioCampusEvents(
 }
 
 export const getCachedRadioCampusFeed = unstable_cache(
-  async () => listRadioCampusEvents(createAnonClient()),
-  ["api-v1-radio-campus-v2", RADIO_CAMPUS_ORGANIZER_ID],
+  async () => listRadioCampusEvents(createServiceClient()),
+  ["api-v1-radio-campus-v3", RADIO_CAMPUS_ORGANIZER_ID],
   { revalidate: 60 },
 );

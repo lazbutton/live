@@ -2,6 +2,8 @@ import { isValid, parse } from "date-fns";
 import { fr } from "date-fns/locale";
 import OpenAI from "openai";
 
+import { AI_MODEL_FULL, generationParams } from "@/lib/ai/openai-models";
+
 import { getZonedDateParts, zonedTimeToUtc } from "@/lib/cron-timezone";
 import type {
   ImportedEventPayload,
@@ -383,7 +385,7 @@ Contraintes:
 Retourne uniquement du JSON valide, sans texte avant ou apres.`;
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: AI_MODEL_FULL,
     messages: [
       {
         role: "system",
@@ -407,8 +409,7 @@ Retourne uniquement du JSON valide, sans texte avant ou apres.`;
         ],
       },
     ],
-    temperature: 0.2,
-    max_completion_tokens: 2500,
+    ...generationParams(AI_MODEL_FULL, { temperature: 0.2, maxTokens: 2500 }),
     response_format: { type: "json_object" },
   });
 

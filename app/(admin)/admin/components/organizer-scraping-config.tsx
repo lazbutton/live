@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Save, Plus, Trash2, Code, Globe, Sparkles, Play, Loader2 } from "lucide-react";
+import { Save, Plus, Trash2, Code, Globe, Sparkles, Play, Loader2, AlertTriangle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -720,9 +720,10 @@ export function OrganizerScrapingConfig({
       )}
 
         {!scrapingExampleUrl ? (
-          <div className="p-4 bg-warning/15 rounded-lg border border-warning/30">
-            <p className="text-sm text-warning-foreground">
-              ⚠️ Aucune URL d'exemple configurée pour cet organisateur. Veuillez d'abord ajouter une URL d'exemple pour le scraping.
+          <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/[0.07] p-4">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+            <p className="text-sm text-foreground">
+              Aucune URL d'exemple configurée pour cet organisateur. Ajoute d'abord une URL d'exemple pour le scraping.
             </p>
           </div>
         ) : (
@@ -741,7 +742,7 @@ export function OrganizerScrapingConfig({
                 </a>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                💡 Astuce : Ouvrez cette URL dans votre navigateur, faites un clic droit sur un élément et sélectionnez "Inspecter" pour trouver son sélecteur CSS.
+                Astuce : ouvre cette URL dans ton navigateur, fais un clic droit sur un élément puis « Inspecter » pour trouver son sélecteur CSS.
               </p>
             </div>
 
@@ -967,20 +968,10 @@ export function OrganizerScrapingConfig({
                                         created: data.count || 0,
                                         current: data.count || 0,
                                       }));
-                                      toast({
-                                        title: "Nouvelle demande créée",
-                                        description: data.title || data.url || "Événement découvert",
-                                        variant: "success",
-                                      });
                                       break;
                                     
                                     case "request_enriched":
                                       setScrapingProgress(prev => ({ ...prev, enriched: prev.enriched + 1 }));
-                                      toast({
-                                        title: "Demande enrichie",
-                                        description: data.title || "Données complétées",
-                                        variant: "success",
-                                      });
                                       break;
                                     
                                     case "url_skipped":
@@ -999,8 +990,12 @@ export function OrganizerScrapingConfig({
                                     case "complete":
                                       setScrapingProgress(prev => ({ ...prev, isActive: false }));
                                       toast({
-                                        title: "Scraping terminé",
-                                        description: `${data.created || 0} demande(s) créée(s), ${data.enriched || 0} enrichie(s)`,
+                                        title: data.truncated ? "Scan partiel terminé" : "Scan terminé",
+                                        description: [
+                                          `${data.created || 0} nouvelle(s) demande(s) dans « Demandes »`,
+                                          data.skipped ? `${data.skipped} lien(s) déjà connu(s), passé(s) ou annulé(s)` : null,
+                                          data.truncated ? "Relance le scan pour traiter la suite." : null,
+                                        ].filter(Boolean).join(" · "),
                                         variant: "success",
                                       });
                                       break;
@@ -1068,7 +1063,7 @@ export function OrganizerScrapingConfig({
                 )}
 
                 <p className="text-xs text-muted-foreground mt-3">
-                  💡 Le cron <span className="font-mono">/api/cron/scrape-events</span> utilisera ces règles pour détecter les URLs d'événements.
+                  Le cron <span className="font-mono">/api/cron/scrape-events</span> utilisera ces règles pour détecter les URLs d'événements.
                   {agendaConfigs.length > 0 && " Vous pouvez aussi déclencher le scraping manuellement ci-dessus."}
                 </p>
               </CardContent>
@@ -1344,7 +1339,7 @@ export function OrganizerScrapingConfig({
                             >
                               {field.label}
                               {hasCssConfig && (
-                                <span className="ml-1 text-xs text-muted-foreground">⚡ CSS</span>
+                                <span className="ml-1.5 rounded border border-border px-1 font-mono text-[10px] text-muted-foreground">CSS</span>
                               )}
                             </Label>
                           </div>
@@ -1419,7 +1414,7 @@ export function OrganizerScrapingConfig({
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground mt-3">
-                  💡 Les champs désactivés ne seront pas extraits par l'IA. Si un champ a une configuration CSS, l'IA ne sera pas utilisée.
+                  Les champs désactivés ne seront pas extraits par l'IA. Si un champ a une configuration CSS, l'IA ne sera pas utilisée.
                 </p>
               </CardContent>
             </Card>

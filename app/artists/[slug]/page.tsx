@@ -392,6 +392,7 @@ const getArtistPageData = cache(async (slug: string): Promise<ArtistPageData | n
     )
     .eq("status", "approved")
     .eq("archived", false)
+    .eq("show_on_app", true)
     .eq("event_artists.artist_id", artist.id)
     .order("date", { ascending: true });
 

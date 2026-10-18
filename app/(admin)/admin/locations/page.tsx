@@ -5,7 +5,7 @@ import { LocationsManagement } from "../components/locations-management";
 
 export default function LocationsPage() {
   return (
-    <AdminLayout title="Lieux" breadcrumbItems={[{ label: "Lieux" }]}>
+    <AdminLayout breadcrumbItems={[{ label: "Lieux" }]}>
       <LocationsManagement />
     </AdminLayout>
   );

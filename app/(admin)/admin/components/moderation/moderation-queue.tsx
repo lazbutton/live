@@ -30,6 +30,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import {
+  ManagementHero,
+  ManagementStat,
+  ManagementStatGrid,
+} from "../management-page-primitives";
 import { logAdminAction } from "@/lib/admin-audit-log";
 import {
   AlertDialog,
@@ -567,59 +572,36 @@ export function ModerationQueue() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-1">
-            <CardTitle>File de modération UGC</CardTitle>
-            <CardDescription>
-              Les signalements ouverts doivent être pris en charge sous 24h.
-              Utilise cette vue pour qualifier, masquer et suspendre si
-              nécessaire.
-            </CardDescription>
-          </div>
+      <ManagementHero
+        title="Modération"
+        description="Signalements de contenus publiés par les utilisateurs. Les signalements ouverts doivent être pris en charge sous 24 h."
+        actions={
           <Button
             type="button"
             variant="outline"
-            className="gap-2"
+            size="sm"
             onClick={() => void loadQueue({ silent: true })}
             disabled={refreshing}
           >
-            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+            <RefreshCw className={cn(refreshing && "animate-spin")} />
             Actualiser
           </Button>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <Card className="border-dashed">
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">En attente</div>
-              <div className="mt-2 text-3xl font-semibold">{counts.pending}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-dashed">
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">Sous revue</div>
-              <div className="mt-2 text-3xl font-semibold">{counts.underReview}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-dashed">
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">En retard</div>
-              <div className="mt-2 text-3xl font-semibold text-destructive">
-                {counts.overdue}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-dashed">
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">Traités</div>
-              <div className="mt-2 text-3xl font-semibold">{counts.actioned}</div>
-            </CardContent>
-          </Card>
-        </CardContent>
-      </Card>
+        }
+      >
+        <ManagementStatGrid>
+          <ManagementStat label="En attente" value={counts.pending} />
+          <ManagementStat label="Sous revue" value={counts.underReview} />
+          <ManagementStat
+            label="En retard"
+            value={<span className={cn(counts.overdue > 0 && "text-destructive")}>{counts.overdue}</span>}
+            hint={counts.overdue > 0 ? "Au-delà de 24 h" : "Aucun retard"}
+          />
+          <ManagementStat label="Traités" value={counts.actioned} />
+        </ManagementStatGrid>
+      </ManagementHero>
 
       <Card>
-        <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center">
+        <CardContent className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -659,6 +641,7 @@ export function ModerationQueue() {
         </CardContent>
       </Card>
 
+      {filteredReports.length > 0 ? (
       <Card>
         <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
           <label className="flex min-h-10 items-center gap-3 rounded-md border px-3 py-2">
@@ -703,6 +686,7 @@ export function ModerationQueue() {
           </div>
         </CardContent>
       </Card>
+      ) : null}
 
       {loading ? (
         <div className="space-y-4">

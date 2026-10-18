@@ -79,17 +79,11 @@ export function MultiSelect({
           type="button"
           disabled={disabled}
           className={cn(
-            "flex min-h-[44px] w-full items-center justify-between whitespace-nowrap border px-4 py-2 text-sm ring-offset-background cursor-pointer data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40 shadow-sm hover:shadow-md",
+            "flex min-h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-1.5 text-left text-sm text-foreground shadow-xs outline-none transition-[color,border-color,box-shadow] duration-150 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30 data-[state=open]:border-ring disabled:cursor-not-allowed disabled:opacity-50 max-md:min-h-10 dark:bg-input/25",
             className
           )}
-          style={{
-            borderRadius: "var(--radius-md)",
-            borderColor: "var(--border)",
-            backgroundColor: "var(--input)",
-            color: "var(--foreground)",
-          }}
         >
-          <div className="flex flex-wrap gap-1 flex-1">
+          <div className="flex min-w-0 flex-1 flex-wrap gap-1">
             {selected.length === 0 ? (
               <span className="text-muted-foreground">{placeholder}</span>
             ) : (
@@ -100,7 +94,7 @@ export function MultiSelect({
                   <Badge
                     key={value}
                     variant="secondary"
-                    className="mr-1 mb-1 cursor-pointer"
+                    className="cursor-pointer gap-1 pr-1"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -111,7 +105,7 @@ export function MultiSelect({
                     <span
                       role="button"
                       tabIndex={0}
-                      className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer inline-flex items-center justify-center"
+                      className="-mr-0.5 inline-flex items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
@@ -129,32 +123,25 @@ export function MultiSelect({
                         handleUnselect(value);
                       }}
                     >
-                      <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                      <X className="h-3 w-3" />
                     </span>
                   </Badge>
                 );
               })
             )}
           </div>
-          <ChevronDown className="h-4 w-4 opacity-60 shrink-0" />
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-full p-0 border"
+        className="w-full overflow-hidden p-0"
         align="start"
         portalled={false}
-        style={{
-          width: "var(--radix-popover-trigger-width)",
-          borderRadius: "var(--radius-lg)",
-          borderColor: "var(--border)",
-          backgroundColor: "var(--popover)",
-          color: "var(--popover-foreground)",
-          boxShadow: "var(--shadow-lg)",
-        }}
+        style={{ width: "var(--radix-popover-trigger-width)" }}
       >
         <div className="p-2 border-b">
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={searchPlaceholder}
               value={searchQuery}
@@ -176,21 +163,18 @@ export function MultiSelect({
                 <div
                   key={option.value}
                   className={cn(
-                    "relative flex w-full cursor-pointer select-none items-center py-2.5 px-3 text-sm outline-none hover:bg-accent/40 hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground transition-colors",
-                    isSelected && "bg-accent/60 text-accent-foreground"
+                    "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground max-md:py-2.5",
+                    isSelected && "font-medium"
                   )}
-                  style={{
-                    borderRadius: "var(--radius-md)",
-                  }}
                   onClick={() => handleSelect(option.value)}
                 >
                   <div className="flex items-center gap-2 flex-1">
                     <div
                       className={cn(
-                        "flex h-4 w-4 items-center justify-center rounded-sm border border-primary transition-colors",
+                        "flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
                         isSelected
-                          ? "bg-primary text-primary-foreground"
-                          : "opacity-50"
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-input"
                       )}
                     >
                       {isSelected && <Check className="h-3 w-3" />}

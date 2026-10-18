@@ -883,7 +883,6 @@ function EditEventContent() {
                         onChange={(e) =>
                           setFormData({ ...formData, door_opening_time: e.target.value })
                         }
-                        className="h-11"
                       />
                     </div>
 

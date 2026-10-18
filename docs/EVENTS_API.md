@@ -10,7 +10,7 @@ Les POST (soumissions) **n’ont pas de CORS navigateur**. Pour écrire depuis u
 
 ## Radio Campus (embed ultra-rapide)
 
-URL unique, sans query params, cache CDN ~60s, JSON allégé (avec description, sans artistes). Fenêtre **12 mois**.
+URL unique, sans query params, cache CDN ~60s, JSON allégé (avec description, badges agenda, sans artistes). Fenêtre **12 mois**. Inclut les événements hors app.
 
 ```ts
 const OUTLIVE_RADIO_CAMPUS_URL =
@@ -28,6 +28,10 @@ type RadioCampusEvent = {
   externalUrl: string | null;
   externalUrlLabel: string | null;
   url: string;
+  badges: Array<{
+    type: "evenement" | "emission" | "festival" | "benevolat";
+    label: string;
+  }>;
 };
 
 export async function loadRadioCampusEvents() {

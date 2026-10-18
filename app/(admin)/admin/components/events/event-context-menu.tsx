@@ -34,10 +34,10 @@ function ActionButton({ icon, label, onClick, danger = false }: ActionButtonProp
     <button
       type="button"
       className={cn(
-        "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-colors focus-visible:bg-accent max-md:py-2.5",
         danger
-          ? "text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
-          : "text-foreground hover:bg-accent/60",
+          ? "text-success hover:bg-success/10 [&_svg]:text-success"
+          : "text-foreground hover:bg-accent [&_svg]:text-muted-foreground",
       )}
       onClick={onClick}
     >
@@ -116,19 +116,19 @@ export function EventContextMenu({
   return (
     <div
       ref={menuRef}
-      className="fixed z-[80] min-w-[250px] rounded-xl border border-border bg-background/95 p-2 shadow-2xl backdrop-blur-xl"
+      className="fixed z-[80] min-w-[240px] rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95"
       style={{ left: x, top: y }}
       onContextMenu={(event) => event.preventDefault()}
       onClick={(event) => event.stopPropagation()}
       role="menu"
       aria-label={`Actions rapides pour ${event.title || "cet événement"}`}
     >
-      <div className="border-b border-border/60 px-2 pb-2 pt-1">
-        <div className="truncate text-sm font-semibold">{event.title || "(Sans titre)"}</div>
-        <div className="mt-1 text-xs text-muted-foreground">{dateLabel}</div>
+      <div className="border-b border-border px-2 pb-2 pt-1.5">
+        <div className="max-w-[260px] truncate text-sm font-medium">{event.title || "(Sans titre)"}</div>
+        <div className="mt-0.5 text-xs capitalize text-muted-foreground">{dateLabel}</div>
       </div>
 
-      <div className="space-y-1 pt-2">
+      <div className="space-y-px pt-1">
         <ActionButton
           icon={<Pencil className="h-4 w-4" />}
           label="Modifier l’événement"
@@ -155,7 +155,7 @@ export function EventContextMenu({
 
         {event.status === "pending" && onQuickApprove ? (
           <>
-            <div className="my-2 h-px bg-border/70" />
+            <div className="-mx-1 my-1 h-px bg-border" />
             <ActionButton
               icon={<CheckCircle2 className="h-4 w-4" />}
               label="Approuver l’événement"

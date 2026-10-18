@@ -356,7 +356,6 @@ export function FeedbackManagement() {
                       placeholder="Rechercher par description, type, email..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="min-h-[44px] text-base"
                     />
                   </div>
                   <div className="w-full sm:w-[240px]">
@@ -389,7 +388,7 @@ export function FeedbackManagement() {
                   </div>
                   <div className="w-full sm:w-[200px]">
                     <Select value={filterType} onValueChange={setFilterType}>
-                      <SelectTrigger className="min-h-[44px] text-base">
+                      <SelectTrigger>
                         <SelectValue placeholder="Tous les types" />
                       </SelectTrigger>
                       <SelectContent>
@@ -894,7 +893,6 @@ function FeedbackObjectDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex: Bug / Erreur"
-              className="min-h-[44px] text-base"
             />
           </div>
 

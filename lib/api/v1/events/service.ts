@@ -155,7 +155,10 @@ function applyPublicFilters(
     hideFromHome?: boolean;
   },
 ) {
-  let next = query.eq("status", "approved").eq("archived", false);
+  let next = query
+    .eq("status", "approved")
+    .eq("archived", false)
+    .eq("show_on_app", true);
 
   if (options.cityIds.length === 1) {
     next = next.eq("city_id", options.cityIds[0]);
@@ -410,6 +413,7 @@ export async function getPublicEventById(
     .eq("id", id)
     .eq("status", "approved")
     .eq("archived", false)
+    .eq("show_on_app", true)
     .maybeSingle();
 
   if (error) {

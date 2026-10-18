@@ -4,17 +4,21 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex w-fit shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-xs font-medium leading-4 transition-colors focus:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
       variant: {
-        default:
-          "border-transparent bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-md",
-        secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/90 shadow-sm hover:shadow-md",
+        default: "border-transparent bg-primary text-primary-foreground",
+        secondary: "border-transparent bg-secondary text-secondary-foreground",
         destructive:
-          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm hover:shadow-md",
-        outline: "text-foreground border-border bg-background hover:border-border hover:bg-accent/50",
+          "border-destructive/20 bg-destructive/10 text-destructive dark:border-destructive/30 dark:bg-destructive/15",
+        outline: "border-border bg-transparent text-foreground",
+        success:
+          "border-success/20 bg-success/10 text-success dark:border-success/25 dark:bg-success/12",
+        warning:
+          "border-warning/25 bg-warning/10 text-warning dark:border-warning/25 dark:bg-warning/12",
+        info: "border-info/20 bg-info/10 text-info dark:border-info/25 dark:bg-info/12",
+        muted: "border-transparent bg-muted text-muted-foreground",
       },
     },
     defaultVariants: {
@@ -28,8 +32,7 @@ export interface BadgeProps
     VariantProps<typeof badgeVariants> {}
 
 function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+  return <div data-slot="badge" className={cn(badgeVariants({ variant }), className)} {...props} />;
 }
 
 export { Badge, badgeVariants };
-

@@ -195,7 +195,7 @@ export function CategoriesManagement() {
               placeholder="Rechercher une catégorie..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 min-h-[44px] text-base"
+              className="pl-9"
             />
           </div>
           <Button

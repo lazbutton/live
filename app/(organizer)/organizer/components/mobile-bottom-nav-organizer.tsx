@@ -37,7 +37,7 @@ export function MobileBottomNavOrganizer() {
   if (!isMobile) return null;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/20 bg-background/95 backdrop-blur-xl" style={{ paddingBottom: "env(safe-area-inset-bottom, 0)" }}>
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-xl" style={{ paddingBottom: "env(safe-area-inset-bottom, 0)" }}>
       <div className="flex h-16 items-center justify-around px-2">
         {menuItems.map((item) => {
           const isActive =

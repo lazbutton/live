@@ -9,6 +9,7 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -29,6 +30,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEffect, useState } from "react";
 import { getUserOrganizers, OrganizerInfo } from "@/lib/auth";
 import { getActiveOrganizer } from "@/lib/auth-helpers";
+import { AdminLogoMark, AdminWordmark } from "@/app/(admin)/admin/components/admin-brand";
 
 const menuItems = [
   {
@@ -166,8 +168,20 @@ export function OrganizerSidebar() {
     .toUpperCase();
 
   return (
-    <Sidebar collapsible="offcanvas" variant="floating" className="h-screen">
+    <Sidebar collapsible="offcanvas" variant="inset">
       <SidebarRail />
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild className="hover:bg-transparent active:bg-transparent">
+              <Link href="/organizer/dashboard">
+                <AdminLogoMark className="size-8" />
+                <AdminWordmark subtitle="Espace organisateur" />
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
@@ -187,7 +201,7 @@ export function OrganizerSidebar() {
                       }}
                       tabIndex={0}
                     >
-                      <item.icon className="size-4" />
+                      <item.icon />
                       <span className="flex-1">{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -254,7 +268,7 @@ export function OrganizerSidebar() {
                     <Bell className="size-4" />
                     <span className="flex-1">Notifications</span>
                     {unreadNotificationsCount > 0 && (
-                      <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full border border-sidebar-border bg-background px-1.5 text-[11px] font-medium tabular-nums text-foreground/80">
                         {unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount}
                       </span>
                     )}
@@ -278,8 +292,8 @@ export function OrganizerSidebar() {
                     <AvatarFallback className="rounded-lg">{organizerInitials}</AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">{organizerName}</span>
-                    <span className="truncate text-xs">Organisateur</span>
+                    <span className="truncate font-medium text-foreground">{organizerName}</span>
+                    <span className="truncate text-xs text-muted-foreground">Organisateur</span>
                   </div>
                 </SidebarMenuButton>
               </DropdownMenuTrigger>

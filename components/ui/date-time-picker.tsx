@@ -126,7 +126,7 @@ export function DateTimePicker({
                 required={required}
                 disabled={disabled}
                 step={60}
-                className="h-11 pr-11"
+                className="pr-10 [&::-webkit-calendar-picker-indicator]:hidden"
                 aria-label={label || "Date et heure"}
               />
               <PopoverTrigger asChild>
@@ -134,10 +134,10 @@ export function DateTimePicker({
                   type="button"
                   disabled={disabled}
                   className={cn(
-                    "absolute right-1 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-colors",
+                    "absolute right-1 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors max-md:size-8",
                     disabled
                       ? "cursor-not-allowed opacity-50"
-                      : "hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                      : "hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40",
                   )}
                   aria-label="Ouvrir le calendrier"
                 >
@@ -161,7 +161,7 @@ export function DateTimePicker({
 
           <PopoverContent className="w-[340px] p-3">
             <div className="flex items-center justify-between gap-2 pb-2">
-              <div className="text-sm font-semibold">Sélectionner</div>
+              <div className="text-sm font-medium">Sélectionner</div>
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -201,14 +201,14 @@ export function DateTimePicker({
                 <div className="flex items-center justify-between pb-2">
                   <AriaButton
                     slot="previous"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background hover:bg-accent"
+                    className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   >
                     ‹
                   </AriaButton>
-                  <Heading className="text-sm font-semibold" />
+                  <Heading className="text-sm font-medium capitalize" />
                   <AriaButton
                     slot="next"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background hover:bg-accent"
+                    className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   >
                     ›
                   </AriaButton>
@@ -220,10 +220,10 @@ export function DateTimePicker({
                       date={date}
                       className={({ isSelected, isOutsideMonth, isDisabled }) =>
                         cn(
-                          "h-9 w-9 rounded-md text-sm flex items-center justify-center cursor-pointer",
+                          "flex size-9 cursor-pointer items-center justify-center rounded-md text-sm tabular-nums outline-none transition-colors data-[focus-visible]:ring-[3px] data-[focus-visible]:ring-ring/40",
                           isOutsideMonth ? "text-muted-foreground/40" : "text-foreground",
-                          isDisabled ? "opacity-40 cursor-not-allowed" : "hover:bg-accent",
-                          isSelected ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""
+                          isDisabled ? "cursor-not-allowed opacity-40" : "hover:bg-accent",
+                          isSelected ? "bg-primary font-medium text-primary-foreground hover:bg-primary/90" : ""
                         )
                       }
                     />
@@ -231,8 +231,8 @@ export function DateTimePicker({
                 </CalendarGrid>
               </Calendar>
 
-              <div className="rounded-lg border border-border bg-card p-3">
-                <div className="flex items-center gap-2 pb-2 text-sm font-semibold">
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <div className="flex items-center gap-2 pb-2 text-sm font-medium">
                   <Clock className="h-4 w-4" />
                   Heure
                 </div>
@@ -251,7 +251,7 @@ export function DateTimePicker({
                   granularity="minute"
                   className="flex items-center gap-2"
                 >
-                  <DateInput className="flex rounded-md border border-border bg-background px-2 py-1 text-sm">
+                  <DateInput className="flex h-8 items-center rounded-md border border-input bg-background px-2 text-sm shadow-xs dark:bg-input/25">
                     {(segment) => (
                       <DateSegment
                         segment={segment}

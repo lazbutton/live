@@ -73,10 +73,10 @@ const REQUEST_LANE_META: Record<AdminRequestLane, RequestLaneMeta> = {
     emptyDescription:
       "Les conversions 1 clic apparaîtront ici dès qu’une demande est complète.",
     icon: Sparkles,
-    accentClassName: "text-emerald-700 dark:text-emerald-300",
-    softClassName: "bg-emerald-500/10",
-    borderClassName: "border-emerald-500/20",
-    dotClassName: "bg-emerald-500",
+    accentClassName: "text-success",
+    softClassName: "bg-success/10",
+    borderClassName: "border-success/20",
+    dotClassName: "bg-success",
   },
   to_process: {
     title: "À compléter",
@@ -85,10 +85,10 @@ const REQUEST_LANE_META: Record<AdminRequestLane, RequestLaneMeta> = {
     emptyDescription:
       "Les demandes incomplètes ou ambiguës seront rangées dans cette colonne.",
     icon: SquarePen,
-    accentClassName: "text-amber-700 dark:text-amber-300",
-    softClassName: "bg-amber-500/10",
-    borderClassName: "border-amber-500/20",
-    dotClassName: "bg-amber-500",
+    accentClassName: "text-warning",
+    softClassName: "bg-warning/10",
+    borderClassName: "border-warning/20",
+    dotClassName: "bg-warning",
   },
   from_url: {
     title: "Depuis URL",
@@ -97,10 +97,10 @@ const REQUEST_LANE_META: Record<AdminRequestLane, RequestLaneMeta> = {
     emptyDescription:
       "Les demandes provenant d’une URL apparaîtront ici pour relecture.",
     icon: Link2,
-    accentClassName: "text-sky-700 dark:text-sky-300",
-    softClassName: "bg-sky-500/10",
-    borderClassName: "border-sky-500/20",
-    dotClassName: "bg-sky-500",
+    accentClassName: "text-info",
+    softClassName: "bg-info/10",
+    borderClassName: "border-info/20",
+    dotClassName: "bg-info",
   },
   blocked: {
     title: "Bloquées",
@@ -109,10 +109,10 @@ const REQUEST_LANE_META: Record<AdminRequestLane, RequestLaneMeta> = {
     emptyDescription:
       "Les cas obsolètes ou sensibles seront regroupés ici pour être tranchés vite.",
     icon: CircleAlert,
-    accentClassName: "text-rose-700 dark:text-rose-300",
-    softClassName: "bg-rose-500/10",
-    borderClassName: "border-rose-500/20",
-    dotClassName: "bg-rose-500",
+    accentClassName: "text-destructive",
+    softClassName: "bg-destructive/10",
+    borderClassName: "border-destructive/20",
+    dotClassName: "bg-destructive",
   },
   processed: {
     title: "Traitées",
@@ -136,28 +136,28 @@ const REQUEST_QUEUE_GROUP_META: Record<
     title: "Urgent",
     description: "Événements proches à traiter en priorité.",
     icon: Clock,
-    accentClassName: "text-rose-700 dark:text-rose-300",
-    softClassName: "bg-rose-500/10",
-    borderClassName: "border-rose-500/20",
-    dotClassName: "bg-rose-500",
+    accentClassName: "text-destructive",
+    softClassName: "bg-destructive/10",
+    borderClassName: "border-destructive/20",
+    dotClassName: "bg-destructive",
   },
   ready: {
     title: "Prêtes à convertir",
     description: "Demandes complètes, conversion rapide possible.",
     icon: Sparkles,
-    accentClassName: "text-emerald-700 dark:text-emerald-300",
-    softClassName: "bg-emerald-500/10",
-    borderClassName: "border-emerald-500/20",
-    dotClassName: "bg-emerald-500",
+    accentClassName: "text-success",
+    softClassName: "bg-success/10",
+    borderClassName: "border-success/20",
+    dotClassName: "bg-success",
   },
   to_complete: {
     title: "À compléter",
     description: "Demandes à enrichir ou relire.",
     icon: SquarePen,
-    accentClassName: "text-amber-700 dark:text-amber-300",
-    softClassName: "bg-amber-500/10",
-    borderClassName: "border-amber-500/20",
-    dotClassName: "bg-amber-500",
+    accentClassName: "text-warning",
+    softClassName: "bg-warning/10",
+    borderClassName: "border-warning/20",
+    dotClassName: "bg-warning",
   },
 };
 
@@ -244,13 +244,13 @@ export function getMissingFieldShortLabel(field: string) {
 export function getLaneBadgeClassName(lane: AdminRequestLane) {
   switch (lane) {
     case "ready":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+      return "border-success/30 bg-success/10 text-success";
     case "to_process":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+      return "border-warning/30 bg-warning/10 text-warning";
     case "from_url":
-      return "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300";
+      return "border-info/30 bg-info/10 text-info";
     case "blocked":
-      return "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300";
+      return "border-destructive/30 bg-destructive/10 text-destructive";
     case "processed":
       return "border-border bg-muted text-muted-foreground";
   }
@@ -259,9 +259,9 @@ export function getLaneBadgeClassName(lane: AdminRequestLane) {
 function getStatusBadgeClassName(status: AdminRequestStatus) {
   switch (status) {
     case "converted":
-      return "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+      return "border-success/25 bg-success/10 text-success";
     case "rejected":
-      return "border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300";
+      return "border-destructive/25 bg-destructive/10 text-destructive";
     case "approved":
       return "border-border bg-muted/70 text-foreground";
     case "pending":
@@ -308,7 +308,7 @@ export function SummaryField({
   hint?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border/70 bg-background/70 p-3">
+    <div className="rounded-xl border border-border bg-background/70 p-3">
       <div className="mb-1 flex items-center gap-2 text-[11px] text-muted-foreground">
         {icon}
         <span>{label}</span>
@@ -339,7 +339,7 @@ export function LaneCountPill({
       className={cn(
         "flex items-center gap-2 rounded-full border text-sm transition-colors",
         subtle ? "px-2.5 py-1 text-xs" : "px-3 py-1.5",
-        active ? meta.borderClassName : "border-border/70",
+        active ? meta.borderClassName : "border-border",
         active
           ? meta.softClassName
           : subtle
