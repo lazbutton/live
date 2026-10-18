@@ -50,6 +50,10 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
 2. **Sites et pages Facebook** (sources avec `scan_url`) — pour chacune :
    - `scan_agenda` avec `source_id` : il lit aussi les billetteries Socoop (L'Astrolabe, La Passerelle) et les
      événements à venir d'une page Facebook publique ;
+   - agenda On sort ! de la Métropole (sortir.orleans-metropole.fr) : `scan_agenda` lit son API sur le mois à venir,
+     écarte ateliers, sport, visites, salons et animations jeunesse (comptés dans `excluded`) et sort de `to_import`
+     les doublons probables (`duplicate_of`) ; beaucoup de ses lieux n'ont pas encore de fiche (`location_unmatched`
+     à l'import) : regroupe-les dans le récapitulatif ;
    - dans `to_import`, garde seulement les vrais événements d'après leur titre (voir les règles). Les dates du scan
      sont indicatives : une exposition déjà ouverte peut figurer dans `past`, importe-la quand même ;
    - `import_urls` avec ces URL (par lots de 15 au plus) et `source_id` ; si `remaining` revient, rappelle l'outil ;

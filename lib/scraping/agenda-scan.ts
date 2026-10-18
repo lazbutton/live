@@ -14,10 +14,11 @@ import {
   type AgendaDiscoveryResult,
   type AgendaUnreadable,
 } from "./agenda";
+import { discoverOnSortAgenda, isOnSortAgendaUrl } from "./on-sort";
 
-/** Billetteries partagées : un même domaine pour de nombreux organisateurs. */
+/** Billetteries et agendas partagés : un même domaine pour de nombreux organisateurs. */
 const SHARED_HOSTS =
-  /(billetweb|mapado|weezevent|helloasso|shotgun|eventbrite|yurplan|festik|dice\.fm|fnacspectacles|ticketmaster|seetickets|facebook|instagram)\./i;
+  /(billetweb|mapado|weezevent|helloasso|shotgun|eventbrite|yurplan|festik|dice\.fm|fnacspectacles|ticketmaster|seetickets|facebook|instagram|sortir\.orleans-metropole|openagenda)\./i;
 
 export type AgendaScanEvent = {
   url: string;
@@ -40,6 +41,8 @@ export type AgendaScanResult = {
   agendaUrl?: string;
   /** Rien d'exploitable (page bloquée, agenda en texte seul…) : la page est à lire autrement. */
   unreadable?: AgendaUnreadable;
+  /** Événements écartés car hors des domaines suivis, par raison (On sort !). */
+  excluded?: Record<string, number>;
 };
 
 /** Page Facebook : événements à venir lisibles sans connexion, au format d'un agenda. */
@@ -108,15 +111,17 @@ export async function scanAgendaPage(
   const [discovery, knownKeys] = await Promise.all([
     getSourceKind(url) === "facebook"
       ? discoverFacebookPage(url)
-      : discoverAgendaEvents({
-          agendaUrl: url,
-          eventLinkSelector: config?.event_link_selector,
-          eventLinkAttribute: config?.event_link_attribute,
-          nextPageSelector: config?.next_page_selector,
-          nextPageAttribute: config?.next_page_attribute,
-          maxPages: Math.min(Number(config?.max_pages || 3), 5),
-          maxEvents: 100,
-        }),
+      : isOnSortAgendaUrl(url)
+        ? discoverOnSortAgenda()
+        : discoverAgendaEvents({
+            agendaUrl: url,
+            eventLinkSelector: config?.event_link_selector,
+            eventLinkAttribute: config?.event_link_attribute,
+            nextPageSelector: config?.next_page_selector,
+            nextPageAttribute: config?.next_page_attribute,
+            maxPages: Math.min(Number(config?.max_pages || 3), 5),
+            maxEvents: 100,
+          }),
     loadKnownEventUrlKeys(supabase),
   ]);
 
@@ -146,5 +151,6 @@ export async function scanAgendaPage(
     usedConfig: Boolean(config),
     agendaUrl: discovery.agendaUrl,
     unreadable: assessAgendaDiscovery(discovery) ?? undefined,
+    excluded: discovery.excluded,
   };
 }

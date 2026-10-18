@@ -98,8 +98,19 @@ function nameSegments(raw: string) {
     .filter(Boolean);
 }
 
-/** Une ville seule ne désigne pas un lieu (« Orléans » ne doit pas donner « Théâtre d’Orléans »). */
-const CITY_ONLY = /^(orleans|loiret|france|centre val de loire|\d{5}( orleans)?)$/;
+/** Communes de la métropole, sous leur nom normalisé (« Saint » ou « St »). */
+const METROPOLE_COMMUNES =
+  "orleans|boigny sur bionne|bou|chanteau|checy|combleux|fleury les aubrais|ingre|(la )?chapelle (saint|st) mesmin|mardie|marigny les usages|olivet|ormes|(saint|st) cyr en val|(saint|st) denis en val|(saint|st) hilaire (saint|st) mesmin|(saint|st) jean de braye|(saint|st) jean de la ruelle|(saint|st) jean le blanc|(saint|st) pryve (saint|st) mesmin|saran|semoy";
+
+/**
+ * Une ville seule ne désigne pas un lieu (« Orléans » ne doit pas donner « Théâtre d’Orléans »,
+ * ni « Fleury-les-Aubrais » le bar « My Beers Fleury-les-Aubrais »).
+ */
+const CITY_ONLY = new RegExp(`^(\\d{5} )?(${METROPOLE_COMMUNES}|loiret|france|centre val de loire)( \\d{5})?$|^\\d{5}$`);
+
+/** Adresse qui désigne une voie (« cours Victor Hugo 45100 Orléans »), pas seulement une ville (« 45770 Saran »). */
+const STREET_WORD =
+  /\b(rue|avenue|av|boulevard|bd|place|pl|cours|chemin|allee|impasse|quai|route|rte|square|passage|faubourg|fbg|mail|esplanade|parvis|promenade|rond point|ruelle|sentier|voie)\b/;
 
 /** `needle` présent en mots entiers dans `hay`, s'il est assez long pour être distinctif. */
 function containsWords(hay: string, needle: string) {
@@ -150,16 +161,20 @@ export function resolveLocationFromImportedData(
 
   if (address) {
     const normalizedAddress = normalizeSearchValue(address);
+    // L'adresse la plus courte, contenue dans l'autre, doit nommer une voie : « Orléans » (lieu sans
+    // adresse précise) ou « 45770 Saran » ne désignent aucun lieu en particulier.
     const byAddress = locations.find((location) => {
       const locationAddress = normalizeSearchValue(location.address || "");
-      return (
-        locationAddress.length > 0 &&
-        (locationAddress.includes(normalizedAddress) ||
-          normalizedAddress.includes(locationAddress))
-      );
+      const contained = !locationAddress
+        ? ""
+        : locationAddress.includes(normalizedAddress)
+          ? normalizedAddress
+          : normalizedAddress.includes(locationAddress)
+            ? locationAddress
+            : "";
+      return Boolean(contained) && STREET_WORD.test(normalizeName(contained));
     });
     if (byAddress) return byAddress;
-
   }
 
   // Même numéro dans la même voie, avec ou sans code postal (« 37 place du Chatelet, Orléans »),

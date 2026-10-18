@@ -1,0 +1,4854 @@
+{
+ "_source": "Réponses de https://sortir.orleans-metropole.fr/api/events (agenda On sort ! d'Orléans Métropole, OpenAgenda, Licence Ouverte 2.0) enregistrées le 18/10/2026 vers 21 h. Échantillon : 22 événements de la liste du mois et 6 fiches détaillées ; contacts des contributeurs retirés.",
+ "list": {
+  "total": 22,
+  "events": [
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "jazz",
+      "concert"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "الثلاثاء ١٧ نوفمبر, 20:00",
+     "de": "Dienstag 17 November, 20:00",
+     "en": "Tuesday 17 November, 20:00",
+     "it": "Martedì 17 novembre, 20:00",
+     "fr": "Mardi 17 novembre, 20h00",
+     "es": "Martes 17 noviembre, 20:00",
+     "nl": "Dinsdag 17 november, 20u00"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Seung Yull Nah",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "La plus rock des chanteuses de jazz présente une œuvre élégante et incarnée. La soirée s’ouvrira avec nit and dog, un jazz folk et éclatant !"
+    },
+    "title": {
+     "fr": "Youn Sun Nah + nit and dogs (première partie)"
+    },
+    "onlineAccessLink": null,
+    "uid": 27309952,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-11-17T22:00:00.000+01:00",
+     "begin": "2026-11-17T20:00:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "youn-sun-nah-nit-and-dogs-premiere-partie",
+    "image": {
+     "filename": "e006dc12268d4e7c882250d2e7da1ff9.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 1050
+     },
+     "variants": [
+      {
+       "filename": "e006dc12268d4e7c882250d2e7da1ff9.full.image.jpg",
+       "size": {
+        "width": 3278,
+        "height": 4915
+       },
+       "type": "full"
+      },
+      {
+       "filename": "e006dc12268d4e7c882250d2e7da1ff9.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/27309952_youn-sun-nah-nit-and-dogs-premiere-partie",
+    "organizatorName": "Scène nationale / Théâtre d'Orléans",
+    "lastTiming": {
+     "end": "2026-11-17T22:00:00.000+01:00",
+     "begin": "2026-11-17T20:00:00.000+01:00"
+    },
+    "musique": [
+     50
+    ],
+    "location": {
+     "uid": 88394571,
+     "name": "Théâtre d'Orléans",
+     "address": "boulevard pierre ségelle 45000 orleans",
+     "city": "Orléans",
+     "latitude": 47.904396,
+     "longitude": 1.913351
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     5
+    ],
+    "nextTiming": {
+     "end": "2026-11-17T22:00:00+01:00",
+     "begin": "2026-11-17T20:00:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": true,
+    "keywords": [],
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "١٢ - ٢٢ نوفمبر",
+     "de": "12 - 22 November",
+     "en": "12 - 22 November",
+     "it": "12 - 22 novembre",
+     "fr": "12 - 22 novembre",
+     "es": "12 - 22 noviembre",
+     "nl": "12 - 22 november"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "maquette CADO",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "L'âme des pooètes"
+    },
+    "title": {
+     "fr": "LES ENCHANTEURS"
+    },
+    "onlineAccessLink": null,
+    "uid": 41566173,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-11-12T20:20:00.000+01:00",
+     "id": "14E172",
+     "begin": "2026-11-12T19:00:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "les-enchanteurs-240817",
+    "image": {
+     "filename": "9ca0b85ad2804a30a8cba128c7bdddcf.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 1026
+     },
+     "variants": [
+      {
+       "filename": "9ca0b85ad2804a30a8cba128c7bdddcf.full.image.jpg",
+       "size": {
+        "width": 1394,
+        "height": 2044
+       },
+       "type": "full"
+      },
+      {
+       "filename": "9ca0b85ad2804a30a8cba128c7bdddcf.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [
+     63
+    ],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/41566173_les-enchanteurs-240817",
+    "organizatorName": "CADO",
+    "lastTiming": {
+     "end": "2026-11-22T16:20:00.000+01:00",
+     "id": "5BR90T",
+     "begin": "2026-11-22T15:00:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 88394571,
+     "name": "Théâtre d'Orléans",
+     "address": "boulevard pierre ségelle 45000 orleans",
+     "city": "Orléans",
+     "latitude": 47.904396,
+     "longitude": 1.913351
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     7
+    ],
+    "nextTiming": {
+     "end": "2026-11-12T20:20:00+01:00",
+     "id": "14E172",
+     "begin": "2026-11-12T19:00:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": [],
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "١٩ سبتمبر ٢٠٢٦ - ٧ مارس ٢٠٢٧",
+     "de": "19 September 2026 - 7 März 2027",
+     "en": "19 September 2026 - 7 March 2027",
+     "it": "19 settembre 2026 - 7 marzo 2027",
+     "fr": "19 septembre 2026 - 7 mars 2027",
+     "es": "19 septiembre 2026 - 7 marzo 2027",
+     "nl": "19 september 2026 - 7 maart 2027"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Fanette Mellier",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Pour sa nouvelle saison, le Frac Centre-Val de Loire réunit artistes, designers et architectes autour de l’univers du cirque."
+    },
+    "title": {
+     "fr": "CIRCUS"
+    },
+    "onlineAccessLink": null,
+    "uid": 32843872,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-09-19T19:00:00.000+02:00",
+     "id": "H0EMEN",
+     "begin": "2026-09-19T10:00:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "circus-6824853",
+    "image": {
+     "filename": "142312c4be684c94b63504325a8fa246.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 875
+     },
+     "variants": [
+      {
+       "filename": "142312c4be684c94b63504325a8fa246.full.image.jpg",
+       "size": {
+        "width": 1080,
+        "height": 1350
+       },
+       "type": "full"
+      },
+      {
+       "filename": "142312c4be684c94b63504325a8fa246.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/32843872_circus-6824853",
+    "organizatorName": "Frac Centre-Val de Loire",
+    "lastTiming": {
+     "end": "2027-03-07T19:00:00.000+01:00",
+     "id": "0RZKMY",
+     "begin": "2027-03-07T14:00:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 43392781,
+     "name": "Frac Centre - Les Turbulences",
+     "address": "88 rue du Colombier 45000 Orléans",
+     "city": "Orléans",
+     "latitude": 47.903978,
+     "longitude": 1.896233
+    },
+    "exposition": [
+     33,
+     30
+    ],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     3
+    ],
+    "nextTiming": {
+     "end": "2026-10-21T19:00:00+02:00",
+     "id": "T4W7XQ",
+     "begin": "2026-10-21T14:00:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": true,
+    "keywords": [],
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "٣٠ سبتمبر - ٢٣ ديسمبر",
+     "de": "30 September - 23 Dezember",
+     "en": "30 September - 23 December",
+     "it": "30 settembre - 23 dicembre",
+     "fr": "30 septembre - 23 décembre",
+     "es": "30 septiembre - 23 diciembre",
+     "nl": "30 september - 23 december"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Orléans Val de Loire Tourisme",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Un spectacle immersif à 360°"
+    },
+    "title": {
+     "fr": "Luminiscence à Orléans"
+    },
+    "onlineAccessLink": null,
+    "uid": 42586898,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-09-30T20:45:00.000+02:00",
+     "id": "R71HSV",
+     "begin": "2026-09-30T20:00:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "luminiscence-a-orleans-9959525",
+    "image": {
+     "filename": "cf04e9c337f9425cb2e92368d2686e75.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 525
+     },
+     "variants": [
+      {
+       "filename": "cf04e9c337f9425cb2e92368d2686e75.full.image.jpg",
+       "size": {
+        "width": 700,
+        "height": 525
+       },
+       "type": "full"
+      },
+      {
+       "filename": "cf04e9c337f9425cb2e92368d2686e75.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/42586898_luminiscence-a-orleans-9959525",
+    "organizatorName": "Orléans Val de Loire Tourisme",
+    "lastTiming": {
+     "end": "2026-12-23T21:10:00.000+01:00",
+     "id": "HHV3VV",
+     "begin": "2026-12-23T20:25:00.000+01:00"
+    },
+    "musique": [
+     55
+    ],
+    "location": {
+     "uid": 13847171,
+     "name": "Cathédrale Sainte-Croix d'Orléans",
+     "address": "Place Sainte-Croix, 45000 Orléans",
+     "city": "Orléans",
+     "latitude": 47.901778,
+     "longitude": 1.909013
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     6,
+     7,
+     5
+    ],
+    "nextTiming": {
+     "end": "2026-10-21T20:45:00+02:00",
+     "id": "JJ3T21",
+     "begin": "2026-10-21T20:00:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "Projection",
+      "Conférence"
+     ]
+    },
+    "conference-rencontre-debat": [
+     26
+    ],
+    "dateRange": {
+     "ar": "١٣ و ١٤ نوفمبر ",
+     "de": "13 und 14 November",
+     "en": "13 and 14 November",
+     "it": "13 e 14 novembre",
+     "fr": "13 et 14 novembre",
+     "es": "13 i 14 noviembre",
+     "nl": "13 en 14 november"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "ABM / Florian Guillier",
+    "originAgenda": {
+     "image": "da7921a3ddd04192b3d6450b7f711ecd.full.image.jpg",
+     "uid": 25897312,
+     "title": "Aventure du Bout du Monde (ABM) Orléans-Loiret"
+    },
+    "description": {
+     "fr": "Festival de films de voyage, en présence des réalisateurs."
+    },
+    "title": {
+     "fr": "Festival des Bouts du Monde"
+    },
+    "onlineAccessLink": null,
+    "uid": 54042028,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 25897312,
+      "name": "Aventure du Bout du Monde (ABM) Orléans-Loiret",
+      "url": "https://abm-orleans.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-11-13T22:00:00.000+01:00",
+     "begin": "2026-11-13T20:30:00.000+01:00"
+    },
+    "projection-cinema": [
+     61
+    ],
+    "fete-salon-marche": [],
+    "slug": "festival-des-bouts-du-monde-5449360",
+    "image": {
+     "filename": "97061b8a89bc4dda93152a7413062dc0.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 991
+     },
+     "variants": [
+      {
+       "filename": "97061b8a89bc4dda93152a7413062dc0.full.image.jpg",
+       "size": {
+        "width": 3508,
+        "height": 4966
+       },
+       "type": "full"
+      },
+      {
+       "filename": "97061b8a89bc4dda93152a7413062dc0.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/aventure-du-bout-du-monde-abm-orleans/events/54042028_festival-des-bouts-du-monde-5449360",
+    "organizatorName": "Aventure du Bout du Monde",
+    "lastTiming": {
+     "end": "2026-11-14T18:30:00.000+01:00",
+     "begin": "2026-11-14T14:30:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 78381295,
+     "name": "Centre culturel La Passerelle",
+     "address": "57 boulevard de Lamballe 45400 Fleury-les-Aubrais",
+     "city": "Fleury-les-Aubrais",
+     "latitude": 47.924975,
+     "longitude": 1.920217
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     2,
+     6
+    ],
+    "nextTiming": {
+     "end": "2026-11-13T22:00:00+01:00",
+     "begin": "2026-11-13T20:30:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "festival",
+      "documentaire",
+      "film",
+      "projection"
+     ]
+    },
+    "conference-rencontre-debat": [
+     26
+    ],
+    "dateRange": {
+     "ar": "١٣ و ١٤ نوفمبر ",
+     "de": "13 und 14 November",
+     "en": "13 and 14 November",
+     "it": "13 e 14 novembre",
+     "fr": "13 et 14 novembre",
+     "es": "13 i 14 noviembre",
+     "nl": "13 en 14 november"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Florian Guillier",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Saison culturelle 2026/2027 - Auditorium Boris Vian"
+    },
+    "title": {
+     "fr": "La Passerelle - Festival des bouts du monde"
+    },
+    "onlineAccessLink": null,
+    "uid": 44676497,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-11-13T22:00:00.000+01:00",
+     "id": "60JR69",
+     "begin": "2026-11-13T20:30:00.000+01:00"
+    },
+    "projection-cinema": [
+     61
+    ],
+    "fete-salon-marche": [],
+    "slug": "la-passerelle-festival-des-bouts-du-monde-545387",
+    "image": {
+     "filename": "0e9cabd5cbac41f9983ed779885ea127.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 467
+     },
+     "variants": [
+      {
+       "filename": "0e9cabd5cbac41f9983ed779885ea127.full.image.jpg",
+       "size": {
+        "width": 6804,
+        "height": 4536
+       },
+       "type": "full"
+      },
+      {
+       "filename": "0e9cabd5cbac41f9983ed779885ea127.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/44676497_la-passerelle-festival-des-bouts-du-monde-545387",
+    "organizatorName": "Centre Culturel La Passerelle",
+    "lastTiming": {
+     "end": "2026-11-14T18:00:00.000+01:00",
+     "id": "QCXYSS",
+     "begin": "2026-11-14T14:30:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 4830652,
+     "name": "La Passerelle",
+     "address": "57 Boulevard de Lamballe, 45400 Fleury-les-Aubrais",
+     "city": "Fleury-les-Aubrais",
+     "latitude": 47.924979,
+     "longitude": 1.921083
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     7,
+     5,
+     3,
+     2,
+     10
+    ],
+    "nextTiming": {
+     "end": "2026-11-13T22:00:00+01:00",
+     "id": "60JR69",
+     "begin": "2026-11-13T20:30:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "politique culturelle",
+      "Front populaire",
+      "Jean Zay",
+      "gratuit"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "الإثنين ١٩ أكتوبر, 18:30",
+     "de": "Montag 19 Oktober, 18:30",
+     "en": "Monday 19 October, 18:30",
+     "it": "Lunedì 19 ottobre, 18:30",
+     "fr": "Lundi 19 octobre, 18h30",
+     "es": "Lunes 19 octubre, 18:30",
+     "nl": "Maandag 19 oktober, 18u30"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "©  Francesca Mantovani-éditions Gallimard",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Thème : Comment le Front populaire inventa la politique culturelle, et ce qu'il en advint. 1e partie à l'hôtel Dupanloup, 2nde partie au restaurant Le Martroi."
+    },
+    "title": {
+     "fr": "Conférence de Pascal ORY de l'Académie française"
+    },
+    "onlineAccessLink": null,
+    "uid": 68322993,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-19T19:30:00.000+02:00",
+     "id": "NZA7Y5",
+     "begin": "2026-10-19T18:30:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "conference-de-pascal-ory-de-lacademie-francaise",
+    "image": {
+     "filename": "2ce31e97053b409fb3e85d6312d31fd7.base.image.jpg",
+     "size": {
+      "width": 333,
+      "height": 500
+     },
+     "variants": [
+      {
+       "filename": "2ce31e97053b409fb3e85d6312d31fd7.full.image.jpg",
+       "size": {
+        "width": 333,
+        "height": 500
+       },
+       "type": "full"
+      },
+      {
+       "filename": "2ce31e97053b409fb3e85d6312d31fd7.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/68322993_conference-de-pascal-ory-de-lacademie-francaise",
+    "organizatorName": "Cercle Jean Zay d'Orléans",
+    "lastTiming": {
+     "end": "2026-10-19T19:30:00.000+02:00",
+     "id": "NZA7Y5",
+     "begin": "2026-10-19T18:30:00.000+02:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 80539918,
+     "name": "Hôtel Dupanloup",
+     "address": "1 rue Dupanloup",
+     "city": "Orléans",
+     "latitude": 47.902433,
+     "longitude": 1.912481
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     2
+    ],
+    "nextTiming": {
+     "end": "2026-10-19T19:30:00+02:00",
+     "id": "NZA7Y5",
+     "begin": "2026-10-19T18:30:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "cinéma ; animation ; césar"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "الأربعاء ٢٨ أكتوبر, 15:30",
+     "de": "Mittwoch 28 Oktober, 15:30",
+     "en": "Wednesday 28 October, 15:30",
+     "it": "Mercoledì 28 ottobre, 15:30",
+     "fr": "Mercredi 28 octobre, 15h30",
+     "es": "Miércoles 28 octubre, 15:30",
+     "nl": "Woensdag 28 oktober, 15u30"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "CHÉCY",
+    "originAgenda": {
+     "image": "e45937a9045945a4839ff3817bf0522e.full.image.jpg",
+     "uid": 3991265,
+     "title": "Agenda de  Chécy"
+    },
+    "description": {
+     "fr": "CINÉMÔMES À L’AUDITORIUM DE LA CANOPÉE… POUR VOIR LES FILMS COMME AU CINÉMA !"
+    },
+    "title": {
+     "fr": "ARCO"
+    },
+    "onlineAccessLink": null,
+    "uid": 83901647,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 3991265,
+      "name": "Agenda de  Chécy",
+      "url": "http://www.checy.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-28T17:00:00.000+01:00",
+     "id": "21PDY4",
+     "begin": "2026-10-28T15:30:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "arco-2974463",
+    "image": {
+     "filename": "966ff1a90d0c4b7282e1c94db55e476a.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 700
+     },
+     "variants": [
+      {
+       "filename": "966ff1a90d0c4b7282e1c94db55e476a.full.image.jpg",
+       "size": {
+        "width": 1800,
+        "height": 1800
+       },
+       "type": "full"
+      },
+      {
+       "filename": "966ff1a90d0c4b7282e1c94db55e476a.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/checy/events/83901647_arco-2974463",
+    "organizatorName": "VILLE DE CHÉCY",
+    "lastTiming": {
+     "end": "2026-10-28T17:00:00.000+01:00",
+     "id": "21PDY4",
+     "begin": "2026-10-28T15:30:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 84217278,
+     "name": "La Canopée",
+     "address": "Rue de la herpinière 45430 CHECY",
+     "city": "Chécy",
+     "latitude": 47.891873,
+     "longitude": 2.029297
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     6
+    ],
+    "nextTiming": {
+     "end": "2026-10-28T17:00:00+01:00",
+     "id": "21PDY4",
+     "begin": "2026-10-28T15:30:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "crique",
+      "acrobaties",
+      "acrobate"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "٢٠ و ٢١ أكتوبر ",
+     "de": "20 und 21 Oktober",
+     "en": "20 and 21 October",
+     "it": "20 e 21 ottobre",
+     "fr": "20 et 21 octobre",
+     "es": "20 i 21 octubre",
+     "nl": "20 en 21 oktober"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Cousseau J",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Entre acrobaties et théâtre fantastique, Plonger explore le vertige qui nous saisit lorsqu’il faut choisir entre s’élancer vers l’inconnu ou rester."
+    },
+    "title": {
+     "fr": "Plonger - SARAH DEVAUX, COMPAGNIE MENTEUSES"
+    },
+    "onlineAccessLink": null,
+    "uid": 24728440,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-20T21:40:00.000+02:00",
+     "begin": "2026-10-20T20:30:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "plonger",
+    "image": {
+     "filename": "95fddc1d30734ae891447a0ea2a595b0.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 394
+     },
+     "variants": [
+      {
+       "filename": "95fddc1d30734ae891447a0ea2a595b0.full.image.jpg",
+       "size": {
+        "width": 5184,
+        "height": 2916
+       },
+       "type": "full"
+      },
+      {
+       "filename": "95fddc1d30734ae891447a0ea2a595b0.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [
+     66
+    ],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/24728440_plonger",
+    "organizatorName": "Scène nationale / Théâtre d'Orléans",
+    "lastTiming": {
+     "end": "2026-10-21T20:40:00.000+02:00",
+     "begin": "2026-10-21T19:30:00.000+02:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 88394571,
+     "name": "Théâtre d'Orléans",
+     "address": "boulevard pierre ségelle 45000 orleans",
+     "city": "Orléans",
+     "latitude": 47.904396,
+     "longitude": 1.913351
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     7,
+     10
+    ],
+    "nextTiming": {
+     "end": "2026-10-20T21:40:00+02:00",
+     "begin": "2026-10-20T20:30:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "théâtre",
+      "chanson"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "الجمعة ٦ نوفمبر, 20:30",
+     "de": "Freitag 6 November, 20:30",
+     "en": "Friday 6 November, 20:30",
+     "it": "Venerdì 6 novembre, 20:30",
+     "fr": "Vendredi 6 novembre, 20h30",
+     "es": "Viernes 6 noviembre, 20:30",
+     "nl": "Vrijdag 6 november, 20u30"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Fabienne Rappeneau",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Saison culturelle 2026/2027 - Salle Jean Cocteau - 20 h 30"
+    },
+    "title": {
+     "fr": "La Passerelle - Le chant des lions"
+    },
+    "onlineAccessLink": null,
+    "uid": 92018354,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-11-06T22:00:00.000+01:00",
+     "id": "JV4D16",
+     "begin": "2026-11-06T20:30:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "la-passerelle-le-chant-des-lions",
+    "image": {
+     "filename": "ebd28621889045e1b91504c9fa3b71bf.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 449
+     },
+     "variants": [
+      {
+       "filename": "ebd28621889045e1b91504c9fa3b71bf.full.image.jpg",
+       "size": {
+        "width": 6673,
+        "height": 4279
+       },
+       "type": "full"
+      },
+      {
+       "filename": "ebd28621889045e1b91504c9fa3b71bf.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [
+     63
+    ],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/92018354_la-passerelle-le-chant-des-lions",
+    "organizatorName": "Centre Culturel La Passerelle",
+    "lastTiming": {
+     "end": "2026-11-06T22:00:00.000+01:00",
+     "id": "JV4D16",
+     "begin": "2026-11-06T20:30:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 4830652,
+     "name": "La Passerelle",
+     "address": "57 Boulevard de Lamballe, 45400 Fleury-les-Aubrais",
+     "city": "Fleury-les-Aubrais",
+     "latitude": 47.924979,
+     "longitude": 1.921083
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     7,
+     5,
+     3,
+     2,
+     10
+    ],
+    "nextTiming": {
+     "end": "2026-11-06T22:00:00+01:00",
+     "id": "JV4D16",
+     "begin": "2026-11-06T20:30:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "culture; spectacle ; egs ; danse ; théâtre ; concert ; cinéma ; exposition ; stand up ; humour ;"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "الخميس ٥ نوفمبر, 20:30",
+     "de": "Donnerstag 5 November, 20:30",
+     "en": "Thursday 5 November, 20:30",
+     "it": "Giovedì 5 novembre, 20:30",
+     "fr": "Jeudi 5 novembre, 20h30",
+     "es": "Jueves 5 noviembre, 20:30",
+     "nl": "Donderdag 5 november, 20u30"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "ville de checy",
+    "originAgenda": {
+     "image": "e45937a9045945a4839ff3817bf0522e.full.image.jpg",
+     "uid": 3991265,
+     "title": "Agenda de  Chécy"
+    },
+    "description": {
+     "fr": "Hey toi qui lis ce résumé de spectacle, tu es curieux, c’est bien, continue !"
+    },
+    "title": {
+     "fr": "CHARLOTTE BOISSELIER - SAISON CULTURELLE 26/27"
+    },
+    "onlineAccessLink": null,
+    "uid": 28552054,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 3991265,
+      "name": "Agenda de  Chécy",
+      "url": "http://www.checy.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-11-05T22:30:00.000+01:00",
+     "id": "QNPC3W",
+     "begin": "2026-11-05T20:30:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "charlotte-boisselier-saison-culturelle-2627",
+    "image": {
+     "filename": "04c24d97d3ae4be6847ac7b6b1ba3d3d.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 700
+     },
+     "variants": [
+      {
+       "filename": "04c24d97d3ae4be6847ac7b6b1ba3d3d.full.image.jpg",
+       "size": {
+        "width": 1800,
+        "height": 1800
+       },
+       "type": "full"
+      },
+      {
+       "filename": "04c24d97d3ae4be6847ac7b6b1ba3d3d.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [
+     63,
+     64
+    ],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/checy/events/28552054_charlotte-boisselier-saison-culturelle-2627",
+    "organizatorName": "Mairie de Chécy",
+    "lastTiming": {
+     "end": "2026-11-05T22:30:00.000+01:00",
+     "id": "QNPC3W",
+     "begin": "2026-11-05T20:30:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 5850526,
+     "name": "Espace George Sand",
+     "address": "1 place vieux pavé 45430 CHECY",
+     "city": "Chécy",
+     "latitude": 47.900714,
+     "longitude": 2.023362
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     7
+    ],
+    "nextTiming": {
+     "end": "2026-11-05T22:30:00+01:00",
+     "id": "QNPC3W",
+     "begin": "2026-11-05T20:30:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "gratuit"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "الخميس ٢٢ أكتوبر, 14:00",
+     "de": "Donnerstag 22 Oktober, 14:00",
+     "en": "Thursday 22 October, 14:00",
+     "it": "Giovedì 22 ottobre, 14:00",
+     "fr": "Jeudi 22 octobre, 14h00",
+     "es": "Jueves 22 octubre, 14:00",
+     "nl": "Donderdag 22 oktober, 14u00"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Médiathèques Orléans",
+    "originAgenda": {
+     "image": "d463f019dffe478ea865a1e544f0bdf7.full.image.jpg",
+     "uid": 15429369,
+     "title": "Agenda Médiathèques Orléans"
+    },
+    "description": {
+     "fr": "Le réseau des médiathèques d’Orléans propose de vous accompagner dans l’initiation au numérique.  Créneaux individuels d’une heure, un rendez-vous maximum par mois."
+    },
+    "title": {
+     "fr": "Soutien Numérique Personnalisé"
+    },
+    "onlineAccessLink": null,
+    "uid": 27594787,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 15429369,
+      "name": "Agenda Médiathèques Orléans",
+      "url": "https://openagenda.com/mediatheques-orleans"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-22T15:00:00.000+02:00",
+     "begin": "2026-10-22T14:00:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "soutien-numerique-personnalise-2803928",
+    "image": {
+     "filename": "f22f8d9e871d46728e7c9d10314ac7c5.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 467
+     },
+     "variants": [
+      {
+       "filename": "f22f8d9e871d46728e7c9d10314ac7c5.full.image.jpg",
+       "size": {
+        "width": 1200,
+        "height": 800
+       },
+       "type": "full"
+      },
+      {
+       "filename": "f22f8d9e871d46728e7c9d10314ac7c5.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/mediatheques-orleans/events/27594787_soutien-numerique-personnalise-2803928",
+    "organizatorName": "Médiathèques Orléans",
+    "lastTiming": {
+     "end": "2026-10-22T15:00:00.000+02:00",
+     "begin": "2026-10-22T14:00:00.000+02:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 81363033,
+     "name": "Médiathèque Saint-Marceau",
+     "address": "2, rue des Roses - 45100 Orléans",
+     "city": "Orléans",
+     "latitude": 47.886766,
+     "longitude": 1.910645
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     9
+    ],
+    "nextTiming": {
+     "end": "2026-10-22T15:00:00+02:00",
+     "begin": "2026-10-22T14:00:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "PILATES",
+      "palais des sports"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "٢٢ سبتمبر - ٢٠ أكتوبرundefined",
+     "de": "22 September - 20 Oktober, jeden Dienstag",
+     "en": "22 September - 20 October, every Tuesday",
+     "it": "22 settembre - 20 ottobre, ogni martedi",
+     "fr": "22 septembre - 20 octobre, les mardis",
+     "es": "22 septiembre - 20 octubre, todos los martes",
+     "nl": "22 september - 20 oktober, alle dinsdagen"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "PILATES débutant au palais des sports",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Cours hebdomadaires de PILATES débutant les mardis à 12h30 à la salle multi activités palais des sport  Inscription par mail Inscription obligatoire à contact@example.org"
+    },
+    "title": {
+     "fr": "PILATES débutant au palais des sports"
+    },
+    "onlineAccessLink": null,
+    "uid": 84469732,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-09-22T13:30:00.000+02:00",
+     "id": "56ZEZZ",
+     "begin": "2026-09-22T12:30:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "renfort-musculaire-a-largonaute-de-septembre-a-juin",
+    "image": {
+     "filename": "7b83e0a6c73c4851957551366d7b5502.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 394
+     },
+     "variants": [
+      {
+       "filename": "7b83e0a6c73c4851957551366d7b5502.full.image.jpg",
+       "size": {
+        "width": 1000,
+        "height": 563
+       },
+       "type": "full"
+      },
+      {
+       "filename": "7b83e0a6c73c4851957551366d7b5502.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/84469732_renfort-musculaire-a-largonaute-de-septembre-a-juin",
+    "organizatorName": "DYNA GYM ORLEANS",
+    "lastTiming": {
+     "end": "2026-10-20T13:30:00.000+02:00",
+     "id": "GP96M7",
+     "begin": "2026-10-20T12:30:00.000+02:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 33989829,
+     "name": "Palais des Sports - Orléans",
+     "address": "rue Eugène Vignat",
+     "city": "Orléans",
+     "latitude": 47.908453,
+     "longitude": 1.910749
+    },
+    "exposition": [],
+    "sport": [
+     73
+    ],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     8
+    ],
+    "nextTiming": {
+     "end": "2026-10-20T13:30:00+02:00",
+     "id": "GP96M7",
+     "begin": "2026-10-20T12:30:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [
+     11,
+     15,
+     14
+    ],
+    "featured": true,
+    "keywords": {
+     "fr": [
+      "visite guidée",
+      "balade",
+      "patrimoine",
+      "culture",
+      "cathedrale",
+      "surprenez-moi"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "١ أكتوبر - ٢٢ ديسمبر",
+     "de": "1 Oktober - 22 Dezember",
+     "en": "1 October - 22 December",
+     "it": "1 ottobre - 22 dicembre",
+     "fr": "1 octobre - 22 décembre",
+     "es": "1 octubre - 22 diciembre",
+     "nl": "1 oktober - 22 december"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "©Samfaitvoyager",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Des hauteurs de la cathédrale aux profondeurs de la crypte Saint-Avit..."
+    },
+    "title": {
+     "fr": "Orléans de haut en bas"
+    },
+    "onlineAccessLink": null,
+    "uid": 67521492,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-01T17:00:00.000+02:00",
+     "id": "G9N29A",
+     "begin": "2026-10-01T15:00:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "orleans-de-haut-en-bas_929",
+    "image": {
+     "filename": "5cd5e7129e144db1ae0562cc5ca7bb20.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 525
+     },
+     "variants": [
+      {
+       "filename": "5cd5e7129e144db1ae0562cc5ca7bb20.full.image.jpg",
+       "size": {
+        "width": 700,
+        "height": 525
+       },
+       "type": "full"
+      },
+      {
+       "filename": "5cd5e7129e144db1ae0562cc5ca7bb20.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/67521492_orleans-de-haut-en-bas_929",
+    "organizatorName": "Orléans Val de Loire Tourisme",
+    "lastTiming": {
+     "end": "2026-12-22T17:00:00.000+01:00",
+     "id": "94EHCZ",
+     "begin": "2026-12-22T15:00:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 25904150,
+     "name": "Parvis de la cathédrale Sainte-Croix",
+     "address": "Place Sainte-Croix, 45000 Orléans",
+     "city": "Orléans",
+     "latitude": 47.901772,
+     "longitude": 1.909186
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     1
+    ],
+    "nextTiming": {
+     "end": "2026-10-19T17:00:00+02:00",
+     "id": "JX9EHY",
+     "begin": "2026-10-19T15:00:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "don",
+      "sang",
+      "musee",
+      "gratuit",
+      "beaux-arts",
+      "musée",
+      "musees",
+      "musées",
+      "orléans",
+      "orleans",
+      "ville",
+      "collecte",
+      "mobile",
+      "efs",
+      "etablissement",
+      "établissement",
+      "français",
+      "francais",
+      "santé",
+      "sante",
+      "medecine",
+      "médecine",
+      "générosité",
+      "generosite"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "٥ يناير - ٧ ديسمبرundefined",
+     "de": "5 Januar - 7 Dezember, einige Montags",
+     "en": "5 January - 7 December, some Mondays",
+     "it": "5 gennaio - 7 dicembre, alcune lunedì",
+     "fr": "5 janvier - 7 décembre, les lundis",
+     "es": "5 enero - 7 diciembre, algunos lunes",
+     "nl": "5 januari - 7 december, sommige maandagen"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Musées d'Orléans",
+    "originAgenda": {
+     "image": "a4f02b1c4cec417f83d9932fb912f5b2.full.image.jpg",
+     "uid": 62423080,
+     "title": "Agenda des musées d’Orléans"
+    },
+    "description": {
+     "fr": "Faites votre don dans un cadre unique"
+    },
+    "title": {
+     "fr": "Don de sang"
+    },
+    "onlineAccessLink": null,
+    "uid": 32815806,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 62423080,
+      "name": "Agenda des musées d’Orléans",
+      "url": "https://www.orleans-metropole.fr/decouvrir-sortir/musees-expositions"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-01-05T16:30:00.000+01:00",
+     "begin": "2026-01-05T12:15:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "don-de-sang-7041348",
+    "image": {
+     "filename": "c70bf3daa8c542cd9cb2929fc00a2424.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 525
+     },
+     "variants": [
+      {
+       "filename": "c70bf3daa8c542cd9cb2929fc00a2424.full.image.jpg",
+       "size": {
+        "width": 4032,
+        "height": 3024
+       },
+       "type": "full"
+      },
+      {
+       "filename": "c70bf3daa8c542cd9cb2929fc00a2424.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/les-musees-dorleans/events/32815806_don-de-sang-7041348",
+    "organizatorName": "Musées d'Orléans",
+    "lastTiming": {
+     "end": "2026-12-07T16:30:00.000+01:00",
+     "begin": "2026-12-07T12:15:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 31794402,
+     "name": "Musée des Beaux Arts",
+     "address": "Place Sainte-Croix",
+     "city": "Orléans",
+     "latitude": 47.90265,
+     "longitude": 1.909767
+    },
+    "exposition": [
+     31
+    ],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     1,
+     2
+    ],
+    "nextTiming": {
+     "end": "2026-11-02T16:30:00+01:00",
+     "begin": "2026-11-02T12:15:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [
+     16,
+     17,
+     11
+    ],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "local",
+      "convivial",
+      "",
+      "événement",
+      "week-end",
+      "pression",
+      "planches",
+      "hot dogs",
+      "détente",
+      "bar",
+      "sortie",
+      "vendredi",
+      "ambiance",
+      "bière artisanale",
+      "Saint-Pryvé-Saint-Mesmin",
+      "Orléans",
+      "La Riff",
+      "brasserie",
+      "afterwork",
+      "riff",
+      "taproom",
+      "tap room",
+      "gratuit"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "٢١ نوفمبر ٢٠٢٥ - ٣١ أغسطس ٢٠٣٥undefined",
+     "de": "21 November 2025 - 31 August 2035, einige Freitage",
+     "en": "21 November 2025 - 31 August 2035, some Fridays",
+     "it": "21 novembre 2025 - 31 agosto 2035, alcune venerdì",
+     "fr": "21 novembre 2025 - 31 août 2035, certains vendredis",
+     "es": "21 noviembre 2025 - 31 agosto 2035, algunos viernes",
+     "nl": "21 november 2025 - 31 augustus 2035, sommige vrijdagen"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "La Riff",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Afterwork du vendredi à la brasserie : bières La Riff, ambiance cool, hot dogs et planches pour lancer le week-end entre amis. L’abus d’alcool est dangereux pour la santé, à consommer avec modération."
+    },
+    "title": {
+     "fr": "AFTERWORK à la brasserie LA RIFF tous les vendredis"
+    },
+    "onlineAccessLink": null,
+    "uid": 81124923,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2025-11-21T23:00:00.000+01:00",
+     "begin": "2025-11-21T17:00:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [
+     48,
+     45,
+     47
+    ],
+    "slug": "afterwork-tout-les-vendredi",
+    "image": {
+     "filename": "76a6f896b4f5419497e57c6a57eed78a.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 700
+     },
+     "variants": [
+      {
+       "filename": "76a6f896b4f5419497e57c6a57eed78a.full.image.jpg",
+       "size": {
+        "width": 640,
+        "height": 640
+       },
+       "type": "full"
+      },
+      {
+       "filename": "76a6f896b4f5419497e57c6a57eed78a.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/81124923_afterwork-tout-les-vendredi",
+    "organizatorName": "Brasserie La Riff",
+    "lastTiming": {
+     "end": "2035-08-31T23:00:00.000+02:00",
+     "begin": "2035-08-31T17:00:00.000+02:00"
+    },
+    "musique": [
+     51,
+     49
+    ],
+    "location": {
+     "uid": 83781599,
+     "name": "brasserie La Riff",
+     "address": "4 impasse des Vignes 45750 Saint-pryvé-saint-mesmin",
+     "city": "Saint-Pryvé-Saint-Mesmin",
+     "latitude": 47.879139,
+     "longitude": 1.863221
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     1,
+     4,
+     5
+    ],
+    "nextTiming": {
+     "end": "2026-10-23T23:00:00+02:00",
+     "begin": "2026-10-23T17:00:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "culture; spectacle ; egs ; danse ; théâtre ; concert ; cinéma ; exposition ; stand up ; humour ;"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "٣ سبتمبر ٢٠٢٦ - ٣٠ يونيو ٢٠٢٧",
+     "de": "3 September 2026 - 30 Juni 2027",
+     "en": "3 September 2026 - 30 June 2027",
+     "it": "3 settembre 2026 - 30 giugno 2027",
+     "fr": "3 septembre 2026 - 30 juin 2027",
+     "es": "3 septiembre 2026 - 30 junio 2027",
+     "nl": "3 september 2026 - 30 juni 2027"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "ville de checy",
+    "originAgenda": {
+     "image": "e45937a9045945a4839ff3817bf0522e.full.image.jpg",
+     "uid": 3991265,
+     "title": "Agenda de  Chécy"
+    },
+    "description": {
+     "fr": "À Chécy, un battement d'ailes, des émotions en scène !"
+    },
+    "title": {
+     "fr": "SAISON CULTURELLE 26/27"
+    },
+    "onlineAccessLink": null,
+    "uid": 72145217,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 3991265,
+      "name": "Agenda de  Chécy",
+      "url": "http://www.checy.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-09-03T18:30:00.000+02:00",
+     "begin": "2026-09-03T13:30:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "ouverture-de-la-saison-culturelle-2627",
+    "image": {
+     "filename": "bfee32d434294e29bdd724f89a2171cc.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 700
+     },
+     "variants": [
+      {
+       "filename": "bfee32d434294e29bdd724f89a2171cc.full.image.jpg",
+       "size": {
+        "width": 1800,
+        "height": 1800
+       },
+       "type": "full"
+      },
+      {
+       "filename": "bfee32d434294e29bdd724f89a2171cc.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [
+     63,
+     64,
+     65,
+     70,
+     68
+    ],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/checy/events/72145217_ouverture-de-la-saison-culturelle-2627",
+    "organizatorName": "Mairie de Chécy",
+    "lastTiming": {
+     "end": "2027-06-30T12:30:00.000+02:00",
+     "begin": "2027-06-30T08:30:00.000+02:00"
+    },
+    "musique": [
+     50,
+     56,
+     49,
+     54,
+     55,
+     51
+    ],
+    "location": {
+     "uid": 5850526,
+     "name": "Espace George Sand",
+     "address": "1 place vieux pavé 45430 CHECY",
+     "city": "Chécy",
+     "latitude": 47.900714,
+     "longitude": 2.023362
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     7,
+     6,
+     5,
+     10
+    ],
+    "nextTiming": {
+     "end": "2026-10-21T12:30:00+02:00",
+     "begin": "2026-10-21T08:30:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "gratuit"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "الأربعاء ٢١ أكتوبر, 11:00",
+     "de": "Mittwoch 21 Oktober, 11:00",
+     "en": "Wednesday 21 October, 11:00",
+     "it": "Mercoledì 21 ottobre, 11:00",
+     "fr": "Mercredi 21 octobre, 11h00",
+     "es": "Miércoles 21 octubre, 11:00",
+     "nl": "Woensdag 21 oktober, 11u00"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Médiathèques Orléans",
+    "originAgenda": {
+     "image": "d463f019dffe478ea865a1e544f0bdf7.full.image.jpg",
+     "uid": 15429369,
+     "title": "Agenda Médiathèques Orléans"
+    },
+    "description": {
+     "fr": "Des lectures pour les plus petits."
+    },
+    "title": {
+     "fr": "Réveil livres de 0 à 3 ans"
+    },
+    "onlineAccessLink": null,
+    "uid": 88835374,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 15429369,
+      "name": "Agenda Médiathèques Orléans",
+      "url": "https://openagenda.com/mediatheques-orleans"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-21T11:30:00.000+02:00",
+     "begin": "2026-10-21T11:00:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "reveil-livres-de-0-a-3-ans-994176",
+    "image": {
+     "filename": "57030d407883462691f44c37f6b584b7.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 599
+     },
+     "variants": [
+      {
+       "filename": "57030d407883462691f44c37f6b584b7.full.image.jpg",
+       "size": {
+        "width": 800,
+        "height": 685
+       },
+       "type": "full"
+      },
+      {
+       "filename": "57030d407883462691f44c37f6b584b7.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/mediatheques-orleans/events/88835374_reveil-livres-de-0-a-3-ans-994176",
+    "organizatorName": "Médiathèques Orléans",
+    "lastTiming": {
+     "end": "2026-10-21T11:30:00.000+02:00",
+     "begin": "2026-10-21T11:00:00.000+02:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 90625044,
+     "name": "Médiathèque centre-ville",
+     "address": "Médiathèque Gambetta, Orléans",
+     "city": "Orléans",
+     "latitude": 47.90743,
+     "longitude": 1.900403
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     10
+    ],
+    "nextTiming": {
+     "end": "2026-10-21T11:30:00+02:00",
+     "begin": "2026-10-21T11:00:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": [],
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "الأحد ٢٥ أكتوبر, 08:30",
+     "de": "Sonntag 25 Oktober, 08:30",
+     "en": "Sunday 25 October, 08:30",
+     "it": "Domenica 25 ottobre, 08:30",
+     "fr": "Dimanche 25 octobre, 08h30",
+     "es": "Domingo 25 octubre, 08:30",
+     "nl": "Zondag 25 oktober, 08u30"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Association Numismatique du Centre : ANC - document interne",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Bourse aux monnaies, billets de banque, médailles et jetons.."
+    },
+    "title": {
+     "fr": "47ème Bourse aux Monnaies et Billets"
+    },
+    "onlineAccessLink": null,
+    "uid": 50043272,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-25T16:00:00.000+01:00",
+     "id": "AFPMGY",
+     "begin": "2026-10-25T08:30:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "47eme-bourse-aux-monnaies-et-billets-9003744",
+    "image": {
+     "filename": "4fe29882238749cd974334d157061225.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 487
+     },
+     "variants": [
+      {
+       "filename": "4fe29882238749cd974334d157061225.full.image.jpg",
+       "size": {
+        "width": 2459,
+        "height": 1710
+       },
+       "type": "full"
+      },
+      {
+       "filename": "4fe29882238749cd974334d157061225.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/50043272_47eme-bourse-aux-monnaies-et-billets-9003744",
+    "organizatorName": "Association Numismatique du Centre : ANC",
+    "lastTiming": {
+     "end": "2026-10-25T16:00:00.000+01:00",
+     "id": "AFPMGY",
+     "begin": "2026-10-25T08:30:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 51227604,
+     "name": "Espace Béraire",
+     "address": "La Chapelle st Mesmin",
+     "city": "La Chapelle-Saint-Mesmin",
+     "latitude": 47.887007,
+     "longitude": 1.839818
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     4
+    ],
+    "nextTiming": {
+     "end": "2026-10-25T16:00:00+01:00",
+     "id": "AFPMGY",
+     "begin": "2026-10-25T08:30:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [
+     11,
+     15
+    ],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "musee",
+      "musée",
+      "beaux",
+      "arts",
+      "art",
+      "mba",
+      "mbao",
+      "orléans",
+      "orleans",
+      "visite",
+      "privilège",
+      "privilege",
+      "conservateur",
+      "insolite",
+      "secret",
+      "secrets",
+      "oeuvre",
+      "oeuvres",
+      "œuvre",
+      "œuvres",
+      "histoire",
+      "provenance",
+      "tableau",
+      "peinture",
+      "peintre",
+      "tableaux",
+      "intimité",
+      "rare",
+      "inédit",
+      "privé",
+      "rendez",
+      "vous",
+      "découverte",
+      "collection",
+      "artistes",
+      "dessins",
+      "artiste"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "٢٢ أكتوبر ٢٠٢٦ - ٢٥ فبراير ٢٠٢٧undefined",
+     "de": "22 Oktober 2026 - 25 Februar 2027, einige Donnerstage",
+     "en": "22 October 2026 - 25 February 2027, some Thursdays",
+     "it": "22 ottobre 2026 - 25 febbraio 2027, alcune giovedì",
+     "fr": "22 octobre 2026 - 25 février 2027, certains jeudis",
+     "es": "22 octubre 2026 - 25 febrero 2027, algunos jueves",
+     "nl": "22 oktober 2026 - 25 februari 2027, sommige donderdagen"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Musées d'Orléans",
+    "originAgenda": {
+     "image": "a4f02b1c4cec417f83d9932fb912f5b2.full.image.jpg",
+     "uid": 62423080,
+     "title": "Agenda des musées d’Orléans"
+    },
+    "description": {
+     "fr": "Un conservateur du musée révèle les secrets d'une œuvre"
+    },
+    "title": {
+     "fr": "Dans l'intimité d'une œuvre"
+    },
+    "onlineAccessLink": null,
+    "uid": 58296071,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 62423080,
+      "name": "Agenda des musées d’Orléans",
+      "url": "https://www.orleans-metropole.fr/decouvrir-sortir/musees-expositions"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-22T19:15:00.000+02:00",
+     "begin": "2026-10-22T18:30:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "dans-lintimite-dune-oeuvre-9660124",
+    "image": {
+     "filename": "fca9ff7dc3fb441f810ec20f536198fc.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 525
+     },
+     "variants": [
+      {
+       "filename": "fca9ff7dc3fb441f810ec20f536198fc.full.image.jpg",
+       "size": {
+        "width": 5184,
+        "height": 3888
+       },
+       "type": "full"
+      },
+      {
+       "filename": "fca9ff7dc3fb441f810ec20f536198fc.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/les-musees-dorleans/events/58296071_dans-lintimite-dune-oeuvre-9660124",
+    "organizatorName": "Musées d'Orléans",
+    "lastTiming": {
+     "end": "2027-02-25T19:15:00.000+01:00",
+     "begin": "2027-02-25T18:30:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 31794402,
+     "name": "Musée des Beaux Arts",
+     "address": "Place Sainte-Croix",
+     "city": "Orléans",
+     "latitude": 47.90265,
+     "longitude": 1.909767
+    },
+    "exposition": [
+     31,
+     32,
+     30
+    ],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     1,
+     3
+    ],
+    "nextTiming": {
+     "end": "2026-10-22T19:15:00+02:00",
+     "begin": "2026-10-22T18:30:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "Octobre Rose - Concert - Olivet - Atout Voix",
+      "gratuit"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "الأحد ١٨ أكتوبر, 17:00",
+     "de": "Sonntag 18 Oktober, 17:00",
+     "en": "Sunday 18 October, 17:00",
+     "it": "Domenica 18 ottobre, 17:00",
+     "fr": "Dimanche 18 octobre, 17h00",
+     "es": "Domingo 18 octubre, 17:00",
+     "nl": "Zondag 18 oktober, 17u00"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Lions Club Orléans Valois",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "CONCERT AU PROFIT D'OCTOBRE ROSE à L'Alliage à Olivet avec l'ensemble ATOUT VOIX et ses trois formations ,le Chœur des Loges, le Chœur de Chambre, l'Harmonie. Entrée libre, participation au chapeau,"
+    },
+    "title": {
+     "fr": "Concert Caritatif Chœurs et Harmonie"
+    },
+    "onlineAccessLink": null,
+    "uid": 56617953,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-18T19:00:00.000+02:00",
+     "id": "41QE7C",
+     "begin": "2026-10-18T17:00:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "concert-caritatif-choeurs-et-harmonie",
+    "image": {
+     "filename": "f4d6930f75eb476884728a1e3197d5af.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 990
+     },
+     "variants": [
+      {
+       "filename": "f4d6930f75eb476884728a1e3197d5af.full.image.jpg",
+       "size": {
+        "width": 2482,
+        "height": 3510
+       },
+       "type": "full"
+      },
+      {
+       "filename": "f4d6930f75eb476884728a1e3197d5af.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/56617953_concert-caritatif-choeurs-et-harmonie",
+    "organizatorName": "Lions Club Orléans Valois",
+    "lastTiming": {
+     "end": "2026-10-18T19:00:00.000+02:00",
+     "id": "41QE7C",
+     "begin": "2026-10-18T17:00:00.000+02:00"
+    },
+    "musique": [
+     55
+    ],
+    "location": {
+     "uid": 6071432,
+     "name": "L'alliage - centre culturel",
+     "address": "1 rue Michel Roques, 45160 Olivet",
+     "city": "Olivet",
+     "latitude": 47.863753,
+     "longitude": 1.892426
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     5
+    ],
+    "nextTiming": null
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "voyage sonore",
+      "musique du monde",
+      "bien-être",
+      "relaxation"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "١٠ سبتمبر و ٢٩ أكتوبر ",
+     "de": "10 September und 29 Oktober",
+     "en": "10 September and 29 October",
+     "it": "10 settembre e 29 ottobre",
+     "fr": "10 septembre et 29 octobre",
+     "es": "10 septiembre i 29 octubre",
+     "nl": "10 september en 29 oktober"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Lucile Taupin",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Expérience immersive sonore au sons d'instruments du monde"
+    },
+    "title": {
+     "fr": "Voyage sonore"
+    },
+    "onlineAccessLink": null,
+    "uid": 63731731,
+    "organizatorContact": null,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-09-10T20:15:00.000+02:00",
+     "begin": "2026-09-10T19:00:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "voyage-sonore-6669824",
+    "image": {
+     "filename": "ec838fc5c2ed47e0862a194f7924593a.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 700
+     },
+     "variants": [
+      {
+       "filename": "ec838fc5c2ed47e0862a194f7924593a.full.image.jpg",
+       "size": {
+        "width": 1080,
+        "height": 1080
+       },
+       "type": "full"
+      },
+      {
+       "filename": "ec838fc5c2ed47e0862a194f7924593a.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/63731731_voyage-sonore-6669824",
+    "organizatorName": "Le bien-être au creux de l'oreille",
+    "lastTiming": {
+     "end": "2026-10-29T20:15:00.000+01:00",
+     "begin": "2026-10-29T19:00:00.000+01:00"
+    },
+    "musique": [
+     57,
+     49,
+     54
+    ],
+    "location": {
+     "uid": 5218135,
+     "name": "La Chouquette Masquée",
+     "address": "106 rue de bourgogne, 45000 Orléans",
+     "city": "Orléans",
+     "latitude": 47.900647,
+     "longitude": 1.914345
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     5
+    ],
+    "nextTiming": {
+     "end": "2026-10-29T20:15:00+01:00",
+     "begin": "2026-10-29T19:00:00+01:00"
+    }
+   }
+  ],
+  "sort": "timingsWithFeatured.asc",
+  "success": true
+ },
+ "events": {
+  "27309952": {
+   "firstTiming": {
+    "end": "2026-11-17T22:00:00.000+01:00",
+    "begin": "2026-11-17T20:00:00.000+01:00"
+   },
+   "nextTiming": {
+    "end": "2026-11-17T22:00:00+01:00",
+    "begin": "2026-11-17T20:00:00+01:00"
+   },
+   "lastTiming": {
+    "end": "2026-11-17T22:00:00.000+01:00",
+    "begin": "2026-11-17T20:00:00.000+01:00"
+   },
+   "rights": {
+    "license": {
+     "name": "Licence Ouverte 2.0",
+     "id": "etalab-2.0",
+     "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+    },
+    "licensor": {
+     "agendaUid": 35710944,
+     "name": "Agenda de sorties dans la métropole orléanaise",
+     "url": "http://sortir.orleans-metropole.fr"
+    },
+    "publisher": {
+     "agendaUid": 35710944,
+     "name": "Agenda de sorties dans la métropole orléanaise",
+     "url": "http://sortir.orleans-metropole.fr"
+    }
+   },
+   "dateRange": {
+    "ar": "الثلاثاء ١٧ نوفمبر, 20:00",
+    "de": "Dienstag 17 November, 20:00",
+    "en": "Tuesday 17 November, 20:00",
+    "it": "Martedì 17 novembre, 20:00",
+    "fr": "Mardi 17 novembre, 20h00",
+    "es": "Martes 17 noviembre, 20:00",
+    "nl": "Dinsdag 17 november, 20u00"
+   },
+   "state": 2,
+   "featured": false,
+   "motive": null,
+   "originAgenda": {
+    "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+    "private": 0,
+    "locationSetUid": 68951964,
+    "official": true,
+    "description": "Propositions de sorties à Orléans et dans les 22 communes de la métropole.",
+    "title": "Agenda de sorties dans la métropole orléanaise",
+    "url": "http://sortir.orleans-metropole.fr",
+    "_agg": "eyJ1aWQiOjM1NzEwOTQ0LCJ0aXRsZSI6IkFnZW5kYSBkZSBzb3J0aWVzIGRhbnMgbGEgbcOpdHJvcG9sZSBvcmzDqWFuYWlzZSIsImltYWdlIjoiYjA5NzA5MTM4ZGIxNDdlMjhkNTA1NDFiMjRkNDkxNTAuZnVsbC5pbWFnZS5qcGciLCJ1cmwiOiJodHRwOi8vc29ydGlyLm9ybGVhbnMtbWV0cm9wb2xlLmZyIiwic2x1ZyI6Im9ybGVhbnMtbWV0cm9wb2xlIn0=",
+    "uid": 35710944,
+    "createdAt": "2016-10-10T07:45:09.000Z",
+    "organization": {
+     "name": null,
+     "url": null
+    },
+    "officializedAt": null,
+    "slug": "orleans-metropole",
+    "updatedAt": "2026-10-17T10:07:29.000Z"
+   },
+   "sourceAgendas": [],
+   "organizatorName": "Scène nationale / Théâtre d'Orléans",
+   "organizatorContact": null,
+   "categorie-principale": [
+    5
+   ],
+   "balade-decouverte-visite": [],
+   "conference-rencontre-debat": [],
+   "exposition": [],
+   "fete-salon-marche": [],
+   "musique": [
+    50
+   ],
+   "projection-cinema": [],
+   "spectacle": [],
+   "sport": [],
+   "stage-atelier-jeu": [],
+   "image": {
+    "filename": "e006dc12268d4e7c882250d2e7da1ff9.base.image.jpg",
+    "size": {
+     "width": 700,
+     "height": 1050
+    },
+    "variants": [
+     {
+      "filename": "e006dc12268d4e7c882250d2e7da1ff9.full.image.jpg",
+      "size": {
+       "width": 3278,
+       "height": 4915
+      },
+      "type": "full"
+     },
+     {
+      "filename": "e006dc12268d4e7c882250d2e7da1ff9.thumb.image.jpg",
+      "size": {
+       "width": 200,
+       "height": 200
+      },
+      "type": "thumbnail"
+     }
+    ],
+    "base": "https://img.openagenda.com/main/"
+   },
+   "imageCredits": "Seung Yull Nah",
+   "title": {
+    "fr": "Youn Sun Nah + nit and dogs (première partie)"
+   },
+   "description": {
+    "fr": "La plus rock des chanteuses de jazz présente une œuvre élégante et incarnée. La soirée s’ouvrira avec nit and dog, un jazz folk et éclatant !"
+   },
+   "keywords": {
+    "fr": [
+     "jazz",
+     "concert"
+    ]
+   },
+   "longDescription": {
+    "fr": "<p><strong>Lumineuse, l’artiste sud-coréenne est l’une des vocalistes les plus admirées du jazz contemporain. Plus qu’un simple album,</strong> <em><strong>Lost Pieces</strong></em> <strong>est une déclaration artistique.</strong></p>\n<p>À la croisée du jazz moderne, de la soul et de textures presque chambristes, Youn Sun Nah poursuit son exploration d’une musique libre, sensible et profondément humaine. Avec cette technicité vocale ahurissante qu’on lui connaît, elle ose explorer de nouveaux territoires, plongeant dans le tourment des grands sentiments et brisant souvent cet écran de pudeur qui lui est propre pour toucher à des zones d’intimité inhabituelles. Loin d’un disque mélancolique, la plus rock des chanteuses de jazz transforme la vulnérabilité en matière première lumineuse. Entourée d’un quartet de musiciens puisés dans le riche réservoir du jazz français, elle vient nous présenter une œuvre élégante et profondément incarnée. Cultivant lui aussi des penchants pour les échappées libératrices, le jeune quatuor nit and dogs ouvrira la soirée avec un jazz teinté de folk, de musiques anciennes et de pop éclatante.<br>_<br><strong>Mar. 17 nov. 20h</strong><br>Tarifs de 5€ à 25€, 15€ avec la Carte<br>Durée 2h</p>\n"
+   },
+   "conditions": {
+    "fr": "Tarifs de 5€ à 25€, 15€ avec la Carte"
+   },
+   "age": {
+    "min": null,
+    "max": null
+   },
+   "registration": [
+    {
+     "type": "link",
+     "value": "https://scenenationale-orleans.fr/"
+    }
+   ],
+   "accessibility": {
+    "ii": false,
+    "hi": false,
+    "vi": false,
+    "pi": false,
+    "mi": false
+   },
+   "location": {
+    "uid": 88394571,
+    "name": "Théâtre d'Orléans",
+    "address": "boulevard pierre ségelle 45000 orleans",
+    "city": "Orléans",
+    "postalCode": "45000",
+    "department": "Loiret",
+    "region": "Centre-Val de Loire",
+    "countryCode": "FR",
+    "latitude": 47.904396,
+    "longitude": 1.913351,
+    "timezone": "Europe/Paris"
+   },
+   "timings": [
+    {
+     "end": "2026-11-17T22:00:00+01:00",
+     "begin": "2026-11-17T20:00:00+01:00"
+    }
+   ],
+   "attendanceMode": 1,
+   "onlineAccessLink": null,
+   "status": 1,
+   "extIds": null,
+   "uid": 27309952,
+   "slug": "youn-sun-nah-nit-and-dogs-premiere-partie",
+   "private": 0,
+   "timezone": "Europe/Paris",
+   "draft": 0,
+   "createdAt": "2026-06-25T08:09:44.000Z",
+   "updatedAt": "2026-06-29T15:01:51.000Z",
+   "links": [],
+   "canonicalUrl": "https://openagenda.com/orleans-metropole/events/27309952_youn-sun-nah-nit-and-dogs-premiere-partie",
+   "valid": true
+  },
+  "41566173": {
+   "firstTiming": {
+    "end": "2026-11-12T20:20:00.000+01:00",
+    "id": "14E172",
+    "begin": "2026-11-12T19:00:00.000+01:00"
+   },
+   "nextTiming": {
+    "end": "2026-11-12T20:20:00+01:00",
+    "id": "14E172",
+    "begin": "2026-11-12T19:00:00+01:00"
+   },
+   "lastTiming": {
+    "end": "2026-11-22T16:20:00.000+01:00",
+    "id": "5BR90T",
+    "begin": "2026-11-22T15:00:00.000+01:00"
+   },
+   "rights": {
+    "license": {
+     "name": "Licence Ouverte 2.0",
+     "id": "etalab-2.0",
+     "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+    },
+    "licensor": {
+     "agendaUid": 35710944,
+     "name": "Agenda de sorties dans la métropole orléanaise",
+     "url": "http://sortir.orleans-metropole.fr"
+    },
+    "publisher": {
+     "agendaUid": 35710944,
+     "name": "Agenda de sorties dans la métropole orléanaise",
+     "url": "http://sortir.orleans-metropole.fr"
+    }
+   },
+   "dateRange": {
+    "ar": "١٢ - ٢٢ نوفمبر",
+    "de": "12 - 22 November",
+    "en": "12 - 22 November",
+    "it": "12 - 22 novembre",
+    "fr": "12 - 22 novembre",
+    "es": "12 - 22 noviembre",
+    "nl": "12 - 22 november"
+   },
+   "state": 2,
+   "featured": true,
+   "motive": null,
+   "originAgenda": {
+    "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+    "private": 0,
+    "locationSetUid": 68951964,
+    "official": true,
+    "description": "Propositions de sorties à Orléans et dans les 22 communes de la métropole.",
+    "title": "Agenda de sorties dans la métropole orléanaise",
+    "url": "http://sortir.orleans-metropole.fr",
+    "_agg": "eyJ1aWQiOjM1NzEwOTQ0LCJ0aXRsZSI6IkFnZW5kYSBkZSBzb3J0aWVzIGRhbnMgbGEgbcOpdHJvcG9sZSBvcmzDqWFuYWlzZSIsImltYWdlIjoiYjA5NzA5MTM4ZGIxNDdlMjhkNTA1NDFiMjRkNDkxNTAuZnVsbC5pbWFnZS5qcGciLCJ1cmwiOiJodHRwOi8vc29ydGlyLm9ybGVhbnMtbWV0cm9wb2xlLmZyIiwic2x1ZyI6Im9ybGVhbnMtbWV0cm9wb2xlIn0=",
+    "uid": 35710944,
+    "createdAt": "2016-10-10T07:45:09.000Z",
+    "organization": {
+     "name": null,
+     "url": null
+    },
+    "officializedAt": null,
+    "slug": "orleans-metropole",
+    "updatedAt": "2026-10-17T10:07:29.000Z"
+   },
+   "sourceAgendas": [],
+   "organizatorName": "CADO",
+   "organizatorContact": null,
+   "categorie-principale": [
+    7
+   ],
+   "balade-decouverte-visite": [],
+   "conference-rencontre-debat": [],
+   "exposition": [],
+   "fete-salon-marche": [],
+   "musique": [],
+   "projection-cinema": [],
+   "spectacle": [
+    63
+   ],
+   "sport": [],
+   "stage-atelier-jeu": [],
+   "image": {
+    "filename": "9ca0b85ad2804a30a8cba128c7bdddcf.base.image.jpg",
+    "size": {
+     "width": 700,
+     "height": 1026
+    },
+    "variants": [
+     {
+      "filename": "9ca0b85ad2804a30a8cba128c7bdddcf.full.image.jpg",
+      "size": {
+       "width": 1394,
+       "height": 2044
+      },
+      "type": "full"
+     },
+     {
+      "filename": "9ca0b85ad2804a30a8cba128c7bdddcf.thumb.image.jpg",
+      "size": {
+       "width": 200,
+       "height": 200
+      },
+      "type": "thumbnail"
+     }
+    ],
+    "base": "https://img.openagenda.com/main/"
+   },
+   "imageCredits": "maquette CADO",
+   "title": {
+    "fr": "LES ENCHANTEURS"
+   },
+   "description": {
+    "fr": "L'âme des pooètes"
+   },
+   "keywords": [],
+   "longDescription": {
+    "fr": "<p>Christophe Malavoy s’est inventé un «parcours du Tendre» nourri de ses qualités d’acteur,<br>à travers le répertoire des chansons du vingtième siècle qui nous ont vu grandir.<br>Désireux de remettre la poésie au cœur de nos vies, il nous immerge dans le patrimoine riche et émouvant de ces poètes qui ont illuminé le répertoire de la chanson française : Brel, Barbara, Caussimon, Ferrat et les autres…<br>La magnifique voix de théâtre de Christophe Malavoy est aussi une voix de chanteur,<br>accompagnée de Sébastien Debard au piano<br>et à l’accordéon. L’artiste émaille son spectacle d’anecdotes, souvent cocasses, partage avec nous ses rencontres les plus marquantes, nous parle de ces poètes avec douceur,<br>tendresse et élégance. Un rêve éveillé !</p>\n"
+   },
+   "conditions": {
+    "fr": "tarifs : de 12 à 36 euros"
+   },
+   "age": {
+    "min": null,
+    "max": null
+   },
+   "registration": [
+    {
+     "type": "link",
+     "value": "https://www.cado-orleans.fr/saison-2026-2027/"
+    }
+   ],
+   "accessibility": {
+    "ii": false,
+    "hi": false,
+    "vi": false,
+    "pi": false,
+    "mi": false
+   },
+   "location": {
+    "uid": 88394571,
+    "name": "Théâtre d'Orléans",
+    "address": "boulevard pierre ségelle 45000 orleans",
+    "city": "Orléans",
+    "postalCode": "45000",
+    "department": "Loiret",
+    "region": "Centre-Val de Loire",
+    "countryCode": "FR",
+    "latitude": 47.904396,
+    "longitude": 1.913351,
+    "timezone": "Europe/Paris"
+   },
+   "timings": [
+    {
+     "end": "2026-11-12T20:20:00+01:00",
+     "id": "14E172",
+     "begin": "2026-11-12T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-13T21:20:00+01:00",
+     "id": "K7AEHC",
+     "begin": "2026-11-13T20:00:00+01:00"
+    },
+    {
+     "end": "2026-11-14T21:20:00+01:00",
+     "id": "0XR4KF",
+     "begin": "2026-11-14T20:00:00+01:00"
+    },
+    {
+     "end": "2026-11-15T16:20:00+01:00",
+     "id": "4S7Q0W",
+     "begin": "2026-11-15T15:00:00+01:00"
+    },
+    {
+     "end": "2026-11-17T21:20:00+01:00",
+     "id": "8AJ5HX",
+     "begin": "2026-11-17T20:00:00+01:00"
+    },
+    {
+     "end": "2026-11-18T20:20:00+01:00",
+     "id": "369NH4",
+     "begin": "2026-11-18T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-19T20:20:00+01:00",
+     "id": "GTR5D2",
+     "begin": "2026-11-19T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-20T21:20:00+01:00",
+     "id": "5FYM5C",
+     "begin": "2026-11-20T20:00:00+01:00"
+    },
+    {
+     "end": "2026-11-21T21:20:00+01:00",
+     "id": "C8XFDM",
+     "begin": "2026-11-21T20:00:00+01:00"
+    },
+    {
+     "end": "2026-11-22T16:20:00+01:00",
+     "id": "5BR90T",
+     "begin": "2026-11-22T15:00:00+01:00"
+    }
+   ],
+   "attendanceMode": 1,
+   "onlineAccessLink": null,
+   "status": 1,
+   "extIds": null,
+   "uid": 41566173,
+   "slug": "les-enchanteurs-240817",
+   "private": 0,
+   "timezone": "Europe/Paris",
+   "draft": 0,
+   "createdAt": "2026-09-10T16:04:22.000Z",
+   "updatedAt": "2026-09-14T07:34:42.000Z",
+   "links": [],
+   "canonicalUrl": "https://openagenda.com/orleans-metropole/events/41566173_les-enchanteurs-240817",
+   "valid": true
+  },
+  "32843872": {
+   "firstTiming": {
+    "end": "2026-09-19T19:00:00.000+02:00",
+    "id": "H0EMEN",
+    "begin": "2026-09-19T10:00:00.000+02:00"
+   },
+   "nextTiming": {
+    "end": "2026-10-21T19:00:00+02:00",
+    "id": "T4W7XQ",
+    "begin": "2026-10-21T14:00:00+02:00"
+   },
+   "lastTiming": {
+    "end": "2027-03-07T19:00:00.000+01:00",
+    "id": "0RZKMY",
+    "begin": "2027-03-07T14:00:00.000+01:00"
+   },
+   "rights": {
+    "license": {
+     "name": "Licence Ouverte 2.0",
+     "id": "etalab-2.0",
+     "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+    },
+    "licensor": {
+     "agendaUid": 35710944,
+     "name": "Agenda de sorties dans la métropole orléanaise",
+     "url": "http://sortir.orleans-metropole.fr"
+    },
+    "publisher": {
+     "agendaUid": 35710944,
+     "name": "Agenda de sorties dans la métropole orléanaise",
+     "url": "http://sortir.orleans-metropole.fr"
+    }
+   },
+   "dateRange": {
+    "ar": "١٩ سبتمبر ٢٠٢٦ - ٧ مارس ٢٠٢٧",
+    "de": "19 September 2026 - 7 März 2027",
+    "en": "19 September 2026 - 7 March 2027",
+    "it": "19 settembre 2026 - 7 marzo 2027",
+    "fr": "19 septembre 2026 - 7 mars 2027",
+    "es": "19 septiembre 2026 - 7 marzo 2027",
+    "nl": "19 september 2026 - 7 maart 2027"
+   },
+   "state": 2,
+   "featured": false,
+   "motive": null,
+   "originAgenda": {
+    "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+    "private": 0,
+    "locationSetUid": 68951964,
+    "official": true,
+    "description": "Propositions de sorties à Orléans et dans les 22 communes de la métropole.",
+    "title": "Agenda de sorties dans la métropole orléanaise",
+    "url": "http://sortir.orleans-metropole.fr",
+    "_agg": "eyJ1aWQiOjM1NzEwOTQ0LCJ0aXRsZSI6IkFnZW5kYSBkZSBzb3J0aWVzIGRhbnMgbGEgbcOpdHJvcG9sZSBvcmzDqWFuYWlzZSIsImltYWdlIjoiYjA5NzA5MTM4ZGIxNDdlMjhkNTA1NDFiMjRkNDkxNTAuZnVsbC5pbWFnZS5qcGciLCJ1cmwiOiJodHRwOi8vc29ydGlyLm9ybGVhbnMtbWV0cm9wb2xlLmZyIiwic2x1ZyI6Im9ybGVhbnMtbWV0cm9wb2xlIn0=",
+    "uid": 35710944,
+    "createdAt": "2016-10-10T07:45:09.000Z",
+    "organization": {
+     "name": null,
+     "url": null
+    },
+    "officializedAt": null,
+    "slug": "orleans-metropole",
+    "updatedAt": "2026-10-17T10:07:29.000Z"
+   },
+   "sourceAgendas": [],
+   "organizatorName": "Frac Centre-Val de Loire",
+   "organizatorContact": null,
+   "categorie-principale": [
+    3
+   ],
+   "balade-decouverte-visite": [],
+   "conference-rencontre-debat": [],
+   "exposition": [
+    33,
+    30
+   ],
+   "fete-salon-marche": [],
+   "musique": [],
+   "projection-cinema": [],
+   "spectacle": [],
+   "sport": [],
+   "stage-atelier-jeu": [],
+   "image": {
+    "filename": "142312c4be684c94b63504325a8fa246.base.image.jpg",
+    "size": {
+     "width": 700,
+     "height": 875
+    },
+    "variants": [
+     {
+      "filename": "142312c4be684c94b63504325a8fa246.full.image.jpg",
+      "size": {
+       "width": 1080,
+       "height": 1350
+      },
+      "type": "full"
+     },
+     {
+      "filename": "142312c4be684c94b63504325a8fa246.thumb.image.jpg",
+      "size": {
+       "width": 200,
+       "height": 200
+      },
+      "type": "thumbnail"
+     }
+    ],
+    "base": "https://img.openagenda.com/main/"
+   },
+   "imageCredits": "Fanette Mellier",
+   "title": {
+    "fr": "CIRCUS"
+   },
+   "description": {
+    "fr": "Pour sa nouvelle saison, le Frac Centre-Val de Loire réunit artistes, designers et architectes autour de l’univers du cirque."
+   },
+   "keywords": [],
+   "longDescription": {
+    "fr": "<p>Le projet « CIRCUS » présente un film et des photographies sur le Cirque Calder, des architectures de cirque et des architectures foraines de Patrick Bouchain issues de la collection du Frac Centre-Val de Loire, un parcours typographique de Fanette Mellier, une scénographie sobre et joyeuse de Morgan Fortems, et enfin une danse partagée du Collectif ÈS.<br>« CIRCUS » est une manifestation associée du projet « AR(t]CHIPEL – <em>Calder au cœur de la France</em> », déployé dans quinze lieux du territoire et organisée par la Région Centre-Val de Loire, en partenariat avec le Centre Pompidou.<br>Pensée comme un espace de dialogue entre les disciplines, l’exposition envisage le cirque moins comme un thème que comme une manière de faire : construire ensemble, mettre les formes en mouvement, jouer avec l’équilibre, l’espace et le regard. De l’architecture au graphisme, de l’image à la danse, « CIRCUS » fait ainsi du lieu d’exposition un terrain d’expérimentation, où les œuvres se répondent et invitent le public à circuler d’un univers à l’autre.<br>Et parce que, comme au cirque, rien ne se fait seul, plusieurs ateliers, rencontres et manifestations culturelles ponctueront l’exposition jusqu’à sa clôture en mars 2027.<br><strong>Exposition du 19 septembre 2026 au 07 mars 2027</strong></p>\n"
+   },
+   "conditions": [],
+   "age": {
+    "min": null,
+    "max": null
+   },
+   "registration": [],
+   "accessibility": {
+    "ii": false,
+    "hi": false,
+    "vi": false,
+    "pi": false,
+    "mi": false
+   },
+   "location": {
+    "uid": 43392781,
+    "name": "Frac Centre - Les Turbulences",
+    "address": "88 rue du Colombier 45000 Orléans",
+    "city": "Orléans",
+    "postalCode": "45000",
+    "department": "Loiret",
+    "region": "Centre-Val de Loire",
+    "countryCode": "FR",
+    "latitude": 47.903978,
+    "longitude": 1.896233,
+    "timezone": "Europe/Paris"
+   },
+   "timings": [
+    {
+     "end": "2026-09-19T19:00:00+02:00",
+     "id": "H0EMEN",
+     "begin": "2026-09-19T10:00:00+02:00"
+    },
+    {
+     "end": "2026-09-20T19:00:00+02:00",
+     "id": "6N34Q4",
+     "begin": "2026-09-20T10:00:00+02:00"
+    },
+    {
+     "end": "2026-09-23T19:00:00+02:00",
+     "id": "MCENFY",
+     "begin": "2026-09-23T14:00:00+02:00"
+    },
+    {
+     "end": "2026-09-24T19:00:00+02:00",
+     "id": "1T5GG0",
+     "begin": "2026-09-24T14:00:00+02:00"
+    },
+    {
+     "end": "2026-09-25T19:00:00+02:00",
+     "id": "4M6XM2",
+     "begin": "2026-09-25T14:00:00+02:00"
+    },
+    {
+     "end": "2026-09-26T19:00:00+02:00",
+     "id": "GVH6W0",
+     "begin": "2026-09-26T14:00:00+02:00"
+    },
+    {
+     "end": "2026-09-27T19:00:00+02:00",
+     "id": "7M0XTZ",
+     "begin": "2026-09-27T14:00:00+02:00"
+    },
+    {
+     "end": "2026-09-30T19:00:00+02:00",
+     "id": "QF5YTM",
+     "begin": "2026-09-30T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-01T19:00:00+02:00",
+     "id": "G19AC4",
+     "begin": "2026-10-01T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-02T19:00:00+02:00",
+     "id": "PN763J",
+     "begin": "2026-10-02T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-03T19:00:00+02:00",
+     "id": "HY157T",
+     "begin": "2026-10-03T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-04T19:00:00+02:00",
+     "id": "ZB7TFG",
+     "begin": "2026-10-04T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-07T19:00:00+02:00",
+     "id": "0XV88A",
+     "begin": "2026-10-07T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-08T19:00:00+02:00",
+     "id": "QF323B",
+     "begin": "2026-10-08T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-09T19:00:00+02:00",
+     "id": "7NDAZN",
+     "begin": "2026-10-09T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-10T19:00:00+02:00",
+     "id": "VW04M0",
+     "begin": "2026-10-10T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-11T19:00:00+02:00",
+     "id": "ANWENW",
+     "begin": "2026-10-11T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-14T19:00:00+02:00",
+     "id": "11X8ET",
+     "begin": "2026-10-14T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-15T19:00:00+02:00",
+     "id": "PMX7ZQ",
+     "begin": "2026-10-15T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-16T19:00:00+02:00",
+     "id": "7DPVT9",
+     "begin": "2026-10-16T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-17T19:00:00+02:00",
+     "id": "SYBZRY",
+     "begin": "2026-10-17T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-18T19:00:00+02:00",
+     "id": "8YZFKF",
+     "begin": "2026-10-18T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-21T19:00:00+02:00",
+     "id": "T4W7XQ",
+     "begin": "2026-10-21T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-22T19:00:00+02:00",
+     "id": "3TQWKW",
+     "begin": "2026-10-22T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-23T19:00:00+02:00",
+     "id": "QMM5TH",
+     "begin": "2026-10-23T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-24T19:00:00+02:00",
+     "id": "PTJSNM",
+     "begin": "2026-10-24T14:00:00+02:00"
+    },
+    {
+     "end": "2026-10-25T19:00:00+01:00",
+     "id": "4536DM",
+     "begin": "2026-10-25T14:00:00+01:00"
+    },
+    {
+     "end": "2026-10-28T19:00:00+01:00",
+     "id": "JPVF59",
+     "begin": "2026-10-28T14:00:00+01:00"
+    },
+    {
+     "end": "2026-10-29T19:00:00+01:00",
+     "id": "KF8QRZ",
+     "begin": "2026-10-29T14:00:00+01:00"
+    },
+    {
+     "end": "2026-10-30T19:00:00+01:00",
+     "id": "K182HA",
+     "begin": "2026-10-30T14:00:00+01:00"
+    },
+    {
+     "end": "2026-10-31T19:00:00+01:00",
+     "id": "ZPWJT3",
+     "begin": "2026-10-31T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-01T19:00:00+01:00",
+     "id": "N6CBM4",
+     "begin": "2026-11-01T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-04T19:00:00+01:00",
+     "id": "SZMZWK",
+     "begin": "2026-11-04T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-05T19:00:00+01:00",
+     "id": "2Y41GR",
+     "begin": "2026-11-05T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-06T19:00:00+01:00",
+     "id": "YMQY9J",
+     "begin": "2026-11-06T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-07T19:00:00+01:00",
+     "id": "X5FBAT",
+     "begin": "2026-11-07T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-08T19:00:00+01:00",
+     "id": "SKASHW",
+     "begin": "2026-11-08T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-11T19:00:00+01:00",
+     "id": "BAEFMN",
+     "begin": "2026-11-11T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-12T19:00:00+01:00",
+     "id": "EXMWGJ",
+     "begin": "2026-11-12T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-13T19:00:00+01:00",
+     "id": "D7XZWG",
+     "begin": "2026-11-13T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-14T19:00:00+01:00",
+     "id": "A121EF",
+     "begin": "2026-11-14T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-15T19:00:00+01:00",
+     "id": "ZDCATV",
+     "begin": "2026-11-15T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-18T19:00:00+01:00",
+     "id": "Z012C9",
+     "begin": "2026-11-18T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-19T19:00:00+01:00",
+     "id": "3R3ZHE",
+     "begin": "2026-11-19T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-20T19:00:00+01:00",
+     "id": "ER78D8",
+     "begin": "2026-11-20T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-21T19:00:00+01:00",
+     "id": "6ZEN1D",
+     "begin": "2026-11-21T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-22T19:00:00+01:00",
+     "id": "XF3SJ4",
+     "begin": "2026-11-22T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-25T19:00:00+01:00",
+     "id": "79ZBGF",
+     "begin": "2026-11-25T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-26T19:00:00+01:00",
+     "id": "H277H6",
+     "begin": "2026-11-26T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-27T19:00:00+01:00",
+     "id": "ZPKX01",
+     "begin": "2026-11-27T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-28T19:00:00+01:00",
+     "id": "4BWXA1",
+     "begin": "2026-11-28T14:00:00+01:00"
+    },
+    {
+     "end": "2026-11-29T19:00:00+01:00",
+     "id": "YMQQ7J",
+     "begin": "2026-11-29T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-02T19:00:00+01:00",
+     "id": "TB3XHQ",
+     "begin": "2026-12-02T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-03T19:00:00+01:00",
+     "id": "CM1D21",
+     "begin": "2026-12-03T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-04T19:00:00+01:00",
+     "id": "XBARMM",
+     "begin": "2026-12-04T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-05T19:00:00+01:00",
+     "id": "G5JKPZ",
+     "begin": "2026-12-05T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-06T19:00:00+01:00",
+     "id": "T7S445",
+     "begin": "2026-12-06T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-09T19:00:00+01:00",
+     "id": "73STHA",
+     "begin": "2026-12-09T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-10T19:00:00+01:00",
+     "id": "QXHVD2",
+     "begin": "2026-12-10T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-11T19:00:00+01:00",
+     "id": "87JMNW",
+     "begin": "2026-12-11T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-12T19:00:00+01:00",
+     "id": "ATHDKR",
+     "begin": "2026-12-12T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-13T19:00:00+01:00",
+     "id": "BRB6VF",
+     "begin": "2026-12-13T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-16T19:00:00+01:00",
+     "id": "R5WH90",
+     "begin": "2026-12-16T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-17T19:00:00+01:00",
+     "id": "299JWD",
+     "begin": "2026-12-17T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-18T19:00:00+01:00",
+     "id": "XV2YK9",
+     "begin": "2026-12-18T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-19T19:00:00+01:00",
+     "id": "V752BP",
+     "begin": "2026-12-19T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-20T19:00:00+01:00",
+     "id": "KV6D9F",
+     "begin": "2026-12-20T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-23T19:00:00+01:00",
+     "id": "FD7ZHV",
+     "begin": "2026-12-23T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-24T19:00:00+01:00",
+     "id": "K3KC1A",
+     "begin": "2026-12-24T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-25T19:00:00+01:00",
+     "id": "E46E2T",
+     "begin": "2026-12-25T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-26T19:00:00+01:00",
+     "id": "DDWD6Z",
+     "begin": "2026-12-26T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-27T19:00:00+01:00",
+     "id": "R91CAP",
+     "begin": "2026-12-27T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-30T19:00:00+01:00",
+     "id": "B13Z9Q",
+     "begin": "2026-12-30T14:00:00+01:00"
+    },
+    {
+     "end": "2026-12-31T19:00:00+01:00",
+     "id": "SHX831",
+     "begin": "2026-12-31T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-01T19:00:00+01:00",
+     "id": "GEGWAJ",
+     "begin": "2027-01-01T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-02T19:00:00+01:00",
+     "id": "QJ3FME",
+     "begin": "2027-01-02T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-03T19:00:00+01:00",
+     "id": "2XJGNV",
+     "begin": "2027-01-03T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-06T19:00:00+01:00",
+     "id": "ZNF6G3",
+     "begin": "2027-01-06T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-07T19:00:00+01:00",
+     "id": "5GBV7D",
+     "begin": "2027-01-07T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-08T19:00:00+01:00",
+     "id": "22DRVT",
+     "begin": "2027-01-08T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-09T19:00:00+01:00",
+     "id": "KYTAJQ",
+     "begin": "2027-01-09T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-10T19:00:00+01:00",
+     "id": "TQNHAK",
+     "begin": "2027-01-10T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-13T19:00:00+01:00",
+     "id": "NR97ED",
+     "begin": "2027-01-13T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-14T19:00:00+01:00",
+     "id": "BCE0X9",
+     "begin": "2027-01-14T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-15T19:00:00+01:00",
+     "id": "KCMY49",
+     "begin": "2027-01-15T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-16T19:00:00+01:00",
+     "id": "T209QN",
+     "begin": "2027-01-16T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-17T19:00:00+01:00",
+     "id": "5GB2GN",
+     "begin": "2027-01-17T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-20T19:00:00+01:00",
+     "id": "TV5252",
+     "begin": "2027-01-20T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-21T19:00:00+01:00",
+     "id": "P1VWQ2",
+     "begin": "2027-01-21T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-22T19:00:00+01:00",
+     "id": "D88RHS",
+     "begin": "2027-01-22T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-23T19:00:00+01:00",
+     "id": "9RSA8D",
+     "begin": "2027-01-23T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-24T19:00:00+01:00",
+     "id": "XNAPET",
+     "begin": "2027-01-24T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-27T19:00:00+01:00",
+     "id": "S1Y944",
+     "begin": "2027-01-27T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-28T19:00:00+01:00",
+     "id": "KMQAPW",
+     "begin": "2027-01-28T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-29T19:00:00+01:00",
+     "id": "HPMK5T",
+     "begin": "2027-01-29T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-30T19:00:00+01:00",
+     "id": "M98DDQ",
+     "begin": "2027-01-30T14:00:00+01:00"
+    },
+    {
+     "end": "2027-01-31T19:00:00+01:00",
+     "id": "5JXJXE",
+     "begin": "2027-01-31T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-03T19:00:00+01:00",
+     "id": "07WCNH",
+     "begin": "2027-02-03T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-04T19:00:00+01:00",
+     "id": "2CJQGB",
+     "begin": "2027-02-04T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-05T19:00:00+01:00",
+     "id": "CTDVYC",
+     "begin": "2027-02-05T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-06T19:00:00+01:00",
+     "id": "JSFB39",
+     "begin": "2027-02-06T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-07T19:00:00+01:00",
+     "id": "ZPCYCY",
+     "begin": "2027-02-07T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-10T19:00:00+01:00",
+     "id": "GR0P8V",
+     "begin": "2027-02-10T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-11T19:00:00+01:00",
+     "id": "AFY20Z",
+     "begin": "2027-02-11T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-12T19:00:00+01:00",
+     "id": "B257PC",
+     "begin": "2027-02-12T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-13T19:00:00+01:00",
+     "id": "SDDS87",
+     "begin": "2027-02-13T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-14T19:00:00+01:00",
+     "id": "ZEQBZG",
+     "begin": "2027-02-14T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-17T19:00:00+01:00",
+     "id": "7PZWJJ",
+     "begin": "2027-02-17T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-18T19:00:00+01:00",
+     "id": "HPXVHP",
+     "begin": "2027-02-18T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-19T19:00:00+01:00",
+     "id": "NSVACH",
+     "begin": "2027-02-19T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-20T19:00:00+01:00",
+     "id": "MPGQN3",
+     "begin": "2027-02-20T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-21T19:00:00+01:00",
+     "id": "EZ6B07",
+     "begin": "2027-02-21T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-24T19:00:00+01:00",
+     "id": "6K1FYB",
+     "begin": "2027-02-24T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-25T19:00:00+01:00",
+     "id": "PW2SBP",
+     "begin": "2027-02-25T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-26T19:00:00+01:00",
+     "id": "ET8MGT",
+     "begin": "2027-02-26T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-27T19:00:00+01:00",
+     "id": "GMZK2N",
+     "begin": "2027-02-27T14:00:00+01:00"
+    },
+    {
+     "end": "2027-02-28T19:00:00+01:00",
+     "id": "4982C7",
+     "begin": "2027-02-28T14:00:00+01:00"
+    },
+    {
+     "end": "2027-03-03T19:00:00+01:00",
+     "id": "D94GMY",
+     "begin": "2027-03-03T14:00:00+01:00"
+    },
+    {
+     "end": "2027-03-04T19:00:00+01:00",
+     "id": "YXV2FY",
+     "begin": "2027-03-04T14:00:00+01:00"
+    },
+    {
+     "end": "2027-03-05T19:00:00+01:00",
+     "id": "H5FDZ8",
+     "begin": "2027-03-05T14:00:00+01:00"
+    },
+    {
+     "end": "2027-03-06T19:00:00+01:00",
+     "id": "5PYRJY",
+     "begin": "2027-03-06T14:00:00+01:00"
+    },
+    {
+     "end": "2027-03-07T19:00:00+01:00",
+     "id": "0RZKMY",
+     "begin": "2027-03-07T14:00:00+01:00"
+    }
+   ],
+   "attendanceMode": 1,
+   "onlineAccessLink": null,
+   "status": 1,
+   "extIds": null,
+   "uid": 32843872,
+   "slug": "circus-6824853",
+   "private": 0,
+   "timezone": "Europe/Paris",
+   "draft": 0,
+   "createdAt": "2026-09-08T10:30:18.000Z",
+   "updatedAt": "2026-09-09T14:23:09.000Z",
+   "links": [],
+   "canonicalUrl": "https://openagenda.com/orleans-metropole/events/32843872_circus-6824853",
+   "valid": true
+  },
+  "42586898": {
+   "firstTiming": {
+    "end": "2026-09-30T20:45:00.000+02:00",
+    "id": "R71HSV",
+    "begin": "2026-09-30T20:00:00.000+02:00"
+   },
+   "nextTiming": {
+    "end": "2026-10-21T20:45:00+02:00",
+    "id": "JJ3T21",
+    "begin": "2026-10-21T20:00:00+02:00"
+   },
+   "lastTiming": {
+    "end": "2026-12-23T21:10:00.000+01:00",
+    "id": "HHV3VV",
+    "begin": "2026-12-23T20:25:00.000+01:00"
+   },
+   "rights": {
+    "license": {
+     "name": "Licence Ouverte 2.0",
+     "id": "etalab-2.0",
+     "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+    },
+    "licensor": {
+     "agendaUid": 35710944,
+     "name": "Agenda de sorties dans la métropole orléanaise",
+     "url": "http://sortir.orleans-metropole.fr"
+    },
+    "publisher": {
+     "agendaUid": 35710944,
+     "name": "Agenda de sorties dans la métropole orléanaise",
+     "url": "http://sortir.orleans-metropole.fr"
+    }
+   },
+   "dateRange": {
+    "ar": "٣٠ سبتمبر - ٢٣ ديسمبر",
+    "de": "30 September - 23 Dezember",
+    "en": "30 September - 23 December",
+    "it": "30 settembre - 23 dicembre",
+    "fr": "30 septembre - 23 décembre",
+    "es": "30 septiembre - 23 diciembre",
+    "nl": "30 september - 23 december"
+   },
+   "state": 2,
+   "featured": true,
+   "motive": null,
+   "originAgenda": {
+    "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+    "private": 0,
+    "locationSetUid": 68951964,
+    "official": true,
+    "description": "Propositions de sorties à Orléans et dans les 22 communes de la métropole.",
+    "title": "Agenda de sorties dans la métropole orléanaise",
+    "url": "http://sortir.orleans-metropole.fr",
+    "_agg": "eyJ1aWQiOjM1NzEwOTQ0LCJ0aXRsZSI6IkFnZW5kYSBkZSBzb3J0aWVzIGRhbnMgbGEgbcOpdHJvcG9sZSBvcmzDqWFuYWlzZSIsImltYWdlIjoiYjA5NzA5MTM4ZGIxNDdlMjhkNTA1NDFiMjRkNDkxNTAuZnVsbC5pbWFnZS5qcGciLCJ1cmwiOiJodHRwOi8vc29ydGlyLm9ybGVhbnMtbWV0cm9wb2xlLmZyIiwic2x1ZyI6Im9ybGVhbnMtbWV0cm9wb2xlIn0=",
+    "uid": 35710944,
+    "createdAt": "2016-10-10T07:45:09.000Z",
+    "organization": {
+     "name": null,
+     "url": null
+    },
+    "officializedAt": null,
+    "slug": "orleans-metropole",
+    "updatedAt": "2026-10-17T10:07:29.000Z"
+   },
+   "sourceAgendas": [],
+   "organizatorName": "Orléans Val de Loire Tourisme",
+   "organizatorContact": null,
+   "categorie-principale": [
+    6,
+    7,
+    5
+   ],
+   "balade-decouverte-visite": [],
+   "conference-rencontre-debat": [],
+   "exposition": [],
+   "fete-salon-marche": [],
+   "musique": [
+    55
+   ],
+   "projection-cinema": [],
+   "spectacle": [],
+   "sport": [],
+   "stage-atelier-jeu": [],
+   "image": {
+    "filename": "cf04e9c337f9425cb2e92368d2686e75.base.image.jpg",
+    "size": {
+     "width": 700,
+     "height": 525
+    },
+    "variants": [
+     {
+      "filename": "cf04e9c337f9425cb2e92368d2686e75.full.image.jpg",
+      "size": {
+       "width": 700,
+       "height": 525
+      },
+      "type": "full"
+     },
+     {
+      "filename": "cf04e9c337f9425cb2e92368d2686e75.thumb.image.jpg",
+      "size": {
+       "width": 200,
+       "height": 200
+      },
+      "type": "thumbnail"
+     }
+    ],
+    "base": "https://img.openagenda.com/main/"
+   },
+   "imageCredits": "Orléans Val de Loire Tourisme",
+   "title": {
+    "fr": "Luminiscence à Orléans"
+   },
+   "description": {
+    "fr": "Un spectacle immersif à 360°"
+   },
+   "keywords": [],
+   "longDescription": {
+    "fr": "<p>Après avoir émerveillé près de 2 millions de spectateurs à travers le monde, Luminiscence s'installe à Orléans pour une expérience immersive exceptionnelle au cœur de la cathédrale Sainte-Croix. Grâce à des projections monumentales à 360°, une narration captivante et un chœur en live, laissez-vous transporter à travers seize siècles d'histoire et redécouvrez l'épopée de Jeanne d'Arc sous un angle inédit.</p>\n<p><strong>Tarifs catégorie Or</strong><br>Semaine (les mercredis et jeudis) :</p>\n<ul>\n<li>Tarif plein 39€</li>\n<li>Tarif réduit 31€</li>\n<li>Tarif enfant 3-10 ans 20€</li>\n<li>Tarif groupe (à partir de 6 personnes) 35€</li>\n<li>Gratuit pour les - 3 ans</li>\n</ul>\n<p>Week-end (les vendredis et samedis) :</p>\n<ul>\n<li>Tarif plein 45€</li>\n<li>Tarif réduit 36€</li>\n<li>Tarif enfant 3-10 ans 23€</li>\n<li>Tarif groupe (à partir de 6 personnes) 41€</li>\n<li>Gratuit pour les - 3 ans</li>\n</ul>\n<p><strong>Tarifs catégorie Argent</strong><br>Semaine (les mercredis et jeudis) :</p>\n<ul>\n<li>Tarif plein 29€</li>\n<li>Tarif réduit 23€</li>\n<li>Tarif enfant 3-10 ans 15€</li>\n<li>Tarif groupe (à partir de 6 personnes) 26€</li>\n<li>Gratuit pour les - 3 ans</li>\n</ul>\n<p>Week-end (les vendredis et samedis) :</p>\n<ul>\n<li>Tarif plein 35€</li>\n<li>Tarif réduit 28€</li>\n<li>Tarif enfant 3-10 ans 18€</li>\n<li>Tarif groupe (à partir de 6 personnes) 32€</li>\n<li>Gratuit pour les - 3 ans</li>\n</ul>\n"
+   },
+   "conditions": {
+    "fr": "Inscription à l'Office de Tourisme d'Orléans ou en ligne. Durée : 45 minutes"
+   },
+   "age": {
+    "min": null,
+    "max": null
+   },
+   "registration": [
+    {
+     "type": "link",
+     "value": "https://reservation.tourisme-orleansmetropole.com/luminiscence.html"
+    }
+   ],
+   "accessibility": {
+    "ii": false,
+    "hi": false,
+    "vi": false,
+    "pi": false,
+    "mi": false
+   },
+   "location": {
+    "uid": 13847171,
+    "name": "Cathédrale Sainte-Croix d'Orléans",
+    "address": "Place Sainte-Croix, 45000 Orléans",
+    "city": "Orléans",
+    "postalCode": "45000",
+    "department": "Loiret",
+    "region": "Centre-Val de Loire",
+    "countryCode": "FR",
+    "latitude": 47.901778,
+    "longitude": 1.909013,
+    "timezone": "Europe/Paris"
+   },
+   "timings": [
+    {
+     "end": "2026-09-30T20:45:00+02:00",
+     "id": "R71HSV",
+     "begin": "2026-09-30T20:00:00+02:00"
+    },
+    {
+     "end": "2026-09-30T22:10:00+02:00",
+     "id": "8YCHPA",
+     "begin": "2026-09-30T21:25:00+02:00"
+    },
+    {
+     "end": "2026-10-01T20:45:00+02:00",
+     "id": "39MAE8",
+     "begin": "2026-10-01T20:00:00+02:00"
+    },
+    {
+     "end": "2026-10-01T22:10:00+02:00",
+     "id": "0E54PR",
+     "begin": "2026-10-01T21:25:00+02:00"
+    },
+    {
+     "end": "2026-10-02T20:45:00+02:00",
+     "id": "2GPZ8F",
+     "begin": "2026-10-02T20:00:00+02:00"
+    },
+    {
+     "end": "2026-10-02T22:10:00+02:00",
+     "id": "0B0RC3",
+     "begin": "2026-10-02T21:25:00+02:00"
+    },
+    {
+     "end": "2026-10-03T21:15:00+02:00",
+     "id": "0G4AJA",
+     "begin": "2026-10-03T20:30:00+02:00"
+    },
+    {
+     "end": "2026-10-07T20:45:00+02:00",
+     "id": "SCDW23",
+     "begin": "2026-10-07T20:00:00+02:00"
+    },
+    {
+     "end": "2026-10-07T22:10:00+02:00",
+     "id": "14VWYC",
+     "begin": "2026-10-07T21:25:00+02:00"
+    },
+    {
+     "end": "2026-10-08T20:45:00+02:00",
+     "id": "BDHJX7",
+     "begin": "2026-10-08T20:00:00+02:00"
+    },
+    {
+     "end": "2026-10-08T22:10:00+02:00",
+     "id": "NG5DQ4",
+     "begin": "2026-10-08T21:25:00+02:00"
+    },
+    {
+     "end": "2026-10-09T20:45:00+02:00",
+     "id": "ZN7VVM",
+     "begin": "2026-10-09T20:00:00+02:00"
+    },
+    {
+     "end": "2026-10-09T22:10:00+02:00",
+     "id": "F52DEB",
+     "begin": "2026-10-09T21:25:00+02:00"
+    },
+    {
+     "end": "2026-10-10T21:15:00+02:00",
+     "id": "T1CB47",
+     "begin": "2026-10-10T20:30:00+02:00"
+    },
+    {
+     "end": "2026-10-14T20:45:00+02:00",
+     "id": "72Q8RW",
+     "begin": "2026-10-14T20:00:00+02:00"
+    },
+    {
+     "end": "2026-10-14T22:10:00+02:00",
+     "id": "TCGDFP",
+     "begin": "2026-10-14T21:25:00+02:00"
+    },
+    {
+     "end": "2026-10-15T20:45:00+02:00",
+     "id": "R113KK",
+     "begin": "2026-10-15T20:00:00+02:00"
+    },
+    {
+     "end": "2026-10-15T22:10:00+02:00",
+     "id": "RD463W",
+     "begin": "2026-10-15T21:25:00+02:00"
+    },
+    {
+     "end": "2026-10-16T20:45:00+02:00",
+     "id": "1FD84W",
+     "begin": "2026-10-16T20:00:00+02:00"
+    },
+    {
+     "end": "2026-10-16T22:10:00+02:00",
+     "id": "FKHPAR",
+     "begin": "2026-10-16T21:25:00+02:00"
+    },
+    {
+     "end": "2026-10-17T21:15:00+02:00",
+     "id": "58RQA2",
+     "begin": "2026-10-17T20:30:00+02:00"
+    },
+    {
+     "end": "2026-10-21T20:45:00+02:00",
+     "id": "JJ3T21",
+     "begin": "2026-10-21T20:00:00+02:00"
+    },
+    {
+     "end": "2026-10-21T22:10:00+02:00",
+     "id": "ZHJQ6K",
+     "begin": "2026-10-21T21:25:00+02:00"
+    },
+    {
+     "end": "2026-10-22T20:45:00+02:00",
+     "id": "5CNKDE",
+     "begin": "2026-10-22T20:00:00+02:00"
+    },
+    {
+     "end": "2026-10-22T22:10:00+02:00",
+     "id": "NFPBTV",
+     "begin": "2026-10-22T21:25:00+02:00"
+    },
+    {
+     "end": "2026-10-23T20:45:00+02:00",
+     "id": "7CX5J0",
+     "begin": "2026-10-23T20:00:00+02:00"
+    },
+    {
+     "end": "2026-10-23T22:10:00+02:00",
+     "id": "525SBC",
+     "begin": "2026-10-23T21:25:00+02:00"
+    },
+    {
+     "end": "2026-10-24T21:15:00+02:00",
+     "id": "XHD8G3",
+     "begin": "2026-10-24T20:30:00+02:00"
+    },
+    {
+     "end": "2026-10-28T20:45:00+01:00",
+     "id": "N63NYK",
+     "begin": "2026-10-28T20:00:00+01:00"
+    },
+    {
+     "end": "2026-10-28T22:10:00+01:00",
+     "id": "VTJHEN",
+     "begin": "2026-10-28T21:25:00+01:00"
+    },
+    {
+     "end": "2026-10-29T20:45:00+01:00",
+     "id": "7YN387",
+     "begin": "2026-10-29T20:00:00+01:00"
+    },
+    {
+     "end": "2026-10-29T22:10:00+01:00",
+     "id": "PM6E1S",
+     "begin": "2026-10-29T21:25:00+01:00"
+    },
+    {
+     "end": "2026-10-30T20:45:00+01:00",
+     "id": "SH12P0",
+     "begin": "2026-10-30T20:00:00+01:00"
+    },
+    {
+     "end": "2026-10-30T22:10:00+01:00",
+     "id": "Y8H52P",
+     "begin": "2026-10-30T21:25:00+01:00"
+    },
+    {
+     "end": "2026-10-31T21:15:00+01:00",
+     "id": "PERFJD",
+     "begin": "2026-10-31T20:30:00+01:00"
+    },
+    {
+     "end": "2026-11-04T19:45:00+01:00",
+     "id": "1MCPAB",
+     "begin": "2026-11-04T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-04T21:10:00+01:00",
+     "id": "2Z2VZK",
+     "begin": "2026-11-04T20:25:00+01:00"
+    },
+    {
+     "end": "2026-11-05T19:45:00+01:00",
+     "id": "Q89CFQ",
+     "begin": "2026-11-05T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-05T21:10:00+01:00",
+     "id": "KC4S04",
+     "begin": "2026-11-05T20:25:00+01:00"
+    },
+    {
+     "end": "2026-11-06T19:45:00+01:00",
+     "id": "BH6YKD",
+     "begin": "2026-11-06T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-06T21:10:00+01:00",
+     "id": "X5M85M",
+     "begin": "2026-11-06T20:25:00+01:00"
+    },
+    {
+     "end": "2026-11-07T21:15:00+01:00",
+     "id": "0M8391",
+     "begin": "2026-11-07T20:30:00+01:00"
+    },
+    {
+     "end": "2026-11-11T19:45:00+01:00",
+     "id": "Q7EP2T",
+     "begin": "2026-11-11T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-11T21:10:00+01:00",
+     "id": "9CGXNC",
+     "begin": "2026-11-11T20:25:00+01:00"
+    },
+    {
+     "end": "2026-11-12T19:45:00+01:00",
+     "id": "Z1DKZ5",
+     "begin": "2026-11-12T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-12T21:10:00+01:00",
+     "id": "6JKXJ4",
+     "begin": "2026-11-12T20:25:00+01:00"
+    },
+    {
+     "end": "2026-11-13T19:45:00+01:00",
+     "id": "58XF03",
+     "begin": "2026-11-13T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-13T21:10:00+01:00",
+     "id": "PXQKZQ",
+     "begin": "2026-11-13T20:25:00+01:00"
+    },
+    {
+     "end": "2026-11-14T21:15:00+01:00",
+     "id": "7X6BMN",
+     "begin": "2026-11-14T20:30:00+01:00"
+    },
+    {
+     "end": "2026-11-18T19:45:00+01:00",
+     "id": "STSZSA",
+     "begin": "2026-11-18T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-18T21:10:00+01:00",
+     "id": "2TJGZ0",
+     "begin": "2026-11-18T20:25:00+01:00"
+    },
+    {
+     "end": "2026-11-19T19:45:00+01:00",
+     "id": "WNPHNA",
+     "begin": "2026-11-19T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-19T21:10:00+01:00",
+     "id": "3Y1SV0",
+     "begin": "2026-11-19T20:25:00+01:00"
+    },
+    {
+     "end": "2026-11-20T19:45:00+01:00",
+     "id": "KJE0KM",
+     "begin": "2026-11-20T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-20T21:10:00+01:00",
+     "id": "PW8BKC",
+     "begin": "2026-11-20T20:25:00+01:00"
+    },
+    {
+     "end": "2026-11-21T21:15:00+01:00",
+     "id": "6AWB0E",
+     "begin": "2026-11-21T20:30:00+01:00"
+    },
+    {
+     "end": "2026-11-25T19:45:00+01:00",
+     "id": "GM52J5",
+     "begin": "2026-11-25T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-25T21:10:00+01:00",
+     "id": "Y82QYZ",
+     "begin": "2026-11-25T20:25:00+01:00"
+    },
+    {
+     "end": "2026-11-26T19:45:00+01:00",
+     "id": "NNBWWG",
+     "begin": "2026-11-26T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-26T21:10:00+01:00",
+     "id": "65CZBT",
+     "begin": "2026-11-26T20:25:00+01:00"
+    },
+    {
+     "end": "2026-11-27T19:45:00+01:00",
+     "id": "RJC5YB",
+     "begin": "2026-11-27T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-27T21:10:00+01:00",
+     "id": "Z939Z5",
+     "begin": "2026-11-27T20:25:00+01:00"
+    },
+    {
+     "end": "2026-11-28T21:15:00+01:00",
+     "id": "GBB223",
+     "begin": "2026-11-28T20:30:00+01:00"
+    },
+    {
+     "end": "2026-12-02T19:45:00+01:00",
+     "id": "9BESJZ",
+     "begin": "2026-12-02T19:00:00+01:00"
+    },
+    {
+     "end": "2026-12-02T21:10:00+01:00",
+     "id": "9M5CMT",
+     "begin": "2026-12-02T20:25:00+01:00"
+    },
+    {
+     "end": "2026-12-03T19:45:00+01:00",
+     "id": "QKBK6G",
+     "begin": "2026-12-03T19:00:00+01:00"
+    },
+    {
+     "end": "2026-12-03T21:10:00+01:00",
+     "id": "G3N8FR",
+     "begin": "2026-12-03T20:25:00+01:00"
+    },
+    {
+     "end": "2026-12-04T19:45:00+01:00",
+     "id": "ZQKRY8",
+     "begin": "2026-12-04T19:00:00+01:00"
+    },
+    {
+     "end": "2026-12-04T21:10:00+01:00",
+     "id": "HWZTPX",
+     "begin": "2026-12-04T20:25:00+01:00"
+    },
+    {
+     "end": "2026-12-05T21:15:00+01:00",
+     "id": "X4Q552",
+     "begin": "2026-12-05T20:30:00+01:00"
+    },
+    {
+     "end": "2026-12-09T19:45:00+01:00",
+     "id": "P2DEGB",
+     "begin": "2026-12-09T19:00:00+01:00"
+    },
+    {
+     "end": "2026-12-09T21:10:00+01:00",
+     "id": "F230WQ",
+     "begin": "2026-12-09T20:25:00+01:00"
+    },
+    {
+     "end": "2026-12-10T19:45:00+01:00",
+     "id": "T15WM5",
+     "begin": "2026-12-10T19:00:00+01:00"
+    },
+    {
+     "end": "2026-12-10T21:10:00+01:00",
+     "id": "XGTJJ0",
+     "begin": "2026-12-10T20:25:00+01:00"
+    },
+    {
+     "end": "2026-12-11T19:45:00+01:00",
+     "id": "A6X6X5",
+     "begin": "2026-12-11T19:00:00+01:00"
+    },
+    {
+     "end": "2026-12-11T21:10:00+01:00",
+     "id": "CV9CKT",
+     "begin": "2026-12-11T20:25:00+01:00"
+    },
+    {
+     "end": "2026-12-12T21:15:00+01:00",
+     "id": "N9NHWD",
+     "begin": "2026-12-12T20:30:00+01:00"
+    },
+    {
+     "end": "2026-12-16T19:45:00+01:00",
+     "id": "ESPS9X",
+     "begin": "2026-12-16T19:00:00+01:00"
+    },
+    {
+     "end": "2026-12-16T21:10:00+01:00",
+     "id": "M2HCRW",
+     "begin": "2026-12-16T20:25:00+01:00"
+    },
+    {
+     "end": "2026-12-17T19:45:00+01:00",
+     "id": "7DCQF2",
+     "begin": "2026-12-17T19:00:00+01:00"
+    },
+    {
+     "end": "2026-12-17T21:10:00+01:00",
+     "id": "AX1JME",
+     "begin": "2026-12-17T20:25:00+01:00"
+    },
+    {
+     "end": "2026-12-18T19:45:00+01:00",
+     "id": "JYNF6N",
+     "begin": "2026-12-18T19:00:00+01:00"
+    },
+    {
+     "end": "2026-12-18T21:10:00+01:00",
+     "id": "6A9A0C",
+     "begin": "2026-12-18T20:25:00+01:00"
+    },
+    {
+     "end": "2026-12-19T21:15:00+01:00",
+     "id": "32AM2S",
+     "begin": "2026-12-19T20:30:00+01:00"
+    },
+    {
+     "end": "2026-12-23T19:45:00+01:00",
+     "id": "2BFP05",
+     "begin": "2026-12-23T19:00:00+01:00"
+    },
+    {
+     "end": "2026-12-23T21:10:00+01:00",
+     "id": "HHV3VV",
+     "begin": "2026-12-23T20:25:00+01:00"
+    }
+   ],
+   "attendanceMode": 1,
+   "onlineAccessLink": null,
+   "status": 1,
+   "extIds": null,
+   "uid": 42586898,
+   "slug": "luminiscence-a-orleans-9959525",
+   "private": 0,
+   "timezone": "Europe/Paris",
+   "draft": 0,
+   "createdAt": "2026-09-29T09:13:07.000Z",
+   "updatedAt": "2026-09-29T10:26:24.000Z",
+   "links": [],
+   "canonicalUrl": "https://openagenda.com/orleans-metropole/events/42586898_luminiscence-a-orleans-9959525",
+   "valid": true
+  },
+  "68322993": {
+   "firstTiming": {
+    "end": "2026-10-19T19:30:00.000+02:00",
+    "id": "NZA7Y5",
+    "begin": "2026-10-19T18:30:00.000+02:00"
+   },
+   "nextTiming": {
+    "end": "2026-10-19T19:30:00+02:00",
+    "id": "NZA7Y5",
+    "begin": "2026-10-19T18:30:00+02:00"
+   },
+   "lastTiming": {
+    "end": "2026-10-19T19:30:00.000+02:00",
+    "id": "NZA7Y5",
+    "begin": "2026-10-19T18:30:00.000+02:00"
+   },
+   "rights": {
+    "license": {
+     "name": "Licence Ouverte 2.0",
+     "id": "etalab-2.0",
+     "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+    },
+    "licensor": {
+     "agendaUid": 35710944,
+     "name": "Agenda de sorties dans la métropole orléanaise",
+     "url": "http://sortir.orleans-metropole.fr"
+    },
+    "publisher": {
+     "agendaUid": 35710944,
+     "name": "Agenda de sorties dans la métropole orléanaise",
+     "url": "http://sortir.orleans-metropole.fr"
+    }
+   },
+   "dateRange": {
+    "ar": "الإثنين ١٩ أكتوبر, 18:30",
+    "de": "Montag 19 Oktober, 18:30",
+    "en": "Monday 19 October, 18:30",
+    "it": "Lunedì 19 ottobre, 18:30",
+    "fr": "Lundi 19 octobre, 18h30",
+    "es": "Lunes 19 octubre, 18:30",
+    "nl": "Maandag 19 oktober, 18u30"
+   },
+   "state": 2,
+   "featured": false,
+   "motive": null,
+   "originAgenda": {
+    "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+    "private": 0,
+    "locationSetUid": 68951964,
+    "official": true,
+    "description": "Propositions de sorties à Orléans et dans les 22 communes de la métropole.",
+    "title": "Agenda de sorties dans la métropole orléanaise",
+    "url": "http://sortir.orleans-metropole.fr",
+    "_agg": "eyJ1aWQiOjM1NzEwOTQ0LCJ0aXRsZSI6IkFnZW5kYSBkZSBzb3J0aWVzIGRhbnMgbGEgbcOpdHJvcG9sZSBvcmzDqWFuYWlzZSIsImltYWdlIjoiYjA5NzA5MTM4ZGIxNDdlMjhkNTA1NDFiMjRkNDkxNTAuZnVsbC5pbWFnZS5qcGciLCJ1cmwiOiJodHRwOi8vc29ydGlyLm9ybGVhbnMtbWV0cm9wb2xlLmZyIiwic2x1ZyI6Im9ybGVhbnMtbWV0cm9wb2xlIn0=",
+    "uid": 35710944,
+    "createdAt": "2016-10-10T07:45:09.000Z",
+    "organization": {
+     "name": null,
+     "url": null
+    },
+    "officializedAt": null,
+    "slug": "orleans-metropole",
+    "updatedAt": "2026-10-17T10:07:29.000Z"
+   },
+   "sourceAgendas": [],
+   "organizatorName": "Cercle Jean Zay d'Orléans",
+   "organizatorContact": null,
+   "categorie-principale": [
+    2
+   ],
+   "balade-decouverte-visite": [],
+   "conference-rencontre-debat": [],
+   "exposition": [],
+   "fete-salon-marche": [],
+   "musique": [],
+   "projection-cinema": [],
+   "spectacle": [],
+   "sport": [],
+   "stage-atelier-jeu": [],
+   "image": {
+    "filename": "2ce31e97053b409fb3e85d6312d31fd7.base.image.jpg",
+    "size": {
+     "width": 333,
+     "height": 500
+    },
+    "variants": [
+     {
+      "filename": "2ce31e97053b409fb3e85d6312d31fd7.full.image.jpg",
+      "size": {
+       "width": 333,
+       "height": 500
+      },
+      "type": "full"
+     },
+     {
+      "filename": "2ce31e97053b409fb3e85d6312d31fd7.thumb.image.jpg",
+      "size": {
+       "width": 200,
+       "height": 200
+      },
+      "type": "thumbnail"
+     }
+    ],
+    "base": "https://img.openagenda.com/main/"
+   },
+   "imageCredits": "©  Francesca Mantovani-éditions Gallimard",
+   "title": {
+    "fr": "Conférence de Pascal ORY de l'Académie française"
+   },
+   "description": {
+    "fr": "Thème : Comment le Front populaire inventa la politique culturelle, et ce qu'il en advint. 1e partie à l'hôtel Dupanloup, 2nde partie au restaurant Le Martroi."
+   },
+   "keywords": {
+    "fr": [
+     "politique culturelle",
+     "Front populaire",
+     "Jean Zay",
+     "gratuit"
+    ]
+   },
+   "longDescription": {
+    "fr": "<p>Il y a 90 ans, la victoire du Front populaire, qui porte Léon Blum à la tête du gouvernement, change le visage de la France. Un tournant historique marqué par des conquêtes sociales à l’été 1936. Les congés payés et la semaine de 40 heures, qui libèrent du temps pour les loisirs, ouvrent le projet politique d’émancipation du citoyen et tout un programme de «&nbsp;popularisation&nbsp;», de formes populaires de culture.<br>Professeur d’histoire contemporaine, Pascal Ory, auteur de nombreux ouvrages portant sur l’histoire culturelle et politique des sociétés contemporaines, s’est particulièrement intéressé à cette période. La Belle illusion, culture et politique sous le signe du Front populaire, ouvrage publié en 2016, issu de sa thèse soutenue en 1997, décrit l’intense bouillonnement politique et intellectuel que représente cette période dans tous les domaines&nbsp;: «&nbsp;Et la culture devint une affaire d’État&nbsp;».<br>La période du Front populaire (1935-1938), les quatre gouvernements placés sous son égide (1936-1938), le ministère de l'Éducation nationale que Jean Zay a dirigé (1936-1939), auront constitué un moment fondateur à partir duquel il sera légitime dans ce pays de parler de «&nbsp;culture&nbsp;» et de «&nbsp;politique culturelle&nbsp;». Au cours de sa conférence, Pascal Ory essaiera d'expliquer pourquoi, comment et jusqu'où&nbsp;?</p>\n"
+   },
+   "conditions": {
+    "fr": "Entrée libre sur inscription"
+   },
+   "age": {
+    "min": null,
+    "max": null
+   },
+   "registration": [
+    {
+     "type": "link",
+     "value": "https://www.helloasso.com/associations/cercle-jean-zay-d-orleans/evenements/banquet-republicain-2026"
+    },
+    {
+     "type": "link",
+     "value": "https://www.helloasso.com/associations/cercle-jean-zay-d-orleans/evenements/banquet-republicain-2026-2e-partie"
+    }
+   ],
+   "accessibility": {
+    "ii": false,
+    "hi": false,
+    "vi": false,
+    "pi": false,
+    "mi": false
+   },
+   "location": {
+    "uid": 80539918,
+    "name": "Hôtel Dupanloup",
+    "address": "1 rue Dupanloup",
+    "city": "Orléans",
+    "postalCode": "45000",
+    "department": "Loiret",
+    "region": "Centre-Val de Loire",
+    "countryCode": "FR",
+    "latitude": 47.902433,
+    "longitude": 1.912481,
+    "timezone": "Europe/Paris"
+   },
+   "timings": [
+    {
+     "end": "2026-10-19T19:30:00+02:00",
+     "id": "NZA7Y5",
+     "begin": "2026-10-19T18:30:00+02:00"
+    }
+   ],
+   "attendanceMode": 1,
+   "onlineAccessLink": null,
+   "status": 1,
+   "extIds": null,
+   "uid": 68322993,
+   "slug": "conference-de-pascal-ory-de-lacademie-francaise",
+   "private": 0,
+   "timezone": "Europe/Paris",
+   "draft": 0,
+   "createdAt": "2026-09-17T12:23:49.000Z",
+   "updatedAt": "2026-09-18T08:03:47.000Z",
+   "links": [],
+   "canonicalUrl": "https://openagenda.com/orleans-metropole/events/68322993_conference-de-pascal-ory-de-lacademie-francaise",
+   "valid": true
+  },
+  "83901647": {
+   "firstTiming": {
+    "end": "2026-10-28T17:00:00.000+01:00",
+    "id": "21PDY4",
+    "begin": "2026-10-28T15:30:00.000+01:00"
+   },
+   "nextTiming": {
+    "end": "2026-10-28T17:00:00+01:00",
+    "id": "21PDY4",
+    "begin": "2026-10-28T15:30:00+01:00"
+   },
+   "lastTiming": {
+    "end": "2026-10-28T17:00:00.000+01:00",
+    "id": "21PDY4",
+    "begin": "2026-10-28T15:30:00.000+01:00"
+   },
+   "rights": {
+    "license": {
+     "name": "Licence Ouverte 2.0",
+     "id": "etalab-2.0",
+     "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+    },
+    "licensor": {
+     "agendaUid": 3991265,
+     "name": "Agenda de  Chécy",
+     "url": "http://www.checy.fr"
+    },
+    "publisher": {
+     "agendaUid": 35710944,
+     "name": "Agenda de sorties dans la métropole orléanaise",
+     "url": "http://sortir.orleans-metropole.fr"
+    }
+   },
+   "dateRange": {
+    "ar": "الأربعاء ٢٨ أكتوبر, 15:30",
+    "de": "Mittwoch 28 Oktober, 15:30",
+    "en": "Wednesday 28 October, 15:30",
+    "it": "Mercoledì 28 ottobre, 15:30",
+    "fr": "Mercredi 28 octobre, 15h30",
+    "es": "Miércoles 28 octubre, 15:30",
+    "nl": "Woensdag 28 oktober, 15u30"
+   },
+   "state": 2,
+   "featured": false,
+   "motive": null,
+   "originAgenda": {
+    "image": "e45937a9045945a4839ff3817bf0522e.full.image.jpg",
+    "private": 0,
+    "locationSetUid": null,
+    "official": true,
+    "description": "Retrouvez tous les évènements de la ville de Chécy : sorties, animations, concerts...",
+    "title": "Agenda de  Chécy",
+    "url": "http://www.checy.fr",
+    "_agg": "eyJ1aWQiOjM5OTEyNjUsInRpdGxlIjoiQWdlbmRhIGRlICBDaMOpY3kiLCJpbWFnZSI6ImU0NTkzN2E5MDQ1OTQ1YTQ4MzlmZjM4MTdiZjA1MjJlLmZ1bGwuaW1hZ2UuanBnIiwidXJsIjoiaHR0cDovL3d3dy5jaGVjeS5mciIsInNsdWciOiJjaGVjeSJ9",
+    "uid": 3991265,
+    "createdAt": "2017-03-07T10:58:01.000Z",
+    "organization": {
+     "name": null,
+     "url": null
+    },
+    "officializedAt": "2018-06-12T13:29:12.000Z",
+    "slug": "checy",
+    "updatedAt": "2026-10-07T14:22:22.000Z"
+   },
+   "sourceAgendas": [
+    {
+     "image": "e45937a9045945a4839ff3817bf0522e.full.image.jpg",
+     "private": 0,
+     "indexed": 1,
+     "locationSetUid": null,
+     "official": 1,
+     "description": "Retrouvez tous les évènements de la ville de Chécy : sorties, animations, concerts...",
+     "title": "Agenda de  Chécy",
+     "url": "http://www.checy.fr",
+     "_agg": "eyJ1aWQiOjM5OTEyNjUsInRpdGxlIjoiQWdlbmRhIGRlICBDaMOpY3kiLCJpbWFnZSI6ImU0NTkzN2E5MDQ1OTQ1YTQ4MzlmZjM4MTdiZjA1MjJlLmZ1bGwuaW1hZ2UuanBnIn0=",
+     "uid": 3991265,
+     "createdAt": "2017-03-07T10:58:01.000Z",
+     "organization": {
+      "name": null,
+      "url": null
+     },
+     "officializedAt": "2018-06-12T13:29:12.000Z",
+     "slug": "checy",
+     "updatedAt": "2026-10-07T14:22:22.000Z"
+    }
+   ],
+   "organizatorName": "VILLE DE CHÉCY",
+   "organizatorContact": null,
+   "categorie-principale": [
+    6
+   ],
+   "balade-decouverte-visite": [],
+   "conference-rencontre-debat": [],
+   "exposition": [],
+   "fete-salon-marche": [],
+   "musique": [],
+   "projection-cinema": [],
+   "spectacle": [],
+   "sport": [],
+   "stage-atelier-jeu": [],
+   "image": {
+    "filename": "966ff1a90d0c4b7282e1c94db55e476a.base.image.jpg",
+    "size": {
+     "width": 700,
+     "height": 700
+    },
+    "variants": [
+     {
+      "filename": "966ff1a90d0c4b7282e1c94db55e476a.full.image.jpg",
+      "size": {
+       "width": 1800,
+       "height": 1800
+      },
+      "type": "full"
+     },
+     {
+      "filename": "966ff1a90d0c4b7282e1c94db55e476a.thumb.image.jpg",
+      "size": {
+       "width": 200,
+       "height": 200
+      },
+      "type": "thumbnail"
+     }
+    ],
+    "base": "https://img.openagenda.com/main/"
+   },
+   "imageCredits": "CHÉCY",
+   "title": {
+    "fr": "ARCO"
+   },
+   "description": {
+    "fr": "CINÉMÔMES À L’AUDITORIUM DE LA CANOPÉE… POUR VOIR LES FILMS COMME AU CINÉMA !"
+   },
+   "keywords": {
+    "fr": [
+     "cinéma ; animation ; césar"
+    ]
+   },
+   "longDescription": {
+    "fr": "<p>En 2075, une petite fille de 10 ans, Iris, voit un mystérieux garçon vêtu d’une combinaison arc-en-ciel tomber du ciel. C’est Arco. Il vient d’un futur lointain et idyllique où voyager dans le temps est possible. Iris le recueille et va l’aider par tous les moyens à rentrer chez lui.<br><em>\"Arco, le conte fantastique d’une formidable inventivité, césar du meilleur film d’animation\"</em> Télérama</p>\n"
+   },
+   "conditions": {
+    "fr": "2€ pour les – de 18 ans ; 5 € pour les adultes."
+   },
+   "age": {
+    "min": 7,
+    "max": 99
+   },
+   "registration": [
+    {
+     "type": "email",
+     "value": "contact@example.org"
+    },
+    {
+     "type": "phone",
+     "value": "02 00 00 00 00"
+    },
+    {
+     "type": "link",
+     "value": "http://mediatheque-checy.c3rb.org"
+    }
+   ],
+   "accessibility": {
+    "ii": false,
+    "hi": false,
+    "vi": false,
+    "pi": false,
+    "mi": true
+   },
+   "location": {
+    "uid": 84217278,
+    "name": "La Canopée",
+    "address": "Rue de la herpinière 45430 CHECY",
+    "city": "Chécy",
+    "postalCode": "45430",
+    "department": "Loiret",
+    "region": "Centre-Val de Loire",
+    "countryCode": "FR",
+    "latitude": 47.891873,
+    "longitude": 2.029297,
+    "timezone": "Europe/Paris"
+   },
+   "timings": [
+    {
+     "end": "2026-10-28T17:00:00+01:00",
+     "id": "21PDY4",
+     "begin": "2026-10-28T15:30:00+01:00"
+    }
+   ],
+   "attendanceMode": 1,
+   "onlineAccessLink": null,
+   "status": 1,
+   "extIds": null,
+   "uid": 83901647,
+   "slug": "arco-2974463",
+   "private": 0,
+   "timezone": "Europe/Paris",
+   "draft": 0,
+   "createdAt": "2026-09-21T09:41:12.000Z",
+   "updatedAt": "2026-09-21T09:41:14.000Z",
+   "links": [],
+   "canonicalUrl": "https://openagenda.com/checy/events/83901647_arco-2974463",
+   "valid": true
+  }
+ }
+}
