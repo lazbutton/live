@@ -12,6 +12,7 @@ import {
   Pencil,
   Star,
   Ticket,
+  Undo2,
   Users,
 } from "lucide-react";
 
@@ -64,6 +65,9 @@ export type EventsTableProps = {
   onEditArtists: (event: AdminEvent) => void;
   onToggleFeatured: (event: AdminEvent) => Promise<void>;
   onToggleFull: (event: AdminEvent) => Promise<void>;
+  /** Événements créés par l'agent : ceux qui sont publiés peuvent être dépubliés. */
+  agentEventIds?: ReadonlySet<string>;
+  onUnpublishAgentEvent?: (event: AdminEvent) => Promise<void>;
   onCreateAtDate: (date: Date) => void;
 };
 
@@ -79,6 +83,8 @@ export function EventsTable({
   onEditArtists,
   onToggleFeatured,
   onToggleFull,
+  agentEventIds,
+  onUnpublishAgentEvent,
   onCreateAtDate,
 }: EventsTableProps) {
   const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
@@ -338,6 +344,15 @@ export function EventsTable({
                           <DropdownMenuItem onSelect={() => void approve(event.id)}>
                             <Check className="text-success" />
                             Approuver
+                          </DropdownMenuItem>
+                        </>
+                      ) : null}
+                      {event.status === "approved" && onUnpublishAgentEvent && agentEventIds?.has(event.id) ? (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onSelect={() => void onUnpublishAgentEvent(event)}>
+                            <Undo2 />
+                            Dépublier
                           </DropdownMenuItem>
                         </>
                       ) : null}

@@ -34,6 +34,8 @@ import {
   type IntakeEventPrefillPayload,
 } from "../intake/intake-event-prefill";
 import { logAdminAction } from "@/lib/admin-audit-log";
+import { AGENT_ACTOR } from "@/lib/agent/actor";
+import { fetchAgentEventIds } from "@/lib/agent-activity";
 import { ManagementEmptyState } from "../management-page-primitives";
 import { CalendarDays, Check, X } from "lucide-react";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -192,6 +194,10 @@ export function EventsPage() {
   const [filterAppVisibility, setFilterAppVisibility] = React.useState<
     "all" | "app" | "off_app"
   >("all");
+  const [agentEventsOnly, setAgentEventsOnly] = React.useState(false);
+  const [agentEventIds, setAgentEventIds] = React.useState<Set<string>>(
+    () => new Set(),
+  );
 
   const [selectedEvent, setSelectedEvent] = React.useState<AdminEvent | null>(
     null,
@@ -323,6 +329,15 @@ export function EventsPage() {
     setEvents((data || []) as AdminEvent[]);
   }, []);
 
+  // Le filtre « Créés par l'agent » reste vide si le journal d'audit est illisible.
+  const loadAgentEventIds = React.useCallback(async () => {
+    try {
+      setAgentEventIds(await fetchAgentEventIds());
+    } catch (error) {
+      console.warn("Événements de l'agent indisponibles:", error);
+    }
+  }, []);
+
   const loadAll = React.useCallback(async () => {
     setLoading(true);
     try {
@@ -333,6 +348,7 @@ export function EventsPage() {
         loadArtists(),
         loadTags(),
         loadCategories(),
+        loadAgentEventIds(),
       ]);
     } catch (e) {
       console.error("Erreur chargement events:", e);
@@ -345,6 +361,7 @@ export function EventsPage() {
       setLoading(false);
     }
   }, [
+    loadAgentEventIds,
     loadArtists,
     loadCategories,
     loadEvents,
@@ -401,6 +418,10 @@ export function EventsPage() {
       statusParam === "all"
     ) {
       setFilterStatus(statusParam);
+    }
+
+    if (params.get("agent") === "1") {
+      setAgentEventsOnly(true);
     }
 
     const createParam = params.get("create");
@@ -470,6 +491,36 @@ export function EventsPage() {
     router.replace(query ? `/admin/events?${query}` : "/admin/events");
   }, [categories, loading, router, searchParams]);
 
+  // Lien direct vers un événement (?event=<id>, depuis le tableau de bord) : ouvre sa fiche.
+  const didOpenEventFromQuery = React.useRef(false);
+  React.useEffect(() => {
+    if (loading || didOpenEventFromQuery.current || !searchParams) return;
+
+    const eventId = searchParams.get("event");
+    if (!eventId) return;
+
+    didOpenEventFromQuery.current = true;
+    const target = events.find((event) => event.id === eventId);
+    if (target) {
+      setSelectedEvent(target);
+      setPrefill(undefined);
+      setActiveIntakePrefill(null);
+      setDefaultDate(undefined);
+      setIsFormOpen(true);
+    } else {
+      toast({
+        title: "Événement introuvable",
+        description: "Il a peut-être été supprimé.",
+        variant: "destructive",
+      });
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("event");
+    const query = params.toString();
+    router.replace(query ? `/admin/events?${query}` : "/admin/events");
+  }, [events, loading, router, searchParams]);
+
   const didApplyRequestPrefill = React.useRef(false);
   React.useEffect(() => {
     if (loading || didApplyRequestPrefill.current || !searchParams) return;
@@ -517,6 +568,10 @@ export function EventsPage() {
 
     if (filterStatus !== "all") {
       filtered = filtered.filter((ev) => ev.status === filterStatus);
+    }
+
+    if (agentEventsOnly) {
+      filtered = filtered.filter((ev) => agentEventIds.has(ev.id));
     }
 
     if (searchQuery.trim()) {
@@ -577,6 +632,8 @@ export function EventsPage() {
     );
     return filtered;
   }, [
+    agentEventIds,
+    agentEventsOnly,
     categories,
     events,
     filterCategory,
@@ -661,6 +718,9 @@ export function EventsPage() {
   const pendingCount = React.useMemo(() => {
     // count pending with current search, independent of status toggle
     let base = [...events];
+    if (agentEventsOnly) {
+      base = base.filter((ev) => agentEventIds.has(ev.id));
+    }
     if (searchQuery.trim()) {
       base = base.filter((ev) => matchesEventSearch(ev, searchQuery));
     }
@@ -695,6 +755,8 @@ export function EventsPage() {
     }
     return base.filter((ev) => ev.status === "pending").length;
   }, [
+    agentEventIds,
+    agentEventsOnly,
     categories,
     events,
     filterCategory,
@@ -717,6 +779,7 @@ export function EventsPage() {
     setHideLongEvents(false);
     setFilterAppVisibility("all");
     setFilterLocation("all");
+    setAgentEventsOnly(false);
   }
 
   function duplicateEvent(event: AdminEvent) {
@@ -826,6 +889,43 @@ export function EventsPage() {
       console.error("Erreur approve:", e);
       toast({
         title: "Approbation impossible",
+        description: e?.message || "Une erreur est survenue.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  // Retire de l'app un événement publié directement par l'agent : il repasse en attente.
+  async function unpublishAgentEvent(event: AdminEvent) {
+    try {
+      const { error } = await supabase
+        .from("events")
+        .update({ status: "pending" })
+        .eq("id", event.id);
+      if (error) throw error;
+
+      await logAdminAction({
+        action: "event.unpublish",
+        entityType: "event",
+        entityId: event.id,
+        entityLabel: event.title || null,
+        metadata: {
+          old_status: event.status,
+          new_status: "pending",
+          created_by: AGENT_ACTOR,
+        },
+      });
+
+      toast({
+        title: "Événement dépublié",
+        description: "Il repasse en attente de validation.",
+        variant: "success",
+      });
+      await loadEvents();
+    } catch (e: any) {
+      console.error("Erreur unpublish:", e);
+      toast({
+        title: "Dépublication impossible",
         description: e?.message || "Une erreur est survenue.",
         variant: "destructive",
       });
@@ -1025,6 +1125,8 @@ export function EventsPage() {
         filterLocation={filterLocation}
         onFilterLocationChange={setFilterLocation}
         locations={locations}
+        agentEventsOnly={agentEventsOnly}
+        onAgentEventsOnlyChange={setAgentEventsOnly}
         pendingCount={pendingCount}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
@@ -1041,6 +1143,8 @@ export function EventsPage() {
           onOpenArtistsDialog={openArtistsDialog}
           onToggleFull={toggleEventFull}
           onToggleFeatured={toggleEventFeatured}
+          agentEventIds={agentEventIds}
+          onUnpublishAgentEvent={unpublishAgentEvent}
           initialAnchor={calendarAnchor}
           initialView="week"
         />
@@ -1099,6 +1203,8 @@ export function EventsPage() {
               onEditArtists={openArtistsDialog}
               onToggleFeatured={toggleEventFeatured}
               onToggleFull={toggleEventFull}
+              agentEventIds={agentEventIds}
+              onUnpublishAgentEvent={unpublishAgentEvent}
               onCreateAtDate={(date) => openEventCreation({ date })}
             />
           )}

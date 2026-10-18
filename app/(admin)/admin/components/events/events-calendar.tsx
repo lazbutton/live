@@ -25,6 +25,9 @@ export type EventsCalendarProps = {
   onOpenArtistsDialog: (event: AdminEvent) => void;
   onToggleFull: (event: AdminEvent) => Promise<void>;
   onToggleFeatured: (event: AdminEvent) => Promise<void>;
+  /** Événements créés par l'agent : ceux qui sont publiés peuvent être dépubliés. */
+  agentEventIds?: ReadonlySet<string>;
+  onUnpublishAgentEvent?: (event: AdminEvent) => Promise<void>;
   initialAnchor?: Date;
   initialView?: "week" | "month";
 };
@@ -38,6 +41,8 @@ export function EventsCalendar({
   onOpenArtistsDialog,
   onToggleFull,
   onToggleFeatured,
+  agentEventIds,
+  onUnpublishAgentEvent,
   initialAnchor,
   initialView,
 }: EventsCalendarProps) {
@@ -423,6 +428,7 @@ export function EventsCalendar({
           onToggleFull={onToggleFull}
           onToggleFeatured={onToggleFeatured}
           onQuickApprove={(event) => onQuickApprove(event.id)}
+          onUnpublish={agentEventIds?.has(contextMenu.event.id) ? onUnpublishAgentEvent : undefined}
         />
       ) : null}
     </Card>

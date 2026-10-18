@@ -34,6 +34,8 @@ export type EventFiltersBarProps = {
   filterLocation: string;
   onFilterLocationChange: (value: string) => void;
   locations: LocationData[];
+  agentEventsOnly: boolean;
+  onAgentEventsOnlyChange: (value: boolean) => void;
   pendingCount: number;
   viewMode: "calendar" | "list";
   onViewModeChange: (mode: "calendar" | "list") => void;
@@ -56,6 +58,8 @@ export function EventFiltersBar({
   filterLocation,
   onFilterLocationChange,
   locations,
+  agentEventsOnly,
+  onAgentEventsOnlyChange,
   pendingCount,
   viewMode,
   onViewModeChange,
@@ -68,12 +72,14 @@ export function EventFiltersBar({
     filterCategory !== "all" ||
     hideLongEvents ||
     filterAppVisibility !== "all" ||
-    filterLocation !== "all";
+    filterLocation !== "all" ||
+    agentEventsOnly;
   const secondaryFilterCount =
     (filterLocation !== "all" ? 1 : 0) +
     (filterCategory !== "all" ? 1 : 0) +
     (filterAppVisibility !== "all" ? 1 : 0) +
-    (hideLongEvents ? 1 : 0);
+    (hideLongEvents ? 1 : 0) +
+    (agentEventsOnly ? 1 : 0);
   // Sur mobile, les filtres secondaires sont repliés derrière « Filtres ».
   const [showSecondaryFilters, setShowSecondaryFilters] = React.useState(false);
   const locationOptions = React.useMemo(
@@ -187,6 +193,17 @@ export function EventFiltersBar({
             <SelectItem value="off_app">Hors app</SelectItem>
           </SelectContent>
         </Select>
+
+        <div className="flex h-9 items-center gap-2 rounded-md border border-input px-3 shadow-xs max-md:h-10 dark:bg-input/25">
+          <Switch
+            id="agent-events-only"
+            checked={agentEventsOnly}
+            onCheckedChange={onAgentEventsOnlyChange}
+          />
+          <Label htmlFor="agent-events-only" className="cursor-pointer whitespace-nowrap text-[13px] font-normal">
+            Créés par l’agent
+          </Label>
+        </div>
 
         <div className="flex h-9 items-center gap-2 rounded-md border border-input px-3 shadow-xs max-md:h-10 dark:bg-input/25">
           <Switch

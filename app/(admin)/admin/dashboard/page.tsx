@@ -24,6 +24,7 @@ import type {
 import { KpiCards } from "../components/dashboard/kpi-cards";
 import { WeekTimeline } from "../components/dashboard/week-timeline";
 import { PendingRequestsFeed } from "../components/dashboard/pending-requests-feed";
+import { AgentActivityCard } from "../components/dashboard/agent-activity-card";
 import { EventArtistsQuickDialog } from "../components/events/event-artists-quick-dialog";
 import { EventFormSheet } from "../components/events/event-form-sheet";
 import { logAdminAction } from "@/lib/admin-audit-log";
@@ -414,6 +415,8 @@ export default function DashboardPage() {
           total={overdueIntakeTotal}
           onOpenIntake={() => router.push("/admin/intake?filter=overdue")}
         />
+
+        <AgentActivityCard />
 
         <WeekTimeline
           events={weekEvents}

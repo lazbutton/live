@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, Pencil, Sparkles, Star, Users } from "lucide-react";
+import { CheckCircle2, Pencil, Sparkles, Star, Undo2, Users } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -20,6 +20,8 @@ type EventContextMenuProps = {
   onToggleFull: (event: AdminEvent) => Promise<void>;
   onToggleFeatured: (event: AdminEvent) => Promise<void>;
   onQuickApprove?: (event: AdminEvent) => Promise<void>;
+  /** Proposé pour les événements publiés (créés par l'agent) : repasse en attente. */
+  onUnpublish?: (event: AdminEvent) => Promise<void>;
 };
 
 type ActionButtonProps = {
@@ -58,6 +60,7 @@ export function EventContextMenu({
   onToggleFull,
   onToggleFeatured,
   onQuickApprove,
+  onUnpublish,
 }: EventContextMenuProps) {
   const menuRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -161,6 +164,17 @@ export function EventContextMenu({
               label="Approuver l’événement"
               onClick={() => runAction(() => onQuickApprove(event))}
               danger
+            />
+          </>
+        ) : null}
+
+        {event.status === "approved" && onUnpublish ? (
+          <>
+            <div className="-mx-1 my-1 h-px bg-border" />
+            <ActionButton
+              icon={<Undo2 className="h-4 w-4" />}
+              label="Dépublier"
+              onClick={() => runAction(() => onUnpublish(event))}
             />
           </>
         ) : null}
