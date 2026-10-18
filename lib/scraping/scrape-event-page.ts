@@ -6,6 +6,7 @@ import { splitArtistNames } from "@/lib/events/artist-names";
 
 import { fetchHtml, FetchHtmlError } from "./fetch-html";
 import { checkDateAgainstText, parisToday, toParisWallClock } from "./dates";
+import { onSortEventUid, scrapeOnSortEvent } from "./on-sort";
 import {
   dateOptionsForPage,
   decodeHtmlText,
@@ -22,6 +23,7 @@ import {
  *   3. IA, seulement pour ce qui manque (modèle léger si l'essentiel est déjà connu) ;
  *   4. métadonnées Open Graph.
  * Les dates sont rendues en heure murale de Paris (`YYYY-MM-DDTHH:mm:00`).
+ * Les fiches de l'agenda On sort ! sont lues directement par son API (voir on-sort.ts).
  */
 
 export interface ScrapedEventData {
@@ -43,6 +45,7 @@ export interface ScrapedEventData {
   address?: string;
   image_url?: string;
   external_url?: string;
+  external_url_label?: string;
   organizer?: string;
   artists?: string[];
   category?: string;
@@ -495,6 +498,9 @@ export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<Scrape
   } catch {
     return { ok: false, error: "URL invalide", status: 400 };
   }
+
+  // Agenda On sort ! (Orléans Métropole) : pages vides sans JavaScript, la fiche vient de l'API publique.
+  if (onSortEventUid(args.url)) return scrapeOnSortEvent(args.url);
 
   let page: { html: string; finalUrl: string };
   try {

@@ -6,7 +6,7 @@ import { scanAgendaPage } from "@/lib/scraping/agenda-scan";
 
 import { findOrCreateArtist } from "./artists";
 import { AGENT_ACTOR, loadAgentReferences, type AgentContext } from "./context";
-import { createAgentEventFromInput, importAgentEventUrls } from "./events";
+import { createAgentEventFromInput, findAgendaDuplicates, importAgentEventUrls, type AgendaDuplicate } from "./events";
 import { getAgentSource, listAgentSources, markAgentSourceReviewed } from "./sources";
 
 /*
@@ -91,7 +91,10 @@ const scanAgenda = defineTool({
     "est suivi et renvoyé dans `agenda_url` (à signaler pour corriger la source). `unreadable` : la page n'a rien " +
     "donné d'exploitable (bloquée, agenda en texte seul, liens qui ne sont pas des événements) et `to_import` est " +
     "vide ; un résultat vide ne veut pas dire qu'elle n'annonce rien : lis-la toi-même (voir `unreadable.next_step`) " +
-    "avant de marquer la source revue. Aucune écriture.",
+    "avant de marquer la source revue. Agenda On sort ! d'Orléans Métropole (sortir.orleans-metropole.fr) : lu par " +
+    "son API sur le mois à venir ; seuls concerts, spectacles, expositions, cinéma, rencontres et festivals sont " +
+    "gardés (le reste est compté dans `excluded`) et les doublons probables d'événements déjà présents sont signalés " +
+    "(`duplicate_of`). Aucune écriture.",
   input: z
     .object({
       source_id: z.string().optional().describe("Source à scanner (list_sources) : sa page d'agenda est utilisée."),
@@ -109,10 +112,14 @@ const scanAgenda = defineTool({
       organizerId: source?.owner?.type === "organizer" ? source.owner.id : null,
       locationId: source?.owner?.type === "location" ? source.owner.id : null,
     });
+    // Agenda partagé par des dizaines d'organisateurs, dont beaucoup sont déjà suivis par ailleurs.
+    const duplicates =
+      scan.method === "onsort" ? await findAgendaDuplicates(ctx, scan.events) : new Map<string, AgendaDuplicate>();
     // Page inexploitable : rien à importer d'office (liens « Accueil », « Youtube »…), la page est à relire.
     const toImport = scan.unreadable
       ? []
-      : scan.events.filter((event) => !event.known && !event.past && !event.cancelled);
+      : scan.events.filter((event) => !event.known && !event.past && !event.cancelled && !duplicates.has(event.url));
+    const excluded = Object.values(scan.excluded || {}).reduce((total, count) => total + count, 0);
     return {
       source: source ? { id: source.id, name: source.name } : null,
       url,
@@ -125,11 +132,14 @@ const scanAgenda = defineTool({
         : undefined,
       counts: {
         found: scan.events.length,
+        excluded: scan.excluded ? excluded : undefined,
         known: scan.events.filter((event) => event.known).length,
+        duplicates: scan.method === "onsort" ? duplicates.size : undefined,
         past: scan.events.filter((event) => event.past).length,
         cancelled: scan.events.filter((event) => event.cancelled).length,
         to_import: toImport.length,
       },
+      excluded: excluded ? scan.excluded : undefined,
       to_import: toImport.map((event) => event.url),
       events: scan.events.map(({ url: eventUrl, title, date, known, past, cancelled }) => ({
         url: eventUrl,
@@ -138,6 +148,7 @@ const scanAgenda = defineTool({
         known,
         past,
         cancelled,
+        duplicate_of: duplicates.get(eventUrl),
       })),
     };
   },

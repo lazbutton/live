@@ -145,7 +145,7 @@ async function findDuplicateEvent(
     }
   }
 
-  // Même lieu, même créneau.
+  // Même lieu, même horaire (même début : l'heure de fin manque souvent d'un côté, comme sur On sort !).
   if (locationId) {
     const overlapping = await fetchPotentialDuplicateEvents({
       supabase: ctx.supabase,
@@ -153,7 +153,9 @@ async function findDuplicateEvent(
       startValue: startIso,
       endValue: end ? fromDatetimeLocal(end) : startIso,
     }).catch(() => []);
-    const exact = overlapping.find((event) => event.matchKind === "exact");
+    const exact = overlapping.find(
+      (event) => event.matchKind === "exact" || Date.parse(event.date) === Date.parse(startIso),
+    );
     if (exact) return { id: exact.id, title: exact.title, date: exact.date, reason: "Même lieu, même horaire" };
   }
 
@@ -167,6 +169,57 @@ async function findDuplicateEvent(
   if (similar) return { id: similar.id, title: similar.title, date: similar.date, reason: "Même titre le même jour" };
 
   return null;
+}
+
+/** Doublon probable repéré au scan : événement existant (`id`) ou autre entrée du même agenda (`url`). */
+export type AgendaDuplicate = { id?: string; url?: string; title: string | null; date: string | null };
+
+/**
+ * Doublons probables d'un agenda partagé (On sort !) avant tout import, en une requête : titre
+ * équivalent à celui d'un événement existant le même jour (ou pendant une exposition en cours),
+ * ou à celui d'une entrée déjà vue le même jour (un événement publié deux fois dans l'agenda).
+ * import_urls applique de toute façon findDuplicateEvent à chaque fiche.
+ */
+export async function findAgendaDuplicates(
+  ctx: AgentContext,
+  events: Array<{ url: string; title: string | null; date: string | null; known?: boolean }>,
+): Promise<Map<string, AgendaDuplicate>> {
+  const duplicates = new Map<string, AgendaDuplicate>();
+  const dated = events.filter((event): event is typeof event & { title: string; date: string } =>
+    Boolean(event.title && event.date),
+  );
+  if (dated.length === 0) return duplicates;
+
+  const days = dated.map((event) => event.date.slice(0, 10)).sort();
+  const [first, last] = [days[0], days[days.length - 1]];
+  const { data } = await ctx.supabase
+    .from("events")
+    .select("id, title, date, end_date")
+    .lte("date", `${last}T23:59:59.999Z`)
+    .or(`date.gte.${first}T00:00:00.000Z,end_date.gte.${first}T00:00:00.000Z`);
+  const existing = (data || []) as Array<{ id: string; title: string | null; date: string | null; end_date: string | null }>;
+
+  const seen: Array<{ url: string; title: string; date: string }> = [];
+  for (const event of dated) {
+    const day = event.date.slice(0, 10);
+    if (!event.known) {
+      const match = existing.find(
+        (row) =>
+          row.date &&
+          row.date.slice(0, 10) <= day &&
+          day <= (row.end_date || row.date).slice(0, 10) &&
+          similarTitles(row.title, event.title),
+      );
+      const twin = match
+        ? undefined
+        : seen.find((other) => other.date.slice(0, 10) === day && similarTitles(other.title, event.title));
+      if (match) duplicates.set(event.url, { id: match.id, title: match.title, date: match.date });
+      else if (twin) duplicates.set(event.url, { url: twin.url, title: twin.title, date: twin.date });
+      if (match || twin) continue;
+    }
+    seen.push(event);
+  }
+  return duplicates;
 }
 
 /** Prévient les comptes organisateurs, comme lors d'une validation manuelle. */

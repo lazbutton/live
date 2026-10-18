@@ -44,7 +44,7 @@ export type AgendaDiscoveryOptions = {
 
 export type AgendaDiscoveryResult = {
   events: DiscoveredAgendaEvent[];
-  method: "socoop" | "facebook" | "structured" | "selector" | "auto";
+  method: "socoop" | "facebook" | "onsort" | "structured" | "selector" | "auto";
   pagesVisited: number;
   errors: string[];
   /** Page d'agenda trouvée sur le site quand l'adresse donnée ne menait à rien (à enregistrer). */
@@ -53,6 +53,8 @@ export type AgendaDiscoveryResult = {
   textDates?: number;
   /** Code HTTP de la première page qui n'a pas pu être lue (403, 429…). */
   failedStatus?: number;
+  /** Événements écartés car hors des domaines suivis, par raison (agendas partagés comme On sort !). */
+  excluded?: Record<string, number>;
 };
 
 const TRACKING_PARAM = /^(utm_\w+|fbclid|gclid|dclid|msclkid|mc_cid|mc_eid|igsh|igshid|_ga|ref|ref_src)$/i;
@@ -568,6 +570,8 @@ export function assessAgendaDiscovery(result: AgendaDiscoveryResult): AgendaUnre
       };
     }
     if (result.errors.length > 0) return { reason: "unreachable", message: `Page illisible : ${result.errors[0]}` };
+    // On sort ! lu par son API : rien à venir dans les domaines suivis, rien à relire à la main.
+    if (result.method === "onsort") return null;
     if (result.method === "facebook") {
       return { reason: "empty", message: "Aucun événement à venir lisible sans connexion sur cette page Facebook." };
     }
