@@ -8,6 +8,9 @@ Ce dossier contient toutes les migrations de base de données pour le projet.
   L'app n'a plus de dossier `supabase/` : toute migration se crée ici.
 - Les migrations actives sont les fichiers `YYYYMMDDHHMMSS_*.sql` à la racine de ce dossier,
   dans l'ordre des noms. `archives/` est historique (ne pas appliquer).
+  Exception sur une base neuve : la baseline `20251212120000` passe en premier. Les fichiers
+  `2025011x`/`2025012x`, commités avec elle le 2025-12-13, portent un nom antérieur mais modifient
+  ses tables.
 - Règles métier partagées avec l'app : en SQL. Exemple : `app_events()` définit les événements
   visibles dans l'app (approuvé, non archivé, `show_on_app`, non masqué par la modération).
 
@@ -30,6 +33,24 @@ select
 
 `app_events()` dépend de `show_on_app` : appliquer `20260915120000_add_show_on_app_and_agenda_types.sql`
 avant `20261017120000_create_app_events_function.sql`.
+
+### Après une migration : régénérer les types
+
+```bash
+npm run db:types   # Docker Desktop doit tourner
+```
+
+Le script (`scripts/db-types.sh`) monte une base Supabase locale jetable, y applique toutes les
+migrations (baseline d'abord), écrit `lib/supabase/database.types.ts` puis supprime la base.
+Committer le fichier avec la migration. Si une migration échoue sur une base neuve, le script
+s'arrête sur elle : c'est à corriger dans la migration.
+
+Comparer avec la prod (lecture seule, Management API, après `supabase login`) :
+
+```bash
+supabase gen types typescript --project-id <ref> --schema public > /tmp/prod.types.ts
+diff /tmp/prod.types.ts lib/supabase/database.types.ts
+```
 
 ## 📋 Structure
 
@@ -95,6 +116,7 @@ Exemples :
 ## ✅ Checklist avant d'appliquer une migration
 
 - [ ] Migration testée en local
+- [ ] Types régénérés (`npm run db:types`) et committés avec la migration
 - [ ] Modèle Flutter mis à jour si nécessaire
 - [ ] Services Flutter mis à jour si nécessaire
 - [ ] Documentée dans `MIGRATIONS_LOG.md`

@@ -10,6 +10,7 @@ npm run dev
 npm run build            # vérifie aussi les types
 npm run lint
 node --test lib/**/*.test.mjs   # tests (node:test), sans dépendance
+npm run db:types         # régénère lib/supabase/database.types.ts depuis les migrations (Docker)
 ```
 
 ## Base de données — ce repo est la source de vérité
@@ -19,6 +20,11 @@ node --test lib/**/*.test.mjs   # tests (node:test), sans dépendance
   `supabase/migrations/README.md`. Journal : `MIGRATIONS_LOG.md`.
 - Migrations appliquées à la main (SQL Editor) : toujours vérifier ce qui est en prod avant
   de supposer qu'une colonne existe.
+- Types : `lib/supabase/database.types.ts` (type `Database`), généré depuis les migrations par
+  `npm run db:types` (base locale jetable, Supabase CLI + Docker, jamais la prod). Après une
+  migration : le régénérer et le committer avec elle. Les clients de `lib/supabase/` sont typés ;
+  types de ligne : `Tables<"events">`, `TablesInsert<…>`, `TablesUpdate<…>`. `TODO(types)` marque
+  les écarts connus entre un type écrit à la main et le type généré.
 - Règles métier partagées avec l'app : en SQL. `app_events()` = événements visibles dans l'app
   (approuvé, non archivé, `show_on_app`, non masqué par la modération). Changer cette règle
   ici change l'app.
