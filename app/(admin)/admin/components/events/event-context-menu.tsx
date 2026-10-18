@@ -100,14 +100,15 @@ export function EventContextMenu({
     };
   }, [onClose, open]);
 
+  const eventDate = event?.date;
   const dateLabel = React.useMemo(() => {
-    if (!event?.date) return "";
+    if (!eventDate) return "";
     try {
-      return format(new Date(event.date), "EEE d MMM • HH:mm", { locale: fr });
+      return format(new Date(eventDate), "EEE d MMM • HH:mm", { locale: fr });
     } catch {
-      return event.date;
+      return eventDate;
     }
-  }, [event?.date]);
+  }, [eventDate]);
 
   function runAction(action: () => void | Promise<void>) {
     onClose();
