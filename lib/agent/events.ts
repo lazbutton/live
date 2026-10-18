@@ -13,7 +13,7 @@ import { toNullablePrice } from "@/lib/events/price-utils";
 import { isFacebookEventUrl } from "@/lib/facebook/event-url";
 import { scrapeFacebookEvent } from "@/lib/facebook/scrape-facebook-event";
 import { instagramPostImageUrl, isInstagramPostUrl } from "@/lib/instagram/post-url";
-import { urlMatchKeys } from "@/lib/scraping/agenda";
+import { urlMatchKey, urlMatchKeys } from "@/lib/scraping/agenda";
 import { parisToday, stripDateFromTitle, titleDateConflict } from "@/lib/scraping/dates";
 import { scrapeEventPage } from "@/lib/scraping/scrape-event-page";
 
@@ -281,8 +281,15 @@ export async function createAgentEvent(
   const organizerIds = [...(prefill.organizerIds || [])];
   for (const id of args.extraOrganizerIds || []) if (!organizerIds.includes(id)) organizerIds.push(id);
 
+  // Page de la source elle-même (agenda en texte seul, profil) : elle annonce plusieurs événements,
+  // parfois le même spectacle à plusieurs dates. Son adresse ne désigne pas un événement : restent
+  // les règles « même lieu, même horaire » et « même titre le même jour ».
+  const sourcePageKey = urlMatchKey(sourceUrl);
+  const fromSourcePage = Boolean(
+    sourcePageKey && [source?.url, source?.scan_url].some((value) => urlMatchKey(value) === sourcePageKey),
+  );
   const duplicate = await findDuplicateEvent(ctx, {
-    urls: [sourceUrl, data.instagram_url as string, data.facebook_url as string],
+    urls: fromSourcePage ? [] : [sourceUrl, data.instagram_url as string, data.facebook_url as string],
     title,
     start,
     end,

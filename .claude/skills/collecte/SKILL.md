@@ -7,8 +7,9 @@ description: Collecte automatique OutLive. Passe en revue les sources à revoir 
 
 Tu alimentes l'agenda culturel OutLive (Orléans et alentours) à partir des sources suivies dans l'admin.
 Tu disposes des outils du serveur MCP **outlive** (`list_sources`, `scan_agenda`, `import_urls`, `create_event`,
-`upsert_artist`, `search`, `mark_source_reviewed`, `recent_activity`) et du navigateur Chrome de l'utilisateur
-(extension Claude in Chrome) pour lire Instagram, et Facebook quand une page n'est pas lisible sans connexion.
+`upsert_artist`, `search`, `mark_source_reviewed`, `recent_activity`), de WebFetch et du navigateur Chrome de
+l'utilisateur (extension Claude in Chrome) pour lire Instagram, Facebook quand une page n'est pas lisible sans
+connexion, et les sites que `scan_agenda` ne sait pas lire (`unreadable`).
 
 Si les outils `outlive` sont absents, arrête-toi et dis-le : le serveur MCP local n'est pas branché
 (`node scripts/outlive-mcp.mjs` dans le projet live-admin). Le serveur garde en mémoire le code de son lancement :
@@ -53,11 +54,36 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
      sont indicatives : une exposition déjà ouverte peut figurer dans `past`, importe-la quand même ;
    - `import_urls` avec ces URL (par lots de 15 au plus) et `source_id` ; si `remaining` revient, rappelle l'outil ;
      traite les `to_check` (voir les règles) ;
-   - `mark_source_reviewed` avec `imported_count` = événements publiés + en attente.
+   - `mark_source_reviewed` avec `imported_count` = événements publiés + en attente (sauf si `unreadable` est
+     renvoyé : voir plus bas).
    - `agenda_url` renvoyé : l'adresse enregistrée ne menait à rien (lien mort, page d'accueil) et l'outil a suivi
      le lien « Agenda » du site ; note-la pour le récapitulatif (source à corriger dans l'admin).
-   - Page illisible (`errors` sans événement) : pour une page Facebook, lis-la dans le navigateur (étape 4) ; pour
-     un site, ne marque pas la source revue et note-la pour le récapitulatif.
+
+   **`unreadable` renvoyé** : l'outil n'a rien tiré d'exploitable de la page et `to_import` est vide, mais **cela ne
+   veut pas dire que la source n'annonce rien**. Ne la marque jamais revue avec 0 sans l'avoir lue toi-même.
+   `unreadable.reason` dit pourquoi :
+   - `blocked` : le site refuse les robots (erreur 403 ou 429, billetteries Shotgun ou HelloAsso par exemple) ;
+   - `unreachable` : page morte ou qui ne répond pas (voir `errors`, et `agenda_url` s'il est proposé) ;
+   - `text_only` : agenda écrit en texte, sans lien vers une fiche par événement (dates en intertitres, lignes
+     « 12 février 2027 - Spectacle - Lieu ») ;
+   - `empty` : ni événement ni date lisible (agenda vide, ou dessiné en JavaScript) ;
+   - `not_events` : les seuls liens trouvés ne sont pas des événements (« Accueil », « Youtube »…).
+
+   Alors, pour un site (une page Facebook passe par l'étape 4) :
+   - lis la page indiquée par `unreadable.next_step` : WebFetch suffit en général pour `text_only` et
+     `not_events` ; pour `blocked` et `empty`, ouvre-la dans le navigateur. Si une vérification anti-robot, un
+     CAPTCHA ou une demande de connexion s'affiche, ne la contourne pas : passe à la suite ;
+   - pour chaque événement à venir de la page (voir les règles : public, à Orléans ou dans le Loiret) : s'il a sa
+     propre page lisible, passe-la à `import_urls` ; sinon `create_event` avec `source_id`, `source_url` (la page de
+     l'événement si elle existe, sinon la page d'agenda lue), titre, `start` (un agenda en texte seul écrit souvent
+     l'année en intertitre, « 2027 », au-dessus de ses dates), lieu, catégorie et l'affiche si la page en montre une ;
+   - un même spectacle à plusieurs dates : au même lieu, un seul appel avec `additional_dates` ; dans des lieux
+     différents, un appel par lieu ;
+   - dates « à confirmer », sans jour précis ou passées : ne les crée pas ;
+   - puis `mark_source_reviewed` avec le nombre d'événements créés : 0 seulement si ta lecture confirme que la page
+     n'annonce rien à venir ;
+   - page illisible même ainsi (vérification anti-robot, connexion) : ne marque pas la source revue et note-la pour
+     le récapitulatif.
 
 3. **Instagram** (sources `kind: "instagram"`) — pour chacune :
    - ouvre `url` dans Chrome et regarde les publications des 4 dernières semaines (épinglées comprises) ;
@@ -88,4 +114,6 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
      l'utilisateur crée la fiche à la main si c'est un vrai musicien ;
    - dates corrigées par l'outil (`date_note`) et dates à vérifier (`to_check`) que tu n'as pas pu trancher ;
    - sources à corriger : `agenda_url` proposés, liens morts, comptes disparus ;
+   - sites lus à la main parce que `scan_agenda` les disait illisibles (`unreadable.reason`) et ce qui en est sorti :
+     ils montrent où l'outil de lecture des agendas est à améliorer ;
    - sources non lues ou bloquées, et tout contenu suspect rencontré.
