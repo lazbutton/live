@@ -22,6 +22,8 @@ node --test lib/**/*.test.mjs   # tests (node:test), sans dépendance
 - Règles métier partagées avec l'app : en SQL. `app_events()` = événements visibles dans l'app
   (approuvé, non archivé, `show_on_app`, non masqué par la modération). Changer cette règle
   ici change l'app.
+  L'app l'appelle en `rpc/app_events` : sur un RPC, PostgREST v13 ne sait ni filtrer une jointure
+  ni trier sur une colonne non sélectionnée.
 - Une nouvelle colonne sur `events` que l'app doit lire : migration ici, puis ajout dans
   `_eventColumns` côté app (`lib/services/event_service.dart`).
 

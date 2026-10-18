@@ -29,3 +29,16 @@
 - Ajoutées : `20260915120000_add_show_on_app_and_agenda_types`, `20261017120000_create_app_events_function`.
 - Aussi déplacés depuis l'app : `supabase/functions/delete-user`, `supabase/templates/otp_email.html`.
 
+
+## 2026-10-18 — Application en prod
+
+- État relevé avant : les 8 migrations recopiées depuis l'app étaient déjà appliquées ; `show_on_app` et
+  `app_events()` absents. `supabase_migrations.schema_migrations` s'arrête à `20251214000001` : il n'est
+  plus tenu (migrations passées par le SQL Editor), ne pas s'y fier.
+- Appliquées via psql, une transaction par fichier : `20260915120000_add_show_on_app_and_agenda_types`
+  (`UPDATE 0` : la valeur par défaut a rempli les lignes, aucun trigger déclenché), puis
+  `20261017120000_create_app_events_function`.
+- Vérifié : 295 événements, tous `show_on_app = true` ; `app_events()` en anon = 254 lignes = calcul direct ;
+  plan inliné (index `idx_events_approved_visible_date`).
+- PostgREST v13 sur `rpc/app_events` : `order` sur une colonne absente du `select` échoue, et les filtres
+  sur une jointure (`event_artists.artist_id=eq.…`) ne sont pas supportés.
