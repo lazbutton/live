@@ -241,25 +241,22 @@ L'app actuelle ne sélectionne pas ces colonnes : ce qu'elle reçoit ne change p
 ## Incohérences relevées, non corrigées
 
 1. **Alertes admin rejouables.** Les données personnelles exposées (`diagnostics`, ids d'admin dans
-   `errors`), le texte libre de new-request au format trigger et les champs du corps de new-report
-   sont corrigés (voir plus bas) : new-request et new-report ne poussent que ce qui est en base. Reste :
-   - new-request et new-report sont publiques : avec un id valide, n'importe qui peut les rappeler
-     en boucle, chaque appel pousse une notification sur chaque token admin. Un id de demande ou de
-     signalement est un UUID, non devinable, mais connu de son auteur (renvoyé par
-     `/api/user-requests`, ou lu après une insertion directe, permise à tout compte qui passe
-     `can_use_ugc_features()`). L'auteur peut aussi modifier sa demande en attente
-     (`event_data.title`) avant de la rejouer : texte de son choix, mais rattaché à son compte
-     (`requested_by`). Un signalement ne peut pas être modifié par son auteur (pas de politique
-     UPDATE pour lui) ; le texte affiché n'en reprend que le motif (libellé fixe) et le titre de
-     l'événement, ses détails partent dans `data.message`, rattachés à son compte
+   `errors`), le texte libre de new-request au format trigger et de new-feedback au format webhook,
+   les champs du corps de new-report et de new-feedback sont corrigés (voir plus bas) : les trois
+   alertes ne poussent que ce qui est en base. Reste :
+   - new-request, new-report et new-feedback sont publiques : avec un id valide, n'importe qui peut
+     les rappeler en boucle, chaque appel pousse une notification sur chaque token admin. Un id de
+     demande, de signalement ou de feedback est un UUID, non devinable, mais connu de son auteur
+     (renvoyé par `/api/user-requests`, ou lu après une insertion directe, permise à tout compte qui
+     passe `can_use_ugc_features()`, et pour un feedback à tout compte non anonyme). L'auteur peut
+     aussi modifier sa demande en attente (`event_data.title`) ou son feedback en attente
+     (`description`, `feedback_object_id`) avant de le rejouer : texte de son choix, mais rattaché à
+     son compte (`requested_by`, `user_id`). Un signalement ne peut pas être modifié par son auteur
+     (pas de politique UPDATE pour lui) ; le texte affiché n'en reprend que le motif (libellé fixe) et
+     le titre de l'événement, ses détails partent dans `data.message`, rattachés à son compte
      (`reporter_user_id`).
-   - new-feedback, gardée pour les anciennes versions, pousse encore le texte du corps : avec
-     `{ id, description }` (format d'un webhook, sans appelant), la notification part sans relire
-     `feedbacks`, quel que soit l'id ; avec un `feedbackId` valide, le texte poussé commence par le
-     `feedbackType` du corps (`<feedbackType>: <description>`). Les anciens builds envoient
-     `{ feedbackId, message, userId, feedbackType }`.
    - Piste, non faite : une seule notification par id. Colonne `admin_notified_at` sur
-     `user_requests` et `content_reports` (migration), réservée par
+     `user_requests`, `content_reports` et `feedbacks` (migration), réservée par
      `update … set admin_notified_at = now() where id = $1 and admin_notified_at is null returning id` ;
      sans ligne renvoyée, répondre 200 avec `sent: 0` sans rien envoyer. Le premier appel de l'app,
      le seul qu'elle fasse, ne change pas ; `/api/user-requests` réserve aussi.
@@ -336,6 +333,27 @@ de l'app, en JSON et en paramètres de requête : même statut, même réponse, 
 (titre, texte, `data`), plus une lecture de `events`. Corps invalides (400) et id inconnu (404) :
 inchangés. Les autres écarts sont ceux décrits ci-dessus.
 
+Par la relecture de new-feedback en base (route gardée pour les builds 1.0.3 à 1.0.6, qui
+envoient `{ feedbackId, message, userId, feedbackType?, feedbackObjectId }`) : seul `feedbackId`
+sert (corps JSON, sinon paramètres de requête), les autres champs sont acceptés mais ignorés. Le
+texte et `data` viennent du feedback relu dans `feedbacks` et du nom de son objet, relu dans
+`feedback_objects` par `feedback_object_id` (non nul, clé étrangère). Ce nom est ce que l'app
+envoyait dans `feedbackType`, lu juste après l'insertion : même notification qu'avant. Seule
+différence : quand l'app n'avait pas pu lire ce nom (objet désactivé entre-temps, donc invisible
+pour elle, ou erreur réseau), elle omettait `feedbackType` et le texte commençait par « feedback » ;
+il commence maintenant par le nom de l'objet. Le format webhook (`{ id, description, … }`, celui du
+trigger retiré, qui n'a jamais rien envoyé) n'est plus lu : un corps avec `id` mais sans
+`feedbackId` donne 400 (« feedbackId : requis ») au lieu de notifier les admins avec le texte du
+corps, sans relire `feedbacks`, quel que soit l'id. Un corps invalide reçoit le 400 commun (`issues`
+au lieu de `hint`) ; réponses 200 et 404 inchangées. La page de test du back-office envoie un id
+inventé : 404, comme avant.
+
+Vérifié le 2026-10-19 (`lib/api/app/routes.test.mjs`, faux Supabase), test des corps des anciens
+builds lancé sur l'ancienne route puis sur la nouvelle : même statut, même réponse ; même
+notification (titre, texte, `data`) pour le corps avec `feedbackType`, plus une lecture de
+`feedback_objects`. Pour le corps sans `feedbackType`, le texte et `data.feedback_type` prennent le
+nom de l'objet, comme décrit ci-dessus.
+
 ## Alertes admin sans données personnelles (2026-10-19)
 
 - `sendNotificationToAdmins` (lib/notifications/admin.ts) ne renvoie plus `diagnostics` (id, e-mail
@@ -363,7 +381,8 @@ décrites ici, ni à modifier :
 - `GET /api/admin/mobile/requests`, `PATCH /api/admin/mobile/requests/[id]`,
   `POST /api/admin/mobile/requests/[id]/convert`
 - `POST /api/notifications/send-test`, `POST /api/notifications/send` (repli de `send-test`)
-- `POST /api/notifications/admin/new-feedback`
+- `POST /api/notifications/admin/new-feedback` (notification relue en base depuis le 2026-10-19,
+  voir « Comportements changés »)
 - `POST /api/notion/resync`
 
 Docs plus anciennes sur ces routes, antérieures à ce contrat : `MOBILE_NOTIFICATIONS_API.md`,
