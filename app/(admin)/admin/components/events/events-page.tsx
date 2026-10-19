@@ -118,7 +118,7 @@ function matchesEventSearch(event: AdminEvent, rawQuery: string) {
     event.description || "",
     event.category || "",
     event.location?.name || "",
-    event.major_event_events?.[0]?.major_event?.title || "",
+    event.major_event_events?.major_event?.title || "",
     ...organizerLabels,
   ];
 
@@ -326,8 +326,7 @@ export function EventsPage() {
       .order("date", { ascending: true });
 
     if (error) throw error;
-    // TODO(types): major_event_events est une relation 1-1 (event_id unique) : le type généré est un objet, AdminEvent attend un tableau.
-    setEvents((data || []) as unknown as AdminEvent[]);
+    setEvents((data || []) as AdminEvent[]);
   }, []);
 
   // Le filtre « Créés par l'agent » reste vide si le journal d'audit est illisible.

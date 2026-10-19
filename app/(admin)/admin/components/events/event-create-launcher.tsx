@@ -209,8 +209,7 @@ export function EventCreateLauncher({
         }
         const { data, error: queryError } = await query;
         if (queryError) throw queryError;
-        // TODO(types): major_event_events est une relation 1-1 (event_id unique) : le type généré est un objet, AdminEvent attend un tableau.
-        if (!cancelled) setDuplicateResults((data || []) as unknown as AdminEvent[]);
+        if (!cancelled) setDuplicateResults((data || []) as AdminEvent[]);
       } catch (queryError) {
         console.error("Recherche duplication impossible:", queryError);
         if (!cancelled) setDuplicateResults([]);

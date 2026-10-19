@@ -694,7 +694,7 @@ export const getEventSharePageData = cache(
     const event = (data as (RawEventRow & {
       event_artists?: RawEventArtistRow[] | null;
       event_organizers?: RawEventOrganizerRow[] | null;
-      major_event_events?: RawEventHubLinkRow[] | null;
+      major_event_events?: SingleOrArray<RawEventHubLinkRow>;
     }) | null) ?? null;
 
     if (!event) {
@@ -782,10 +782,9 @@ export const getEventSharePageData = cache(
       })
       .filter(isPresent);
 
-    const hubLinks = ((event.major_event_events || []) as RawEventHubLinkRow[])
-      .map((row) => toPublicHubLinkItem(normalizeSingle(row.major_event)))
-      .filter(isPresent);
-    const hub = hubLinks.length > 0 ? hubLinks[0] : null;
+    // Relation 1-1 (event_id unique) : PostgREST renvoie un objet, pas un tableau.
+    const hubLink = normalizeSingle(event.major_event_events);
+    const hub = hubLink ? toPublicHubLinkItem(normalizeSingle(hubLink.major_event)) : null;
 
     return {
       id: event.id,

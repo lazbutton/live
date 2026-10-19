@@ -60,10 +60,11 @@ export type AdminEvent = AdminEventColumns & {
     role_label?: string | null;
     sort_index?: number | null;
   }>;
-  major_event_events?: Array<{
+  // Relation 1-1 (event_id unique dans major_event_events) : PostgREST renvoie un objet ou null.
+  major_event_events?: {
     major_event_id: string;
     major_event?: { id: string; title: string; slug: string } | null;
-  }>;
+  } | null;
 };
 
 export type LocationData = {

@@ -67,7 +67,7 @@ export function EventCard({
   }, [dt, endDt]);
 
   const locationName = event.location?.name || event.event_organizers?.[0]?.location?.name || null;
-  const linkedMajorEventTitle = event.major_event_events?.[0]?.major_event?.title || null;
+  const linkedMajorEventTitle = event.major_event_events?.major_event?.title || null;
 
   const isPending = event.status === "pending";
   const isRejected = event.status === "rejected";
