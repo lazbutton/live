@@ -25,6 +25,8 @@ const reasonLabels: Record<string, string> = {
  *
  * Notifie les admins d'un signalement de contenu. Body (JSON, sinon paramètres de requête) :
  * `adminNewReportBodySchema` (lib/api/app/schemas.ts), voir docs/API_APP.md.
+ * Route publique : le signalement est relu en base par `reportId` et la notification est
+ * construite depuis lui et son événement, jamais depuis le corps.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -33,18 +35,7 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json();
     } catch {
-      const url = new URL(request.url);
-      body = {
-        reportId: url.searchParams.get("reportId"),
-        eventId: url.searchParams.get("eventId"),
-        eventTitle: url.searchParams.get("eventTitle"),
-        reasonCode: url.searchParams.get("reasonCode"),
-        reasonLabel: url.searchParams.get("reasonLabel"),
-        message: url.searchParams.get("message"),
-        userId: url.searchParams.get("userId"),
-        reportedUserId: url.searchParams.get("reportedUserId"),
-        blockRequested: url.searchParams.get("blockRequested") === "true",
-      };
+      // Pas un corps JSON : `reportId` est lu dans les paramètres de requête.
     }
 
     if (typeof body !== "object" || body === null) {
@@ -56,17 +47,17 @@ export async function POST(request: NextRequest) {
       body.reportId = url.searchParams.get("reportId");
     }
 
+    // Seul `reportId` sert, le reste du corps est ignoré.
     const parsed = parseAppBody(adminNewReportBodySchema, body);
     if (!parsed.ok) return parsed.response;
-    const input = parsed.data;
 
     const supabase = createServiceClient();
     const { data: report, error: reportError } = await supabase
       .from("content_reports")
       .select(
-        "id, target_event_id, reported_user_id, reason_code, details, block_requested",
+        "id, target_event_id, reporter_user_id, reported_user_id, reason_code, details, block_requested",
       )
-      .eq("id", input.reportId)
+      .eq("id", parsed.data.reportId)
       .single();
 
     if (reportError || !report) {
@@ -77,23 +68,15 @@ export async function POST(request: NextRequest) {
       return appError("Impossible de récupérer le signalement", 404);
     }
 
-    let eventTitle = input.eventTitle ?? "";
+    const { data: eventData } = await supabase
+      .from("events")
+      .select("title")
+      .eq("id", report.target_event_id)
+      .single();
 
-    if (!eventTitle && report.target_event_id) {
-      const { data: eventData } = await supabase
-        .from("events")
-        .select("title")
-        .eq("id", report.target_event_id)
-        .single();
-
-      eventTitle = eventData?.title || "";
-    }
-
-    const reasonCode = input.reasonCode || report.reason_code;
-    const reasonLabel =
-      input.reasonLabel || reasonLabels[reasonCode] || reasonCode;
-    const blockRequested =
-      input.blockRequested ?? Boolean(report.block_requested);
+    const eventTitle = eventData?.title || "";
+    const reasonLabel = reasonLabels[report.reason_code] || report.reason_code;
+    const blockRequested = Boolean(report.block_requested);
     const bodyTextParts = [
       reasonLabel,
       eventTitle ? `sur ${eventTitle}` : "sur un événement",
@@ -106,14 +89,13 @@ export async function POST(request: NextRequest) {
       data: {
         type: "new_content_report",
         report_id: report.id,
-        event_id: input.eventId || report.target_event_id || null,
+        event_id: report.target_event_id,
         event_title: eventTitle || null,
-        reason_code: reasonCode,
+        reason_code: report.reason_code,
         reason_label: reasonLabel,
-        message: input.message?.trim() || report.details || null,
-        reporter_user_id: input.userId || null,
-        reported_user_id:
-          input.reportedUserId || report.reported_user_id || null,
+        message: report.details?.trim() || null,
+        reporter_user_id: report.reporter_user_id,
+        reported_user_id: report.reported_user_id,
         block_requested: blockRequested,
       },
     });
