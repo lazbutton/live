@@ -336,7 +336,6 @@ function ProfileContent() {
       } else {
         // Pour les locations, mettre à jour image_url et autres champs
         updateData.image_url = finalLogoUrl || null;
-        updateData.description = formData.short_description || null;
         const { error } = await supabase
           .from("locations")
           .update(updateData)
