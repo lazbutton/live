@@ -1,5 +1,9 @@
 # Configuration des Webhooks Supabase
 
+> **Obsolète pour new-request (2026-10-19).** `/api/notifications/admin/new-request` n'accepte plus
+> les données de la ligne : un corps sans `requestId` donne 400, la demande est toujours relue en
+> base. Contrat à jour : `API_APP.md`.
+
 Ce document explique comment configurer les webhooks Supabase pour envoyer automatiquement des notifications ou déclencher des actions lorsque des événements se produisent dans la base de données.
 
 ## Vue d'ensemble

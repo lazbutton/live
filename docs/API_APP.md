@@ -75,10 +75,7 @@ de requête.
 | `eventTitle` | texte, facultatif | repli si `event_data.title` est vide |
 | `sourceUrl` | texte, facultatif | |
 
-Autre appelant : la page de test du back-office. La route accepte aussi la ligne insérée (`id`,
-`request_type`, `event_data`, `source_url`, `requested_at` : `adminNewRequestRowSchema`, utilisée
-sans relecture), format du trigger SQL `notify_admins_new_request_trigger` : il n'a jamais rien
-envoyé et `20261019200000_drop_notify_admins_triggers.sql` le retire, ce format n'a plus d'appelant.
+Autre appelant : la page de test du back-office.
 
 **new-report** : appelée par `ContentReportService.reportEvent`
 (`lib/services/content_report_service.dart`) après l'insertion dans `content_reports`.
@@ -218,9 +215,9 @@ via `AdminMobileApiService`. JWT d'un admin (`role: admin`).
    pg_net 0.19.5). Les deux triggers sont retirés par `20261019200000_drop_notify_admins_triggers.sql`,
    à appliquer en prod.
 
-## Comportements changés par l'ajout des schémas
+## Comportements changés
 
-Seulement pour des corps invalides, que l'app n'envoie pas :
+Par l'ajout des schémas, seulement pour des corps invalides, que l'app n'envoie pas :
 
 - les 400 ont un message uniforme (« Corps de la requête invalide : … ») et un champ `issues` ;
 - un corps qui n'est pas du JSON (register-token, actions rapides) ou pas un formulaire multipart
@@ -235,6 +232,11 @@ Vérifié le 2026-10-19 : 77 appels rejoués sur les handlers d'origine et sur l
 Supabase, `TZ=UTC`). 50 donnent exactement le même statut, le même corps et les mêmes requêtes à la
 base, dont tous les corps envoyés par l'app ; les 27 autres sont des corps invalides, dans les cas
 ci-dessus.
+
+Par le retrait du format « ligne » de new-request (celui du trigger SQL retiré, sans appelant) : la
+route ne lit plus `id`. Un corps avec `id` mais sans `requestId` donne 400 (« requestId : requis »)
+au lieu de notifier les admins avec le contenu du corps, sans relire la demande. Rien ne change pour
+l'app ni pour la page de test, qui envoient `requestId`.
 
 ## Routes gardées pour les anciennes versions de l'app
 

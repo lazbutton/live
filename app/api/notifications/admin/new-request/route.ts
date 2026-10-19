@@ -1,29 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { appError, parseAppBody } from "@/lib/api/app/http";
-import {
-  adminNewRequestBodySchema,
-  adminNewRequestRowSchema,
-  type AdminAlertResponse,
-} from "@/lib/api/app/schemas";
+import { adminNewRequestBodySchema, type AdminAlertResponse } from "@/lib/api/app/schemas";
 import { sendNotificationToAdmins } from "@/lib/notifications/admin";
 import { createServiceClient } from "@/lib/supabase/service";
-
-type RequestData = {
-  id: string;
-  request_type?: string | null;
-  event_data?: unknown;
-  source_url?: string | null;
-};
-
-/** `id` d'une ligne au format du trigger SQL (retiré), s'il est exploitable. */
-function isRowId(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value !== "" &&
-    !value.includes("{{") &&
-    !value.includes("$1")
-  );
-}
 
 function eventDataTitle(eventData: unknown) {
   return typeof eventData === "object" && eventData !== null
@@ -36,10 +15,8 @@ function eventDataTitle(eventData: unknown) {
  * 
  * Envoie une notification push à tous les admins lorsqu'une nouvelle demande est créée
  * 
- * Body (JSON, sinon paramètres de requête), voir docs/API_APP.md :
- * - `adminNewRequestBodySchema` : app et page de test du back-office, demande relue en base ;
- * - `adminNewRequestRowSchema` : ligne `user_requests`, format du trigger SQL
- *   `notify_admins_new_request_trigger`, retiré (plus aucun appelant).
+ * Body (JSON, sinon paramètres de requête) : `adminNewRequestBodySchema`, envoyé par l'app et
+ * par la page de test du back-office. La demande est relue en base. Voir docs/API_APP.md.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -71,41 +48,24 @@ export async function POST(request: NextRequest) {
       body.sourceUrl = url.searchParams.get("sourceUrl") || body.sourceUrl;
     }
 
-    let requestData: RequestData;
-    let fallback: { requestType?: string | null; eventTitle?: string | null } = {};
+    const parsed = parseAppBody(adminNewRequestBodySchema, body);
+    if (!parsed.ok) return parsed.response;
+    const fallback = parsed.data;
 
-    if (isRowId(body.id)) {
-      // Format du trigger SQL (retiré) : la ligne de la demande, sans relecture.
-      const row = parseAppBody(adminNewRequestRowSchema, body);
-      if (!row.ok) return row.response;
-      requestData = {
-        id: row.data.id,
-        request_type: row.data.request_type || row.data.requestType,
-        event_data: row.data.event_data,
-        source_url: row.data.source_url || row.data.sourceUrl,
-      };
-      fallback = row.data;
-    } else {
-      const parsed = parseAppBody(adminNewRequestBodySchema, body);
-      if (!parsed.ok) return parsed.response;
-      fallback = parsed.data;
+    const supabase = createServiceClient();
+    const { data: requestData, error: requestError } = await supabase
+      .from("user_requests")
+      .select("id, request_type, event_data, source_url, requested_at")
+      .eq("id", fallback.requestId)
+      .single();
 
-      const supabase = createServiceClient();
-      const { data: fetchedData, error: requestError } = await supabase
-        .from("user_requests")
-        .select("id, request_type, event_data, source_url, requested_at")
-        .eq("id", parsed.data.requestId)
-        .single();
-
-      if (requestError || !fetchedData) {
-        console.error("❌ Erreur lors de la récupération de la demande:", requestError);
-        return appError(
-          "Impossible de récupérer la demande depuis la base de données",
-          404,
-          { details: requestError },
-        );
-      }
-      requestData = fetchedData;
+    if (requestError || !requestData) {
+      console.error("❌ Erreur lors de la récupération de la demande:", requestError);
+      return appError(
+        "Impossible de récupérer la demande depuis la base de données",
+        404,
+        { details: requestError },
+      );
     }
 
     const requestType = requestData.request_type || fallback.requestType;
