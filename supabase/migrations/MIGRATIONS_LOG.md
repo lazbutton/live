@@ -60,6 +60,7 @@
   `GET /rest/v1/rpc/app_cities` → une ligne par ville active, ou dans le SQL Editor
   `select label, upcoming_events_count, recent_events_count from public.app_cities();`.
 
+
 ## 2026-10-19 — Retrait des triggers de notification admin
 
 - `20261019200000_drop_notify_admins_triggers` : supprime `trigger_notify_admins_new_request`
@@ -80,3 +81,18 @@
   triggers ; échoue sans rien supprimer si un autre trigger utilise encore l'une des fonctions.
 - **À appliquer en prod (SQL Editor, ou psql en une transaction)** après la vérification en lecture
   seule de la PR (pg_net, triggers des deux tables, définitions en place).
+
+## 2026-10-19 — `events.is_young_audience` : jeune public
+
+- `20261019120000_add_is_young_audience_to_events` : booléen `NOT NULL DEFAULT false` (ajout instantané, pas de
+  réécriture de la table), commentaire. Rempli par la collecte (`lib/events/young-audience.ts`, catégorie de la
+  source, `create_event`) et modifiable dans le formulaire d'événement de l'admin.
+- Indicateur seulement : `app_events()` ne change pas ; l'app peut lire la colonne (`_eventColumns`) pour signaler
+  ou masquer ces événements.
+- `lib/supabase/database.types.ts` régénéré par `npm run db:types` : la colonne dans `events` (Row / Insert / Update)
+  et le retour de `app_events`, plus `app_cities()`, absente des types depuis `20261018200000`.
+- Appliquée en prod le 19/10/2026 (SQL Editor), avant le déploiement de l'admin : le nouveau code écrit la colonne
+  à chaque création d'événement. Vérification :
+  `select count(*) filter (where is_young_audience) as jeune_public, count(*) from events;`
+- Même jour : 52 événements existants cochés d'après `lib/events/young-audience.ts`, liste relue avant écriture.
+

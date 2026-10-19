@@ -4,6 +4,7 @@ import * as React from "react";
 import { format, isToday, isTomorrow, isYesterday } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
+  Baby,
   CalendarPlus,
   Check,
   Copy,
@@ -280,8 +281,8 @@ export function EventsTable({
                       <span className={cn("size-1.5 rounded-full", status.dot)} />
                       {status.label}
                     </span>
-                    {event.show_on_app === false || event.is_full ? (
-                      <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    {event.show_on_app === false || event.is_full || event.is_young_audience ? (
+                      <span className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
                         {event.show_on_app === false ? (
                           <span className="inline-flex items-center gap-1">
                             <EyeOff className="h-3 w-3" />
@@ -292,6 +293,12 @@ export function EventsTable({
                           <span className="inline-flex items-center gap-1">
                             <Ticket className="h-3 w-3" />
                             Complet
+                          </span>
+                        ) : null}
+                        {event.is_young_audience ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Baby className="h-3 w-3" />
+                            Jeune public
                           </span>
                         ) : null}
                       </span>

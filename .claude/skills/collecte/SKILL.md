@@ -26,6 +26,13 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
 - **Seulement des événements à venir, ouverts au public, à Orléans ou dans le Loiret** : concerts, spectacles,
   expositions, ateliers, projections, rencontres, festivals, soirées. Écarte horaires d'ouverture, permanences,
   distributions, réunions, cours hebdomadaires réservés aux adhérents, annonces sans date, dates de tournée ailleurs.
+- **Priorité à la scène locale et aux petits événements** : OutLive est un agenda de culture locale plutôt
+  underground. Les artistes, compagnies, collectifs, associations, MJC, bars et petits lieux passent avant tout ;
+  ne laisse jamais une petite source de côté faute de temps pour une grande salle, déjà bien relayée ailleurs.
+- **Jeune public** : un événement pensé pour les enfants ou les familles (conte, spectacle « dès 3 ans »,
+  atelier 7-10 ans, boum) se collecte comme les autres, signalé par `is_young_audience: true` dans
+  `create_event`. L'outil le repère aussi seul d'après le titre, la description et les tags ; une mention
+  « tout public dès 12 ans » n'en fait pas un événement jeune public.
 - **Artistes : seulement des artistes musicaux** (musiciens, chanteurs, groupes, DJ). Les événements de toutes
   sortes restent collectés, mais l'admin ne crée de fiche artiste que pour un événement « Concert » ou « DJ Set » :
   choisis bien la catégorie. Jamais de compagnie, comédien, danseur, humoriste, drag, conférencier ni animateur
@@ -50,10 +57,16 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
 2. **Sites et pages Facebook** (sources avec `scan_url`) — pour chacune :
    - `scan_agenda` avec `source_id` : il lit aussi les billetteries Socoop (L'Astrolabe, La Passerelle) et les
      événements à venir d'une page Facebook publique ;
-   - agenda On sort ! de la Métropole (sortir.orleans-metropole.fr) : `scan_agenda` lit son API sur le mois à venir,
-     écarte ateliers, sport, visites, salons et animations jeunesse (comptés dans `excluded`) et sort de `to_import`
-     les doublons probables (`duplicate_of`) ; beaucoup de ses lieux n'ont pas encore de fiche (`location_unmatched`
-     à l'import) : regroupe-les dans le récapitulatif ;
+   - agenda On sort ! de la Métropole (sortir.orleans-metropole.fr) : `scan_agenda` lit son API sur le mois à venir
+     et ne garde que la scène locale et indépendante : jeune public, programmation des institutions (mairies,
+     médiathèques, musées, office de tourisme, Scène nationale, CADO), conférences et dédicaces, musique classique et
+     harmonies, thés dansants, lotos et collections, tributes, expositions d'histoire ou au long cours, ateliers,
+     sport, visites et salons sont comptés dans `excluded`. Les doublons probables (même titre le même jour, même lieu
+     à deux heures près, publié deux fois dans l'agenda) sont sortis de `to_import` avec `duplicate_of`.
+     Dans `to_import`, regarde encore `organizer` et `venue` de chaque événement et écarte les têtes d'affiche en
+     tournée, le théâtre de boulevard des grandes salles et les revues commerciales ; garde les artistes, troupes,
+     associations et lieux du coin. Beaucoup de ses lieux n'ont pas encore de fiche (`location_unmatched` et
+     `announced_venue` à l'import) : regroupe-les dans le récapitulatif ;
    - dans `to_import`, garde seulement les vrais événements d'après leur titre (voir les règles). Les dates du scan
      sont indicatives : une exposition déjà ouverte peut figurer dans `past`, importe-la quand même ;
    - `import_urls` avec ces URL (par lots de 15 au plus) et `source_id` ; si `remaining` revient, rappelle l'outil ;
@@ -112,6 +125,8 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
 5. **Récapitulatif** : `recent_activity` (fenêtre de 3 heures) puis un message court en français :
    - événements publiés (titre, date) ;
    - événements en attente avec ce qui manque, et le chemin `/admin/events?status=pending` pour les valider ;
+     pour un lieu manquant, son nom et son adresse (`announced_venue`), regroupés par lieu ;
+   - événements jeune public créés (`young_audience`) ;
    - artistes créés ;
    - artistes écartés à vérifier : les `artists_skipped` notés au fil des imports dont la raison commence par
      « Titre de l'événement », « Prénom seul » ou « Catégorie inconnue », avec leur événement, pour que

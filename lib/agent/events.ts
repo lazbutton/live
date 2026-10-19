@@ -5,16 +5,19 @@ import {
   buildEventFormPrefillFromImport,
   matchExistingTagIds,
   normalizeName,
+  resolveLocationFromImportedData,
   resolveOrganizerFromName,
 } from "@/lib/events/import-prefill";
 import type { ImportedEventPayload } from "@/lib/events/imported-event-payload";
 import { fetchPotentialDuplicateEvents } from "@/lib/events/potential-duplicates";
 import { toNullablePrice } from "@/lib/events/price-utils";
+import { isYoungAudience } from "@/lib/events/young-audience";
 import { isFacebookEventUrl } from "@/lib/facebook/event-url";
 import { scrapeFacebookEvent } from "@/lib/facebook/scrape-facebook-event";
 import { instagramPostImageUrl, isInstagramPostUrl } from "@/lib/instagram/post-url";
 import { urlMatchKey, urlMatchKeys } from "@/lib/scraping/agenda";
 import { parisToday, stripDateFromTitle, titleDateConflict } from "@/lib/scraping/dates";
+import { onSortEventUid } from "@/lib/scraping/on-sort";
 import { scrapeEventPage } from "@/lib/scraping/scrape-event-page";
 
 import { findOrCreateArtist, type AgentArtistInput } from "./artists";
@@ -50,7 +53,11 @@ export type AgentEventResult = {
   location?: string | null;
   /** Lieu annoncé sans fiche correspondante (à créer ou à préciser via search). */
   location_unmatched?: string;
+  /** Lieu annoncé et son adresse, gardés dans l'adresse de l'événement en attente. */
+  announced_venue?: string;
   category?: string | null;
+  /** Jeune public (events.is_young_audience). */
+  young_audience?: boolean;
   artists?: string[];
   artists_created?: string[];
   artists_unmatched?: string[];
@@ -84,6 +91,8 @@ export type AgentEventInput = {
   is_pay_what_you_want?: boolean;
   is_full?: boolean;
   is_cancelled?: boolean;
+  /** Jeune public : pensé pour les enfants ou les familles. */
+  is_young_audience?: boolean;
   door_opening_time?: string;
 };
 
@@ -112,19 +121,30 @@ function similarTitles(left: string | null | undefined, right: string | null | u
   return common / (tokensA.size + tokensB.size - common) >= 0.6;
 }
 
+/** « Maison des associations, 46 ter rue Sainte-Catherine, Orléans » : nom du lieu annoncé et adresse. */
+function announcedVenueOf(name: unknown, address: unknown) {
+  const venue = typeof name === "string" ? name.trim() : "";
+  const street = typeof address === "string" ? address.trim() : "";
+  if (!venue) return street || null;
+  if (!street || normalizeName(street).includes(normalizeName(venue))) return venue;
+  return normalizeName(venue).includes(normalizeName(street)) ? venue : `${venue}, ${street}`;
+}
+
 function sameDay(left: string | null | undefined, right: string | null | undefined) {
   return Boolean(left && right && left.slice(0, 10) === right.slice(0, 10));
 }
 
 async function findDuplicateEvent(
   ctx: AgentContext,
-  { urls, title, start, end, locationId }: {
+  { urls, title, start, end, locationId, venueWindowMinutes }: {
     urls: Array<string | null | undefined>;
     title: string;
     /** Début au format du formulaire (« AAAA-MM-JJTHH:mm », heure de Paris). */
     start: string;
     end?: string;
     locationId?: string;
+    /** Agenda partagé : même lieu à cet écart près (en minutes) = même événement, quel que soit le titre. */
+    venueWindowMinutes?: number;
   },
 ): Promise<DuplicateMatch | null> {
   const startIso = fromDatetimeLocal(start);
@@ -143,6 +163,22 @@ async function findDuplicateEvent(
         return { id: row.id, title: row.title, date: row.date, reason: "Page déjà importée" };
       }
     }
+  }
+
+  // Agenda partagé (On sort !) : un spectacle y est souvent annoncé à une heure un peu différente de celle
+  // du lieu (ouverture des portes) et sous un autre titre.
+  if (locationId && venueWindowMinutes) {
+    const startMs = Date.parse(startIso);
+    const margin = venueWindowMinutes * 60_000;
+    const { data: nearby } = await ctx.supabase
+      .from("events")
+      .select("id, title, date")
+      .eq("location_id", locationId)
+      .eq("archived", false)
+      .gte("date", new Date(startMs - margin).toISOString())
+      .lte("date", new Date(startMs + margin).toISOString());
+    const near = ((nearby || []) as Array<{ id: string; title: string | null; date: string }>)[0];
+    if (near) return { id: near.id, title: near.title, date: near.date, reason: "Même lieu, à deux heures près" };
   }
 
   // Même lieu, même horaire (même début : l'heure de fin manque souvent d'un côté, comme sur On sort !).
@@ -172,17 +208,21 @@ async function findDuplicateEvent(
 }
 
 /** Doublon probable repéré au scan : événement existant (`id`) ou autre entrée du même agenda (`url`). */
-export type AgendaDuplicate = { id?: string; url?: string; title: string | null; date: string | null };
+export type AgendaDuplicate = { id?: string; url?: string; title: string | null; date: string | null; reason: string };
+
+/** Agenda partagé (On sort !) : même lieu à deux heures près = même événement, quel que soit le titre. */
+export const SHARED_AGENDA_VENUE_WINDOW_MINUTES = 120;
 
 /**
  * Doublons probables d'un agenda partagé (On sort !) avant tout import, en une requête : titre
  * équivalent à celui d'un événement existant le même jour (ou pendant une exposition en cours),
- * ou à celui d'une entrée déjà vue le même jour (un événement publié deux fois dans l'agenda).
+ * événement existant au même lieu à deux heures près, ou entrée déjà vue le même jour sous un titre
+ * équivalent (un événement publié deux fois dans l'agenda).
  * import_urls applique de toute façon findDuplicateEvent à chaque fiche.
  */
 export async function findAgendaDuplicates(
   ctx: AgentContext,
-  events: Array<{ url: string; title: string | null; date: string | null; known?: boolean }>,
+  events: Array<{ url: string; title: string | null; date: string | null; known?: boolean; venue?: string; address?: string }>,
 ): Promise<Map<string, AgendaDuplicate>> {
   const duplicates = new Map<string, AgendaDuplicate>();
   const dated = events.filter((event): event is typeof event & { title: string; date: string } =>
@@ -194,28 +234,72 @@ export async function findAgendaDuplicates(
   const [first, last] = [days[0], days[days.length - 1]];
   const { data } = await ctx.supabase
     .from("events")
-    .select("id, title, date, end_date")
+    .select("id, title, date, end_date, location_id, archived")
     .lte("date", `${last}T23:59:59.999Z`)
     .or(`date.gte.${first}T00:00:00.000Z,end_date.gte.${first}T00:00:00.000Z`);
-  const existing = (data || []) as Array<{ id: string; title: string | null; date: string | null; end_date: string | null }>;
+  const existing = (data || []) as Array<{
+    id: string;
+    title: string | null;
+    date: string | null;
+    end_date: string | null;
+    location_id: string | null;
+    archived: boolean | null;
+  }>;
+  const locations = dated.some((event) => event.venue) ? (await loadAgentReferences(ctx)).locations : [];
+  const margin = SHARED_AGENDA_VENUE_WINDOW_MINUTES * 60_000;
 
-  const seen: Array<{ url: string; title: string; date: string }> = [];
+  const seen: Array<{ url: string; title: string; date: string; venue?: string }> = [];
+  // Publié deux fois dans l'agenda (par le lieu et par la compagnie) : titre équivalent le même jour ;
+  // même lieu annoncé à la même heure (souvent un plateau : deux groupes, une soirée).
+  const sameDayTitle = (left: { title: string; date: string }, right: typeof left) =>
+    left.date.slice(0, 10) === right.date.slice(0, 10) && similarTitles(left.title, right.title);
+  const sameSlot = (left: { date: string; venue?: string }, right: typeof left) =>
+    Boolean(left.venue && right.venue && left.date === right.date && normalizeName(left.venue) === normalizeName(right.venue));
   for (const event of dated) {
     const day = event.date.slice(0, 10);
     if (!event.known) {
-      const match = existing.find(
+      const sameTitle = existing.find(
         (row) =>
           row.date &&
           row.date.slice(0, 10) <= day &&
           day <= (row.end_date || row.date).slice(0, 10) &&
           similarTitles(row.title, event.title),
       );
-      const twin = match
-        ? undefined
-        : seen.find((other) => other.date.slice(0, 10) === day && similarTitles(other.title, event.title));
-      if (match) duplicates.set(event.url, { id: match.id, title: match.title, date: match.date });
-      else if (twin) duplicates.set(event.url, { url: twin.url, title: twin.title, date: twin.date });
-      if (match || twin) continue;
+      const location =
+        !sameTitle && event.venue ? resolveLocationFromImportedData(locations, event.venue, event.address) : null;
+      const start = Date.parse(fromDatetimeLocal(event.date.slice(0, 16)));
+      // Comme à l'import : un événement archivé ne bloque pas un autre au même lieu.
+      const sameVenue = location
+        ? existing.find(
+            (row) =>
+              !row.archived &&
+              row.location_id === location.id &&
+              row.date &&
+              Math.abs(Date.parse(row.date) - start) <= margin,
+          )
+        : undefined;
+      const twin = sameTitle || sameVenue ? undefined : seen.find((other) => sameDayTitle(other, event));
+      const slot = sameTitle || sameVenue || twin ? undefined : seen.find((other) => sameSlot(other, event));
+      if (sameTitle) {
+        duplicates.set(event.url, { id: sameTitle.id, title: sameTitle.title, date: sameTitle.date, reason: "Même titre le même jour" });
+      } else if (sameVenue) {
+        duplicates.set(event.url, {
+          id: sameVenue.id,
+          title: sameVenue.title,
+          date: sameVenue.date,
+          reason: "Même lieu, à deux heures près",
+        });
+      } else if (twin) {
+        duplicates.set(event.url, { url: twin.url, title: twin.title, date: twin.date, reason: "Deux fois dans l'agenda" });
+      } else if (slot) {
+        duplicates.set(event.url, {
+          url: slot.url,
+          title: slot.title,
+          date: slot.date,
+          reason: "Même lieu, même heure dans l'agenda (plateau ?)",
+        });
+      }
+      if (sameTitle || sameVenue || twin || slot) continue;
     }
     seen.push(event);
   }
@@ -347,6 +431,7 @@ export async function createAgentEvent(
     start,
     end,
     locationId: form.location_id || undefined,
+    venueWindowMinutes: sourceUrl && onSortEventUid(sourceUrl) ? SHARED_AGENDA_VENUE_WINDOW_MINUTES : undefined,
   });
   if (duplicate) {
     return {
@@ -394,6 +479,14 @@ export async function createAgentEvent(
     : { url: "", copied: false };
 
   const location = form.location_id ? references.locations.find((entry) => entry.id === form.location_id) || null : null;
+  // Lieu annoncé sans fiche : gardé dans l'adresse de l'événement pour la validation (le formulaire de
+  // l'admin la remplace par celle du lieu choisi).
+  const announcedVenue = location ? null : announcedVenueOf(locationWarning?.value || data.location, data.address);
+  const description = (form.description || "").trim();
+  const sourceTags = Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === "string") : [];
+  const youngAudience =
+    data.is_young_audience === true ||
+    isYoungAudience({ title, description, tags: sourceTags, category: category?.name });
   const missing = [
     data.time_known === false ? "heure" : null,
     !location ? "lieu" : null,
@@ -408,7 +501,7 @@ export async function createAgentEvent(
   const priceMax = toNullablePrice(form.price_max);
   const row = {
     title,
-    description: (form.description || "").trim() || null,
+    description: description || null,
     category: form.category || "",
     price: isPayWhatYouWant ? null : priceMin,
     price_min: isPayWhatYouWant ? null : priceMin,
@@ -429,9 +522,10 @@ export async function createAgentEvent(
     is_featured: false,
     hide_from_home: false,
     tag_ids: prefill.tagIds || [],
-    address: location?.address || null,
+    address: location?.address || announcedVenue || null,
     latitude: location?.latitude || null,
     longitude: location?.longitude || null,
+    is_young_audience: youngAudience,
     created_by: null,
   };
   const result: AgentEventResult = {
@@ -450,7 +544,9 @@ export async function createAgentEvent(
           : `Fiche incomplète (${missing.join(", ")}) : à compléter et valider dans l'admin`,
     location: location?.name ?? null,
     location_unmatched: !location && locationWarning?.value ? locationWarning.value : undefined,
+    announced_venue: announcedVenue || undefined,
     category: category?.name ?? null,
+    young_audience: youngAudience || undefined,
     artists: references.artists.filter((artist) => artistIds.includes(artist.id)).map((artist) => artist.name),
     artists_created: artistsCreated.length ? artistsCreated : undefined,
     artists_unmatched: artistsUnmatched.length ? artistsUnmatched : undefined,
@@ -543,6 +639,7 @@ function toImportedPayload(input: AgentEventInput, sourceUrl: string | null): Im
     is_pay_what_you_want: input.is_pay_what_you_want,
     is_full: input.is_full,
     is_cancelled: input.is_cancelled,
+    is_young_audience: input.is_young_audience,
     door_opening_time: input.door_opening_time,
     instagram_url: kind === "instagram" ? sourceUrl ?? undefined : undefined,
     facebook_url: kind === "facebook" ? sourceUrl ?? undefined : undefined,

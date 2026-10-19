@@ -1,7 +1,7 @@
 {
- "_source": "Réponses de https://sortir.orleans-metropole.fr/api/events (agenda On sort ! d'Orléans Métropole, OpenAgenda, Licence Ouverte 2.0) enregistrées le 18/10/2026 vers 21 h. Échantillon : 22 événements de la liste du mois et 6 fiches détaillées ; contacts des contributeurs retirés.",
+ "_source": "Réponses de https://sortir.orleans-metropole.fr/api/events (agenda On sort ! d'Orléans Métropole, OpenAgenda, Licence Ouverte 2.0) enregistrées le 18/10/2026 vers 21 h. Échantillon : 22 événements de la liste du mois (plus 12 relevés le 19/10/2026 : scène locale gardée, jeune public, institutions, loisirs, classique, tribute, patrimoine) et 6 fiches détaillées ; contacts des contributeurs retirés.",
  "list": {
-  "total": 22,
+  "total": 34,
   "events": [
    {
     "balade-decouverte-visite": [],
@@ -2694,6 +2694,1436 @@
      "end": "2026-10-29T20:15:00+01:00",
      "begin": "2026-10-29T19:00:00+01:00"
     }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": [],
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "الخميس ٥ نوفمبر, 20:30",
+     "de": "Donnerstag 5 November, 20:30",
+     "en": "Thursday 5 November, 20:30",
+     "it": "Giovedì 5 novembre, 20:30",
+     "fr": "Jeudi 5 novembre, 20h30",
+     "es": "Jueves 5 noviembre, 20:30",
+     "nl": "Donderdag 5 november, 20u30"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "©VictoriaJamesGeiseler",
+    "originAgenda": {
+     "image": "402968678c1747b987c13350f67418f3.full.image.jpg",
+     "uid": 32175961,
+     "title": "Maison des Jeunes et de la Culture (MJC) d'Olivet"
+    },
+    "description": {
+     "fr": "Une rencontre intemporelle un tant soit peu intempestive, intrépide, intarissable..."
+    },
+    "title": {
+     "fr": "LOUISE & MICHEL : Duo jazz folk"
+    },
+    "onlineAccessLink": null,
+    "uid": 10401699,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 32175961,
+      "name": "Maison des Jeunes et de la Culture (MJC) d'Olivet",
+      "url": "https://www.mjcmoulin-olivet.org/"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-11-05T23:00:00.000+01:00",
+     "id": "AYBFN6",
+     "begin": "2026-11-05T20:30:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "louise-and-michel-duo-jazz-folk",
+    "image": {
+     "filename": "f2f9c1b693df415991095409333ac1e6.base.image.jpg",
+     "size": {
+      "width": 295,
+      "height": 507
+     },
+     "variants": [
+      {
+       "filename": "f2f9c1b693df415991095409333ac1e6.full.image.jpg",
+       "size": {
+        "width": 295,
+        "height": 507
+       },
+       "type": "full"
+      },
+      {
+       "filename": "f2f9c1b693df415991095409333ac1e6.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/maison-des-jeunes-et-de-la-culture-mjc-dolivet/events/10401699_louise-and-michel-duo-jazz-folk",
+    "organizatorName": "MJC Olivet",
+    "lastTiming": {
+     "end": "2026-11-05T23:00:00.000+01:00",
+     "id": "AYBFN6",
+     "begin": "2026-11-05T20:30:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 56933822,
+     "address": "127 rue Marcel Belot, Olivet",
+     "deleted": false,
+     "city": "Olivet",
+     "latitude": 47.839571,
+     "name": "Maison des Jeunes et de la Culture d'Olivet (MJC)",
+     "longitude": 1.914287
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     5,
+     7
+    ],
+    "nextTiming": {
+     "end": "2026-11-05T23:00:00+01:00",
+     "id": "AYBFN6",
+     "begin": "2026-11-05T20:30:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": [],
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "٢٣ أكتوبر ٢٠٢٦ - ٢٥ يونيو ٢٠٢٧undefined",
+     "de": "23 Oktober 2026 - 25 Juni 2027, einige Freitage",
+     "en": "23 October 2026 - 25 June 2027, some Fridays",
+     "it": "23 ottobre 2026 - 25 giugno 2027, alcune venerdì",
+     "fr": "23 octobre 2026 - 25 juin 2027, certains vendredis",
+     "es": "23 octubre 2026 - 25 junio 2027, algunos viernes",
+     "nl": "23 oktober 2026 - 25 juni 2027, sommige vrijdagen"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "zigotastiques",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Une soirée pour rire, découvrir des artistes et profiter de la scène dans l’ambiance conviviale de L’Improviste Bar !"
+    },
+    "title": {
+     "fr": "Zigo Comedy Club, à L'improviste Bar"
+    },
+    "onlineAccessLink": null,
+    "uid": 76658298,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-23T23:00:00.000+02:00",
+     "id": "40FQPS",
+     "begin": "2026-10-23T20:45:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "zigo-comedy-club-a-limproviste-bar",
+    "image": {
+     "filename": "db079938f2554305969c3215899f10c4.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 366
+     },
+     "variants": [
+      {
+       "filename": "db079938f2554305969c3215899f10c4.full.image.jpg",
+       "size": {
+        "width": 1920,
+        "height": 1005
+       },
+       "type": "full"
+      },
+      {
+       "filename": "db079938f2554305969c3215899f10c4.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [
+     70,
+     63,
+     64,
+     65,
+     66,
+     67,
+     69
+    ],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/76658298_zigo-comedy-club-a-limproviste-bar",
+    "organizatorName": "zigotastiques",
+    "lastTiming": {
+     "end": "2027-06-25T23:00:00.000+02:00",
+     "id": "9YBDTG",
+     "begin": "2027-06-25T20:45:00.000+02:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 53577228,
+     "address": "Passage Bannier Joseph Lucet",
+     "deleted": false,
+     "city": "Orléans",
+     "latitude": 47.902848,
+     "name": "Zigotastiques Le QG",
+     "longitude": 1.902698
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     7
+    ],
+    "nextTiming": {
+     "end": "2026-10-23T23:00:00+02:00",
+     "id": "40FQPS",
+     "begin": "2026-10-23T20:45:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": [],
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "الجمعة ٦ نوفمبر, 20:30",
+     "de": "Freitag 6 November, 20:30",
+     "en": "Friday 6 November, 20:30",
+     "it": "Venerdì 6 novembre, 20:30",
+     "fr": "Vendredi 6 novembre, 20h30",
+     "es": "Viernes 6 noviembre, 20:30",
+     "nl": "Vrijdag 6 november, 20u30"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "La Cie des Elles et des Ils",
+    "originAgenda": {
+     "image": "f37c52ec8a074c9dba579fc048602f1a.full.image.jpg",
+     "uid": 17674326,
+     "title": "Cie des Elles et des Ils"
+    },
+    "description": {
+     "fr": "Dans une petite ville balnéaire, le soir de Noël, le maire est convoqué au commissariat pour être entendu. D’abord simple témoin, il devient le principal suspect."
+    },
+    "title": {
+     "fr": "En garde à vue"
+    },
+    "onlineAccessLink": null,
+    "uid": 94596231,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 17674326,
+      "name": "Cie des Elles et des Ils",
+      "url": "https://www.facebook.com/LaCiedesEllesetdesIls"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-11-06T22:00:00.000+01:00",
+     "begin": "2026-11-06T20:30:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "en-garde-a-vue",
+    "image": {
+     "filename": "bbf1ff60e526408fb2f5a73031aa7f15.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 451
+     },
+     "variants": [
+      {
+       "filename": "bbf1ff60e526408fb2f5a73031aa7f15.full.image.jpg",
+       "size": {
+        "width": 1072,
+        "height": 690
+       },
+       "type": "full"
+      },
+      {
+       "filename": "bbf1ff60e526408fb2f5a73031aa7f15.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [
+     63
+    ],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/cie-des-elles-et-des-ils/events/94596231_en-garde-a-vue",
+    "organizatorName": "La Cie des Elles et des Ils",
+    "lastTiming": {
+     "end": "2026-11-06T22:00:00.000+01:00",
+     "begin": "2026-11-06T20:30:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 3259047,
+     "address": "rue Béraire, La Chapelle St Mesmin",
+     "deleted": false,
+     "city": "La Chapelle-Saint-Mesmin",
+     "latitude": 47.890292,
+     "name": "Espace Béraire",
+     "longitude": 1.835724
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     7
+    ],
+    "nextTiming": {
+     "end": "2026-11-06T22:00:00+01:00",
+     "begin": "2026-11-06T20:30:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": true,
+    "keywords": {
+     "fr": [
+      "Concert-Spectacle-Chanson- Musique-Poésie"
+     ]
+    },
+    "conference-rencontre-debat": [
+     27
+    ],
+    "dateRange": {
+     "ar": "السبت ٧ نوفمبر, 19:00",
+     "de": "Samstag 7 November, 19:00",
+     "en": "Saturday 7 November, 19:00",
+     "it": "Sabato 7 novembre, 19:00",
+     "fr": "Samedi 7 novembre, 19h00",
+     "es": "Sábado 7 noviembre, 19:00",
+     "nl": "Zaterdag 7 november, 19u00"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Richard Dumas",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "\"CHUT !\" : Un chanteur sachant chanter sans chanter est un bon chanteur ! CHUT ! de Christian Olivier (Têtes Raides) , le samedi 7 novembre 2026 à l'Auditorium de la Médiathèque d'Orléans."
+    },
+    "title": {
+     "fr": "CHUT !"
+    },
+    "onlineAccessLink": null,
+    "uid": 83483449,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-11-07T22:00:00.000+01:00",
+     "id": "0DCBEE",
+     "begin": "2026-11-07T19:00:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "chut-9217095",
+    "image": {
+     "filename": "a70b8f4e0aff4a5283cfd33b17edb6d1.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 990
+     },
+     "variants": [
+      {
+       "filename": "a70b8f4e0aff4a5283cfd33b17edb6d1.full.image.jpg",
+       "size": {
+        "width": 1414,
+        "height": 2000
+       },
+       "type": "full"
+      },
+      {
+       "filename": "a70b8f4e0aff4a5283cfd33b17edb6d1.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [
+     69
+    ],
+    "attendanceMode": 1,
+    "rna": "W452003852",
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/83483449_chut-9217095",
+    "organizatorName": "Association DEFI",
+    "lastTiming": {
+     "end": "2026-11-07T22:00:00.000+01:00",
+     "id": "0DCBEE",
+     "begin": "2026-11-07T19:00:00.000+01:00"
+    },
+    "musique": [
+     56,
+     51
+    ],
+    "location": {
+     "uid": 91016534,
+     "address": "1 rue de Chanzy, 45000 Orléans",
+     "deleted": false,
+     "city": "Orléans",
+     "latitude": 47.907191,
+     "name": "Auditorium de la Médiathèque Gambetta - Marcel Reggui",
+     "longitude": 1.900184
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     7,
+     5
+    ],
+    "nextTiming": {
+     "end": "2026-11-07T22:00:00+01:00",
+     "id": "0DCBEE",
+     "begin": "2026-11-07T19:00:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "dire straits",
+      "concert",
+      "rock",
+      "octobre 2026",
+      "mark knopfler",
+      "mam",
+      "Maison des Arts et de la musique",
+      "live"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "السبت ٢٤ أكتوبر, 20:30",
+     "de": "Samstag 24 Oktober, 20:30",
+     "en": "Saturday 24 October, 20:30",
+     "it": "Sabato 24 ottobre, 20:30",
+     "fr": "Samedi 24 octobre, 20h30",
+     "es": "Sábado 24 octubre, 20:30",
+     "nl": "Zaterdag 24 oktober, 20u30"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Florent Cantin",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Concert Dire Straits"
+    },
+    "title": {
+     "fr": "Dire Straits Tribute - Concert Radio Straits"
+    },
+    "onlineAccessLink": null,
+    "uid": 84644618,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-24T22:30:00.000+02:00",
+     "id": "KF8FNG",
+     "begin": "2026-10-24T20:30:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "dire-straits-tribute-concert-radio-straits",
+    "image": {
+     "filename": "26a901d525a242fe8679a26201dfce9b.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 700
+     },
+     "variants": [
+      {
+       "filename": "26a901d525a242fe8679a26201dfce9b.full.image.jpg",
+       "size": {
+        "width": 1080,
+        "height": 1080
+       },
+       "type": "full"
+      },
+      {
+       "filename": "26a901d525a242fe8679a26201dfce9b.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "rna": "W913008213",
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/84644618_dire-straits-tribute-concert-radio-straits",
+    "organizatorName": "Radio Straits",
+    "lastTiming": {
+     "end": "2026-10-24T22:30:00.000+02:00",
+     "id": "KF8FNG",
+     "begin": "2026-10-24T20:30:00.000+02:00"
+    },
+    "musique": [
+     51
+    ],
+    "location": {
+     "uid": 69786284,
+     "address": "Cours Victor Hugo 45100 ORLEANS",
+     "deleted": false,
+     "city": "Orléans",
+     "latitude": 47.88919,
+     "name": "Maison des Arts et de la Musique - MAM",
+     "longitude": 1.897727
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     5
+    ],
+    "nextTiming": {
+     "end": "2026-10-24T22:30:00+02:00",
+     "id": "KF8FNG",
+     "begin": "2026-10-24T20:30:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "THE DANSANT"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "الجمعة ٣٠ أكتوبر, 14:00",
+     "de": "Freitag 30 Oktober, 14:00",
+     "en": "Friday 30 October, 14:00",
+     "it": "Venerdì 30 ottobre, 14:00",
+     "fr": "Vendredi 30 octobre, 14h00",
+     "es": "Viernes 30 octubre, 14:00",
+     "nl": "Vrijdag 30 oktober, 14u00"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "255",
+    "originAgenda": {
+     "image": "e45937a9045945a4839ff3817bf0522e.full.image.jpg",
+     "uid": 3991265,
+     "title": "Agenda de  Chécy"
+    },
+    "description": {
+     "fr": "THE DANSANT animé par l'orchestre Thibault Colas"
+    },
+    "title": {
+     "fr": "THE DANSANT"
+    },
+    "onlineAccessLink": null,
+    "uid": 70113402,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 3991265,
+      "name": "Agenda de  Chécy",
+      "url": "http://www.checy.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-30T18:00:00.000+01:00",
+     "id": "2X1376",
+     "begin": "2026-10-30T14:00:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [
+     48
+    ],
+    "slug": "the-dansant-6437767",
+    "image": {
+     "filename": "c36bd340773743a2a7af54bf3e351aeb.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 990
+     },
+     "variants": [
+      {
+       "filename": "c36bd340773743a2a7af54bf3e351aeb.full.image.jpg",
+       "size": {
+        "width": 1654,
+        "height": 2339
+       },
+       "type": "full"
+      },
+      {
+       "filename": "c36bd340773743a2a7af54bf3e351aeb.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/checy/events/70113402_the-dansant-6437767",
+    "organizatorName": "ASSOCIATION FAMILIALE",
+    "lastTiming": {
+     "end": "2026-10-30T18:00:00.000+01:00",
+     "id": "2X1376",
+     "begin": "2026-10-30T14:00:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 65373812,
+     "address": "12 place d'ar45430 CHECY",
+     "deleted": false,
+     "city": "Chécy",
+     "latitude": 47.891858,
+     "name": "SALLE DES FETES 45430 CHECY 12 place Jeanne d'Arc",
+     "longitude": 2.024275
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     5
+    ],
+    "nextTiming": {
+     "end": "2026-10-30T18:00:00+01:00",
+     "id": "2X1376",
+     "begin": "2026-10-30T14:00:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "Exposition lego"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "٢٤ و ٢٥ أكتوبر ",
+     "de": "24 und 25 Oktober",
+     "en": "24 and 25 October",
+     "it": "24 e 25 ottobre",
+     "fr": "24 et 25 octobre",
+     "es": "24 i 25 octubre",
+     "nl": "24 en 25 oktober"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "ATL Collectionneurs de l'Orléanais",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Olivet Bricks 2026 revient au Gymnase du Larry à Olivet le 24 et 25 Octobre 2026. Un évènement consacré à notre petite brique lego favorite pour petits et grands."
+    },
+    "title": {
+     "fr": "Olivet Bricks 2026"
+    },
+    "onlineAccessLink": null,
+    "uid": 67485576,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-24T19:00:00.000+02:00",
+     "id": "ZFMXY5",
+     "begin": "2026-10-24T13:00:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "olivet-bricks-2026-1100420",
+    "image": {
+     "filename": "7e99a312c22f4abfa481a7a84a7412a6.base.image.jpg",
+     "size": {
+      "width": 565,
+      "height": 800
+     },
+     "variants": [
+      {
+       "filename": "7e99a312c22f4abfa481a7a84a7412a6.full.image.jpg",
+       "size": {
+        "width": 565,
+        "height": 800
+       },
+       "type": "full"
+      },
+      {
+       "filename": "7e99a312c22f4abfa481a7a84a7412a6.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/67485576_olivet-bricks-2026-1100420",
+    "organizatorName": "ATL Collectionneurs de l'Orléanais",
+    "lastTiming": {
+     "end": "2026-10-25T18:00:00.000+01:00",
+     "id": "S928QQ",
+     "begin": "2026-10-25T09:00:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 36612589,
+     "address": "54 rue des Chênes 45160 Olivet",
+     "deleted": false,
+     "city": "Olivet",
+     "latitude": 47.859148,
+     "name": "Gymnase du Larry",
+     "longitude": 1.904893
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     3
+    ],
+    "nextTiming": {
+     "end": "2026-10-24T19:00:00+02:00",
+     "id": "ZFMXY5",
+     "begin": "2026-10-24T13:00:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "Piano",
+      "Musique contemporaine",
+      "Concert",
+      "musique classique"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "الأحد ٢٥ أكتوبر, 10:45",
+     "de": "Sonntag 25 Oktober, 10:45",
+     "en": "Sunday 25 October, 10:45",
+     "it": "Domenica 25 ottobre, 10:45",
+     "fr": "Dimanche 25 octobre, 10h45",
+     "es": "Domingo 25 octubre, 10:45",
+     "nl": "Zondag 25 oktober, 10u45"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Simon Pauly",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Filippo Gorini est un pianiste de renommée internationale, déjà invité aux Matinées du Piano en 2022 en tant que lauréat du Premier Prix du Concours Beethoven de Bonn."
+    },
+    "title": {
+     "fr": "Matinées du piano : Hammerklavier - Récital de piano de Filippo Gorini"
+    },
+    "onlineAccessLink": null,
+    "uid": 75038478,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-25T12:00:00.000+01:00",
+     "begin": "2026-10-25T10:45:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "matinee-du-piano-hammerklavier-recital-de-piano-de-filippo-gorini-1er-prix-du-concours-international-telekom-beethoven-bonn-2015",
+    "image": {
+     "filename": "46a411a4f2c745ff869c0f86cf037ba4.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 467
+     },
+     "variants": [
+      {
+       "filename": "46a411a4f2c745ff869c0f86cf037ba4.full.image.jpg",
+       "size": {
+        "width": 3870,
+        "height": 2583
+       },
+       "type": "full"
+      },
+      {
+       "filename": "46a411a4f2c745ff869c0f86cf037ba4.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/75038478_matinee-du-piano-hammerklavier-recital-de-piano-de-filippo-gorini-1er-prix-du-concours-international-telekom-beethoven-bonn-2015",
+    "organizatorName": "Orléans Concours International",
+    "lastTiming": {
+     "end": "2026-10-25T12:00:00.000+01:00",
+     "begin": "2026-10-25T10:45:00.000+01:00"
+    },
+    "musique": [
+     55
+    ],
+    "location": {
+     "uid": 46449548,
+     "address": "4, Place Sainte-Croix 45000 Orléans",
+     "deleted": false,
+     "city": "Orléans",
+     "latitude": 47.902254,
+     "name": "Salle de l'institut",
+     "longitude": 1.908692
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     5
+    ],
+    "nextTiming": {
+     "end": "2026-10-25T12:00:00+01:00",
+     "begin": "2026-10-25T10:45:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "gratuit"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "١٧ أكتوبر ٢٠٢٦ - ٣٠ يناير ٢٠٢٧",
+     "de": "17 Oktober 2026 - 30 Januar 2027",
+     "en": "17 October 2026 - 30 January 2027",
+     "it": "17 ottobre 2026 - 30 gennaio 2027",
+     "fr": "17 octobre 2026 - 30 janvier 2027",
+     "es": "17 octubre 2026 - 30 enero 2027",
+     "nl": "17 oktober 2026 - 30 januari 2027"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "AOT",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Expo sonore"
+    },
+    "title": {
+     "fr": "Je dinerai avec toi"
+    },
+    "onlineAccessLink": null,
+    "uid": 77073928,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-17T18:00:00.000+02:00",
+     "id": "DN0N7P",
+     "begin": "2026-10-17T15:00:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "je-dinerai-avec-toi",
+    "image": {
+     "filename": "59cf173c112f4af2a434b979ec8c635a.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 990
+     },
+     "variants": [
+      {
+       "filename": "59cf173c112f4af2a434b979ec8c635a.full.image.jpg",
+       "size": {
+        "width": 3508,
+        "height": 4961
+       },
+       "type": "full"
+      },
+      {
+       "filename": "59cf173c112f4af2a434b979ec8c635a.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "rna": "W452005603",
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/77073928_je-dinerai-avec-toi",
+    "organizatorName": "Amis de l'Orgue et du Temple",
+    "lastTiming": {
+     "end": "2027-01-30T18:00:00.000+01:00",
+     "id": "QZKET5",
+     "begin": "2027-01-30T15:00:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 49171812,
+     "address": "1 rue Parisie, Orléans",
+     "deleted": false,
+     "city": "Orléans",
+     "latitude": 47.900821,
+     "name": "Temple protestant (salles)",
+     "longitude": 1.909115
+    },
+    "exposition": [
+     32
+    ],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     3
+    ],
+    "nextTiming": {
+     "end": "2026-10-21T17:00:00+02:00",
+     "id": "CY27M3",
+     "begin": "2026-10-21T15:00:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [
+     12
+    ],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "EXPOSITION PHOTOS",
+      "CLUB PHOTO CHAPELLOIS",
+      "PARC DE LA SOLITUDE",
+      "LA CHAPELLE SAINT-MESMIN",
+      "EXPO PHOTOGRAPHIQUE EN PLEIN AIR",
+      "CPC",
+      "EXPO PHOTOS",
+      "EXPO PHOTOS LOIRET",
+      "gratuit"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "١٣ يوليو ٢٠٢٦ - ٣١ مارس ٢٠٢٧",
+     "de": "13 Juli 2026 - 31 März 2027",
+     "en": "13 July 2026 - 31 March 2027",
+     "it": "13 luglio 2026 - 31 marzo 2027",
+     "fr": "13 juillet 2026 - 31 mars 2027",
+     "es": "13 julio 2026 - 31 marzo 2027",
+     "nl": "13 juli 2026 - 31 maart 2027"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Club Photo Chapellois",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Le grand rendez-vous de l’année du Club Photo Chapellos"
+    },
+    "title": {
+     "fr": "Exposition photographique en plein air 2026/2027 du club photo Chapellois"
+    },
+    "onlineAccessLink": null,
+    "uid": 94900701,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-07-13T19:00:00.000+02:00",
+     "begin": "2026-07-13T08:30:00.000+02:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "exposition-photographique-en-plein-air-2025-du-club-photo-chapellois-4560293",
+    "image": {
+     "filename": "40f6b70b1e704f49a7c4e94aa6a78b29.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 1050
+     },
+     "variants": [
+      {
+       "filename": "40f6b70b1e704f49a7c4e94aa6a78b29.full.image.jpg",
+       "size": {
+        "width": 4252,
+        "height": 6378
+       },
+       "type": "full"
+      },
+      {
+       "filename": "40f6b70b1e704f49a7c4e94aa6a78b29.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/94900701_exposition-photographique-en-plein-air-2025-du-club-photo-chapellois-4560293",
+    "organizatorName": "CLUB PHOTO CHAPELLOIS",
+    "lastTiming": {
+     "end": "2027-03-31T18:00:00.000+02:00",
+     "begin": "2027-03-31T08:00:00.000+02:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 63205039,
+     "address": "Parc de la Solitude, 45380 La Chapelle-Saint-Mesmin",
+     "deleted": false,
+     "city": "La Chapelle-Saint-Mesmin",
+     "latitude": 47.887148,
+     "name": "Parc de la Solitude",
+     "longitude": 1.841253
+    },
+    "exposition": [
+     29
+    ],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     3
+    ],
+    "nextTiming": {
+     "end": "2026-10-19T18:00:00+02:00",
+     "begin": "2026-10-19T08:00:00+02:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "gratuit"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "السبت ٧ نوفمبر, 16:00",
+     "de": "Samstag 7 November, 16:00",
+     "en": "Saturday 7 November, 16:00",
+     "it": "Sabato 7 novembre, 16:00",
+     "fr": "Samedi 7 novembre, 16h00",
+     "es": "Sábado 7 noviembre, 16:00",
+     "nl": "Zaterdag 7 november, 16u00"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "Mairie de Saint Jean de la Ruelle - Canva",
+    "originAgenda": {
+     "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+     "uid": 35710944,
+     "title": "Agenda de sorties dans la métropole orléanaise"
+    },
+    "description": {
+     "fr": "Activité à la bibliothèque du Chat Perché"
+    },
+    "title": {
+     "fr": "Séance cinéma pour les touts petits"
+    },
+    "onlineAccessLink": null,
+    "uid": 61908963,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-11-07T16:45:00.000+01:00",
+     "begin": "2026-11-07T16:00:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [],
+    "slug": "seance-cinema-pour-les-touts-petits",
+    "image": {
+     "filename": "7bd2da652a314256950d36b620e6d9f7.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 404
+     },
+     "variants": [
+      {
+       "filename": "7bd2da652a314256950d36b620e6d9f7.full.image.jpg",
+       "size": {
+        "width": 1280,
+        "height": 738
+       },
+       "type": "full"
+      },
+      {
+       "filename": "7bd2da652a314256950d36b620e6d9f7.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/61908963_seance-cinema-pour-les-touts-petits",
+    "organizatorName": "Mairie de Saint Jean de la Ruelle",
+    "lastTiming": {
+     "end": "2026-11-07T16:45:00.000+01:00",
+     "begin": "2026-11-07T16:00:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 3545617,
+     "address": "Rue des Turquoises 45140 Saint Jean de la Ruelle",
+     "deleted": false,
+     "city": "Saint-Jean-de-la-Ruelle",
+     "latitude": 47.923386,
+     "name": "Bibliothèque du Chat Perché",
+     "longitude": 1.878528
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     6,
+     10
+    ],
+    "nextTiming": {
+     "end": "2026-11-07T16:45:00+01:00",
+     "begin": "2026-11-07T16:00:00+01:00"
+    }
+   },
+   {
+    "balade-decouverte-visite": [],
+    "featured": false,
+    "keywords": {
+     "fr": [
+      "Halloween",
+      "gratuit",
+      "horreur",
+      "jeune public",
+      "cinema de genre"
+     ]
+    },
+    "conference-rencontre-debat": [],
+    "dateRange": {
+     "ar": "٢٧ - ٣١ أكتوبر",
+     "de": "27 - 31 Oktober",
+     "en": "27 - 31 October",
+     "it": "27 - 31 ottobre",
+     "fr": "27 - 31 octobre",
+     "es": "27 - 31 octubre",
+     "nl": "27 - 31 oktober"
+    },
+    "timezone": "Europe/Paris",
+    "imageCredits": "MOBE",
+    "originAgenda": {
+     "image": "6f69146970314533b646013633faa4bc.full.image.jpg",
+     "uid": 98369889,
+     "title": "MOBE - Muséum d’Orléans pour la Biodiversité et l’Environnement"
+    },
+    "description": {
+     "fr": "Cette année, venez préparer Halloween au MOBE !"
+    },
+    "title": {
+     "fr": "Le MOBE fête Halloween"
+    },
+    "onlineAccessLink": null,
+    "uid": 89708275,
+    "rights": {
+     "license": {
+      "name": "Licence Ouverte 2.0",
+      "id": "etalab-2.0",
+      "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+     },
+     "licensor": {
+      "agendaUid": 98369889,
+      "name": "MOBE - Muséum d’Orléans pour la Biodiversité et l’Environnement",
+      "url": "https://www.orleans.fr/que-faire-a-orleans/musees/museum-dorleans-pour-la-biodiversite-et-lenvironnement"
+     },
+     "publisher": {
+      "agendaUid": 35710944,
+      "name": "Agenda de sorties dans la métropole orléanaise",
+      "url": "http://sortir.orleans-metropole.fr"
+     }
+    },
+    "firstTiming": {
+     "end": "2026-10-27T18:00:00.000+01:00",
+     "id": "XATF1D",
+     "begin": "2026-10-27T10:00:00.000+01:00"
+    },
+    "projection-cinema": [],
+    "fete-salon-marche": [
+     48
+    ],
+    "slug": "le-mobe-fete-halloween",
+    "image": {
+     "filename": "6a72aa960fa0412eb9486198862863a9.base.image.jpg",
+     "size": {
+      "width": 700,
+      "height": 1050
+     },
+     "variants": [
+      {
+       "filename": "6a72aa960fa0412eb9486198862863a9.full.image.jpg",
+       "size": {
+        "width": 1152,
+        "height": 1728
+       },
+       "type": "full"
+      },
+      {
+       "filename": "6a72aa960fa0412eb9486198862863a9.thumb.image.jpg",
+       "size": {
+        "width": 200,
+        "height": 200
+       },
+       "type": "thumbnail"
+      }
+     ],
+     "base": "https://img.openagenda.com/main/"
+    },
+    "spectacle": [],
+    "attendanceMode": 1,
+    "canonicalUrl": "https://openagenda.com/museum-dorleans-pour-la-biodiversite-et-lenvironnement/events/89708275_le-mobe-fete-halloween",
+    "organizatorName": "MOBE",
+    "lastTiming": {
+     "end": "2026-10-31T18:00:00.000+01:00",
+     "id": "NEW2CM",
+     "begin": "2026-10-31T10:00:00.000+01:00"
+    },
+    "musique": [],
+    "location": {
+     "uid": 46554514,
+     "address": "6 rue Marcel Proust 45000 Orléans",
+     "deleted": false,
+     "city": "Orléans",
+     "latitude": 47.908385,
+     "name": "Muséum d'Orléans pour la Biodiversité et l'Environnement (MOBE)",
+     "longitude": 1.907382
+    },
+    "exposition": [],
+    "sport": [],
+    "stage-atelier-jeu": [],
+    "status": 1,
+    "categorie-principale": [
+     10,
+     6,
+     7,
+     4
+    ],
+    "nextTiming": {
+     "end": "2026-10-27T18:00:00+01:00",
+     "id": "XATF1D",
+     "begin": "2026-10-27T10:00:00+01:00"
+    }
    }
   ],
   "sort": "timingsWithFeatured.asc",
@@ -2872,224 +4302,6 @@
    "updatedAt": "2026-06-29T15:01:51.000Z",
    "links": [],
    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/27309952_youn-sun-nah-nit-and-dogs-premiere-partie",
-   "valid": true
-  },
-  "41566173": {
-   "firstTiming": {
-    "end": "2026-11-12T20:20:00.000+01:00",
-    "id": "14E172",
-    "begin": "2026-11-12T19:00:00.000+01:00"
-   },
-   "nextTiming": {
-    "end": "2026-11-12T20:20:00+01:00",
-    "id": "14E172",
-    "begin": "2026-11-12T19:00:00+01:00"
-   },
-   "lastTiming": {
-    "end": "2026-11-22T16:20:00.000+01:00",
-    "id": "5BR90T",
-    "begin": "2026-11-22T15:00:00.000+01:00"
-   },
-   "rights": {
-    "license": {
-     "name": "Licence Ouverte 2.0",
-     "id": "etalab-2.0",
-     "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
-    },
-    "licensor": {
-     "agendaUid": 35710944,
-     "name": "Agenda de sorties dans la métropole orléanaise",
-     "url": "http://sortir.orleans-metropole.fr"
-    },
-    "publisher": {
-     "agendaUid": 35710944,
-     "name": "Agenda de sorties dans la métropole orléanaise",
-     "url": "http://sortir.orleans-metropole.fr"
-    }
-   },
-   "dateRange": {
-    "ar": "١٢ - ٢٢ نوفمبر",
-    "de": "12 - 22 November",
-    "en": "12 - 22 November",
-    "it": "12 - 22 novembre",
-    "fr": "12 - 22 novembre",
-    "es": "12 - 22 noviembre",
-    "nl": "12 - 22 november"
-   },
-   "state": 2,
-   "featured": true,
-   "motive": null,
-   "originAgenda": {
-    "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
-    "private": 0,
-    "locationSetUid": 68951964,
-    "official": true,
-    "description": "Propositions de sorties à Orléans et dans les 22 communes de la métropole.",
-    "title": "Agenda de sorties dans la métropole orléanaise",
-    "url": "http://sortir.orleans-metropole.fr",
-    "_agg": "eyJ1aWQiOjM1NzEwOTQ0LCJ0aXRsZSI6IkFnZW5kYSBkZSBzb3J0aWVzIGRhbnMgbGEgbcOpdHJvcG9sZSBvcmzDqWFuYWlzZSIsImltYWdlIjoiYjA5NzA5MTM4ZGIxNDdlMjhkNTA1NDFiMjRkNDkxNTAuZnVsbC5pbWFnZS5qcGciLCJ1cmwiOiJodHRwOi8vc29ydGlyLm9ybGVhbnMtbWV0cm9wb2xlLmZyIiwic2x1ZyI6Im9ybGVhbnMtbWV0cm9wb2xlIn0=",
-    "uid": 35710944,
-    "createdAt": "2016-10-10T07:45:09.000Z",
-    "organization": {
-     "name": null,
-     "url": null
-    },
-    "officializedAt": null,
-    "slug": "orleans-metropole",
-    "updatedAt": "2026-10-17T10:07:29.000Z"
-   },
-   "sourceAgendas": [],
-   "organizatorName": "CADO",
-   "organizatorContact": null,
-   "categorie-principale": [
-    7
-   ],
-   "balade-decouverte-visite": [],
-   "conference-rencontre-debat": [],
-   "exposition": [],
-   "fete-salon-marche": [],
-   "musique": [],
-   "projection-cinema": [],
-   "spectacle": [
-    63
-   ],
-   "sport": [],
-   "stage-atelier-jeu": [],
-   "image": {
-    "filename": "9ca0b85ad2804a30a8cba128c7bdddcf.base.image.jpg",
-    "size": {
-     "width": 700,
-     "height": 1026
-    },
-    "variants": [
-     {
-      "filename": "9ca0b85ad2804a30a8cba128c7bdddcf.full.image.jpg",
-      "size": {
-       "width": 1394,
-       "height": 2044
-      },
-      "type": "full"
-     },
-     {
-      "filename": "9ca0b85ad2804a30a8cba128c7bdddcf.thumb.image.jpg",
-      "size": {
-       "width": 200,
-       "height": 200
-      },
-      "type": "thumbnail"
-     }
-    ],
-    "base": "https://img.openagenda.com/main/"
-   },
-   "imageCredits": "maquette CADO",
-   "title": {
-    "fr": "LES ENCHANTEURS"
-   },
-   "description": {
-    "fr": "L'âme des pooètes"
-   },
-   "keywords": [],
-   "longDescription": {
-    "fr": "<p>Christophe Malavoy s’est inventé un «parcours du Tendre» nourri de ses qualités d’acteur,<br>à travers le répertoire des chansons du vingtième siècle qui nous ont vu grandir.<br>Désireux de remettre la poésie au cœur de nos vies, il nous immerge dans le patrimoine riche et émouvant de ces poètes qui ont illuminé le répertoire de la chanson française : Brel, Barbara, Caussimon, Ferrat et les autres…<br>La magnifique voix de théâtre de Christophe Malavoy est aussi une voix de chanteur,<br>accompagnée de Sébastien Debard au piano<br>et à l’accordéon. L’artiste émaille son spectacle d’anecdotes, souvent cocasses, partage avec nous ses rencontres les plus marquantes, nous parle de ces poètes avec douceur,<br>tendresse et élégance. Un rêve éveillé !</p>\n"
-   },
-   "conditions": {
-    "fr": "tarifs : de 12 à 36 euros"
-   },
-   "age": {
-    "min": null,
-    "max": null
-   },
-   "registration": [
-    {
-     "type": "link",
-     "value": "https://www.cado-orleans.fr/saison-2026-2027/"
-    }
-   ],
-   "accessibility": {
-    "ii": false,
-    "hi": false,
-    "vi": false,
-    "pi": false,
-    "mi": false
-   },
-   "location": {
-    "uid": 88394571,
-    "name": "Théâtre d'Orléans",
-    "address": "boulevard pierre ségelle 45000 orleans",
-    "city": "Orléans",
-    "postalCode": "45000",
-    "department": "Loiret",
-    "region": "Centre-Val de Loire",
-    "countryCode": "FR",
-    "latitude": 47.904396,
-    "longitude": 1.913351,
-    "timezone": "Europe/Paris"
-   },
-   "timings": [
-    {
-     "end": "2026-11-12T20:20:00+01:00",
-     "id": "14E172",
-     "begin": "2026-11-12T19:00:00+01:00"
-    },
-    {
-     "end": "2026-11-13T21:20:00+01:00",
-     "id": "K7AEHC",
-     "begin": "2026-11-13T20:00:00+01:00"
-    },
-    {
-     "end": "2026-11-14T21:20:00+01:00",
-     "id": "0XR4KF",
-     "begin": "2026-11-14T20:00:00+01:00"
-    },
-    {
-     "end": "2026-11-15T16:20:00+01:00",
-     "id": "4S7Q0W",
-     "begin": "2026-11-15T15:00:00+01:00"
-    },
-    {
-     "end": "2026-11-17T21:20:00+01:00",
-     "id": "8AJ5HX",
-     "begin": "2026-11-17T20:00:00+01:00"
-    },
-    {
-     "end": "2026-11-18T20:20:00+01:00",
-     "id": "369NH4",
-     "begin": "2026-11-18T19:00:00+01:00"
-    },
-    {
-     "end": "2026-11-19T20:20:00+01:00",
-     "id": "GTR5D2",
-     "begin": "2026-11-19T19:00:00+01:00"
-    },
-    {
-     "end": "2026-11-20T21:20:00+01:00",
-     "id": "5FYM5C",
-     "begin": "2026-11-20T20:00:00+01:00"
-    },
-    {
-     "end": "2026-11-21T21:20:00+01:00",
-     "id": "C8XFDM",
-     "begin": "2026-11-21T20:00:00+01:00"
-    },
-    {
-     "end": "2026-11-22T16:20:00+01:00",
-     "id": "5BR90T",
-     "begin": "2026-11-22T15:00:00+01:00"
-    }
-   ],
-   "attendanceMode": 1,
-   "onlineAccessLink": null,
-   "status": 1,
-   "extIds": null,
-   "uid": 41566173,
-   "slug": "les-enchanteurs-240817",
-   "private": 0,
-   "timezone": "Europe/Paris",
-   "draft": 0,
-   "createdAt": "2026-09-10T16:04:22.000Z",
-   "updatedAt": "2026-09-14T07:34:42.000Z",
-   "links": [],
-   "canonicalUrl": "https://openagenda.com/orleans-metropole/events/41566173_les-enchanteurs-240817",
    "valid": true
   },
   "32843872": {
@@ -3862,6 +5074,224 @@
    "updatedAt": "2026-09-09T14:23:09.000Z",
    "links": [],
    "canonicalUrl": "https://openagenda.com/orleans-metropole/events/32843872_circus-6824853",
+   "valid": true
+  },
+  "41566173": {
+   "firstTiming": {
+    "end": "2026-11-12T20:20:00.000+01:00",
+    "id": "14E172",
+    "begin": "2026-11-12T19:00:00.000+01:00"
+   },
+   "nextTiming": {
+    "end": "2026-11-12T20:20:00+01:00",
+    "id": "14E172",
+    "begin": "2026-11-12T19:00:00+01:00"
+   },
+   "lastTiming": {
+    "end": "2026-11-22T16:20:00.000+01:00",
+    "id": "5BR90T",
+    "begin": "2026-11-22T15:00:00.000+01:00"
+   },
+   "rights": {
+    "license": {
+     "name": "Licence Ouverte 2.0",
+     "id": "etalab-2.0",
+     "url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0/"
+    },
+    "licensor": {
+     "agendaUid": 35710944,
+     "name": "Agenda de sorties dans la métropole orléanaise",
+     "url": "http://sortir.orleans-metropole.fr"
+    },
+    "publisher": {
+     "agendaUid": 35710944,
+     "name": "Agenda de sorties dans la métropole orléanaise",
+     "url": "http://sortir.orleans-metropole.fr"
+    }
+   },
+   "dateRange": {
+    "ar": "١٢ - ٢٢ نوفمبر",
+    "de": "12 - 22 November",
+    "en": "12 - 22 November",
+    "it": "12 - 22 novembre",
+    "fr": "12 - 22 novembre",
+    "es": "12 - 22 noviembre",
+    "nl": "12 - 22 november"
+   },
+   "state": 2,
+   "featured": true,
+   "motive": null,
+   "originAgenda": {
+    "image": "b09709138db147e28d50541b24d49150.full.image.jpg",
+    "private": 0,
+    "locationSetUid": 68951964,
+    "official": true,
+    "description": "Propositions de sorties à Orléans et dans les 22 communes de la métropole.",
+    "title": "Agenda de sorties dans la métropole orléanaise",
+    "url": "http://sortir.orleans-metropole.fr",
+    "_agg": "eyJ1aWQiOjM1NzEwOTQ0LCJ0aXRsZSI6IkFnZW5kYSBkZSBzb3J0aWVzIGRhbnMgbGEgbcOpdHJvcG9sZSBvcmzDqWFuYWlzZSIsImltYWdlIjoiYjA5NzA5MTM4ZGIxNDdlMjhkNTA1NDFiMjRkNDkxNTAuZnVsbC5pbWFnZS5qcGciLCJ1cmwiOiJodHRwOi8vc29ydGlyLm9ybGVhbnMtbWV0cm9wb2xlLmZyIiwic2x1ZyI6Im9ybGVhbnMtbWV0cm9wb2xlIn0=",
+    "uid": 35710944,
+    "createdAt": "2016-10-10T07:45:09.000Z",
+    "organization": {
+     "name": null,
+     "url": null
+    },
+    "officializedAt": null,
+    "slug": "orleans-metropole",
+    "updatedAt": "2026-10-17T10:07:29.000Z"
+   },
+   "sourceAgendas": [],
+   "organizatorName": "CADO",
+   "organizatorContact": null,
+   "categorie-principale": [
+    7
+   ],
+   "balade-decouverte-visite": [],
+   "conference-rencontre-debat": [],
+   "exposition": [],
+   "fete-salon-marche": [],
+   "musique": [],
+   "projection-cinema": [],
+   "spectacle": [
+    63
+   ],
+   "sport": [],
+   "stage-atelier-jeu": [],
+   "image": {
+    "filename": "9ca0b85ad2804a30a8cba128c7bdddcf.base.image.jpg",
+    "size": {
+     "width": 700,
+     "height": 1026
+    },
+    "variants": [
+     {
+      "filename": "9ca0b85ad2804a30a8cba128c7bdddcf.full.image.jpg",
+      "size": {
+       "width": 1394,
+       "height": 2044
+      },
+      "type": "full"
+     },
+     {
+      "filename": "9ca0b85ad2804a30a8cba128c7bdddcf.thumb.image.jpg",
+      "size": {
+       "width": 200,
+       "height": 200
+      },
+      "type": "thumbnail"
+     }
+    ],
+    "base": "https://img.openagenda.com/main/"
+   },
+   "imageCredits": "maquette CADO",
+   "title": {
+    "fr": "LES ENCHANTEURS"
+   },
+   "description": {
+    "fr": "L'âme des pooètes"
+   },
+   "keywords": [],
+   "longDescription": {
+    "fr": "<p>Christophe Malavoy s’est inventé un «parcours du Tendre» nourri de ses qualités d’acteur,<br>à travers le répertoire des chansons du vingtième siècle qui nous ont vu grandir.<br>Désireux de remettre la poésie au cœur de nos vies, il nous immerge dans le patrimoine riche et émouvant de ces poètes qui ont illuminé le répertoire de la chanson française : Brel, Barbara, Caussimon, Ferrat et les autres…<br>La magnifique voix de théâtre de Christophe Malavoy est aussi une voix de chanteur,<br>accompagnée de Sébastien Debard au piano<br>et à l’accordéon. L’artiste émaille son spectacle d’anecdotes, souvent cocasses, partage avec nous ses rencontres les plus marquantes, nous parle de ces poètes avec douceur,<br>tendresse et élégance. Un rêve éveillé !</p>\n"
+   },
+   "conditions": {
+    "fr": "tarifs : de 12 à 36 euros"
+   },
+   "age": {
+    "min": null,
+    "max": null
+   },
+   "registration": [
+    {
+     "type": "link",
+     "value": "https://www.cado-orleans.fr/saison-2026-2027/"
+    }
+   ],
+   "accessibility": {
+    "ii": false,
+    "hi": false,
+    "vi": false,
+    "pi": false,
+    "mi": false
+   },
+   "location": {
+    "uid": 88394571,
+    "name": "Théâtre d'Orléans",
+    "address": "boulevard pierre ségelle 45000 orleans",
+    "city": "Orléans",
+    "postalCode": "45000",
+    "department": "Loiret",
+    "region": "Centre-Val de Loire",
+    "countryCode": "FR",
+    "latitude": 47.904396,
+    "longitude": 1.913351,
+    "timezone": "Europe/Paris"
+   },
+   "timings": [
+    {
+     "end": "2026-11-12T20:20:00+01:00",
+     "id": "14E172",
+     "begin": "2026-11-12T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-13T21:20:00+01:00",
+     "id": "K7AEHC",
+     "begin": "2026-11-13T20:00:00+01:00"
+    },
+    {
+     "end": "2026-11-14T21:20:00+01:00",
+     "id": "0XR4KF",
+     "begin": "2026-11-14T20:00:00+01:00"
+    },
+    {
+     "end": "2026-11-15T16:20:00+01:00",
+     "id": "4S7Q0W",
+     "begin": "2026-11-15T15:00:00+01:00"
+    },
+    {
+     "end": "2026-11-17T21:20:00+01:00",
+     "id": "8AJ5HX",
+     "begin": "2026-11-17T20:00:00+01:00"
+    },
+    {
+     "end": "2026-11-18T20:20:00+01:00",
+     "id": "369NH4",
+     "begin": "2026-11-18T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-19T20:20:00+01:00",
+     "id": "GTR5D2",
+     "begin": "2026-11-19T19:00:00+01:00"
+    },
+    {
+     "end": "2026-11-20T21:20:00+01:00",
+     "id": "5FYM5C",
+     "begin": "2026-11-20T20:00:00+01:00"
+    },
+    {
+     "end": "2026-11-21T21:20:00+01:00",
+     "id": "C8XFDM",
+     "begin": "2026-11-21T20:00:00+01:00"
+    },
+    {
+     "end": "2026-11-22T16:20:00+01:00",
+     "id": "5BR90T",
+     "begin": "2026-11-22T15:00:00+01:00"
+    }
+   ],
+   "attendanceMode": 1,
+   "onlineAccessLink": null,
+   "status": 1,
+   "extIds": null,
+   "uid": 41566173,
+   "slug": "les-enchanteurs-240817",
+   "private": 0,
+   "timezone": "Europe/Paris",
+   "draft": 0,
+   "createdAt": "2026-09-10T16:04:22.000Z",
+   "updatedAt": "2026-09-14T07:34:42.000Z",
+   "links": [],
+   "canonicalUrl": "https://openagenda.com/orleans-metropole/events/41566173_les-enchanteurs-240817",
    "valid": true
   },
   "42586898": {
