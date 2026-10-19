@@ -16,6 +16,7 @@ import {
   type AdminRequestReviewAction,
 } from "@/lib/admin-request-review";
 import type { AdminMobileEventItem } from "@/lib/api/app/schemas";
+import { parseEventDateInput } from "@/lib/date-utils";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export type MobileAdminEventStatusFilter = "all" | "pending" | "approved";
@@ -510,8 +511,9 @@ export async function quickEditMobileEvent(
   }
 
   if (input.date !== undefined) {
-    const parsed = new Date(input.date);
-    if (Number.isNaN(parsed.getTime())) {
+    // Sans fuseau : heure de Paris, enregistrée telle quelle (voir parseEventDateInput).
+    const parsed = parseEventDateInput(input.date);
+    if (!parsed) {
       throw new Error("Date invalide");
     }
     updates.date = parsed.toISOString();

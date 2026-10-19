@@ -157,11 +157,32 @@ export function fromDatetimeLocal(datetimeLocal: string | null | undefined): str
     
     // Créer une date en UTC pour préserver les heures/minutes exactes
     const date = new Date(Date.UTC(year, month - 1, day, hours, minutes));
-    
+
     return date.toISOString();
   } catch (error) {
     console.error("Erreur lors de la conversion de la date locale:", error, datetimeLocal);
     return "";
   }
+}
+
+/** Date et heure ISO sans fuseau : `2026-10-24T20:30`, `…T20:30:00`, `…T20:30:00.000`. */
+const ISO_DATE_TIME_WITHOUT_ZONE = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)$/;
+
+/**
+ * Lit une date d'événement reçue par l'API (`date` de l'édition rapide de l'app).
+ *
+ * `events.date` contient l'heure de Paris étiquetée UTC (20:30 saisi = `20:30:00+00`, comme
+ * `fromDatetimeLocal`). Une date sans fuseau (`DateTime.toIso8601String()` d'une heure choisie
+ * dans l'app) est cette heure : elle est lue en UTC quel que soit le fuseau du serveur, là où
+ * `new Date()` la lirait dans le fuseau du serveur. Une date avec `Z` ou un décalage est un
+ * instant, gardé tel quel.
+ *
+ * @returns null si la date est invalide
+ */
+export function parseEventDateInput(value: string): Date | null {
+  const trimmed = value.trim();
+  const withoutZone = ISO_DATE_TIME_WITHOUT_ZONE.exec(trimmed);
+  const date = new Date(withoutZone ? `${withoutZone[1]}T${withoutZone[2]}Z` : trimmed);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
