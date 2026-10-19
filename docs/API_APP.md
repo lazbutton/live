@@ -75,9 +75,10 @@ de requête.
 | `eventTitle` | texte, facultatif | repli si `event_data.title` est vide |
 | `sourceUrl` | texte, facultatif | |
 
-Deux autres appelants : le trigger SQL `notify_admins_new_request_trigger` (pg_net), qui envoie
-la ligne insérée (`id`, `request_type`, `event_data`, `source_url`, `requested_at` :
-`adminNewRequestRowSchema`, utilisée sans relecture), et la page de test du back-office.
+Autre appelant : la page de test du back-office. La route accepte aussi la ligne insérée (`id`,
+`request_type`, `event_data`, `source_url`, `requested_at` : `adminNewRequestRowSchema`, utilisée
+sans relecture), format du trigger SQL `notify_admins_new_request_trigger` : il n'a jamais rien
+envoyé et `20261019200000_drop_notify_admins_triggers.sql` le retire, ce format n'a plus d'appelant.
 
 **new-report** : appelée par `ContentReportService.reportEvent`
 (`lib/services/content_report_service.dart`) après l'insertion dans `content_reports`.
@@ -211,8 +212,11 @@ via `AdminMobileApiService`. JWT d'un admin (`role: admin`).
    `eventData.date` et `end_date` des demandes ont la même forme.
 5. Analyse d'affiche avec `imageUrl` : si l'image ne se charge pas, la route renvoie le statut de
    l'hôte de l'image (404, 403…). L'app n'envoie jamais `imageUrl`.
-6. Si le trigger `notify_admins_new_request_trigger` est actif en prod (non vérifié), une demande
-   créée par `/api/user-requests` notifie les admins deux fois : par la route, puis par le trigger.
+6. Pas de double notification des demandes. Le trigger `notify_admins_new_request_trigger`, comme
+   celui des feedbacks, appelle pg_net avec un corps `text` alors que `net.http_post` attend du
+   `jsonb` : l'appel échoue, l'erreur finit en WARNING et rien ne part (vérifié sur une base locale,
+   pg_net 0.19.5). Les deux triggers sont retirés par `20261019200000_drop_notify_admins_triggers.sql`,
+   à appliquer en prod.
 
 ## Comportements changés par l'ajout des schémas
 

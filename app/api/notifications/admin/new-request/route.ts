@@ -15,7 +15,7 @@ type RequestData = {
   source_url?: string | null;
 };
 
-/** `id` d'une ligne envoyée par le trigger SQL, s'il est exploitable. */
+/** `id` d'une ligne au format du trigger SQL (retiré), s'il est exploitable. */
 function isRowId(value: unknown): value is string {
   return (
     typeof value === "string" &&
@@ -38,7 +38,8 @@ function eventDataTitle(eventData: unknown) {
  * 
  * Body (JSON, sinon paramètres de requête), voir docs/API_APP.md :
  * - `adminNewRequestBodySchema` : app et page de test du back-office, demande relue en base ;
- * - `adminNewRequestRowSchema` : ligne envoyée par le trigger SQL `notify_admins_new_request_trigger`.
+ * - `adminNewRequestRowSchema` : ligne `user_requests`, format du trigger SQL
+ *   `notify_admins_new_request_trigger`, retiré (plus aucun appelant).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
     let fallback: { requestType?: string | null; eventTitle?: string | null } = {};
 
     if (isRowId(body.id)) {
-      // Format du trigger SQL : la ligne de la demande, sans relecture.
+      // Format du trigger SQL (retiré) : la ligne de la demande, sans relecture.
       const row = parseAppBody(adminNewRequestRowSchema, body);
       if (!row.ok) return row.response;
       requestData = {
