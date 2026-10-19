@@ -76,8 +76,11 @@ const interpolatedId = nonEmptyString.refine(
   "contient une variable non interpolée",
 );
 
-/** Replis de new-request (corps ou paramètres de requête), quand la demande ne les donne pas. */
-const newRequestFallbackFields = {
+/**
+ * Champs de new-request envoyés par l'app et la page de test (corps ou paramètres de requête),
+ * acceptés mais ignorés : la notification est construite depuis la demande relue en base.
+ */
+const newRequestIgnoredFields = {
   /** `event_creation` ou `event_from_url`. */
   requestType: optionalString,
   eventTitle: optionalString,
@@ -87,11 +90,11 @@ const newRequestFallbackFields = {
 /**
  * new-request, envoyé par l'app (`NotificationApiService.notifyAdminsNewRequest`, quand la
  * demande a été créée sans passer par /api/user-requests) et par la page de test du back-office.
- * La demande est relue en base par `requestId`.
+ * La demande est relue en base par `requestId` (404 si elle n'existe pas).
  */
 export const adminNewRequestBodySchema = z.object({
   requestId: interpolatedId,
-  ...newRequestFallbackFields,
+  ...newRequestIgnoredFields,
 });
 
 /**
@@ -113,15 +116,18 @@ export const adminNewReportBodySchema = z.object({
   blockRequested: z.boolean().nullish(),
 });
 
-/** Résultat de `sendNotificationToAdmins` (lib/notifications/admin.ts). */
+/**
+ * Résultat de `sendNotificationToAdmins` (lib/notifications/admin.ts), renvoyé par des routes
+ * publiques : aucune donnée sur les admins (ni identifiant, ni e-mail, ni token), le détail par
+ * admin ne va que dans les journaux serveur. `diagnostics` a été retiré (l'app ne le lisait pas).
+ */
 export const adminNotificationResultSchema = z.object({
   /** `false` dès qu'un envoi échoue ou que personne n'est notifié ; la réponse reste en 200. */
   success: z.boolean(),
   sent: z.number(),
   failed: z.number(),
+  /** Un message par échec, sans l'admin concerné (« Token iOS invalide: … », « Aucun token trouvé »). */
   errors: z.array(z.string()),
-  /** Détail par admin (e-mail, début des tokens) : voir docs/API_APP.md. */
-  diagnostics: z.record(z.string(), z.unknown()).optional(),
 });
 
 /** Réponse de new-request et new-report. L'app ne la lit pas. */
@@ -148,7 +154,10 @@ export const eventRequestDataSchema = z.looseObject({
   request_type: requiredString,
   title: requiredString,
   description: requiredString,
-  /** `DateTime.toIso8601String()` : heure locale de l'appareil, sans fuseau. */
+  /**
+   * `DateTime.toIso8601String()` : heure choisie, sans fuseau. C'est l'heure de Paris, gardée
+   * telle quelle à la conversion (`events.date` = heure de Paris étiquetée UTC).
+   */
   date: requiredString,
   end_date: optionalString,
   /** HH:mm. */
@@ -292,7 +301,10 @@ export const quickEditEventBodySchema = z.object({
   action: z.literal("quickEdit"),
   /** Au moins 3 caractères (vérifié à l'enregistrement). `null` = inchangé. */
   title: optionalString,
-  /** `DateTime.toIso8601String()`. `null` = inchangée. */
+  /**
+   * `DateTime.toIso8601String()`. Sans fuseau (heure choisie) : heure de Paris, enregistrée telle
+   * quelle ; avec `Z` (date inchangée) : instant gardé (`parseEventDateInput`). `null` = inchangée.
+   */
   date: optionalString,
   /** Lieu existant ; `null` ou `""` refusés à l'enregistrement. */
   locationId: optionalString,

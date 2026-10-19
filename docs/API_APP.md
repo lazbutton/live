@@ -25,6 +25,13 @@ les deux repos ensemble.
   donne `Corps de la requête invalide : JSON attendu`.
 - Champs facultatifs : absents ou `null` (l'app omet une clé avec `'clé': ?valeur`, envoie
   `null` sinon). Une clé inconnue est ignorée, sauf dans `eventData`, stocké tel quel.
+- Dates d'événement : `events.date` et `end_date` contiennent l'**heure de Paris étiquetée UTC**
+  (un concert à 20:30 est stocké `…T20:30:00+00:00`). Le formulaire du back-office l'écrit ainsi
+  (`fromDatetimeLocal`), le scraping aussi, et l'app l'affiche sans conversion (`event.date.hour`
+  d'un `DateTime` UTC, sans `toLocal()`). Ce n'est donc pas un instant : convertir l'heure de Paris
+  en vrai UTC (`toUtc()`, `zonedTimeToUtc`) décale l'affichage de 1 à 2 h. Une date que l'app envoie
+  sans fuseau (`DateTime.toIso8601String()` d'une heure choisie, `2026-10-24T20:30:00.000`) est
+  cette heure murale.
 
 ## Vue d'ensemble
 
@@ -63,7 +70,8 @@ DELETE n'envoie que `token`.
 ## Alertes admin : `POST /api/notifications/admin/new-request` et `new-report`
 
 Routes publiques (sans JWT). L'app ne lit pas la réponse : un échec est seulement journalisé. Corps JSON ; s'il n'est pas du JSON, les mêmes champs sont lus dans les paramètres
-de requête.
+de requête. Publiques : leurs réponses ne contiennent aucune donnée sur les admins (ni identifiant,
+ni e-mail, ni token) ; le détail par admin ne va que dans les journaux du serveur.
 
 **new-request** : appelée par `EventService` (`lib/services/event_service.dart`) quand
 `/api/user-requests` a échoué et que l'app a inséré la demande elle-même.
@@ -71,11 +79,15 @@ de requête.
 | Champ | Type | |
 | --- | --- | --- |
 | `requestId` | texte non vide, sans `{{` ni `$1` | demande relue en base |
-| `requestType` | texte, facultatif | `event_creation` ou `event_from_url` ; repli si la demande n'en a pas |
-| `eventTitle` | texte, facultatif | repli si `event_data.title` est vide |
-| `sourceUrl` | texte, facultatif | |
+| `requestType` | texte, facultatif | `event_creation` ou `event_from_url` ; ignoré |
+| `eventTitle` | texte, facultatif | ignoré |
+| `sourceUrl` | texte, facultatif | ignoré |
 
 Autre appelant : la page de test du back-office.
+
+Seul `requestId` sert : la demande est relue dans `user_requests` et le texte de la notification
+vient d'elle (`event_data.title`, `request_type`), jamais du corps. Pour l'app, c'est sans effet :
+elle envoie le titre et le type déjà enregistrés.
 
 **new-report** : appelée par `ContentReportService.reportEvent`
 (`lib/services/content_report_service.dart`) après l'insertion dans `content_reports`.
@@ -92,8 +104,10 @@ Autre appelant : la page de test du back-office.
 
 Réponse des deux routes :
 
-- 200 : `{ success, sent, failed, errors, diagnostics, flow }`, **même si aucun admin n'a été
-  notifié** (`success: false`, par exemple `errors: ["Aucun token trouvé"]`).
+- 200 : `{ success, sent, failed, errors, flow }`, **même si aucun admin n'a été
+  notifié** (`success: false`, par exemple `errors: ["Aucun token trouvé"]`). `errors` : un message
+  par échec, sans l'admin concerné (`Token iOS invalide: …`, `Plateforme non supportée: web`,
+  `Envoi ios: Token invalide: BadDeviceToken`).
 - 400 corps invalide ; 404 demande ou signalement introuvable (new-request ajoute `details`,
   l'erreur PostgREST) ; 500.
 
@@ -118,7 +132,7 @@ snake_case, clés inconnues conservées) :
 | --- | --- | --- |
 | `request_type` | texte | `complete` (formulaire) ou `poster_only` (affiche seule) |
 | `title`, `description` | texte | |
-| `date` | texte | `DateTime.toIso8601String()` : heure locale, sans fuseau |
+| `date` | texte | `DateTime.toIso8601String()` : heure choisie (heure de Paris), sans fuseau |
 | `category` | texte | nom en majuscules |
 | `end_date` | texte, facultatif | comme `date` |
 | `end_time`, `door_opening_time` | texte, facultatif | `HH:mm` |
@@ -126,6 +140,13 @@ snake_case, clés inconnues conservées) :
 | `location_id`, `location_name`, `address` | texte, facultatif | |
 | `image_url`, `external_url` | texte, facultatif | |
 | `tag_ids`, `tags`, `organizer_names` | liste de textes, facultatif | `tags` : noms, existants ou nouveaux |
+
+À la conversion en événement, `date` et `end_date` restent l'heure murale : la fonction SQL
+`convert_event_request_to_event` (back-office, ancienne route de conversion) les lit en
+`::timestamptz` dans la session PostgREST, en UTC (les dates en sortent en `+00:00`), et le
+formulaire du back-office les reprend par `toDatetimeLocal` (heures et minutes gardées, fuseau
+ignoré). Une date sans fuseau à 20:30 donne un événement à 20:30. Exception : une date issue de
+l'analyse d'affiche peut arriver en vrai UTC (incohérence 4).
 
 `event_from_url` ajoute :
 
@@ -136,7 +157,8 @@ snake_case, clés inconnues conservées) :
 | `sourceUrl` | texte | vide après `trim()` : 400 |
 
 - 200 : `{ success: true, request_id, status: "pending", message, notification, flow }`.
-  L'app affiche `message` après une demande « depuis une URL ».
+  L'app affiche `message` après une demande « depuis une URL ». `notification` :
+  `{ success, sent, failed, errors }`, comme les alertes admin, sans donnée sur les admins.
 - 400 corps invalide, lieu ou URL vides, ou insertion refusée par la base (message PostgREST brut) ;
   401 « Token d'authentification manquant » ou « Token invalide ou expiré » (avec `details`) ; 500.
 
@@ -153,6 +175,8 @@ aux autres appelants).
     `door_opening_time`, `external_url`, `external_url_label`, `image_url`, `location`, `address`,
     `organizer`, `tags` ; d'autres clés peuvent suivre (`is_full`, `presale_price`…).
     L'app (`ImportedEventPayload.fromJson`) convertit chaque valeur en texte.
+    `date` et `end_date` : une date ISO lue par l'IA est renvoyée telle quelle ; une date écrite
+    en toutes lettres (« samedi 24 octobre 20h30 ») est convertie en vrai UTC (incohérence 4).
   - `metadata` : `ai_processed`, `source` (`image`), `source_image_url`, `auth_mode` (`jwt`),
     `requester_id`.
   - `warnings` : `[{ field, message, value? }]`, champs que l'IA n'a pas su lire.
@@ -178,7 +202,7 @@ via `AdminMobileApiService`. JWT d'un admin (`role: admin`).
 | Champ | Type | |
 | --- | --- | --- |
 | `title` | texte, facultatif | au moins 3 caractères ; `null` = inchangé |
-| `date` | texte, facultatif | lu par `new Date()` ; `null` = inchangée |
+| `date` | texte, facultatif | sans fuseau : heure de Paris, enregistrée telle quelle (`…T20:30:00.000` → `20:30:00+00`) ; avec `Z` ou un décalage : instant gardé tel quel ; `null` = inchangée |
 | `locationId` | texte, facultatif | lieu existant ; `null` ou `""` refusés |
 | `price` | nombre, facultatif | `null` efface le prix |
 | `isPayWhatYouWant` | booléen, facultatif | jamais envoyé par l'app |
@@ -211,20 +235,52 @@ L'app actuelle ne sélectionne pas ces colonnes : ce qu'elle reçoit ne change p
 
 ## Incohérences relevées, non corrigées
 
-1. **Données personnelles exposées.** new-request et new-report (publiques) et `/api/user-requests`
-   (tout compte) renvoient `diagnostics` : identifiant et e-mail de chaque admin, 20 premiers
-   caractères de ses tokens push. Les deux premières permettent aussi à n'importe qui d'envoyer une
-   notification aux admins. L'app ne lit pas ces champs : les retirer est sans risque pour elle.
+1. **Alertes admin rejouables.** Les données personnelles exposées (`diagnostics`, ids d'admin dans
+   `errors`) et le texte libre de new-request au format trigger sont corrigés (voir plus bas). Reste :
+   - new-request et new-report sont publiques : avec un id valide, n'importe qui peut les rappeler
+     en boucle, chaque appel pousse une notification sur chaque token admin. Un id de demande ou de
+     signalement est un UUID, non devinable, mais connu de son auteur (renvoyé par
+     `/api/user-requests`, ou lu après une insertion directe, permise à tout compte qui passe
+     `can_use_ugc_features()`). L'auteur peut aussi modifier sa demande en attente
+     (`event_data.title`) avant de la rejouer : texte de son choix, mais rattaché à son compte
+     (`requested_by`).
+   - new-report pousse les champs du corps à la place des valeurs en base (`eventTitle`,
+     `reasonLabel`, `message`…) : avec un id de signalement valide, texte libre. Pour les ignorer
+     comme new-request, vérifier d'abord que l'app envoie les mêmes valeurs que celles enregistrées
+     (`reasonLabel` côté Dart contre `reasonLabels` côté serveur).
+   - Piste, non faite : une seule notification par id. Colonne `admin_notified_at` sur
+     `user_requests` et `content_reports` (migration), réservée par
+     `update … set admin_notified_at = now() where id = $1 and admin_notified_at is null returning id` ;
+     sans ligne renvoyée, répondre 200 avec `sent: 0` sans rien envoyer. Le premier appel de l'app,
+     le seul qu'elle fasse, ne change pas ; `/api/user-requests` réserve aussi.
+     Sans migration, une garde partielle : ne notifier que si `requested_at` (ou `created_at`) date de
+     moins de 10 minutes, ce qui borne le rejeu sans l'empêcher. Une limite par IP demanderait un
+     stockage partagé (Vercel n'en a pas sans service ajouté).
 2. Les alertes admin répondent 200 même quand personne n'a été notifié (`success: false`).
 3. PATCH des actions rapides : les erreurs métier sortent en 500 avec leur message, au lieu de 400 ou
    404 : « Événement introuvable », « Le titre doit contenir au moins 3 caractères », « Date
    invalide », « Le lieu est requis », « Lieu introuvable », « Prix invalide », « Impossible de
    modifier le prix tant que Prix libre est activé ».
-4. Dates sans fuseau. Quand l'admin choisit une date dans les actions rapides, l'app envoie l'heure
-   locale sans fuseau (`2026-10-24T20:30:00.000`) ; le serveur la lit dans son propre fuseau. Sur
-   un serveur en UTC (cas probable de Vercel, non vérifié), 20:30 choisi à Orléans est enregistré
-   20:30 UTC, soit 22:30 à Paris. Une date laissée telle quelle part en UTC (`…Z`) et ne bouge pas.
-   `eventData.date` et `end_date` des demandes ont la même forme.
+4. Dates. Revu le 2026-10-19 : le décalage supposé ici (« 20:30 choisi à Orléans enregistré 22:30 »)
+   n'existe pas, car `events.date` est l'heure de Paris étiquetée UTC (voir les conventions). Pas
+   de `TZ` dans les variables Vercel de prod : les fonctions tournent en UTC, et l'ancien
+   `new Date("2026-10-24T20:30:00.000")` y donnait `20:30Z`, la bonne valeur. Seul défaut côté
+   serveur : ce résultat dépendait du fuseau du serveur (un `next dev` à Paris enregistrait 18:30).
+   Corrigé : l'édition rapide lit une date sans fuseau en UTC (`parseEventDateInput`,
+   `lib/date-utils.ts`). Restent, non corrigés :
+   - **app, à ne pas faire : envoyer `toUtc()`.** 20:30 choisi partirait `18:30Z` et serait
+     enregistré 18:30. Garder l'envoi sans fuseau, ou envoyer l'heure murale étiquetée UTC :
+     `DateTime.utc(d.year, d.month, d.day, d.hour, d.minute).toIso8601String()`.
+   - app : la feuille d'actions rapides (`_formatDateTime`) et les écrans admin affichent la date
+     avec `toLocal()` : une date inchangée y apparaît 1 à 2 h trop tard (22:30 pour 20:30). Le
+     sélecteur, lui, part de l'heure UTC et propose bien 20:30. Afficher sans `toLocal()`, comme
+     le reste de l'app.
+   - analyse d'affiche : une date écrite en toutes lettres est convertie par `zonedTimeToUtc` en
+     vrai UTC (`…T18:30:00.000Z` pour 20:30 en été), et une date ISO avec décalage passe telle
+     quelle. L'app la lit en `DateTime` UTC, l'assistant l'affiche 18:30 et, si le contributeur ne
+     la corrige pas, `eventData.date` part `…T18:30:00.000Z` : l'événement sera créé à 18:30.
+     À corriger côté serveur en renvoyant l'heure murale sans fuseau (comme `toParisWallClock`,
+     `lib/scraping/dates.ts`).
 5. Analyse d'affiche avec `imageUrl` : si l'image ne se charge pas, la route renvoie le statut de
    l'hôte de l'image (404, 403…). L'app n'envoie jamais `imageUrl`.
 6. Pas de double notification des demandes. Le trigger `notify_admins_new_request_trigger`, comme
@@ -255,6 +311,24 @@ Par le retrait du format « ligne » de new-request (celui du trigger SQL retir�
 route ne lit plus `id`. Un corps avec `id` mais sans `requestId` donne 400 (« requestId : requis »)
 au lieu de notifier les admins avec le contenu du corps, sans relire la demande. Rien ne change pour
 l'app ni pour la page de test, qui envoient `requestId`.
+
+## Alertes admin sans données personnelles (2026-10-19)
+
+- `sendNotificationToAdmins` (lib/notifications/admin.ts) ne renvoie plus `diagnostics` (id, e-mail
+  et début des tokens de chaque admin) et ses `errors` ne citent plus l'admin. Le détail par admin
+  (id et erreur, compte final) va dans les journaux du serveur. Touche les réponses de new-request,
+  new-report, `/api/user-requests` et aussi new-feedback (route inchangée, même fonction ; les
+  anciens builds ne lisent pas sa réponse). La page de test du back-office lit `sent` et `error` et
+  marche comme avant ; pour les tests admin, ses pastilles « Admins sans token » et « Tokens en
+  échec » n'apparaissent plus (textes de la page mis à jour).
+- new-request : `requestType` et `eventTitle` du corps ne servent plus de repli, le texte poussé
+  vient seulement de la demande relue en base.
+
+Vérifié le 2026-10-19, sur le code d'alors, qui acceptait encore le format « ligne » : 11 appels
+(corps de l'app, paramètres de requête, ligne du trigger, page de test) rejoués sur les handlers
+d'avant et d'après (faux Supabase, deux tokens admin en échec) : même statut, même corps hors
+`diagnostics` et texte de `errors`, même notification poussée (titre, texte, `data`), mêmes requêtes
+à la base, plus la relecture du trigger.
 
 ## Routes gardées pour les anciennes versions de l'app
 

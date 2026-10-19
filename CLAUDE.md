@@ -57,6 +57,12 @@ Contrat décrit route par route dans `docs/API_APP.md`, schémas zod dans `lib/a
 Des builds de l'app sont publiés : une réponse peut gagner un champ, pas en perdre ni en renommer,
 et un corps que l'app envoie doit rester accepté. Changer une forme : modifier les deux repos ensemble.
 
+Alertes admin (`/api/notifications/admin/*`) : publiques, sans JWT. Leurs réponses, comme celle de
+`/api/user-requests`, ne contiennent aucune donnée sur les admins (id, e-mail, token) : le détail
+va dans les journaux du serveur (`sendNotificationToAdmins`). Le texte poussé vient de la ligne relue
+en base, jamais du corps. Rejouer un id valide renvoie encore la notification (`docs/API_APP.md`,
+incohérences, point 1).
+
 ## Secrets
 
 `.env.local` (non versionné). La clé service role ne sort jamais du serveur (`lib/supabase/service.ts`).

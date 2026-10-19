@@ -16,7 +16,9 @@ function eventDataTitle(eventData: unknown) {
  * Envoie une notification push à tous les admins lorsqu'une nouvelle demande est créée
  * 
  * Body (JSON, sinon paramètres de requête) : `adminNewRequestBodySchema`, envoyé par l'app et
- * par la page de test du back-office. La demande est relue en base. Voir docs/API_APP.md.
+ * par la page de test du back-office. Voir docs/API_APP.md.
+ * Route publique : la demande est relue en base par `requestId` et le texte de la notification
+ * vient d'elle, jamais du corps.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -48,15 +50,16 @@ export async function POST(request: NextRequest) {
       body.sourceUrl = url.searchParams.get("sourceUrl") || body.sourceUrl;
     }
 
+    // Seul `requestId` sert, le reste du corps est ignoré : la notification est construite depuis
+    // la demande relue en base.
     const parsed = parseAppBody(adminNewRequestBodySchema, body);
     if (!parsed.ok) return parsed.response;
-    const fallback = parsed.data;
 
     const supabase = createServiceClient();
     const { data: requestData, error: requestError } = await supabase
       .from("user_requests")
       .select("id, request_type, event_data, source_url, requested_at")
-      .eq("id", fallback.requestId)
+      .eq("id", parsed.data.requestId)
       .single();
 
     if (requestError || !requestData) {
@@ -68,11 +71,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const requestType = requestData.request_type || fallback.requestType;
+    const requestType = requestData.request_type;
     const eventTitle = eventDataTitle(requestData.event_data);
 
     // Construire le message de notification
-    const title = eventTitle || fallback.eventTitle || "Nouvelle demande";
+    const title = eventTitle || "Nouvelle demande";
     const requestTypeLabel = requestType === "event_from_url" ? "depuis URL" : "complète";
     const bodyText = title && title !== "Nouvelle demande"
       ? `Nouvelle demande ${requestTypeLabel}: ${title}`
@@ -102,7 +105,6 @@ export async function POST(request: NextRequest) {
       sent: result.sent,
       failed: result.failed,
       errors: result.errors,
-      diagnostics: result.diagnostics,
       flow: {
         route: "/api/notifications/admin/new-request",
         path: "admin_public_request_notification",
