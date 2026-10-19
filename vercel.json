@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/notion-sync",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/image-cards",
+      "schedule": "0 4 * * *"
     }
   ]
 }
