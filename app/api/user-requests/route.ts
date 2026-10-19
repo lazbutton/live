@@ -1,34 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+import { appError, readAppJsonBody } from "@/lib/api/app/http";
+import {
+  createUserRequestBodySchema,
+  type CreateUserRequestResponse,
+} from "@/lib/api/app/schemas";
 import {
   createEventUserRequest,
   createdRequestSuccessMessage,
-  type CreateEventRequestInput,
 } from "@/lib/user-requests/create-event-request";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-type LegacyCreateEventCreationRequestBody = {
-  requestType: "event_creation";
-  eventData: Record<string, unknown>;
-  contributorDisplayName?: string | null;
-  communityAttributionOptIn?: boolean;
-};
-
-type LegacyCreateEventFromUrlRequestBody = {
-  requestType: "event_from_url";
-  locationId?: string | null;
-  locationName: string;
-  sourceUrl: string;
-  contributorDisplayName?: string | null;
-  communityAttributionOptIn?: boolean;
-};
-
-type LegacyCreateUserRequestBody =
-  | LegacyCreateEventCreationRequestBody
-  | LegacyCreateEventFromUrlRequestBody;
 
 function createUserScopedClient(token: string) {
   return createClient(supabaseUrl, supabaseAnonKey, {
@@ -40,14 +24,17 @@ function createUserScopedClient(token: string) {
   });
 }
 
+/**
+ * POST /api/user-requests
+ *
+ * Demande de création d'événement envoyée par l'app (formulaire, affiche seule ou lien).
+ * Body : `createUserRequestBodySchema` (lib/api/app/schemas.ts), voir docs/API_APP.md.
+ */
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Token d'authentification manquant" },
-        { status: 401 },
-      );
+      return appError("Token d'authentification manquant", 401);
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -59,68 +46,25 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
-      return NextResponse.json(
-        { error: "Token invalide ou expiré", details: authError?.message },
-        { status: 401 },
-      );
+      return appError("Token invalide ou expiré", 401, {
+        details: authError?.message,
+      });
     }
 
-    const body = (await request.json().catch(() => null)) as
-      | LegacyCreateUserRequestBody
-      | null;
-
-    if (!body || typeof body.requestType !== "string") {
-      return NextResponse.json(
-        { error: "requestType est requis" },
-        { status: 400 },
-      );
-    }
-
-    let input: CreateEventRequestInput;
-
-    if (body.requestType === "event_creation") {
-      if (!body.eventData || typeof body.eventData !== "object") {
-        return NextResponse.json(
-          { error: "eventData est requis pour event_creation" },
-          { status: 400 },
-        );
-      }
-      input = {
-        requestType: "event_creation",
-        eventData: body.eventData,
-        contributorDisplayName: body.contributorDisplayName,
-        communityAttributionOptIn: body.communityAttributionOptIn,
-      };
-    } else if (body.requestType === "event_from_url") {
-      input = {
-        requestType: "event_from_url",
-        locationId: body.locationId,
-        locationName: body.locationName,
-        sourceUrl: body.sourceUrl,
-        contributorDisplayName: body.contributorDisplayName,
-        communityAttributionOptIn: body.communityAttributionOptIn,
-      };
-    } else {
-      return NextResponse.json(
-        { error: "requestType non supporté" },
-        { status: 400 },
-      );
-    }
+    const body = await readAppJsonBody(request, createUserRequestBodySchema);
+    if (!body.ok) return body.response;
 
     const created = await createEventUserRequest({
       accessToken: token,
       userId: user.id,
-      input,
+      input: body.data,
     });
 
     if (!created.ok) {
-      return NextResponse.json(
-        { error: created.message },
-        { status: created.status },
-      );
+      return appError(created.message, created.status);
     }
 
-    return NextResponse.json({
+    return NextResponse.json<CreateUserRequestResponse>({
       success: true,
       request_id: created.request.id,
       status: "pending",
@@ -142,6 +86,6 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Erreur serveur";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return appError(message, 500);
   }
 }

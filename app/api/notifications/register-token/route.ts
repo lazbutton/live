@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
+import { appError, readAppJsonBody } from "@/lib/api/app/http";
+import {
+  registerPushTokenBodySchema,
+  unregisterPushTokenBodySchema,
+  type PushTokenResponse,
+} from "@/lib/api/app/schemas";
 
 /**
  * POST /api/notifications/register-token
@@ -12,13 +18,7 @@ import { createServiceClient } from "@/lib/supabase/service";
  * - Authorization: Bearer <jwt_token> (pour l'app mobile)
  * - Cookie avec session Supabase (pour le navigateur)
  * 
- * Body:
- * {
- *   token: string - Token de notification push
- *   platform: 'ios' | 'android' | 'web' - Plateforme
- *   deviceId?: string - ID unique de l'appareil (optionnel)
- *   appVersion?: string - Version de l'app (optionnel)
- * }
+ * Body : `registerPushTokenBodySchema` (lib/api/app/schemas.ts), voir docs/API_APP.md.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -39,10 +39,7 @@ export async function POST(request: NextRequest) {
       } = await supabase.auth.getUser(token);
 
       if (authError || !authUser) {
-        return NextResponse.json(
-          { error: "Non autorisé" },
-          { status: 401 }
-        );
+        return appError("Non autorisé", 401);
       }
 
       user = authUser;
@@ -55,32 +52,15 @@ export async function POST(request: NextRequest) {
       } = await supabase.auth.getUser();
 
       if (authError || !authUser) {
-        return NextResponse.json(
-          { error: "Non autorisé" },
-          { status: 401 }
-        );
+        return appError("Non autorisé", 401);
       }
 
       user = authUser;
     }
 
-    // Parser le body
-    const body = await request.json();
-    const { token, platform, deviceId, appVersion } = body;
-
-    if (!token || !platform) {
-      return NextResponse.json(
-        { error: "token et platform sont requis" },
-        { status: 400 }
-      );
-    }
-
-    if (!["ios", "android", "web"].includes(platform)) {
-      return NextResponse.json(
-        { error: "platform doit être 'ios', 'android' ou 'web'" },
-        { status: 400 }
-      );
-    }
+    const body = await readAppJsonBody(request, registerPushTokenBodySchema);
+    if (!body.ok) return body.response;
+    const { token, platform, deviceId, appVersion } = body.data;
 
     // Créer un client Supabase pour les opérations sur la base de données
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -104,10 +84,7 @@ export async function POST(request: NextRequest) {
     if (checkError && checkError.code !== "PGRST116") {
       // PGRST116 = no rows returned, ce qui est OK
       console.error("❌ Erreur lors de la vérification du token:", checkError);
-      return NextResponse.json(
-        { error: "Erreur lors de la vérification du token" },
-        { status: 500 }
-      );
+      return appError("Erreur lors de la vérification du token", 500);
     }
 
     if (existingToken) {
@@ -124,13 +101,10 @@ export async function POST(request: NextRequest) {
 
       if (updateError) {
         console.error("❌ Erreur lors de la mise à jour du token:", updateError);
-        return NextResponse.json(
-          { error: "Erreur lors de la mise à jour du token" },
-          { status: 500 }
-        );
+        return appError("Erreur lors de la mise à jour du token", 500);
       }
 
-      return NextResponse.json({
+      return NextResponse.json<PushTokenResponse>({
         success: true,
         message: "Token mis à jour",
       });
@@ -148,23 +122,17 @@ export async function POST(request: NextRequest) {
 
       if (insertError) {
         console.error("❌ Erreur lors de l'insertion du token:", insertError);
-        return NextResponse.json(
-          { error: "Erreur lors de l'enregistrement du token" },
-          { status: 500 }
-        );
+        return appError("Erreur lors de l'enregistrement du token", 500);
       }
 
-      return NextResponse.json({
+      return NextResponse.json<PushTokenResponse>({
         success: true,
         message: "Token enregistré",
       });
     }
   } catch (error: any) {
     console.error("❌ Erreur lors de l'enregistrement du token:", error);
-    return NextResponse.json(
-      { error: error?.message || "Erreur serveur" },
-      { status: 500 }
-    );
+    return appError(error?.message || "Erreur serveur", 500);
   }
 }
 
@@ -173,10 +141,7 @@ export async function POST(request: NextRequest) {
  * 
  * Supprime un token de notification push pour l'utilisateur connecté
  * 
- * Body:
- * {
- *   token: string - Token à supprimer
- * }
+ * Body : `unregisterPushTokenBodySchema` (lib/api/app/schemas.ts).
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -197,10 +162,7 @@ export async function DELETE(request: NextRequest) {
       } = await supabase.auth.getUser(token);
 
       if (authError || !authUser) {
-        return NextResponse.json(
-          { error: "Non autorisé" },
-          { status: 401 }
-        );
+        return appError("Non autorisé", 401);
       }
 
       user = authUser;
@@ -213,25 +175,15 @@ export async function DELETE(request: NextRequest) {
       } = await supabase.auth.getUser();
 
       if (authError || !authUser) {
-        return NextResponse.json(
-          { error: "Non autorisé" },
-          { status: 401 }
-        );
+        return appError("Non autorisé", 401);
       }
 
       user = authUser;
     }
 
-    // Parser le body
-    const body = await request.json();
-    const { token } = body;
-
-    if (!token) {
-      return NextResponse.json(
-        { error: "token est requis" },
-        { status: 400 }
-      );
-    }
+    const body = await readAppJsonBody(request, unregisterPushTokenBodySchema);
+    if (!body.ok) return body.response;
+    const { token } = body.data;
 
     // Utiliser le service client pour bypasser RLS (l'utilisateur est déjà authentifié)
     const supabase = createServiceClient();
@@ -245,22 +197,16 @@ export async function DELETE(request: NextRequest) {
 
     if (deleteError) {
       console.error("❌ Erreur lors de la suppression du token:", deleteError);
-      return NextResponse.json(
-        { error: "Erreur lors de la suppression du token" },
-        { status: 500 }
-      );
+      return appError("Erreur lors de la suppression du token", 500);
     }
 
-    return NextResponse.json({
+    return NextResponse.json<PushTokenResponse>({
       success: true,
       message: "Token supprimé",
     });
   } catch (error: any) {
     console.error("❌ Erreur lors de la suppression du token:", error);
-    return NextResponse.json(
-      { error: error?.message || "Erreur serveur" },
-      { status: 500 }
-    );
+    return appError(error?.message || "Erreur serveur", 500);
   }
 }
 

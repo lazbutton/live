@@ -10,7 +10,7 @@ export type EventCreationRequestInput = {
   requestType: "event_creation";
   eventData: Record<string, unknown>;
   contributorDisplayName?: string | null;
-  communityAttributionOptIn?: boolean;
+  communityAttributionOptIn?: boolean | null;
 };
 
 export type EventFromUrlRequestInput = {
@@ -19,7 +19,7 @@ export type EventFromUrlRequestInput = {
   locationName: string;
   sourceUrl: string;
   contributorDisplayName?: string | null;
-  communityAttributionOptIn?: boolean;
+  communityAttributionOptIn?: boolean | null;
 };
 
 export type CreateEventRequestInput =
