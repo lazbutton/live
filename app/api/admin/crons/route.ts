@@ -88,6 +88,7 @@ function getCronName(path: string): string {
     "/api/cron/cleanup": "Nettoyage de la base de données",
     "/api/cron/notifications/daily-events": "Notifications quotidiennes",
     "/api/cron/notifications/weekly-summary": "Résumé hebdomadaire",
+    "/api/cron/image-cards": "Vignettes des affiches",
   };
   return names[path] || path;
 }
@@ -97,6 +98,7 @@ function getCronDescription(path: string): string {
     "/api/cron/cleanup": "Nettoie les données anciennes (événements passés, logs, tokens invalides)",
     "/api/cron/notifications/daily-events": "Envoie la passe quotidienne des notifications par catégories suivies",
     "/api/cron/notifications/weekly-summary": "Envoie la passe hebdomadaire des notifications par catégories suivies",
+    "/api/cron/image-cards": "Fabrique les vignettes d'affiches manquantes (filet du webhook de la base)",
   };
   return descriptions[path] || "";
 }
