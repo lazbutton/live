@@ -760,6 +760,7 @@ export type Database = {
           is_full: boolean | null
           is_pay_what_you_want: boolean
           is_safety_hidden: boolean
+          is_young_audience: boolean
           latitude: number | null
           location_id: string | null
           longitude: number | null
@@ -804,6 +805,7 @@ export type Database = {
           is_full?: boolean | null
           is_pay_what_you_want?: boolean
           is_safety_hidden?: boolean
+          is_young_audience?: boolean
           latitude?: number | null
           location_id?: string | null
           longitude?: number | null
@@ -848,6 +850,7 @@ export type Database = {
           is_full?: boolean | null
           is_pay_what_you_want?: boolean
           is_safety_hidden?: boolean
+          is_young_audience?: boolean
           latitude?: number | null
           location_id?: string | null
           longitude?: number | null
@@ -2447,6 +2450,21 @@ export type Database = {
         Args: { invitation_token: string; user_id_param: string }
         Returns: Json
       }
+      app_cities: {
+        Args: never
+        Returns: {
+          center_lat: number
+          center_lng: number
+          id: string
+          label: string
+          last_event_date: string
+          next_event_date: string
+          recent_events_count: number
+          search_aliases: string[]
+          source_ids: string[]
+          upcoming_events_count: number
+        }[]
+      }
       app_events: {
         Args: never
         Returns: {
@@ -2477,6 +2495,7 @@ export type Database = {
           is_full: boolean | null
           is_pay_what_you_want: boolean
           is_safety_hidden: boolean
+          is_young_audience: boolean
           latitude: number | null
           location_id: string | null
           longitude: number | null
