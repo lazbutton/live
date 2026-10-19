@@ -8,13 +8,6 @@ import {
 import { sendNotificationToAdmins } from "@/lib/notifications/admin";
 import { createServiceClient } from "@/lib/supabase/service";
 
-type RequestData = {
-  id: string;
-  request_type?: string | null;
-  event_data?: unknown;
-  source_url?: string | null;
-};
-
 /** `id` d'une ligne envoyée par le trigger SQL, s'il est exploitable. */
 function isRowId(value: unknown): value is string {
   return (
@@ -37,8 +30,10 @@ function eventDataTitle(eventData: unknown) {
  * Envoie une notification push à tous les admins lorsqu'une nouvelle demande est créée
  * 
  * Body (JSON, sinon paramètres de requête), voir docs/API_APP.md :
- * - `adminNewRequestBodySchema` : app et page de test du back-office, demande relue en base ;
- * - `adminNewRequestRowSchema` : ligne envoyée par le trigger SQL `notify_admins_new_request_trigger`.
+ * - `adminNewRequestBodySchema` : app et page de test du back-office (`requestId`) ;
+ * - `adminNewRequestRowSchema` : ligne envoyée par le trigger SQL `notify_admins_new_request_trigger` (`id`).
+ * Route publique : dans les deux cas, la demande est relue en base et le texte de la notification
+ * vient d'elle, jamais du corps.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -70,48 +65,40 @@ export async function POST(request: NextRequest) {
       body.sourceUrl = url.searchParams.get("sourceUrl") || body.sourceUrl;
     }
 
-    let requestData: RequestData;
-    let fallback: { requestType?: string | null; eventTitle?: string | null } = {};
-
+    // Id de la demande : `id` pour le trigger SQL, `requestId` pour l'app. Le reste du corps est
+    // ignoré : la notification est construite depuis la demande relue en base.
+    let requestId: string;
     if (isRowId(body.id)) {
-      // Format du trigger SQL : la ligne de la demande, sans relecture.
       const row = parseAppBody(adminNewRequestRowSchema, body);
       if (!row.ok) return row.response;
-      requestData = {
-        id: row.data.id,
-        request_type: row.data.request_type || row.data.requestType,
-        event_data: row.data.event_data,
-        source_url: row.data.source_url || row.data.sourceUrl,
-      };
-      fallback = row.data;
+      requestId = row.data.id;
     } else {
       const parsed = parseAppBody(adminNewRequestBodySchema, body);
       if (!parsed.ok) return parsed.response;
-      fallback = parsed.data;
-
-      const supabase = createServiceClient();
-      const { data: fetchedData, error: requestError } = await supabase
-        .from("user_requests")
-        .select("id, request_type, event_data, source_url, requested_at")
-        .eq("id", parsed.data.requestId)
-        .single();
-
-      if (requestError || !fetchedData) {
-        console.error("❌ Erreur lors de la récupération de la demande:", requestError);
-        return appError(
-          "Impossible de récupérer la demande depuis la base de données",
-          404,
-          { details: requestError },
-        );
-      }
-      requestData = fetchedData;
+      requestId = parsed.data.requestId;
     }
 
-    const requestType = requestData.request_type || fallback.requestType;
+    const supabase = createServiceClient();
+    const { data: requestData, error: requestError } = await supabase
+      .from("user_requests")
+      .select("id, request_type, event_data, source_url, requested_at")
+      .eq("id", requestId)
+      .single();
+
+    if (requestError || !requestData) {
+      console.error("❌ Erreur lors de la récupération de la demande:", requestError);
+      return appError(
+        "Impossible de récupérer la demande depuis la base de données",
+        404,
+        { details: requestError },
+      );
+    }
+
+    const requestType = requestData.request_type;
     const eventTitle = eventDataTitle(requestData.event_data);
 
     // Construire le message de notification
-    const title = eventTitle || fallback.eventTitle || "Nouvelle demande";
+    const title = eventTitle || "Nouvelle demande";
     const requestTypeLabel = requestType === "event_from_url" ? "depuis URL" : "complète";
     const bodyText = title && title !== "Nouvelle demande"
       ? `Nouvelle demande ${requestTypeLabel}: ${title}`
@@ -141,7 +128,6 @@ export async function POST(request: NextRequest) {
       sent: result.sent,
       failed: result.failed,
       errors: result.errors,
-      diagnostics: result.diagnostics,
       flow: {
         route: "/api/notifications/admin/new-request",
         path: "admin_public_request_notification",

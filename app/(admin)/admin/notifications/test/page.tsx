@@ -14,7 +14,7 @@ const FLOW_EXPLANATIONS = [
   {
     title: "Tests admin publics",
     description:
-      "Les routes admin utilisent sendNotificationToAdmins et ignorent les préférences / catégories utilisateur.",
+      "Les routes admin utilisent sendNotificationToAdmins et ignorent les préférences / catégories utilisateur. Publiques, elles ne renvoient aucun détail par admin : voir les journaux du serveur.",
   },
   {
     title: "Envois utilisateurs",
@@ -328,7 +328,7 @@ export default function TestNotificationsPage() {
           <CardHeader>
             <CardTitle>Comparer les flux</CardTitle>
             <CardDescription>
-              Tous les panneaux ci-dessous renvoient maintenant les diagnostics backend du flux réellement exécuté.
+              Les envois utilisateurs et les crons renvoient les diagnostics backend du flux réellement exécuté ; les tests admin, seulement le nombre d'envois et les erreurs.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-3">
@@ -382,7 +382,8 @@ export default function TestNotificationsPage() {
             <CardHeader>
               <CardTitle>Test : Nouvelle Demande</CardTitle>
               <CardDescription>
-                Envoie une notification pour une nouvelle demande d'événement
+                Envoie une notification pour une demande existante, relue en base par son ID (404 sinon) ;
+                le type, le titre et l'URL saisis ici sont ignorés.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

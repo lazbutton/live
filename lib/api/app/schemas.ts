@@ -76,8 +76,11 @@ const interpolatedId = nonEmptyString.refine(
   "contient une variable non interpolée",
 );
 
-/** Replis de new-request (corps ou paramètres de requête), quand la demande ne les donne pas. */
-const newRequestFallbackFields = {
+/**
+ * Champs de new-request envoyés par l'app et la page de test (corps ou paramètres de requête),
+ * acceptés mais ignorés : la notification est construite depuis la demande relue en base.
+ */
+const newRequestIgnoredFields = {
   /** `event_creation` ou `event_from_url`. */
   requestType: optionalString,
   eventTitle: optionalString,
@@ -87,16 +90,17 @@ const newRequestFallbackFields = {
 /**
  * new-request, envoyé par l'app (`NotificationApiService.notifyAdminsNewRequest`, quand la
  * demande a été créée sans passer par /api/user-requests) et par la page de test du back-office.
- * La demande est relue en base par `requestId`.
+ * La demande est relue en base par `requestId` (404 si elle n'existe pas).
  */
 export const adminNewRequestBodySchema = z.object({
   requestId: interpolatedId,
-  ...newRequestFallbackFields,
+  ...newRequestIgnoredFields,
 });
 
 /**
- * new-request, envoyé par le trigger SQL `notify_admins_new_request_trigger` (pg_net) :
- * la ligne `user_requests` insérée, utilisée sans relecture.
+ * new-request, envoyé par le trigger SQL `notify_admins_new_request_trigger` (pg_net) : la ligne
+ * `user_requests` insérée. Seul `id` sert : la demande est relue en base (404 si elle n'existe
+ * pas), comme pour l'app. Les autres colonnes sont validées mais ignorées.
  */
 export const adminNewRequestRowSchema = z.object({
   id: interpolatedId,
@@ -104,7 +108,7 @@ export const adminNewRequestRowSchema = z.object({
   event_data: z.record(z.string(), z.unknown()).nullish(),
   source_url: optionalString,
   requested_at: optionalString,
-  ...newRequestFallbackFields,
+  ...newRequestIgnoredFields,
 });
 
 /**
@@ -126,15 +130,18 @@ export const adminNewReportBodySchema = z.object({
   blockRequested: z.boolean().nullish(),
 });
 
-/** Résultat de `sendNotificationToAdmins` (lib/notifications/admin.ts). */
+/**
+ * Résultat de `sendNotificationToAdmins` (lib/notifications/admin.ts), renvoyé par des routes
+ * publiques : aucune donnée sur les admins (ni identifiant, ni e-mail, ni token), le détail par
+ * admin ne va que dans les journaux serveur. `diagnostics` a été retiré (l'app ne le lisait pas).
+ */
 export const adminNotificationResultSchema = z.object({
   /** `false` dès qu'un envoi échoue ou que personne n'est notifié ; la réponse reste en 200. */
   success: z.boolean(),
   sent: z.number(),
   failed: z.number(),
+  /** Un message par échec, sans l'admin concerné (« Token iOS invalide: … », « Aucun token trouvé »). */
   errors: z.array(z.string()),
-  /** Détail par admin (e-mail, début des tokens) : voir docs/API_APP.md. */
-  diagnostics: z.record(z.string(), z.unknown()).optional(),
 });
 
 /** Réponse de new-request et new-report. L'app ne la lit pas. */

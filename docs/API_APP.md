@@ -63,7 +63,8 @@ DELETE n'envoie que `token`.
 ## Alertes admin : `POST /api/notifications/admin/new-request` et `new-report`
 
 Routes publiques (sans JWT). L'app ne lit pas la réponse : un échec est seulement journalisé. Corps JSON ; s'il n'est pas du JSON, les mêmes champs sont lus dans les paramètres
-de requête.
+de requête. Publiques : leurs réponses ne contiennent aucune donnée sur les admins (ni identifiant,
+ni e-mail, ni token) ; le détail par admin ne va que dans les journaux du serveur.
 
 **new-request** : appelée par `EventService` (`lib/services/event_service.dart`) quand
 `/api/user-requests` a échoué et que l'app a inséré la demande elle-même.
@@ -71,13 +72,18 @@ de requête.
 | Champ | Type | |
 | --- | --- | --- |
 | `requestId` | texte non vide, sans `{{` ni `$1` | demande relue en base |
-| `requestType` | texte, facultatif | `event_creation` ou `event_from_url` ; repli si la demande n'en a pas |
-| `eventTitle` | texte, facultatif | repli si `event_data.title` est vide |
-| `sourceUrl` | texte, facultatif | |
+| `requestType` | texte, facultatif | `event_creation` ou `event_from_url` ; ignoré |
+| `eventTitle` | texte, facultatif | ignoré |
+| `sourceUrl` | texte, facultatif | ignoré |
 
 Deux autres appelants : le trigger SQL `notify_admins_new_request_trigger` (pg_net), qui envoie
 la ligne insérée (`id`, `request_type`, `event_data`, `source_url`, `requested_at` :
-`adminNewRequestRowSchema`, utilisée sans relecture), et la page de test du back-office.
+`adminNewRequestRowSchema`), et la page de test du back-office.
+
+Dans tous les cas, seul l'id sert (`requestId`, ou `id` pour le trigger) : la demande est relue
+dans `user_requests` et le texte de la notification vient d'elle (`event_data.title`,
+`request_type`), jamais du corps. Pour l'app, c'est sans effet : elle envoie le titre et le type
+déjà enregistrés. pg_net n'envoie la requête qu'après le commit de l'insertion : la ligne existe.
 
 **new-report** : appelée par `ContentReportService.reportEvent`
 (`lib/services/content_report_service.dart`) après l'insertion dans `content_reports`.
@@ -94,10 +100,12 @@ la ligne insérée (`id`, `request_type`, `event_data`, `source_url`, `requested
 
 Réponse des deux routes :
 
-- 200 : `{ success, sent, failed, errors, diagnostics, flow }`, **même si aucun admin n'a été
-  notifié** (`success: false`, par exemple `errors: ["Aucun token trouvé"]`).
-- 400 corps invalide ; 404 demande ou signalement introuvable (new-request ajoute `details`,
-  l'erreur PostgREST) ; 500.
+- 200 : `{ success, sent, failed, errors, flow }`, **même si aucun admin n'a été
+  notifié** (`success: false`, par exemple `errors: ["Aucun token trouvé"]`). `errors` : un message
+  par échec, sans l'admin concerné (`Token iOS invalide: …`, `Plateforme non supportée: web`,
+  `Envoi ios: Token invalide: BadDeviceToken`).
+- 400 corps invalide ; 404 demande ou signalement introuvable, quel que soit le format
+  (new-request ajoute `details`, l'erreur PostgREST) ; 500.
 
 ## Demandes : `POST /api/user-requests`
 
@@ -138,7 +146,8 @@ snake_case, clés inconnues conservées) :
 | `sourceUrl` | texte | vide après `trim()` : 400 |
 
 - 200 : `{ success: true, request_id, status: "pending", message, notification, flow }`.
-  L'app affiche `message` après une demande « depuis une URL ».
+  L'app affiche `message` après une demande « depuis une URL ». `notification` :
+  `{ success, sent, failed, errors }`, comme les alertes admin, sans donnée sur les admins.
 - 400 corps invalide, lieu ou URL vides, ou insertion refusée par la base (message PostgREST brut) ;
   401 « Token d'authentification manquant » ou « Token invalide ou expiré » (avec `details`) ; 500.
 
@@ -195,10 +204,27 @@ via `AdminMobileApiService`. JWT d'un admin (`role: admin`).
 
 ## Incohérences relevées, non corrigées
 
-1. **Données personnelles exposées.** new-request et new-report (publiques) et `/api/user-requests`
-   (tout compte) renvoient `diagnostics` : identifiant et e-mail de chaque admin, 20 premiers
-   caractères de ses tokens push. Les deux premières permettent aussi à n'importe qui d'envoyer une
-   notification aux admins. L'app ne lit pas ces champs : les retirer est sans risque pour elle.
+1. **Alertes admin rejouables.** Les données personnelles exposées (`diagnostics`, ids d'admin dans
+   `errors`) et le texte libre de new-request au format trigger sont corrigés (voir plus bas). Reste :
+   - new-request et new-report sont publiques : avec un id valide, n'importe qui peut les rappeler
+     en boucle, chaque appel pousse une notification sur chaque token admin. Un id de demande ou de
+     signalement est un UUID, non devinable, mais connu de son auteur (renvoyé par
+     `/api/user-requests`, ou lu après une insertion directe, permise à tout compte qui passe
+     `can_use_ugc_features()`). L'auteur peut aussi modifier sa demande en attente
+     (`event_data.title`) avant de la rejouer : texte de son choix, mais rattaché à son compte
+     (`requested_by`).
+   - new-report pousse les champs du corps à la place des valeurs en base (`eventTitle`,
+     `reasonLabel`, `message`…) : avec un id de signalement valide, texte libre. Pour les ignorer
+     comme new-request, vérifier d'abord que l'app envoie les mêmes valeurs que celles enregistrées
+     (`reasonLabel` côté Dart contre `reasonLabels` côté serveur).
+   - Piste, non faite : une seule notification par id. Colonne `admin_notified_at` sur
+     `user_requests` et `content_reports` (migration), réservée par
+     `update … set admin_notified_at = now() where id = $1 and admin_notified_at is null returning id` ;
+     sans ligne renvoyée, répondre 200 avec `sent: 0` sans rien envoyer. Le premier appel de l'app,
+     le seul qu'elle fasse, ne change pas ; `/api/user-requests` réserve aussi, ce qui règle le point 6.
+     Sans migration, une garde partielle : ne notifier que si `requested_at` (ou `created_at`) date de
+     moins de 10 minutes, ce qui borne le rejeu sans l'empêcher. Une limite par IP demanderait un
+     stockage partagé (Vercel n'en a pas sans service ajouté).
 2. Les alertes admin répondent 200 même quand personne n'a été notifié (`success: false`).
 3. PATCH des actions rapides : les erreurs métier sortent en 500 avec leur message, au lieu de 400 ou
    404 : « Événement introuvable », « Le titre doit contenir au moins 3 caractères », « Date
@@ -212,7 +238,8 @@ via `AdminMobileApiService`. JWT d'un admin (`role: admin`).
 5. Analyse d'affiche avec `imageUrl` : si l'image ne se charge pas, la route renvoie le statut de
    l'hôte de l'image (404, 403…). L'app n'envoie jamais `imageUrl`.
 6. Si le trigger `notify_admins_new_request_trigger` est actif en prod (non vérifié), une demande
-   créée par `/api/user-requests` notifie les admins deux fois : par la route, puis par le trigger.
+   créée par `/api/user-requests` notifie les admins deux fois : par la route, puis par le trigger
+   (piste du point 1).
 
 ## Comportements changés par l'ajout des schémas
 
@@ -231,6 +258,24 @@ Vérifié le 2026-10-19 : 77 appels rejoués sur les handlers d'origine et sur l
 Supabase, `TZ=UTC`). 50 donnent exactement le même statut, le même corps et les mêmes requêtes à la
 base, dont tous les corps envoyés par l'app ; les 27 autres sont des corps invalides, dans les cas
 ci-dessus.
+
+## Alertes admin sans données personnelles (2026-10-19)
+
+- `sendNotificationToAdmins` (lib/notifications/admin.ts) ne renvoie plus `diagnostics` (id, e-mail
+  et début des tokens de chaque admin) et ses `errors` ne citent plus l'admin. Le détail par admin
+  (id et erreur, compte final) va dans les journaux du serveur. Touche les réponses de new-request,
+  new-report, `/api/user-requests` et aussi new-feedback (route inchangée, même fonction ; les
+  anciens builds ne lisent pas sa réponse). La page de test du back-office lit `sent` et `error` et
+  marche comme avant ; pour les tests admin, ses pastilles « Admins sans token » et « Tokens en
+  échec » n'apparaissent plus (textes de la page mis à jour).
+- new-request, format du trigger : la demande est relue par `id` (une requête de plus), 404 si elle
+  n'existe pas, au lieu d'utiliser le corps. `requestType` et `eventTitle` du corps ne servent plus
+  de repli : le texte poussé vient seulement de la base.
+
+Vérifié le 2026-10-19 : 11 appels (corps de l'app, paramètres de requête, ligne du trigger, page de
+test) rejoués sur les handlers d'avant et d'après (faux Supabase, deux tokens admin en échec) : même
+statut, même corps hors `diagnostics` et texte de `errors`, même notification poussée (titre, texte,
+`data`), mêmes requêtes à la base, plus la relecture du trigger.
 
 ## Routes gardées pour les anciennes versions de l'app
 
