@@ -5,8 +5,14 @@ import {
   quickEditMobileEvent,
   toggleMobileEventFeatured,
   toggleMobileEventFull,
+  type MobileAdminEventItem,
 } from "@/lib/admin-mobile";
 import { requireAdminMobileAuth } from "@/lib/admin-mobile-auth";
+import { appError, readAppJsonBody } from "@/lib/api/app/http";
+import {
+  adminEventActionBodySchema,
+  type AdminEventActionResponse,
+} from "@/lib/api/app/schemas";
 
 export async function GET(
   request: NextRequest,
@@ -33,6 +39,12 @@ export async function GET(
   }
 }
 
+/**
+ * PATCH /api/admin/mobile/events/[id]
+ *
+ * Actions rapides de l'app (approuver, complet, à la une, édition rapide).
+ * Body : `adminEventActionBodySchema` (lib/api/app/schemas.ts), voir docs/API_APP.md.
+ */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -42,16 +54,13 @@ export async function PATCH(
     if (auth instanceof NextResponse) return auth;
 
     const { id } = await params;
-    const body = await request.json();
-    const action = typeof body?.action === "string" ? body.action : null;
+    const body = await readAppJsonBody(request, adminEventActionBodySchema);
+    if (!body.ok) return body.response;
+    const input = body.data;
 
-    if (!action) {
-      return NextResponse.json({ error: "action est requis" }, { status: 400 });
-    }
+    let item: MobileAdminEventItem;
 
-    let item;
-
-    switch (action) {
+    switch (input.action) {
       case "approve":
         item = await approveMobileEvent(auth.supabase, id);
         break;
@@ -62,49 +71,22 @@ export async function PATCH(
         item = await toggleMobileEventFeatured(auth.supabase, id);
         break;
       case "quickEdit":
+        // `null` laisse le titre, la date et « prix libre » inchangés, comme une clé absente.
         item = await quickEditMobileEvent(auth.supabase, id, {
-          title: typeof body.title === "string" ? body.title : undefined,
-          date: typeof body.date === "string" ? body.date : undefined,
-          locationId:
-            typeof body.locationId === "string"
-              ? body.locationId
-              : body.locationId === null
-                ? null
-                : undefined,
-          externalUrl:
-            typeof body.externalUrl === "string"
-              ? body.externalUrl
-              : body.externalUrl === null
-                ? null
-                : undefined,
-          externalUrlLabel:
-            typeof body.externalUrlLabel === "string"
-              ? body.externalUrlLabel
-              : body.externalUrlLabel === null
-                ? null
-                : undefined,
-          price:
-            typeof body.price === "number"
-              ? body.price
-              : body.price === null
-                ? null
-                : undefined,
-          isPayWhatYouWant:
-            typeof body.isPayWhatYouWant === "boolean"
-              ? body.isPayWhatYouWant
-              : undefined,
+          title: input.title ?? undefined,
+          date: input.date ?? undefined,
+          locationId: input.locationId,
+          externalUrl: input.externalUrl,
+          externalUrlLabel: input.externalUrlLabel,
+          price: input.price,
+          isPayWhatYouWant: input.isPayWhatYouWant ?? undefined,
         });
         break;
-      default:
-        return NextResponse.json({ error: "Action inconnue" }, { status: 400 });
     }
 
-    return NextResponse.json({ item });
+    return NextResponse.json<AdminEventActionResponse>({ item });
   } catch (error: any) {
     console.error("Erreur API PATCH /api/admin/mobile/events/[id]:", error);
-    return NextResponse.json(
-      { error: error?.message || "Erreur serveur" },
-      { status: 500 }
-    );
+    return appError(error?.message || "Erreur serveur", 500);
   }
 }

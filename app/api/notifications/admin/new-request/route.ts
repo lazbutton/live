@@ -1,23 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
+import { appError, parseAppBody } from "@/lib/api/app/http";
+import {
+  adminNewRequestBodySchema,
+  adminNewRequestRowSchema,
+  type AdminAlertResponse,
+} from "@/lib/api/app/schemas";
 import { sendNotificationToAdmins } from "@/lib/notifications/admin";
 import { createServiceClient } from "@/lib/supabase/service";
+
+type RequestData = {
+  id: string;
+  request_type?: string | null;
+  event_data?: unknown;
+  source_url?: string | null;
+};
+
+/** `id` d'une ligne envoyée par le trigger SQL, s'il est exploitable. */
+function isRowId(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value !== "" &&
+    !value.includes("{{") &&
+    !value.includes("$1")
+  );
+}
+
+function eventDataTitle(eventData: unknown) {
+  return typeof eventData === "object" && eventData !== null
+    ? (eventData as { title?: unknown }).title
+    : undefined;
+}
 
 /**
  * POST /api/notifications/admin/new-request
  * 
  * Envoie une notification push à tous les admins lorsqu'une nouvelle demande est créée
  * 
- * Body:
- * {
- *   requestId: string - ID de la demande
- *   requestType: 'event_creation' | 'event_from_url' - Type de demande
- *   eventTitle?: string - Titre de l'événement (optionnel)
- *   sourceUrl?: string - URL source (optionnel)
- * }
- * 
- * Cette route peut être appelée :
- * - Par un trigger Supabase Database Webhook
- * - Directement depuis le code qui crée une demande
+ * Body (JSON, sinon paramètres de requête), voir docs/API_APP.md :
+ * - `adminNewRequestBodySchema` : app et page de test du back-office, demande relue en base ;
+ * - `adminNewRequestRowSchema` : ligne envoyée par le trigger SQL `notify_admins_new_request_trigger`.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -36,6 +57,10 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    if (typeof body !== "object" || body === null) {
+      body = {};
+    }
+
     // Aussi vérifier les paramètres de requête si le body est vide
     if (!body.requestId) {
       const url = new URL(request.url);
@@ -45,65 +70,48 @@ export async function POST(request: NextRequest) {
       body.sourceUrl = url.searchParams.get("sourceUrl") || body.sourceUrl;
     }
 
-    // Détecter si le body contient directement les données de la demande (format webhook Supabase)
-    let requestId: string | null = null;
-    let requestData: any = null;
+    let requestData: RequestData;
+    let fallback: { requestType?: string | null; eventTitle?: string | null } = {};
 
-    // Vérifier si le body contient directement les champs de la table user_requests (format webhook)
-    if (body.id && typeof body.id === "string" && !body.id.includes("{{") && !body.id.includes("$1")) {
-      // Le body contient directement les données de la demande (format webhook Supabase)
-      requestId = body.id;
+    if (isRowId(body.id)) {
+      // Format du trigger SQL : la ligne de la demande, sans relecture.
+      const row = parseAppBody(adminNewRequestRowSchema, body);
+      if (!row.ok) return row.response;
       requestData = {
-        id: body.id,
-        request_type: body.request_type || body.requestType,
-        event_data: body.event_data,
-        source_url: body.source_url || body.sourceUrl,
-        requested_at: body.requested_at,
+        id: row.data.id,
+        request_type: row.data.request_type || row.data.requestType,
+        event_data: row.data.event_data,
+        source_url: row.data.source_url || row.data.sourceUrl,
       };
-    } else if (body.requestId && typeof body.requestId === "string" && !body.requestId.includes("{{") && !body.requestId.includes("$1")) {
-      // Le body contient un requestId valide
-      requestId = body.requestId;
+      fallback = row.data;
     } else {
-      // Le requestId contient des variables non interpolées, on ne peut pas continuer
-      return NextResponse.json(
-        { 
-          error: "requestId invalide ou contient des variables non interpolées. Le webhook Supabase doit interpoler les variables ou envoyer les données complètes de la demande.",
-          hint: "Configurez le webhook pour envoyer soit un body JSON avec les données complètes (id, request_type, event_data, etc.), soit un requestId interpolé."
-        },
-        { status: 400 }
-      );
-    }
+      const parsed = parseAppBody(adminNewRequestBodySchema, body);
+      if (!parsed.ok) return parsed.response;
+      fallback = parsed.data;
 
-    // Si on n'a pas encore les données, les récupérer depuis la base
-    if (!requestData && requestId) {
       const supabase = createServiceClient();
       const { data: fetchedData, error: requestError } = await supabase
         .from("user_requests")
         .select("id, request_type, event_data, source_url, requested_at")
-        .eq("id", requestId)
+        .eq("id", parsed.data.requestId)
         .single();
 
       if (requestError || !fetchedData) {
         console.error("❌ Erreur lors de la récupération de la demande:", requestError);
-        return NextResponse.json(
-          { error: "Impossible de récupérer la demande depuis la base de données", details: requestError },
-          { status: 404 }
+        return appError(
+          "Impossible de récupérer la demande depuis la base de données",
+          404,
+          { details: requestError },
         );
       }
       requestData = fetchedData;
     }
 
-    if (!requestData) {
-      return NextResponse.json(
-        { error: "Impossible de récupérer les données de la demande" },
-        { status: 400 }
-      );
-    }
-
-    const requestType = requestData.request_type || body.requestType;
+    const requestType = requestData.request_type || fallback.requestType;
+    const eventTitle = eventDataTitle(requestData.event_data);
 
     // Construire le message de notification
-    const title = requestData.event_data?.title || body.eventTitle || "Nouvelle demande";
+    const title = eventTitle || fallback.eventTitle || "Nouvelle demande";
     const requestTypeLabel = requestType === "event_from_url" ? "depuis URL" : "complète";
     const bodyText = title && title !== "Nouvelle demande"
       ? `Nouvelle demande ${requestTypeLabel}: ${title}`
@@ -117,7 +125,7 @@ export async function POST(request: NextRequest) {
         type: "new_request",
         request_id: requestData.id,
         request_type: requestType,
-        event_title: requestData.event_data?.title || null,
+        event_title: eventTitle || null,
         source_url: requestData.source_url || null,
       },
     });
@@ -128,7 +136,7 @@ export async function POST(request: NextRequest) {
       console.error(`❌ Erreur lors de l'envoi des notifications:`, result.errors);
     }
 
-    return NextResponse.json({
+    return NextResponse.json<AdminAlertResponse>({
       success: result.success,
       sent: result.sent,
       failed: result.failed,
@@ -145,10 +153,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("❌ Erreur lors de l'envoi de la notification admin:", error);
-    return NextResponse.json(
-      { error: error?.message || "Erreur serveur" },
-      { status: 500 }
-    );
+    return appError(error?.message || "Erreur serveur", 500);
   }
 }
 

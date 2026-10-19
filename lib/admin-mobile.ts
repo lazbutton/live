@@ -15,29 +15,13 @@ import {
   buildRequestReviewUpdate,
   type AdminRequestReviewAction,
 } from "@/lib/admin-request-review";
+import type { AdminMobileEventItem } from "@/lib/api/app/schemas";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export type MobileAdminEventStatusFilter = "all" | "pending" | "approved";
 
-export type MobileAdminEventItem = {
-  id: string;
-  title: string;
-  date: string;
-  status: "pending" | "approved" | "rejected";
-  category: string | null;
-  price: number | null;
-  isPayWhatYouWant: boolean;
-  locationId: string | null;
-  locationName: string | null;
-  locationSummary: string | null;
-  address: string | null;
-  imageUrl: string | null;
-  externalUrl: string | null;
-  externalUrlLabel: string | null;
-  isFull: boolean;
-  isFeatured: boolean;
-  webPath: string;
-};
+/** Forme lue par l'app : `adminMobileEventItemSchema` (lib/api/app/schemas.ts). */
+export type MobileAdminEventItem = AdminMobileEventItem;
 
 export type MobileAdminSummary = {
   counts: {

@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import {
+  appError,
+  invalidBodyResponse,
+  parseAppBody,
+} from "@/lib/api/app/http";
+import {
+  extractFromImageFormSchema,
+  type ExtractFromImageError,
+  type ExtractFromImageResponse,
+} from "@/lib/api/app/schemas";
 import { extractEventFromImage } from "@/lib/events/extract-event-from-image";
 import { requireMobileUserAuth } from "@/lib/mobile-user-auth";
 
@@ -29,6 +39,12 @@ function resolveMimeType(file: File) {
   return IMAGE_EXTENSION_TO_MIME[extension] || declaredType;
 }
 
+/**
+ * POST /api/mobile/events/extract-from-image
+ *
+ * Pré-remplit une demande d'événement à partir d'une affiche. Formulaire multipart :
+ * `extractFromImageFormSchema` (lib/api/app/schemas.ts), voir docs/API_APP.md.
+ */
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireMobileUserAuth(request);
@@ -36,48 +52,42 @@ export async function POST(request: NextRequest) {
       return auth;
     }
 
-    const formData = await request.formData();
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return invalidBodyResponse([
+        { path: "", message: "formulaire multipart attendu" },
+      ]);
+    }
     const imageEntry = formData.get("image");
     const imageUrlEntry = formData.get("imageUrl");
 
-    const imageFile = imageEntry instanceof File ? imageEntry : null;
-    const imageUrl =
-      typeof imageUrlEntry === "string" ? imageUrlEntry.trim() : null;
-
-    if (!imageFile && !imageUrl) {
-      return NextResponse.json(
-        { error: "Image requise pour l'analyse." },
-        { status: 400 },
-      );
-    }
+    const form = parseAppBody(extractFromImageFormSchema, {
+      image: imageEntry instanceof File ? imageEntry : null,
+      imageUrl: typeof imageUrlEntry === "string" ? imageUrlEntry : null,
+    });
+    if (!form.ok) return form.response;
+    const { image: imageFile, imageUrl } = form.data;
 
     if (imageFile) {
       const mimeType = resolveMimeType(imageFile);
 
       if (imageFile.size <= 0) {
-        return NextResponse.json(
-          { error: "Le fichier image est vide." },
-          { status: 400 },
-        );
+        return appError("Le fichier image est vide.", 400);
       }
 
       if (imageFile.size > MAX_IMAGE_SIZE_BYTES) {
-        return NextResponse.json(
-          {
-            error:
-              "L'image est trop volumineuse. Merci de choisir un fichier plus leger.",
-          },
-          { status: 413 },
+        return appError(
+          "L'image est trop volumineuse. Merci de choisir un fichier plus leger.",
+          413,
         );
       }
 
       if (!isImageMimeType(mimeType)) {
-        return NextResponse.json(
-          {
-            error:
-              "Le fichier fourni n'est pas une image exploitable.",
-          },
-          { status: 400 },
+        return appError(
+          "Le fichier fourni n'est pas une image exploitable.",
+          400,
         );
       }
     }
@@ -88,7 +98,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result.ok) {
-      return NextResponse.json(
+      return NextResponse.json<ExtractFromImageError>(
         {
           error: result.error,
           warnings: "warnings" in result ? result.warnings : undefined,
@@ -97,7 +107,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
+    return NextResponse.json<ExtractFromImageResponse>({
       data: result.data,
       metadata: {
         ...result.metadata,
@@ -108,12 +118,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Erreur extraction image evenement mobile:", error);
-    return NextResponse.json(
-      {
-        error: "Erreur lors de l'analyse de l'image.",
-        details: error instanceof Error ? error.message : "Erreur inconnue",
-      },
-      { status: 500 },
-    );
+    return appError("Erreur lors de l'analyse de l'image.", 500, {
+      details: error instanceof Error ? error.message : "Erreur inconnue",
+    });
   }
 }
