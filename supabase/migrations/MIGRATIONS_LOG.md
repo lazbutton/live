@@ -114,3 +114,31 @@
   `select count(*) filter (where is_young_audience) as jeune_public, count(*) from events;`
 - Même jour : 52 événements existants cochés d'après `lib/events/young-audience.ts`, liste relue avant écriture.
 
+
+## 2026-10-19 — Calendrier, vacances scolaires et recherche de l'app (refonte)
+
+- `20261019210000_create_app_events_in_range_and_counts` : `app_event_in_range()` (règle d'appartenance
+  d'un événement à une plage), `app_events_in_range()` (`setof events` d'une plage, périmètre, catégorie,
+  sans les événements masqués par l'utilisateur ni les auteurs bloqués) et `app_event_counts()` (comptes
+  par plage : `events_count`, `starting_count`). Règle en tête du fichier : commence dans la plage, ou
+  dure 13 h ou plus et a commencé avant ; pas terminé ; heure de Paris.
+- `20261019211000_create_school_holidays` : table `school_holidays` (vacances des élèves, académie
+  d'Orléans-Tours, zone B), lecture pour tous, écriture par la clé service role. Remplie par le cron
+  hebdomadaire `GET /api/cron/school-holidays` (`vercel.json`, lundi 5 h UTC) depuis le calendrier
+  scolaire officiel (data.education.gouv.fr, `fr-en-calendrier-scolaire`).
+- `20261019212000_create_app_search_counts` : `app_category_counts()` et `app_tag_counts()` (nombre
+  d'événements à venir par catégorie et par tag, dans le périmètre). Pas d'index GIN sur `tag_ids` :
+  sous la RLS, `@>` (non « leakproof ») ne peut pas s'en servir.
+- `language sql`, `stable`, `security invoker`, sans clause SET, `execute` à anon et authenticated ; au-dessus
+  de `app_events()`. Contrat pour l'app : `docs/API_APP.md` (« Fonctions SQL de la refonte »).
+- Testées : `npm run db:test` (nouveau, `scripts/db-test.sh`) sur une base Supabase locale jetable
+  (Postgres 17.6, toutes les migrations), 42 cas dans `supabase/tests/` ; le chargeur des vacances par
+  `node --test lib/school-holidays/official-calendar.test.mjs` et sur le vrai jeu officiel (64 périodes,
+  Toussaint 2026 du 17 octobre au 1er novembre) ; les appels de l'app rejoués par PostgREST v13.0.5 sur
+  une base locale chargée de l'instantané prod du 2026-10-19 (lu en anon), plans compris.
+  `lib/supabase/database.types.ts` régénéré par `npm run db:types`.
+- **Pas encore appliquées en prod.** Ordre : les trois fichiers dans l'ordre des noms (une transaction
+  par fichier), puis un premier chargement des vacances (cron appelé à la main avec `CRON_SECRET`, une
+  fois l'admin déployé). Vérification, en anon : `GET /rest/v1/rpc/app_category_counts`,
+  `POST /rest/v1/rpc/app_event_counts` (`{"ranges":[{"start":"2026-10-23","end":"2026-10-24"}]}`) et
+  `GET /rest/v1/school_holidays?last_day=gte.2026-10-19`.

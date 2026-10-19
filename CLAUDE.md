@@ -11,6 +11,7 @@ npm run build            # vérifie aussi les types
 npm run lint
 node --test "lib/**/*.test.mjs"  # tests (node:test), sans dépendance ; guillemets : sous-dossiers compris
 npm run db:types         # régénère lib/supabase/database.types.ts depuis les migrations (Docker)
+npm run db:test          # tests SQL de supabase/tests/ sur une base locale jetable (Docker)
 ```
 
 ## Base de données — ce repo est la source de vérité
@@ -29,7 +30,10 @@ npm run db:types         # régénère lib/supabase/database.types.ts depuis les
   (approuvé, non archivé, `show_on_app`, non masqué par la modération). Changer cette règle
   ici change l'app.
   L'app l'appelle en `rpc/app_events` : sur un RPC, PostgREST v13 ne sait ni filtrer une jointure
-  ni trier sur une colonne non sélectionnée.
+  ni trier sur une colonne non sélectionnée. Au-dessus d'elle, pour l'app : `app_cities()`,
+  `app_events_in_range()` et `app_event_counts()` (calendrier), `app_category_counts()` et
+  `app_tag_counts()` (recherche), table `school_holidays` ; contrat dans `docs/API_APP.md`, tests SQL
+  dans `supabase/tests/`.
 - Une nouvelle colonne sur `events` que l'app doit lire : migration ici, puis ajout dans
   `_eventColumns` côté app (`lib/services/event_service.dart`).
 
@@ -40,7 +44,8 @@ npm run db:types         # régénère lib/supabase/database.types.ts depuis les
   zod-to-openapi), `admin/`, `cron/`, `notion/`, `mcp/` (outils de l'agent de collecte).
 - `lib/` logique serveur : `supabase/` (clients ; `service.ts` = service role, serveur uniquement),
   `api/` (`v1/` API publique, `app/` contrat de l'app), `events/`, `scraping/`, `agent/`, `collecte/`,
-  `notifications/`, `notion/`, `image-cards/` (vignettes des affiches, `docs/EVENT_IMAGE_CARDS.md`).
+  `notifications/`, `notion/`, `image-cards/` (vignettes des affiches, `docs/EVENT_IMAGE_CARDS.md`),
+  `school-holidays/` (vacances scolaires du calendrier de l'app, cron hebdomadaire).
 - `.claude/skills/collecte/` : la routine de collecte d'événements.
 
 ## Lien avec l'app Flutter

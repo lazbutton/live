@@ -52,6 +52,17 @@ supabase gen types typescript --project-id <ref> --schema public > /tmp/prod.typ
 diff /tmp/prod.types.ts lib/supabase/database.types.ts
 ```
 
+### Tests SQL
+
+```bash
+npm run db:test   # Docker Desktop doit tourner
+```
+
+`scripts/db-test.sh` monte une base Supabase locale jetable, y applique toutes les migrations et lance
+chaque `supabase/tests/*.test.sql` (une transaction annulée par fichier ; chaque cas affiche
+`ok …`, le premier échec arrête son fichier). Ces fichiers refusent de tourner sur une base qui a
+déjà des événements : jamais en prod.
+
 ## 📋 Structure
 
 ```
