@@ -194,6 +194,24 @@ via `AdminMobileApiService`. JWT d'un admin (`role: admin`).
   `AdminMobileEventItem.fromJson`.
 - 400 corps invalide ; 401 ; 403 « Accès refusé. Admin uniquement. » ; 500 (voir plus bas).
 
+## Événements lus dans Supabase : vignettes des affiches
+
+L'app lit les événements directement dans Supabase (`rpc/app_events`, `events`), avec la liste de
+colonnes `_eventColumns` (`lib/services/event_service.dart`). Depuis la migration
+`20261019190000_add_event_image_cards.sql`, `events` (donc `app_events()`, qui rend `setof events`)
+a quatre colonnes de plus pour l'app, plus `image_card_error` (diagnostic de l'admin) :
+
+| Colonne | Type | |
+| --- | --- | --- |
+| `image_card_url` | texte ou `null` | vignette WebP de `image_url`, ~800 px de large |
+| `image_width`, `image_height` | entier ou `null` | dimensions de l'original (orientation EXIF appliquée), aussi le ratio de la vignette |
+| `image_color` | texte ou `null` | couleur dominante, `#rrggbb` |
+
+`null` tant que la vignette n'est pas faite (quelques secondes après l'enregistrement, au plus un
+jour) : garder `image_url`. Quand `image_card_url` est remplie, les trois autres le sont aussi.
+L'app actuelle ne sélectionne pas ces colonnes : ce qu'elle reçoit ne change pas. Elles seront lues
+à l'étape C7b de `../live/docs/PLAN_REFONTE.md`. Fabrication et garanties : `EVENT_IMAGE_CARDS.md`.
+
 ## Incohérences relevées, non corrigées
 
 1. **Données personnelles exposées.** new-request et new-report (publiques) et `/api/user-requests`

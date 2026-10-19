@@ -42,6 +42,8 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 const bucketReferences = {
   "event-images": [
     ["events", "image_url"],
+    // Vignettes (cards/…, docs/EVENT_IMAGE_CARDS.md) : une remplacée devient orpheline.
+    ["events", "image_card_url"],
     ["major_events", "image_url"],
     ["notification_settings", "in_app_popup_image_url"],
   ],

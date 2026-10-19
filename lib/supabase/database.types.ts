@@ -754,7 +754,12 @@ export type Database = {
           facebook_url: string | null
           hide_from_home: boolean
           id: string
+          image_card_error: string | null
+          image_card_url: string | null
+          image_color: string | null
+          image_height: number | null
           image_url: string | null
+          image_width: number | null
           instagram_url: string | null
           is_featured: boolean
           is_full: boolean | null
@@ -799,7 +804,12 @@ export type Database = {
           facebook_url?: string | null
           hide_from_home?: boolean
           id?: string
+          image_card_error?: string | null
+          image_card_url?: string | null
+          image_color?: string | null
+          image_height?: number | null
           image_url?: string | null
+          image_width?: number | null
           instagram_url?: string | null
           is_featured?: boolean
           is_full?: boolean | null
@@ -844,7 +854,12 @@ export type Database = {
           facebook_url?: string | null
           hide_from_home?: boolean
           id?: string
+          image_card_error?: string | null
+          image_card_url?: string | null
+          image_color?: string | null
+          image_height?: number | null
           image_url?: string | null
+          image_width?: number | null
           instagram_url?: string | null
           is_featured?: boolean
           is_full?: boolean | null
@@ -2489,7 +2504,12 @@ export type Database = {
           facebook_url: string | null
           hide_from_home: boolean
           id: string
+          image_card_error: string | null
+          image_card_url: string | null
+          image_color: string | null
+          image_height: number | null
           image_url: string | null
+          image_width: number | null
           instagram_url: string | null
           is_featured: boolean
           is_full: boolean | null
