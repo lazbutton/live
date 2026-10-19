@@ -9,7 +9,7 @@ de partage, API consommée par l'app Flutter (`../live`) et par les partenaires.
 npm run dev
 npm run build            # vérifie aussi les types
 npm run lint
-node --test lib/**/*.test.mjs   # tests (node:test), sans dépendance
+node --test "lib/**/*.test.mjs"  # tests (node:test), sans dépendance ; guillemets : sous-dossiers compris
 npm run db:types         # régénère lib/supabase/database.types.ts depuis les migrations (Docker)
 ```
 
@@ -39,14 +39,23 @@ npm run db:types         # régénère lib/supabase/database.types.ts depuis les
 - `app/api/` routes : `mobile/` et `notifications/` (appelées par l'app), `v1/` (API publique documentée,
   zod-to-openapi), `admin/`, `cron/`, `notion/`, `mcp/` (outils de l'agent de collecte).
 - `lib/` logique serveur : `supabase/` (clients ; `service.ts` = service role, serveur uniquement),
-  `events/`, `scraping/`, `agent/`, `collecte/`, `notifications/`, `notion/`.
+  `api/` (`v1/` API publique, `app/` contrat de l'app), `events/`, `scraping/`, `agent/`, `collecte/`,
+  `notifications/`, `notion/`.
 - `.claude/skills/collecte/` : la routine de collecte d'événements.
 
 ## Lien avec l'app Flutter
 
-L'app appelle : `/api/notifications/*`, `/api/user-requests`, `/api/mobile/events/extract-from-image`,
-`/api/admin/mobile/*`, `/api/notion/resync`. Changer la forme d'une réponse de ces routes casse
-l'app : modifier les deux repos ensemble.
+Contrat décrit route par route dans `docs/API_APP.md`, schémas zod dans `lib/api/app/schemas.ts`
+(corps validés par `lib/api/app/http.ts`, réponses typées par `z.infer`).
+
+- Appelées par l'app actuelle : `POST`/`DELETE /api/notifications/register-token`,
+  `POST /api/notifications/admin/new-request` et `new-report`, `POST /api/user-requests`,
+  `POST /api/mobile/events/extract-from-image`, `PATCH /api/admin/mobile/events/[id]` (actions rapides).
+- Gardées pour les anciennes versions, à ne pas modifier : les autres `/api/admin/mobile/*`,
+  `/api/notifications/send` et `send-test`, `/api/notifications/admin/new-feedback`, `/api/notion/resync`.
+
+Des builds de l'app sont publiés : une réponse peut gagner un champ, pas en perdre ni en renommer,
+et un corps que l'app envoie doit rester accepté. Changer une forme : modifier les deux repos ensemble.
 
 ## Secrets
 
