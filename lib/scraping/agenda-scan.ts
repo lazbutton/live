@@ -28,6 +28,10 @@ export type AgendaScanEvent = {
   known: boolean;
   past: boolean;
   cancelled: boolean;
+  /** Agenda partagé (On sort !) : lieu, adresse et organisateur annoncés. */
+  venue?: string;
+  address?: string;
+  organizer?: string;
 };
 
 export type AgendaScanResult = {
@@ -135,6 +139,9 @@ export async function scanAgendaPage(
       known: isKnownUrl(event.url, knownKeys),
       past: isPastAgendaEvent(event, today),
       cancelled: Boolean(event.cancelled),
+      ...(event.venue ? { venue: event.venue } : {}),
+      ...(event.address ? { address: event.address } : {}),
+      ...(event.organizer ? { organizer: event.organizer } : {}),
     }))
     .sort((left, right) => {
       if (left.past !== right.past) return left.past ? 1 : -1;

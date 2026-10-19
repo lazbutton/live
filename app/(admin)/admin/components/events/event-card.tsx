@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, EyeOff, Layers, MapPin, Star } from "lucide-react";
+import { Baby, Check, EyeOff, Layers, MapPin, Star } from "lucide-react";
 import { format, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -74,7 +74,11 @@ export function EventCard({
 
   const hasImage = Boolean(event.image_url);
   const hasMeta = Boolean((!showDateHeader && timeLabel) || locationName);
-  const hasFlags = event.show_on_app === false || Boolean(event.is_featured) || Boolean(linkedMajorEventTitle);
+  const hasFlags =
+    event.show_on_app === false ||
+    Boolean(event.is_featured) ||
+    Boolean(event.is_young_audience) ||
+    Boolean(linkedMajorEventTitle);
 
   return (
     <div
@@ -167,6 +171,12 @@ export function EventCard({
                 <span className="inline-flex items-center gap-1 rounded border border-border px-1 py-px text-[10px] font-medium text-foreground">
                   <Star className="size-2.5 fill-current" />
                   À la une
+                </span>
+              ) : null}
+              {event.is_young_audience ? (
+                <span className="inline-flex items-center gap-1 rounded border border-border px-1 py-px text-[10px] font-medium text-muted-foreground">
+                  <Baby className="size-2.5" />
+                  Jeune public
                 </span>
               ) : null}
               {linkedMajorEventTitle ? (

@@ -54,6 +54,8 @@ export interface ScrapedEventData {
   door_opening_time?: string;
   is_full?: boolean;
   is_cancelled?: boolean;
+  /** Jeune public annoncé par la source (catégorie de l'agenda). */
+  is_young_audience?: boolean;
   /** Date douteuse (page qui se contredit) : à faire vérifier avant toute publication. */
   date_warning?: string;
   /** Correction appliquée à la date lue (année déduite du jour de la semaine). */

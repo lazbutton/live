@@ -1,4 +1,5 @@
 import { normalizeName } from "@/lib/events/import-prefill";
+import { isYoungAudience } from "@/lib/events/young-audience";
 
 import type { AgendaDiscoveryResult, DiscoveredAgendaEvent } from "./agenda";
 import { parisToday, toParisWallClock } from "./dates";
@@ -31,8 +32,17 @@ export type OnSortEvent = {
   conditions?: Translated | [] | null;
   keywords?: Record<string, string[] | null> | [] | null;
   image?: { base?: string | null; filename?: string | null; variants?: Array<{ filename?: string | null; type?: string | null }> } | null;
-  location?: { name?: string | null; address?: string | null; city?: string | null; postalCode?: string | null } | null;
+  location?: {
+    name?: string | null;
+    address?: string | null;
+    city?: string | null;
+    postalCode?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+  } | null;
   organizatorName?: string | null;
+  /** Agenda qui a versé l'événement dans On sort ! (agenda collaboratif, médiathèques, mairie…). */
+  originAgenda?: { uid?: number | null; title?: string | null } | null;
   registration?: Array<{ type?: string | null; value?: string | null }> | null;
   /** Toutes les séances : seulement dans la fiche détaillée. */
   timings?: OnSortTiming[] | null;
@@ -134,7 +144,15 @@ export const ON_SORT_EXCLUDED = {
   market: "fête, salon ou marché",
   recurring: "rendez-vous récurrent ou saison",
   visit: "visite ou balade",
-  youth: "animation jeune public",
+  youth: "jeune public",
+  institution: "programmation d'une institution (mairie, médiathèque, musée, tourisme, scène nationale)",
+  closed: "lieu fermé au public (EHPAD, maison de retraite)",
+  talk: "conférence, débat ou dédicace",
+  classical: "musique classique, harmonie ou concours",
+  pastime: "loisirs (thé dansant, loto, collections)",
+  tribute: "tribute ou reprises",
+  heritage: "exposition d'histoire, de sciences ou de patrimoine",
+  longExhibition: "exposition au long cours",
   other: "hors domaines suivis",
   over: "déjà terminé",
 } as const;
@@ -152,6 +170,30 @@ const FESTIVAL = /\bfestival\b/;
 const DJ = /\bdj\b|\bdj set\b|\bdjset\b/;
 const MUSIC_WORDS =
   /\b(concerts?|chansons?|recital|duo|trio|quartet|quatuor|quintet|orchestre|choeurs?|chorale|fanfare|jazz|blues|rock|rap|folk|piano)\b/;
+
+/*
+ * OutLive cherche la scène locale et indépendante : artistes, compagnies, collectifs, associations, MJC,
+ * petits lieux. On sort ! y ajoute la programmation des institutions (mairies, médiathèques, musées,
+ * office de tourisme, Scène nationale…), reconnue à son organisateur ou à l'agenda qui l'a versée :
+ * leurs grandes salles sont suivies par ailleurs et le reste sort du cadre d'OutLive.
+ */
+const INSTITUTION =
+  /\b((ville|mairie|commune) d(e)?|mediatheques?|bibliotheques?|musees?|museum|mobe|universite|archives|archeologi\w*|drac|patrimoine|tourisme|departement|conseil (departemental|regional)|scene nationale|cado|centre national de creation)\b/;
+/** Résidences de personnes âgées : un concert y est donné pour les résidents. */
+const CLOSED_VENUE = /\b(ehpad|maison de retraite|residence (seniors?|autonomie))\b/;
+/** Agenda d'une commune versé dans On sort ! (« Agenda de Chécy »), à part l'agenda collaboratif des sorties. */
+const TOWN_AGENDA = /^agenda (de|d) (?!sorties)/;
+/** Orchestres, harmonies, conservatoire, concours de piano : musique classique ou institutionnelle. */
+const CLASSICAL =
+  /\b(orchestres?|symphoni\w*|philharmoni\w*|harmonie|conservatoire|musique municipale|concours international|recitals?|matinees? du piano|chorales?|musique classique)\b/;
+/** Sous-catégorie musicale « Classique ». */
+const CLASSICAL_MUSIC = 55;
+const PASTIME = /\b(thes? dansants?|loto|bourse aux|lego|bricks|maquettes?|modelisme|collectionneurs?|numismati\w*|philateli\w*)\b/;
+const TRIBUTE = /\b(tribute|cover band|reprises? de)\b/;
+/** Expositions d'histoire ou de sciences : du patrimoine plutôt que des artistes. */
+const HERITAGE_THEMES = new Set([32, 35]);
+/** Au-delà, une exposition est un décor de la ville plus qu'un rendez-vous (expo photo en plein air d'une saison). */
+const LONG_EXHIBITION_DAYS = 180;
 
 /* ------------------------------------------------------------------ */
 /* Adresses                                                            */
@@ -342,16 +384,28 @@ export function onSortCategory(event: OnSortEvent): string | undefined {
 
 export type OnSortVerdict = { keep: true; category: string } | { keep: false; reason: string };
 
+/** Jeune public : catégorie de l'agenda, ou « dès 3 ans », « en famille »… dans le titre, le résumé ou les mots-clés. */
+function isOnSortYoungAudience(event: OnSortEvent) {
+  return (
+    categoriesOf(event).includes(CATEGORY.jeunePublic) ||
+    isYoungAudience({ title: french(event.title), description: french(event.description), tags: keywordsOf(event) })
+  );
+}
+
 /**
- * Domaines suivis : concerts, spectacles, expositions, cinéma, rencontres et festivals. Sont écartés
- * le sport, les ateliers, stages et cours, la santé et les démarches, les salons et marchés, les
- * rendez-vous permanents et annonces de saison, les visites guidées et les animations jeunesse.
+ * Ce qui a sa place dans OutLive, la scène locale et indépendante : concerts, DJ sets, spectacles, danse,
+ * expositions, cinéma et festivals. Sont écartés le sport, les ateliers, stages et cours, la santé et les
+ * démarches, les salons et marchés, les rendez-vous permanents et annonces de saison, le jeune public,
+ * la programmation des institutions, les loisirs (thé dansant, loto, collections), les visites guidées,
+ * les conférences et dédicaces, la musique classique, les tributes et les expositions de patrimoine.
  */
 export function classifyOnSortEvent(event: OnSortEvent): OnSortVerdict {
   const categories = categoriesOf(event);
   const has = (id: number) => categories.includes(id);
   const title = normalizeName(french(event.title));
   const keywords = normalizeName(keywordsOf(event).join(" "));
+  const organizer = normalizeName(clean(event.organizatorName));
+  const origin = normalizeName(clean(event.originAgenda?.title));
   const reject = (reason: string): OnSortVerdict => ({ keep: false, reason });
 
   if (event.attendanceMode === 2 || event.status === 3) return reject(ON_SORT_EXCLUDED.online);
@@ -367,8 +421,7 @@ export function classifyOnSortEvent(event: OnSortEvent): OnSortVerdict {
 
   const category = onSortCategory(event);
   const useful = USEFUL_CATEGORIES.filter(has);
-  if (useful.length === 0) {
-    if (category === "Festival") return { keep: true, category };
+  if (useful.length === 0 && category !== "Festival") {
     if (has(CATEGORY.visite)) return reject(ON_SORT_EXCLUDED.visit);
     if (has(CATEGORY.fete)) return reject(ON_SORT_EXCLUDED.market);
     if (has(CATEGORY.jeunePublic)) return reject(ON_SORT_EXCLUDED.youth);
@@ -378,14 +431,39 @@ export function classifyOnSortEvent(event: OnSortEvent): OnSortVerdict {
   if (has(CATEGORY.visite) && !has(CATEGORY.musique) && !has(CATEGORY.cinema) && !has(CATEGORY.spectacle)) {
     return reject(ON_SORT_EXCLUDED.visit);
   }
-  return category ? { keep: true, category } : reject(ON_SORT_EXCLUDED.other);
+  if (!category) return reject(ON_SORT_EXCLUDED.other);
+
+  // Dans les domaines suivis, ce qui sort de la scène locale et indépendante.
+  if (isOnSortYoungAudience(event)) return reject(ON_SORT_EXCLUDED.youth);
+  if (INSTITUTION.test(organizer) || INSTITUTION.test(origin) || TOWN_AGENDA.test(origin)) {
+    return reject(ON_SORT_EXCLUDED.institution);
+  }
+  if (PASTIME.test(`${title} ${keywords} ${organizer}`)) return reject(ON_SORT_EXCLUDED.pastime);
+  if (CLOSED_VENUE.test(normalizeName(clean(event.location?.name)))) return reject(ON_SORT_EXCLUDED.closed);
+  // La catégorie Rencontre d'OutLive reste nourrie par les lieux suivis (bord de scène, apéro-lecture…).
+  if (category === "Rencontre") return reject(ON_SORT_EXCLUDED.talk);
+  const music = subcategoriesOf(event, "musique");
+  const classicalOnly = music.length > 0 && music.every((id) => id === CLASSICAL_MUSIC);
+  if (has(CATEGORY.musique) && (classicalOnly || CLASSICAL.test(`${title} ${organizer} ${keywords}`))) {
+    return reject(ON_SORT_EXCLUDED.classical);
+  }
+  if (TRIBUTE.test(title)) return reject(ON_SORT_EXCLUDED.tribute);
+  if (category === "Expo") {
+    const themes = subcategoriesOf(event, "exposition");
+    if (themes.length > 0 && themes.every((id) => HERITAGE_THEMES.has(id))) return reject(ON_SORT_EXCLUDED.heritage);
+    if (span > LONG_EXHIBITION_DAYS) return reject(ON_SORT_EXCLUDED.longExhibition);
+  }
+  return { keep: true, category };
 }
 
 /* ------------------------------------------------------------------ */
 /* Agenda (scan_agenda)                                                */
 /* ------------------------------------------------------------------ */
 
-/** Événement de la liste → entrée d'agenda : page On sort ! de l'événement, sa prochaine date, son affiche. */
+/**
+ * Événement de la liste → entrée d'agenda : page On sort ! de l'événement, sa prochaine date, son affiche,
+ * son lieu et son organisateur (doublons repérés au lieu, tri de la scène locale par l'agent).
+ */
 export function onSortEventToAgendaEvent(event: OnSortEvent): DiscoveredAgendaEvent {
   const next = toParisWallClock(event.nextTiming?.begin || event.firstTiming?.begin);
   return {
@@ -394,6 +472,9 @@ export function onSortEventToAgendaEvent(event: OnSortEvent): DiscoveredAgendaEv
     date: next?.value,
     image_url: onSortImageUrl(event),
     cancelled: isCancelled(event) || undefined,
+    venue: clean(event.location?.name) || undefined,
+    address: addressOf(event.location),
+    organizer: clean(event.organizatorName) || undefined,
   };
 }
 
@@ -561,6 +642,8 @@ export function onSortEventToScrapedData(event: OnSortEvent, today: string = par
     price: price.price_min !== undefined ? String(price.price_min) : undefined,
     is_full: event.status === 5 || undefined,
     is_cancelled: isCancelled(event) || undefined,
+    // Fiche importée à la main depuis l'admin : le scan, lui, écarte le jeune public.
+    is_young_audience: isOnSortYoungAudience(event) || undefined,
   };
   for (const key of Object.keys(data) as Array<keyof ScrapedEventData>) {
     if (data[key] === undefined) delete data[key];

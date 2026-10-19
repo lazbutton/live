@@ -188,6 +188,7 @@ function emptyForm(): EventFormData {
     is_featured: false,
     hide_from_home: false,
     show_on_app: true,
+    is_young_audience: false,
     agenda_types: [],
     major_event_id: "",
   };
@@ -408,6 +409,7 @@ export function EventFormSheet({
         is_featured: Boolean(event.is_featured),
         hide_from_home: Boolean(event.hide_from_home),
         show_on_app: event.show_on_app !== false,
+        is_young_audience: Boolean(event.is_young_audience),
         agenda_types: parseAgendaTypes(event.agenda_types),
         major_event_id: event.major_event_events?.major_event_id || "",
       };
@@ -1026,9 +1028,11 @@ export function EventFormSheet({
         is_featured: Boolean(formData.is_featured),
         hide_from_home: Boolean(formData.hide_from_home),
         show_on_app: Boolean(formData.show_on_app),
+        is_young_audience: Boolean(formData.is_young_audience),
         agenda_types: parseAgendaTypes(formData.agenda_types),
         tag_ids: selectedTagIds.length > 0 ? selectedTagIds : [],
-        address: selectedLocation?.address || null,
+        // Lieu annoncé par la collecte (événement sans fiche lieu) : gardé tant qu'aucun lieu n'est choisi.
+        address: selectedLocation?.address || (!selectedLocation && event && !event.location_id ? event.address : null) || null,
         latitude: selectedLocation?.latitude || null,
         longitude: selectedLocation?.longitude || null,
       };
@@ -1689,6 +1693,8 @@ export function EventFormSheet({
                                 {[selectedLocation.address, selectedLocation.city?.label].filter(Boolean).join(" · ") ||
                                   "Adresse non renseignée"}
                               </span>
+                            ) : event?.address && !event.location_id ? (
+                              `Lieu annoncé : ${event.address}. Introuvable ? Crée-le depuis la liste.`
                             ) : (
                               "Introuvable ? Crée-le depuis la liste."
                             )
@@ -2075,6 +2081,14 @@ export function EventFormSheet({
                       description="Reste visible dans les catégories."
                       checked={formData.hide_from_home}
                       onCheckedChange={(checked) => patchForm({ hide_from_home: checked })}
+                      disabled={busy}
+                    />
+                    <PropertySwitch
+                      id="event-young-audience"
+                      label="Jeune public"
+                      description="Pensé pour les enfants ou les familles. Coché par la collecte quand la source le dit."
+                      checked={formData.is_young_audience}
+                      onCheckedChange={(checked) => patchForm({ is_young_audience: checked })}
                       disabled={busy}
                     />
                   </div>

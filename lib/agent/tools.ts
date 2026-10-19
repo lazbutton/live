@@ -92,9 +92,11 @@ const scanAgenda = defineTool({
     "donné d'exploitable (bloquée, agenda en texte seul, liens qui ne sont pas des événements) et `to_import` est " +
     "vide ; un résultat vide ne veut pas dire qu'elle n'annonce rien : lis-la toi-même (voir `unreadable.next_step`) " +
     "avant de marquer la source revue. Agenda On sort ! d'Orléans Métropole (sortir.orleans-metropole.fr) : lu par " +
-    "son API sur le mois à venir ; seuls concerts, spectacles, expositions, cinéma, rencontres et festivals sont " +
-    "gardés (le reste est compté dans `excluded`) et les doublons probables d'événements déjà présents sont signalés " +
-    "(`duplicate_of`). Aucune écriture.",
+    "son API sur le mois à venir ; seule la scène locale et indépendante est gardée (concerts, spectacles, danse, " +
+    "expositions, cinéma, festivals) : jeune public, institutions (mairies, médiathèques, musées, tourisme, Scène " +
+    "nationale), conférences, musique classique, loisirs et tributes sont comptés dans `excluded`. Chaque événement " +
+    "donne son lieu (`venue`) et son organisateur ; les doublons probables (même titre le même jour, même lieu à deux " +
+    "heures près, publié deux fois) sont signalés dans `duplicate_of` et sortis de `to_import`. Aucune écriture.",
   input: z
     .object({
       source_id: z.string().optional().describe("Source à scanner (list_sources) : sa page d'agenda est utilisée."),
@@ -141,10 +143,12 @@ const scanAgenda = defineTool({
       },
       excluded: excluded ? scan.excluded : undefined,
       to_import: toImport.map((event) => event.url),
-      events: scan.events.map(({ url: eventUrl, title, date, known, past, cancelled }) => ({
+      events: scan.events.map(({ url: eventUrl, title, date, known, past, cancelled, venue, organizer }) => ({
         url: eventUrl,
         title,
         date,
+        venue,
+        organizer,
         known,
         past,
         cancelled,
@@ -229,6 +233,13 @@ const createEvent = defineTool({
     is_pay_what_you_want: z.boolean().optional().describe("Prix libre."),
     is_full: z.boolean().optional().describe("Complet."),
     is_cancelled: z.boolean().optional().describe("Annulé : rien n'est créé."),
+    is_young_audience: z
+      .boolean()
+      .optional()
+      .describe(
+        "Jeune public : pensé pour les enfants ou les familles (conte, spectacle « dès 3 ans », atelier 7-10 ans, " +
+          "boum). Repéré aussi d'après le titre et la description.",
+      ),
     door_opening_time: z.string().regex(/^\d{2}:\d{2}$/).optional().describe("Ouverture des portes (HH:mm)."),
     create_missing_artists: z.boolean().default(true),
   }),

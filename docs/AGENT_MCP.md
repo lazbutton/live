@@ -20,7 +20,13 @@ Aucun outil ne supprime ni ne modifie un événement existant.
 
 - Source suivie (active dans la Collecte) **et** fiche complète (heure, lieu, catégorie, affiche) → **publié directement**.
 - Sinon → **en attente** dans Événements, avec ce qui manque.
-- Doublons écartés : même page déjà importée, même lieu au même horaire, ou même titre le même jour.
+- Doublons écartés : même page déjà importée, même lieu au même horaire, ou même titre le même jour. Depuis
+  On sort ! (agenda partagé, horaires et titres souvent écrits autrement) : même lieu à deux heures près.
+- Jeune public (`events.is_young_audience`) : coché quand la source le dit (catégorie, tag « Jeune public »),
+  quand le titre ou la description annonce un public d'enfants (« dès 3 ans », « 7-10 ans », « tout-petits »,
+  « boum ») ou quand Claude le précise dans `create_event`. Modifiable dans l'admin ; l'app ne filtre pas dessus.
+- Lieu annoncé sans fiche : l'événement reste en attente, avec le nom et l'adresse du lieu dans son adresse
+  (montrés dans le formulaire de l'admin, remplacés par ceux du lieu choisi).
 - Date douteuse → **rien n'est créé** (statut `to_check`) : jour de semaine qui contredit la date sur la page,
   ou titre qui annonce un autre jour. Claude relit la page et crée l'événement avec la bonne date.
 - Artistes absents créés automatiquement (noms génériques comme « DJ set » ou « invités » ignorés).
@@ -37,6 +43,12 @@ Aucun outil ne supprime ni ne modifie un événement existant.
   qu'elle n'est pas finie.
 - **Agendas** : billetteries Socoop (L'Astrolabe, La Passerelle) lues par leur API publique ; menus, en-tête et pied
   de page ignorés ; adresse morte ou page d'accueil → le lien « Agenda » du site est suivi et renvoyé (`agenda_url`).
+- **On sort !** (agenda d'Orléans Métropole sur OpenAgenda) : lu par son API sur le mois à venir, réduit à la scène
+  locale et indépendante. Écartés et comptés : jeune public, programmation des institutions (organisateur ou agenda
+  d'origine : mairie, médiathèque, musée, université, patrimoine, office de tourisme, Scène nationale, CADO),
+  conférences et dédicaces, musique classique et harmonies, thés dansants, lotos et collections, tributes,
+  expositions d'histoire ou de sciences et expositions de plus de six mois, en plus des ateliers, du sport, des
+  visites et des salons. Chaque événement garde son lieu et son organisateur pour le tri final par Claude.
 - **Facebook** : les événements à venir d'une page publique sont listés et importés sans connexion, affiche
   comprise ; seules les pages réservées aux membres restent à lire dans le navigateur.
 - **Affiche** d'une page sans image de partage : image mise en avant ou plus grande image du contenu.
