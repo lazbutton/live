@@ -25,6 +25,13 @@ les deux repos ensemble.
   donne `Corps de la requête invalide : JSON attendu`.
 - Champs facultatifs : absents ou `null` (l'app omet une clé avec `'clé': ?valeur`, envoie
   `null` sinon). Une clé inconnue est ignorée, sauf dans `eventData`, stocké tel quel.
+- Dates d'événement : `events.date` et `end_date` contiennent l'**heure de Paris étiquetée UTC**
+  (un concert à 20:30 est stocké `…T20:30:00+00:00`). Le formulaire du back-office l'écrit ainsi
+  (`fromDatetimeLocal`), le scraping aussi, et l'app l'affiche sans conversion (`event.date.hour`
+  d'un `DateTime` UTC, sans `toLocal()`). Ce n'est donc pas un instant : convertir l'heure de Paris
+  en vrai UTC (`toUtc()`, `zonedTimeToUtc`) décale l'affichage de 1 à 2 h. Une date que l'app envoie
+  sans fuseau (`DateTime.toIso8601String()` d'une heure choisie, `2026-10-24T20:30:00.000`) est
+  cette heure murale.
 
 ## Vue d'ensemble
 
@@ -120,7 +127,7 @@ snake_case, clés inconnues conservées) :
 | --- | --- | --- |
 | `request_type` | texte | `complete` (formulaire) ou `poster_only` (affiche seule) |
 | `title`, `description` | texte | |
-| `date` | texte | `DateTime.toIso8601String()` : heure locale, sans fuseau |
+| `date` | texte | `DateTime.toIso8601String()` : heure choisie (heure de Paris), sans fuseau |
 | `category` | texte | nom en majuscules |
 | `end_date` | texte, facultatif | comme `date` |
 | `end_time`, `door_opening_time` | texte, facultatif | `HH:mm` |
@@ -128,6 +135,13 @@ snake_case, clés inconnues conservées) :
 | `location_id`, `location_name`, `address` | texte, facultatif | |
 | `image_url`, `external_url` | texte, facultatif | |
 | `tag_ids`, `tags`, `organizer_names` | liste de textes, facultatif | `tags` : noms, existants ou nouveaux |
+
+À la conversion en événement, `date` et `end_date` restent l'heure murale : la fonction SQL
+`convert_event_request_to_event` (back-office, ancienne route de conversion) les lit en
+`::timestamptz` dans la session PostgREST, en UTC (les dates en sortent en `+00:00`), et le
+formulaire du back-office les reprend par `toDatetimeLocal` (heures et minutes gardées, fuseau
+ignoré). Une date sans fuseau à 20:30 donne un événement à 20:30. Exception : une date issue de
+l'analyse d'affiche peut arriver en vrai UTC (incohérence 4).
 
 `event_from_url` ajoute :
 
@@ -155,6 +169,8 @@ aux autres appelants).
     `door_opening_time`, `external_url`, `external_url_label`, `image_url`, `location`, `address`,
     `organizer`, `tags` ; d'autres clés peuvent suivre (`is_full`, `presale_price`…).
     L'app (`ImportedEventPayload.fromJson`) convertit chaque valeur en texte.
+    `date` et `end_date` : une date ISO lue par l'IA est renvoyée telle quelle ; une date écrite
+    en toutes lettres (« samedi 24 octobre 20h30 ») est convertie en vrai UTC (incohérence 4).
   - `metadata` : `ai_processed`, `source` (`image`), `source_image_url`, `auth_mode` (`jwt`),
     `requester_id`.
   - `warnings` : `[{ field, message, value? }]`, champs que l'IA n'a pas su lire.
@@ -180,7 +196,7 @@ via `AdminMobileApiService`. JWT d'un admin (`role: admin`).
 | Champ | Type | |
 | --- | --- | --- |
 | `title` | texte, facultatif | au moins 3 caractères ; `null` = inchangé |
-| `date` | texte, facultatif | lu par `new Date()` ; `null` = inchangée |
+| `date` | texte, facultatif | sans fuseau : heure de Paris, enregistrée telle quelle (`…T20:30:00.000` → `20:30:00+00`) ; avec `Z` ou un décalage : instant gardé tel quel ; `null` = inchangée |
 | `locationId` | texte, facultatif | lieu existant ; `null` ou `""` refusés |
 | `price` | nombre, facultatif | `null` efface le prix |
 | `isPayWhatYouWant` | booléen, facultatif | jamais envoyé par l'app |
@@ -204,11 +220,26 @@ via `AdminMobileApiService`. JWT d'un admin (`role: admin`).
    404 : « Événement introuvable », « Le titre doit contenir au moins 3 caractères », « Date
    invalide », « Le lieu est requis », « Lieu introuvable », « Prix invalide », « Impossible de
    modifier le prix tant que Prix libre est activé ».
-4. Dates sans fuseau. Quand l'admin choisit une date dans les actions rapides, l'app envoie l'heure
-   locale sans fuseau (`2026-10-24T20:30:00.000`) ; le serveur la lit dans son propre fuseau. Sur
-   un serveur en UTC (cas probable de Vercel, non vérifié), 20:30 choisi à Orléans est enregistré
-   20:30 UTC, soit 22:30 à Paris. Une date laissée telle quelle part en UTC (`…Z`) et ne bouge pas.
-   `eventData.date` et `end_date` des demandes ont la même forme.
+4. Dates. Revu le 2026-10-19 : le décalage supposé ici (« 20:30 choisi à Orléans enregistré 22:30 »)
+   n'existe pas, car `events.date` est l'heure de Paris étiquetée UTC (voir les conventions). Pas
+   de `TZ` dans les variables Vercel de prod : les fonctions tournent en UTC, et l'ancien
+   `new Date("2026-10-24T20:30:00.000")` y donnait `20:30Z`, la bonne valeur. Seul défaut côté
+   serveur : ce résultat dépendait du fuseau du serveur (un `next dev` à Paris enregistrait 18:30).
+   Corrigé : l'édition rapide lit une date sans fuseau en UTC (`parseEventDateInput`,
+   `lib/date-utils.ts`). Restent, non corrigés :
+   - **app, à ne pas faire : envoyer `toUtc()`.** 20:30 choisi partirait `18:30Z` et serait
+     enregistré 18:30. Garder l'envoi sans fuseau, ou envoyer l'heure murale étiquetée UTC :
+     `DateTime.utc(d.year, d.month, d.day, d.hour, d.minute).toIso8601String()`.
+   - app : la feuille d'actions rapides (`_formatDateTime`) et les écrans admin affichent la date
+     avec `toLocal()` : une date inchangée y apparaît 1 à 2 h trop tard (22:30 pour 20:30). Le
+     sélecteur, lui, part de l'heure UTC et propose bien 20:30. Afficher sans `toLocal()`, comme
+     le reste de l'app.
+   - analyse d'affiche : une date écrite en toutes lettres est convertie par `zonedTimeToUtc` en
+     vrai UTC (`…T18:30:00.000Z` pour 20:30 en été), et une date ISO avec décalage passe telle
+     quelle. L'app la lit en `DateTime` UTC, l'assistant l'affiche 18:30 et, si le contributeur ne
+     la corrige pas, `eventData.date` part `…T18:30:00.000Z` : l'événement sera créé à 18:30.
+     À corriger côté serveur en renvoyant l'heure murale sans fuseau (comme `toParisWallClock`,
+     `lib/scraping/dates.ts`).
 5. Analyse d'affiche avec `imageUrl` : si l'image ne se charge pas, la route renvoie le statut de
    l'hôte de l'image (404, 403…). L'app n'envoie jamais `imageUrl`.
 6. Si le trigger `notify_admins_new_request_trigger` est actif en prod (non vérifié), une demande
