@@ -42,3 +42,20 @@
   plan inliné (index `idx_events_approved_visible_date`).
 - PostgREST v13 sur `rpc/app_events` : `order` sur une colonne absente du `select` échoue, et les filtres
   sur une jointure (`event_artists.artist_id=eq.…`) ne sont pas supportés.
+
+## 2026-10-18 — `app_cities()` : villes de l'app et leur activité
+
+- `20261018200000_create_app_cities_function` : une ligne par ville proposée dans l'app. Villes actives
+  regroupées par libellé d'affichage (`extract_city_label_from_address`, comparé via `normalize_city_label`),
+  centre moyen, alias, ids regroupés ; activité d'après `app_events()` : événements à venir / récents,
+  prochaine et dernière date, fenêtre minuit UTC - 120 j / + 365 j. `stable`, `security invoker`,
+  `execute` à anon et authenticated. Prérequis : `app_events()`.
+- Remplace le calcul Dart de `PublicPreferencesService` (app), qui lisait `cities` puis toutes les lignes
+  de `app_events()` de la fenêtre. Écart théorique seulement : la normalisation SQL traite `æ` → `ae` et
+  ignore `å` (l'inverse en Dart), et `[[:alpha:]]` accepte toutes les lettres (Dart : `[A-Za-zÀ-ÿ]`).
+- Testée sur un Postgres 17 local avec toutes les migrations (baseline puis les suivantes) : sortie identique
+  à l'ancien calcul Dart sur l'instantané prod du 2026-10-18 lu en anon (17 villes, 359 événements) et sur
+  un jeu de cas limites (regroupements, villes inactives, ville du lieu, bornes de dates, événements en cours).
+- **À appliquer en prod (SQL Editor) avant de merger la PR de l'app.** Vérification, en anon :
+  `GET /rest/v1/rpc/app_cities` → une ligne par ville active, ou dans le SQL Editor
+  `select label, upcoming_events_count, recent_events_count from public.app_cities();`.
