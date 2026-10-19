@@ -68,7 +68,7 @@ export const pushTokenResponseSchema = z.object({
   message: z.string(),
 });
 
-// --- Alertes admin : POST /api/notifications/admin/new-request et new-report ------------------
+// --- Alertes admin : POST /api/notifications/admin/new-request, new-report, new-feedback ------
 
 /** Identifiant venant d'un webhook : refusé s'il contient une variable non interpolée. */
 const interpolatedId = nonEmptyString.refine(
@@ -126,6 +126,29 @@ export const adminNewReportBodySchema = z.object({
 });
 
 /**
+ * Champs de new-feedback envoyés par les anciens builds, acceptés mais ignorés : la notification
+ * est construite depuis le feedback et le nom de son objet relus en base.
+ */
+const newFeedbackIgnoredFields = {
+  /** Description coupée à 100 caractères, plus « ... ». */
+  message: optionalString,
+  userId: optionalString,
+  /** Nom de l'objet du feedback (`feedback_objects.name`) ; absent si l'app n'a pas pu le lire. */
+  feedbackType: optionalString,
+  feedbackObjectId: optionalString,
+};
+
+/**
+ * new-feedback : `NotificationApiService.notifyAdminsNewFeedback` des builds 1.0.3 à 1.0.6, après
+ * l'insertion du feedback dans `feedbacks` (retiré de l'app). Le feedback est relu en base par
+ * `feedbackId` (404 s'il n'existe pas).
+ */
+export const adminNewFeedbackBodySchema = z.object({
+  feedbackId: interpolatedId,
+  ...newFeedbackIgnoredFields,
+});
+
+/**
  * Résultat de `sendNotificationToAdmins` (lib/notifications/admin.ts), renvoyé par des routes
  * publiques : aucune donnée sur les admins (ni identifiant, ni e-mail, ni token), le détail par
  * admin ne va que dans les journaux serveur. `diagnostics` a été retiré (l'app ne le lisait pas).
@@ -139,7 +162,7 @@ export const adminNotificationResultSchema = z.object({
   errors: z.array(z.string()),
 });
 
-/** Réponse de new-request et new-report. L'app ne la lit pas. */
+/** Réponse de new-request, new-report et new-feedback. L'app ne la lit pas. */
 export const adminAlertResponseSchema = adminNotificationResultSchema.extend({
   flow: z.object({
     route: z.string(),
@@ -378,6 +401,7 @@ export type UnregisterPushTokenBody = z.infer<typeof unregisterPushTokenBodySche
 export type PushTokenResponse = z.infer<typeof pushTokenResponseSchema>;
 export type AdminNewRequestBody = z.infer<typeof adminNewRequestBodySchema>;
 export type AdminNewReportBody = z.infer<typeof adminNewReportBodySchema>;
+export type AdminNewFeedbackBody = z.infer<typeof adminNewFeedbackBodySchema>;
 export type AdminAlertResponse = z.infer<typeof adminAlertResponseSchema>;
 export type EventRequestData = z.infer<typeof eventRequestDataSchema>;
 export type CreateUserRequestBody = z.infer<typeof createUserRequestBodySchema>;
