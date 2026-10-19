@@ -98,12 +98,11 @@ export const adminNewRequestBodySchema = z.object({
 });
 
 /**
- * new-report : `NotificationApiService.notifyAdminsNewContentReport`, après l'insertion du
- * signalement dans `content_reports`. Le signalement est relu en base ; les autres champs
- * remplacent ses valeurs quand ils sont fournis.
+ * Champs de new-report envoyés par l'app, acceptés mais ignorés : la notification est construite
+ * depuis le signalement et son événement relus en base. L'app y met les valeurs qu'elle vient
+ * d'enregistrer.
  */
-export const adminNewReportBodySchema = z.object({
-  reportId: nonEmptyString,
+const newReportIgnoredFields = {
   eventId: optionalString,
   eventTitle: optionalString,
   /** abuse, harassment, hate, sexual, violence, spam, illegal, impersonation, other. */
@@ -114,6 +113,16 @@ export const adminNewReportBodySchema = z.object({
   userId: optionalString,
   reportedUserId: optionalString,
   blockRequested: z.boolean().nullish(),
+};
+
+/**
+ * new-report : `NotificationApiService.notifyAdminsNewContentReport`, après l'insertion du
+ * signalement dans `content_reports`. Le signalement est relu en base par `reportId` (404 s'il
+ * n'existe pas).
+ */
+export const adminNewReportBodySchema = z.object({
+  reportId: nonEmptyString,
+  ...newReportIgnoredFields,
 });
 
 /**

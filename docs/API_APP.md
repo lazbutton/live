@@ -95,12 +95,17 @@ elle envoie le titre et le type déjà enregistrés.
 | Champ | Type | |
 | --- | --- | --- |
 | `reportId` | texte non vide | signalement relu en base |
-| `eventId`, `eventTitle` | texte, facultatif | sinon lus en base |
-| `reasonCode` | texte, facultatif | `abuse`, `harassment`, `hate`, `sexual`, `violence`, `spam`, `illegal`, `impersonation`, `other` |
-| `reasonLabel` | texte, facultatif | sinon libellé déduit du code |
-| `message` | texte, facultatif | peut être vide |
-| `userId`, `reportedUserId` | texte, facultatif | |
-| `blockRequested` | booléen, facultatif | sinon lu en base |
+| `eventId`, `eventTitle` | texte, facultatif | ignorés |
+| `reasonCode` | texte, facultatif | `abuse`, `harassment`, `hate`, `sexual`, `violence`, `spam`, `illegal`, `impersonation`, `other` ; ignoré |
+| `reasonLabel` | texte, facultatif | ignoré |
+| `message` | texte, facultatif | peut être vide ; ignoré |
+| `userId`, `reportedUserId` | texte, facultatif | ignorés |
+| `blockRequested` | booléen, facultatif | ignoré |
+
+Seul `reportId` sert : le signalement est relu dans `content_reports`, le titre de son événement
+dans `events`, et la notification vient d'eux (libellé du motif d'après `reason_code`, `details`,
+`block_requested`, `reporter_user_id`, `reported_user_id`), jamais du corps. Pour l'app, c'est sans
+effet : elle envoie les valeurs qu'elle vient d'enregistrer, avec les mêmes libellés de motif.
 
 Réponse des deux routes :
 
@@ -236,18 +241,23 @@ L'app actuelle ne sélectionne pas ces colonnes : ce qu'elle reçoit ne change p
 ## Incohérences relevées, non corrigées
 
 1. **Alertes admin rejouables.** Les données personnelles exposées (`diagnostics`, ids d'admin dans
-   `errors`) et le texte libre de new-request au format trigger sont corrigés (voir plus bas). Reste :
+   `errors`), le texte libre de new-request au format trigger et les champs du corps de new-report
+   sont corrigés (voir plus bas) : new-request et new-report ne poussent que ce qui est en base. Reste :
    - new-request et new-report sont publiques : avec un id valide, n'importe qui peut les rappeler
      en boucle, chaque appel pousse une notification sur chaque token admin. Un id de demande ou de
      signalement est un UUID, non devinable, mais connu de son auteur (renvoyé par
      `/api/user-requests`, ou lu après une insertion directe, permise à tout compte qui passe
      `can_use_ugc_features()`). L'auteur peut aussi modifier sa demande en attente
      (`event_data.title`) avant de la rejouer : texte de son choix, mais rattaché à son compte
-     (`requested_by`).
-   - new-report pousse les champs du corps à la place des valeurs en base (`eventTitle`,
-     `reasonLabel`, `message`…) : avec un id de signalement valide, texte libre. Pour les ignorer
-     comme new-request, vérifier d'abord que l'app envoie les mêmes valeurs que celles enregistrées
-     (`reasonLabel` côté Dart contre `reasonLabels` côté serveur).
+     (`requested_by`). Un signalement ne peut pas être modifié par son auteur (pas de politique
+     UPDATE pour lui) ; le texte affiché n'en reprend que le motif (libellé fixe) et le titre de
+     l'événement, ses détails partent dans `data.message`, rattachés à son compte
+     (`reporter_user_id`).
+   - new-feedback, gardée pour les anciennes versions, pousse encore le texte du corps : avec
+     `{ id, description }` (format d'un webhook, sans appelant), la notification part sans relire
+     `feedbacks`, quel que soit l'id ; avec un `feedbackId` valide, le texte poussé commence par le
+     `feedbackType` du corps (`<feedbackType>: <description>`). Les anciens builds envoient
+     `{ feedbackId, message, userId, feedbackType }`.
    - Piste, non faite : une seule notification par id. Colonne `admin_notified_at` sur
      `user_requests` et `content_reports` (migration), réservée par
      `update … set admin_notified_at = now() where id = $1 and admin_notified_at is null returning id` ;
@@ -311,6 +321,20 @@ Par le retrait du format « ligne » de new-request (celui du trigger SQL retir�
 route ne lit plus `id`. Un corps avec `id` mais sans `requestId` donne 400 (« requestId : requis »)
 au lieu de notifier les admins avec le contenu du corps, sans relire la demande. Rien ne change pour
 l'app ni pour la page de test, qui envoient `requestId`.
+
+Par la relecture de new-report en base : les champs du corps autres que `reportId` sont acceptés
+mais ignorés, la notification (texte et `data`) vient du signalement et du titre de son événement,
+relus à chaque appel. Pour l'app, rien ne change : elle envoie ce qu'elle vient d'enregistrer, et
+ses libellés de motif (`ContentReportReason.label`) sont ceux de `reasonLabels`, à l'octet près,
+depuis la première version. Seule différence possible : si le titre de l'événement a changé depuis
+que l'app l'a chargé, c'est le titre actuel qui part. Pour les autres corps : `reporter_user_id`
+vient de la ligne (avant : `userId` du corps, sinon `null`) ; en paramètres de requête, un
+`blockRequested` absent ne force plus `false`.
+
+Vérifié le 2026-10-19 : 15 appels rejoués sur les handlers d'avant et d'après (faux Supabase). Corps
+de l'app, en JSON et en paramètres de requête : même statut, même réponse, même notification
+(titre, texte, `data`), plus une lecture de `events`. Corps invalides (400) et id inconnu (404) :
+inchangés. Les autres écarts sont ceux décrits ci-dessus.
 
 ## Alertes admin sans données personnelles (2026-10-19)
 
