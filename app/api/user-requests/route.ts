@@ -74,7 +74,6 @@ export async function POST(request: NextRequest) {
         sent: created.notification.sent,
         failed: created.notification.failed,
         errors: created.notification.errors,
-        diagnostics: created.notification.diagnostics,
       },
       flow: {
         route: "/api/user-requests",
