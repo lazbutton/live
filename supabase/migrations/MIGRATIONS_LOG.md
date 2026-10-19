@@ -60,6 +60,26 @@
   `GET /rest/v1/rpc/app_cities` → une ligne par ville active, ou dans le SQL Editor
   `select label, upcoming_events_count, recent_events_count from public.app_cities();`.
 
+## 2026-10-19 — Retrait des triggers de notification admin
+
+- `20261019200000_drop_notify_admins_triggers` : supprime `trigger_notify_admins_new_request`
+  (`user_requests`), `trigger_notify_admins_new_feedback` (`feedbacks`), leurs fonctions, et
+  `notify_admins_new_request(uuid)` / `notify_admins_new_feedback(uuid)` (un RAISE NOTICE, jamais
+  appelées, exposées en RPC). Rejouable (IF EXISTS), sans CASCADE.
+- Ces triggers n'ont jamais rien envoyé : `body := payload::text`, alors que `net.http_post` attend du
+  `jsonb` ; l'erreur finissait en WARNING. Les admins sont notifiés par le code (`/api/user-requests` ;
+  repli de l'app via `new-request` ; ancien formulaire de feedback via `new-feedback`) : rien ne change
+  pour eux. Réparés, ils auraient doublé ces notifications et notifié chaque ligne importée (scraping,
+  Facebook, Notion).
+- La baseline (dump de décembre 2025) ne contient ni ces triggers ni ces fonctions : en prod, ils
+  n'existent peut-être pas, ou seulement les fonctions (recréées par `20260821124000`).
+- Testée sur une base Supabase locale jetable (Postgres 17, pg_net 0.19.5, toutes les migrations).
+  Avant : une demande et un feedback insérés (transaction annulée) donnent chacun un WARNING
+  `function net.http_post(url => text, headers => jsonb, body => text) does not exist`, aucune requête
+  en file. Après : plus de WARNING. Rejouée sans erreur ; passe aussi avec les fonctions sans les
+  triggers ; échoue sans rien supprimer si un autre trigger utilise encore l'une des fonctions.
+- **À appliquer en prod (SQL Editor, ou psql en une transaction)** après la vérification en lecture
+  seule de la PR (pg_net, triggers des deux tables, définitions en place).
 
 ## 2026-10-19 — Vignettes des affiches (C7a)
 

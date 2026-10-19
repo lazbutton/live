@@ -95,8 +95,9 @@ export const adminNewRequestBodySchema = z.object({
 });
 
 /**
- * new-request, envoyé par le trigger SQL `notify_admins_new_request_trigger` (pg_net) :
- * la ligne `user_requests` insérée, utilisée sans relecture.
+ * new-request, format du trigger SQL `notify_admins_new_request_trigger` (pg_net) : la ligne
+ * `user_requests` insérée, utilisée sans relecture. Ce trigger n'a jamais rien envoyé et
+ * 20261019200000_drop_notify_admins_triggers.sql le retire : plus aucun appelant.
  */
 export const adminNewRequestRowSchema = z.object({
   id: interpolatedId,

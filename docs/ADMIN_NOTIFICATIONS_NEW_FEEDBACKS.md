@@ -1,5 +1,10 @@
 # Notifications Push Automatiques pour les Admins - Nouveaux Feedbacks
 
+> **Obsolète (2026-10-19).** Le trigger pg_net de l'option A n'a jamais rien envoyé (corps `text`,
+> pg_net attend du `jsonb`) : il est retiré par
+> `supabase/migrations/20261019200000_drop_notify_admins_triggers.sql`. Les feedbacks venaient de
+> l'ancien formulaire de l'app (retiré), qui appelait `new-feedback` lui-même.
+
 Ce document explique comment configurer les notifications push automatiques pour les admins lorsqu'un nouveau feedback est créé.
 
 ## Vue d'ensemble

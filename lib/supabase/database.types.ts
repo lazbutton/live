@@ -2650,14 +2650,6 @@ export type Database = {
       normalize_artist_label: { Args: { value: string }; Returns: string }
       normalize_city_label: { Args: { value: string }; Returns: string }
       normalize_entity_label: { Args: { value: string }; Returns: string }
-      notify_admins_new_feedback: {
-        Args: { feedback_id: string }
-        Returns: undefined
-      }
-      notify_admins_new_request: {
-        Args: { request_id: string }
-        Returns: undefined
-      }
       pick_event_source_capture_mode: {
         Args: {
           facebook_url: string
