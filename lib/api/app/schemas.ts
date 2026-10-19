@@ -161,7 +161,10 @@ export const eventRequestDataSchema = z.looseObject({
   request_type: requiredString,
   title: requiredString,
   description: requiredString,
-  /** `DateTime.toIso8601String()` : heure locale de l'appareil, sans fuseau. */
+  /**
+   * `DateTime.toIso8601String()` : heure choisie, sans fuseau. C'est l'heure de Paris, gardée
+   * telle quelle à la conversion (`events.date` = heure de Paris étiquetée UTC).
+   */
   date: requiredString,
   end_date: optionalString,
   /** HH:mm. */
@@ -305,7 +308,10 @@ export const quickEditEventBodySchema = z.object({
   action: z.literal("quickEdit"),
   /** Au moins 3 caractères (vérifié à l'enregistrement). `null` = inchangé. */
   title: optionalString,
-  /** `DateTime.toIso8601String()`. `null` = inchangée. */
+  /**
+   * `DateTime.toIso8601String()`. Sans fuseau (heure choisie) : heure de Paris, enregistrée telle
+   * quelle ; avec `Z` (date inchangée) : instant gardé (`parseEventDateInput`). `null` = inchangée.
+   */
   date: optionalString,
   /** Lieu existant ; `null` ou `""` refusés à l'enregistrement. */
   locationId: optionalString,
