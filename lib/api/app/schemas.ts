@@ -98,20 +98,6 @@ export const adminNewRequestBodySchema = z.object({
 });
 
 /**
- * new-request, envoyé par le trigger SQL `notify_admins_new_request_trigger` (pg_net) : la ligne
- * `user_requests` insérée. Seul `id` sert : la demande est relue en base (404 si elle n'existe
- * pas), comme pour l'app. Les autres colonnes sont validées mais ignorées.
- */
-export const adminNewRequestRowSchema = z.object({
-  id: interpolatedId,
-  request_type: optionalString,
-  event_data: z.record(z.string(), z.unknown()).nullish(),
-  source_url: optionalString,
-  requested_at: optionalString,
-  ...newRequestIgnoredFields,
-});
-
-/**
  * new-report : `NotificationApiService.notifyAdminsNewContentReport`, après l'insertion du
  * signalement dans `content_reports`. Le signalement est relu en base ; les autres champs
  * remplacent ses valeurs quand ils sont fournis.
@@ -382,7 +368,6 @@ export type RegisterPushTokenBody = z.infer<typeof registerPushTokenBodySchema>;
 export type UnregisterPushTokenBody = z.infer<typeof unregisterPushTokenBodySchema>;
 export type PushTokenResponse = z.infer<typeof pushTokenResponseSchema>;
 export type AdminNewRequestBody = z.infer<typeof adminNewRequestBodySchema>;
-export type AdminNewRequestRow = z.infer<typeof adminNewRequestRowSchema>;
 export type AdminNewReportBody = z.infer<typeof adminNewReportBodySchema>;
 export type AdminAlertResponse = z.infer<typeof adminAlertResponseSchema>;
 export type EventRequestData = z.infer<typeof eventRequestDataSchema>;

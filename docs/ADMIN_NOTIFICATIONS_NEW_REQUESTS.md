@@ -1,5 +1,11 @@
 # Notifications Push Automatiques pour les Admins - Nouvelles Demandes
 
+> **Obsolète (2026-10-19).** Le trigger pg_net de l'option A n'a jamais rien envoyé (corps `text`,
+> pg_net attend du `jsonb`) : il est retiré par
+> `supabase/migrations/20261019200000_drop_notify_admins_triggers.sql`. Les admins sont notifiés par
+> le code : `/api/user-requests`, et l'app appelle `new-request` quand elle insère la demande
+> elle-même. Contrat à jour : `API_APP.md`.
+
 Ce document explique comment configurer les notifications push automatiques pour les admins lorsqu'une nouvelle demande est créée.
 
 ## Vue d'ensemble

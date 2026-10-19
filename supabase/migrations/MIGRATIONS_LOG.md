@@ -60,6 +60,46 @@
   `GET /rest/v1/rpc/app_cities` → une ligne par ville active, ou dans le SQL Editor
   `select label, upcoming_events_count, recent_events_count from public.app_cities();`.
 
+## 2026-10-19 — Retrait des triggers de notification admin
+
+- `20261019200000_drop_notify_admins_triggers` : supprime `trigger_notify_admins_new_request`
+  (`user_requests`), `trigger_notify_admins_new_feedback` (`feedbacks`), leurs fonctions, et
+  `notify_admins_new_request(uuid)` / `notify_admins_new_feedback(uuid)` (un RAISE NOTICE, jamais
+  appelées, exposées en RPC). Rejouable (IF EXISTS), sans CASCADE.
+- Ces triggers n'ont jamais rien envoyé : `body := payload::text`, alors que `net.http_post` attend du
+  `jsonb` ; l'erreur finissait en WARNING. Les admins sont notifiés par le code (`/api/user-requests` ;
+  repli de l'app via `new-request` ; ancien formulaire de feedback via `new-feedback`) : rien ne change
+  pour eux. Réparés, ils auraient doublé ces notifications et notifié chaque ligne importée (scraping,
+  Facebook, Notion).
+- La baseline (dump de décembre 2025) ne contient ni ces triggers ni ces fonctions : en prod, ils
+  n'existent peut-être pas, ou seulement les fonctions (recréées par `20260821124000`).
+- Testée sur une base Supabase locale jetable (Postgres 17, pg_net 0.19.5, toutes les migrations).
+  Avant : une demande et un feedback insérés (transaction annulée) donnent chacun un WARNING
+  `function net.http_post(url => text, headers => jsonb, body => text) does not exist`, aucune requête
+  en file. Après : plus de WARNING. Rejouée sans erreur ; passe aussi avec les fonctions sans les
+  triggers ; échoue sans rien supprimer si un autre trigger utilise encore l'une des fonctions.
+- **À appliquer en prod (SQL Editor, ou psql en une transaction)** après la vérification en lecture
+  seule de la PR (pg_net, triggers des deux tables, définitions en place).
+
+## 2026-10-19 — Vignettes des affiches (C7a)
+
+- `20261019190000_add_event_image_cards` : `events.image_card_url`, `image_width`, `image_height`,
+  `image_color` (et `image_card_error`), remises à null à l'insertion et quand `image_url` change
+  (trigger `events_reset_image_card`). Contraintes : dimensions > 0 et ensemble, couleur `#rrggbb`,
+  pas de vignette sans dimensions ni couleur.
+- Trigger `events_request_image_card` : webhook pg_net vers `POST /api/events/<id>/image-card` quand une
+  affiche apparaît ou change, avec le secret Vault `image_card_webhook_secret` ; sans secret, rien ne
+  part (le cron quotidien `/api/cron/image-cards` rattrape). Crée `pg_net` s'il manque.
+- `queue_event_sync_job()` : une mise à jour qui ne change que ces colonnes (et `updated_at`) n'est plus
+  mise en file pour Notion. Reste identique à la définition de `20260414110000`.
+- Testée sur une base locale jetable (toutes les migrations, puis rejouée une 2e fois sans erreur), dans
+  une transaction annulée : remise à null à l'insertion et au changement d'affiche, pas de webhook sans
+  secret ni pour une image_url inchangée, vide ou retirée, URL (par défaut et `app.api_url`), secret,
+  corps et délai de la requête, pas de job Notion pour une vignette posée (toujours un pour un autre
+  changement et pour une suppression), contraintes, `app_events()` avec les colonnes, enregistrement
+  maintenu si pg_net échoue.
+- **Pas encore appliquée en prod.** Ordre de mise en route et vérifications : `docs/EVENT_IMAGE_CARDS.md`.
+
 ## 2026-10-19 — `events.is_young_audience` : jeune public
 
 - `20261019120000_add_is_young_audience_to_events` : booléen `NOT NULL DEFAULT false` (ajout instantané, pas de

@@ -1,22 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { appError, parseAppBody } from "@/lib/api/app/http";
-import {
-  adminNewRequestBodySchema,
-  adminNewRequestRowSchema,
-  type AdminAlertResponse,
-} from "@/lib/api/app/schemas";
+import { adminNewRequestBodySchema, type AdminAlertResponse } from "@/lib/api/app/schemas";
 import { sendNotificationToAdmins } from "@/lib/notifications/admin";
 import { createServiceClient } from "@/lib/supabase/service";
-
-/** `id` d'une ligne envoyée par le trigger SQL, s'il est exploitable. */
-function isRowId(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value !== "" &&
-    !value.includes("{{") &&
-    !value.includes("$1")
-  );
-}
 
 function eventDataTitle(eventData: unknown) {
   return typeof eventData === "object" && eventData !== null
@@ -29,10 +15,9 @@ function eventDataTitle(eventData: unknown) {
  * 
  * Envoie une notification push à tous les admins lorsqu'une nouvelle demande est créée
  * 
- * Body (JSON, sinon paramètres de requête), voir docs/API_APP.md :
- * - `adminNewRequestBodySchema` : app et page de test du back-office (`requestId`) ;
- * - `adminNewRequestRowSchema` : ligne envoyée par le trigger SQL `notify_admins_new_request_trigger` (`id`).
- * Route publique : dans les deux cas, la demande est relue en base et le texte de la notification
+ * Body (JSON, sinon paramètres de requête) : `adminNewRequestBodySchema`, envoyé par l'app et
+ * par la page de test du back-office. Voir docs/API_APP.md.
+ * Route publique : la demande est relue en base par `requestId` et le texte de la notification
  * vient d'elle, jamais du corps.
  */
 export async function POST(request: NextRequest) {
@@ -65,24 +50,16 @@ export async function POST(request: NextRequest) {
       body.sourceUrl = url.searchParams.get("sourceUrl") || body.sourceUrl;
     }
 
-    // Id de la demande : `id` pour le trigger SQL, `requestId` pour l'app. Le reste du corps est
-    // ignoré : la notification est construite depuis la demande relue en base.
-    let requestId: string;
-    if (isRowId(body.id)) {
-      const row = parseAppBody(adminNewRequestRowSchema, body);
-      if (!row.ok) return row.response;
-      requestId = row.data.id;
-    } else {
-      const parsed = parseAppBody(adminNewRequestBodySchema, body);
-      if (!parsed.ok) return parsed.response;
-      requestId = parsed.data.requestId;
-    }
+    // Seul `requestId` sert, le reste du corps est ignoré : la notification est construite depuis
+    // la demande relue en base.
+    const parsed = parseAppBody(adminNewRequestBodySchema, body);
+    if (!parsed.ok) return parsed.response;
 
     const supabase = createServiceClient();
     const { data: requestData, error: requestError } = await supabase
       .from("user_requests")
       .select("id, request_type, event_data, source_url, requested_at")
-      .eq("id", requestId)
+      .eq("id", parsed.data.requestId)
       .single();
 
     if (requestError || !requestData) {

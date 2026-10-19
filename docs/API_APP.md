@@ -83,14 +83,11 @@ ni e-mail, ni token) ; le détail par admin ne va que dans les journaux du serve
 | `eventTitle` | texte, facultatif | ignoré |
 | `sourceUrl` | texte, facultatif | ignoré |
 
-Deux autres appelants : le trigger SQL `notify_admins_new_request_trigger` (pg_net), qui envoie
-la ligne insérée (`id`, `request_type`, `event_data`, `source_url`, `requested_at` :
-`adminNewRequestRowSchema`), et la page de test du back-office.
+Autre appelant : la page de test du back-office.
 
-Dans tous les cas, seul l'id sert (`requestId`, ou `id` pour le trigger) : la demande est relue
-dans `user_requests` et le texte de la notification vient d'elle (`event_data.title`,
-`request_type`), jamais du corps. Pour l'app, c'est sans effet : elle envoie le titre et le type
-déjà enregistrés. pg_net n'envoie la requête qu'après le commit de l'insertion : la ligne existe.
+Seul `requestId` sert : la demande est relue dans `user_requests` et le texte de la notification
+vient d'elle (`event_data.title`, `request_type`), jamais du corps. Pour l'app, c'est sans effet :
+elle envoie le titre et le type déjà enregistrés.
 
 **new-report** : appelée par `ContentReportService.reportEvent`
 (`lib/services/content_report_service.dart`) après l'insertion dans `content_reports`.
@@ -111,8 +108,8 @@ Réponse des deux routes :
   notifié** (`success: false`, par exemple `errors: ["Aucun token trouvé"]`). `errors` : un message
   par échec, sans l'admin concerné (`Token iOS invalide: …`, `Plateforme non supportée: web`,
   `Envoi ios: Token invalide: BadDeviceToken`).
-- 400 corps invalide ; 404 demande ou signalement introuvable, quel que soit le format
-  (new-request ajoute `details`, l'erreur PostgREST) ; 500.
+- 400 corps invalide ; 404 demande ou signalement introuvable (new-request ajoute `details`,
+  l'erreur PostgREST) ; 500.
 
 ## Demandes : `POST /api/user-requests`
 
@@ -218,6 +215,24 @@ via `AdminMobileApiService`. JWT d'un admin (`role: admin`).
   `AdminMobileEventItem.fromJson`.
 - 400 corps invalide ; 401 ; 403 « Accès refusé. Admin uniquement. » ; 500 (voir plus bas).
 
+## Événements lus dans Supabase : vignettes des affiches
+
+L'app lit les événements directement dans Supabase (`rpc/app_events`, `events`), avec la liste de
+colonnes `_eventColumns` (`lib/services/event_service.dart`). Depuis la migration
+`20261019190000_add_event_image_cards.sql`, `events` (donc `app_events()`, qui rend `setof events`)
+a quatre colonnes de plus pour l'app, plus `image_card_error` (diagnostic de l'admin) :
+
+| Colonne | Type | |
+| --- | --- | --- |
+| `image_card_url` | texte ou `null` | vignette WebP de `image_url`, ~800 px de large |
+| `image_width`, `image_height` | entier ou `null` | dimensions de l'original (orientation EXIF appliquée), aussi le ratio de la vignette |
+| `image_color` | texte ou `null` | couleur dominante, `#rrggbb` |
+
+`null` tant que la vignette n'est pas faite (quelques secondes après l'enregistrement, au plus un
+jour) : garder `image_url`. Quand `image_card_url` est remplie, les trois autres le sont aussi.
+L'app actuelle ne sélectionne pas ces colonnes : ce qu'elle reçoit ne change pas. Elles seront lues
+à l'étape C7b de `../live/docs/PLAN_REFONTE.md`. Fabrication et garanties : `EVENT_IMAGE_CARDS.md`.
+
 ## Incohérences relevées, non corrigées
 
 1. **Alertes admin rejouables.** Les données personnelles exposées (`diagnostics`, ids d'admin dans
@@ -237,7 +252,7 @@ via `AdminMobileApiService`. JWT d'un admin (`role: admin`).
      `user_requests` et `content_reports` (migration), réservée par
      `update … set admin_notified_at = now() where id = $1 and admin_notified_at is null returning id` ;
      sans ligne renvoyée, répondre 200 avec `sent: 0` sans rien envoyer. Le premier appel de l'app,
-     le seul qu'elle fasse, ne change pas ; `/api/user-requests` réserve aussi, ce qui règle le point 6.
+     le seul qu'elle fasse, ne change pas ; `/api/user-requests` réserve aussi.
      Sans migration, une garde partielle : ne notifier que si `requested_at` (ou `created_at`) date de
      moins de 10 minutes, ce qui borne le rejeu sans l'empêcher. Une limite par IP demanderait un
      stockage partagé (Vercel n'en a pas sans service ajouté).
@@ -268,13 +283,15 @@ via `AdminMobileApiService`. JWT d'un admin (`role: admin`).
      `lib/scraping/dates.ts`).
 5. Analyse d'affiche avec `imageUrl` : si l'image ne se charge pas, la route renvoie le statut de
    l'hôte de l'image (404, 403…). L'app n'envoie jamais `imageUrl`.
-6. Si le trigger `notify_admins_new_request_trigger` est actif en prod (non vérifié), une demande
-   créée par `/api/user-requests` notifie les admins deux fois : par la route, puis par le trigger
-   (piste du point 1).
+6. Pas de double notification des demandes. Le trigger `notify_admins_new_request_trigger`, comme
+   celui des feedbacks, appelle pg_net avec un corps `text` alors que `net.http_post` attend du
+   `jsonb` : l'appel échoue, l'erreur finit en WARNING et rien ne part (vérifié sur une base locale,
+   pg_net 0.19.5). Les deux triggers sont retirés par `20261019200000_drop_notify_admins_triggers.sql`,
+   à appliquer en prod.
 
-## Comportements changés par l'ajout des schémas
+## Comportements changés
 
-Seulement pour des corps invalides, que l'app n'envoie pas :
+Par l'ajout des schémas, seulement pour des corps invalides, que l'app n'envoie pas :
 
 - les 400 ont un message uniforme (« Corps de la requête invalide : … ») et un champ `issues` ;
 - un corps qui n'est pas du JSON (register-token, actions rapides) ou pas un formulaire multipart
@@ -290,6 +307,11 @@ Supabase, `TZ=UTC`). 50 donnent exactement le même statut, le même corps et le
 base, dont tous les corps envoyés par l'app ; les 27 autres sont des corps invalides, dans les cas
 ci-dessus.
 
+Par le retrait du format « ligne » de new-request (celui du trigger SQL retiré, sans appelant) : la
+route ne lit plus `id`. Un corps avec `id` mais sans `requestId` donne 400 (« requestId : requis »)
+au lieu de notifier les admins avec le contenu du corps, sans relire la demande. Rien ne change pour
+l'app ni pour la page de test, qui envoient `requestId`.
+
 ## Alertes admin sans données personnelles (2026-10-19)
 
 - `sendNotificationToAdmins` (lib/notifications/admin.ts) ne renvoie plus `diagnostics` (id, e-mail
@@ -299,14 +321,14 @@ ci-dessus.
   anciens builds ne lisent pas sa réponse). La page de test du back-office lit `sent` et `error` et
   marche comme avant ; pour les tests admin, ses pastilles « Admins sans token » et « Tokens en
   échec » n'apparaissent plus (textes de la page mis à jour).
-- new-request, format du trigger : la demande est relue par `id` (une requête de plus), 404 si elle
-  n'existe pas, au lieu d'utiliser le corps. `requestType` et `eventTitle` du corps ne servent plus
-  de repli : le texte poussé vient seulement de la base.
+- new-request : `requestType` et `eventTitle` du corps ne servent plus de repli, le texte poussé
+  vient seulement de la demande relue en base.
 
-Vérifié le 2026-10-19 : 11 appels (corps de l'app, paramètres de requête, ligne du trigger, page de
-test) rejoués sur les handlers d'avant et d'après (faux Supabase, deux tokens admin en échec) : même
-statut, même corps hors `diagnostics` et texte de `errors`, même notification poussée (titre, texte,
-`data`), mêmes requêtes à la base, plus la relecture du trigger.
+Vérifié le 2026-10-19, sur le code d'alors, qui acceptait encore le format « ligne » : 11 appels
+(corps de l'app, paramètres de requête, ligne du trigger, page de test) rejoués sur les handlers
+d'avant et d'après (faux Supabase, deux tokens admin en échec) : même statut, même corps hors
+`diagnostics` et texte de `errors`, même notification poussée (titre, texte, `data`), mêmes requêtes
+à la base, plus la relecture du trigger.
 
 ## Routes gardées pour les anciennes versions de l'app
 

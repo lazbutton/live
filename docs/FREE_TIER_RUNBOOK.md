@@ -156,6 +156,8 @@ Les crons sont en UTC et leur précision est d'une heure :
 
 - `notion-sync` : tous les jours à 02:00 UTC
 - `cleanup` : tous les jours à 03:00 UTC
+- `image-cards` : tous les jours à 04:00 UTC (vignettes d'affiches manquantes,
+  voir `docs/EVENT_IMAGE_CARDS.md`)
 - `daily-events` : tous les jours à 08:00 UTC
 - `weekly-summary` : le lundi à 08:00 UTC
 

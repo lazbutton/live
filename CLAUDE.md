@@ -40,7 +40,7 @@ npm run db:types         # régénère lib/supabase/database.types.ts depuis les
   zod-to-openapi), `admin/`, `cron/`, `notion/`, `mcp/` (outils de l'agent de collecte).
 - `lib/` logique serveur : `supabase/` (clients ; `service.ts` = service role, serveur uniquement),
   `api/` (`v1/` API publique, `app/` contrat de l'app), `events/`, `scraping/`, `agent/`, `collecte/`,
-  `notifications/`, `notion/`.
+  `notifications/`, `notion/`, `image-cards/` (vignettes des affiches, `docs/EVENT_IMAGE_CARDS.md`).
 - `.claude/skills/collecte/` : la routine de collecte d'événements.
 
 ## Lien avec l'app Flutter
