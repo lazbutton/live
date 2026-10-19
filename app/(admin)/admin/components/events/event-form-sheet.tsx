@@ -409,7 +409,7 @@ export function EventFormSheet({
         hide_from_home: Boolean(event.hide_from_home),
         show_on_app: event.show_on_app !== false,
         agenda_types: parseAgendaTypes(event.agenda_types),
-        major_event_id: event.major_event_events?.[0]?.major_event_id || "",
+        major_event_id: event.major_event_events?.major_event_id || "",
       };
       setFormData(nextForm);
       setPriceMode(derivePriceMode(nextForm));

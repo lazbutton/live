@@ -322,7 +322,8 @@ function EditEventContent() {
         external_url_label: event.external_url_label || "",
         instagram_url: event.instagram_url || "",
         facebook_url: event.facebook_url || "",
-        status: event.status || "draft",
+        // TODO(types): status est un text + CHECK en base (string), une union dans le formulaire.
+        status: (event.status || "draft") as "draft" | "pending" | "approved" | "rejected",
         is_full: event.is_full || false,
       });
 

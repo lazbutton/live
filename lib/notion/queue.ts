@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Json } from "@/lib/supabase/database.types";
 import { createServiceClient } from "@/lib/supabase/service";
 import type {
   NotionEntityKind,
@@ -28,12 +29,12 @@ export async function enqueueSyncJob(
   const client = getServiceClient(supabase);
   const { data, error } = await client.rpc("enqueue_notion_sync_job", {
     p_entity_kind: input.entityKind,
-    p_entity_id: input.entityId ?? null,
-    p_notion_page_id: input.notionPageId ?? null,
+    p_entity_id: input.entityId ?? undefined,
+    p_notion_page_id: input.notionPageId ?? undefined,
     p_direction: input.direction,
-    p_reason: input.reason ?? null,
-    p_payload: input.payload ?? {},
-    p_dedupe_key: input.dedupeKey ?? null,
+    p_reason: input.reason ?? undefined,
+    p_payload: (input.payload ?? {}) as Json,
+    p_dedupe_key: input.dedupeKey ?? undefined,
   });
   if (error) throw error;
   return data as string | null;
@@ -130,7 +131,7 @@ export async function failSyncJob(
     notion_page_id: job.notion_page_id,
     direction: job.direction,
     error_message: errorMessage,
-    payload: job.payload ?? {},
+    payload: (job.payload ?? {}) as Json,
   });
   if (errorInsert) throw errorInsert;
 }

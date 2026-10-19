@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
+import type { Tables } from "@/lib/supabase/database.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,14 +42,7 @@ interface ScrapingConfig {
   text_prefix: string | null;
 }
 
-interface AIField {
-  id: string;
-  organizer_id: string | null;
-  location_id: string | null;
-  field_name: string;
-  enabled: boolean;
-  ai_hint: string | null;
-}
+type AIField = Tables<"organizer_ai_fields">;
 
 interface AgendaScrapingConfig {
   id: string;
@@ -620,7 +614,7 @@ export function OrganizerScrapingConfig({
         let existingQuery = supabase
           .from("organizer_scraping_configs")
           .select("*")
-          .eq("event_field", config.event_field);
+          .eq("event_field", config.event_field ?? "");
         
         if (organizerId) {
           existingQuery = existingQuery.eq("organizer_id", organizerId).is("location_id", null);

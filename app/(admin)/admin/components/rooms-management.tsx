@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
+import type { Tables } from "@/lib/supabase/database.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,15 +23,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-interface Room {
-  id: string;
-  location_id: string;
-  name: string;
-  capacity: number | null;
-  description: string | null;
-  created_at: string;
-  updated_at: string;
-}
+type Room = Tables<"rooms">;
 
 interface RoomsManagementProps {
   locationId: string;

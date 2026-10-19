@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase/client";
+import type { TablesInsert } from "@/lib/supabase/database.types";
 import { fetchRemoteImageBlob } from "@/lib/events/remote-image";
 import { compressImage } from "@/lib/image-compression";
 import { removeReplacedStorageObject } from "@/lib/supabase/image-utils";
@@ -794,10 +795,11 @@ function ArtistSheet({
           data: { user },
         } = await supabase.auth.getUser();
 
+        // TODO(types): slug (NOT NULL) est rempli par le trigger assign_artist_slug, l'Insert généré l'exige.
         const { error } = await supabase.from("artists").insert({
           ...payload,
           created_by: user?.id || null,
-        });
+        } as TablesInsert<"artists">);
         if (error) throw error;
       }
 

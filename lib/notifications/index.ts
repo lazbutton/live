@@ -367,7 +367,7 @@ async function getNotificationPreferencesForUser(
   }
 
   return {
-    is_enabled: preference.is_enabled,
+    is_enabled: preference.is_enabled ?? undefined,
     category_ids: preference.category_ids,
     user_notification_categories: (categoryRows ?? []) as NotificationCategoryPreferenceRow[],
   };

@@ -234,7 +234,8 @@ function TeamManagementContent() {
         console.error("Erreur lors de la récupération des emails:", error);
       }
 
-      setMembers(membersWithEmails);
+      // TODO(types): role (text + CHECK, nullable en base) est une union dans TeamMember.
+      setMembers(membersWithEmails as TeamMember[]);
     } catch (error) {
       console.error("Erreur:", error);
       showAlert({

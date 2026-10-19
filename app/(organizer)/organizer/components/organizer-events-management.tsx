@@ -260,7 +260,8 @@ export function OrganizerEventsManagement() {
         .order("date", { ascending: true });
 
       if (error) throw error;
-      const eventsData = data || [];
+      // TODO(types): status (text + CHECK, nullable en base) est une union dans Event.
+      const eventsData = (data || []) as Event[];
       setEvents(eventsData);
       
       // Mettre en cache

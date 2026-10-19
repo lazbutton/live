@@ -118,7 +118,7 @@ function matchesEventSearch(event: AdminEvent, rawQuery: string) {
     event.description || "",
     event.category || "",
     event.location?.name || "",
-    event.major_event_events?.[0]?.major_event?.title || "",
+    event.major_event_events?.major_event?.title || "",
     ...organizerLabels,
   ];
 

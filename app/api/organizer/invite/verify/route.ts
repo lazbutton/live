@@ -43,8 +43,8 @@ export async function GET(request: Request) {
       );
     }
 
-    // Vérifier si l'invitation est expirée
-    if (new Date(invitation.expires_at) < new Date()) {
+    // Vérifier si l'invitation est expirée (sans date : expirée)
+    if (!invitation.expires_at || new Date(invitation.expires_at) < new Date()) {
       return NextResponse.json(
         { error: "Cette invitation a expiré" },
         { status: 410 }

@@ -92,13 +92,14 @@ export function MajorEventFormPage({ majorEventId }: { majorEventId?: string }) 
 
   React.useEffect(() => {
     if (!majorEventId) return;
+    const id = majorEventId;
 
     let cancelled = false;
 
     async function loadMajorEvent() {
       setLoading(true);
       try {
-        const { data, error } = await supabase.from("major_events").select("*").eq("id", majorEventId).maybeSingle();
+        const { data, error } = await supabase.from("major_events").select("*").eq("id", id).maybeSingle();
         if (error) throw error;
 
         if (!data) {

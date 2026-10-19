@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "db:types": "./scripts/db-types.sh",
     "backup:supabase": "./scripts/backup-supabase-free-tier.sh",
     "storage:audit": "node scripts/audit-storage.mjs"
   },

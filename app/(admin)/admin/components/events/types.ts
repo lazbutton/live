@@ -1,36 +1,45 @@
+import type { Tables } from "@/lib/supabase/database.types";
+
 export type EventStatus = "pending" | "approved" | "rejected";
 
-export type AdminEvent = {
-  id: string;
-  title: string;
-  description: string | null;
-  date: string;
-  end_date: string | null;
-  end_time: string | null;
+/** Colonnes de `events` reprises telles quelles du type généré. */
+type AdminEventColumns = Pick<
+  Tables<"events">,
+  | "id"
+  | "title"
+  | "description"
+  | "date"
+  | "end_date"
+  | "end_time"
+  | "category"
+  | "price"
+  | "price_min"
+  | "price_max"
+  | "is_pay_what_you_want"
+  | "address"
+  | "latitude"
+  | "longitude"
+  | "capacity"
+  | "is_full"
+  | "location_id"
+  | "room_id"
+  | "door_opening_time"
+  | "external_url"
+  | "external_url_label"
+  | "instagram_url"
+  | "facebook_url"
+  | "scraping_url"
+  | "image_url"
+>;
+
+// Le reste dépend des requêtes (colonnes pas toujours lues, relations jointes) ;
+// status est un text + CHECK en base, restreint ici aux statuts de l'admin.
+export type AdminEvent = AdminEventColumns & {
   status: EventStatus;
   is_featured?: boolean | null;
   hide_from_home?: boolean | null;
   show_on_app?: boolean | null;
   agenda_types?: string[] | null;
-  category: string;
-  price: number | null;
-  price_min: number | null;
-  price_max: number | null;
-  is_pay_what_you_want: boolean;
-  address: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  capacity: number | null;
-  is_full: boolean | null;
-  location_id: string | null;
-  room_id: string | null;
-  door_opening_time: string | null;
-  external_url: string | null;
-  external_url_label: string | null;
-  instagram_url: string | null;
-  facebook_url: string | null;
-  scraping_url: string | null;
-  image_url: string | null;
   tag_ids?: string[];
   archived?: boolean;
   created_at?: string;
@@ -51,10 +60,11 @@ export type AdminEvent = {
     role_label?: string | null;
     sort_index?: number | null;
   }>;
-  major_event_events?: Array<{
+  // Relation 1-1 (event_id unique dans major_event_events) : PostgREST renvoie un objet ou null.
+  major_event_events?: {
     major_event_id: string;
     major_event?: { id: string; title: string; slug: string } | null;
-  }>;
+  } | null;
 };
 
 export type LocationData = {
@@ -79,17 +89,13 @@ export type OrganizerOption = {
   type: "organizer" | "location";
 };
 
-export type ArtistOption = {
-  id: string;
-  name: string;
-  slug: string;
-  image_url: string | null;
+export type ArtistOption = Pick<Tables<"artists">, "id" | "name" | "slug" | "image_url"> & {
   origin_city?: string | null;
 };
 
-export type TagOption = { id: string; name: string };
-export type CategoryOption = { id: string; name: string };
-export type RoomOption = { id: string; name: string };
+export type TagOption = Pick<Tables<"tags">, "id" | "name">;
+export type CategoryOption = Pick<Tables<"categories">, "id" | "name">;
+export type RoomOption = Pick<Tables<"rooms">, "id" | "name">;
 
 export type EventFormData = {
   title: string;

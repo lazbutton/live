@@ -147,7 +147,7 @@ function ProfileContent() {
           id: locationResult.data.id,
           name: locationResult.data.name,
           logo_url: locationResult.data.image_url,
-          short_description: locationResult.data.description || null,
+          short_description: locationResult.data.short_description || null,
           instagram_url: locationResult.data.instagram_url || null,
           facebook_url: locationResult.data.facebook_url || null,
           tiktok_url: locationResult.data.tiktok_url || null,
@@ -336,7 +336,6 @@ function ProfileContent() {
       } else {
         // Pour les locations, mettre à jour image_url et autres champs
         updateData.image_url = finalLogoUrl || null;
-        updateData.description = formData.short_description || null;
         const { error } = await supabase
           .from("locations")
           .update(updateData)

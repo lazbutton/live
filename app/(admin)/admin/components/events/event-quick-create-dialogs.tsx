@@ -4,6 +4,7 @@ import * as React from "react";
 import { Loader2 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase/client";
+import type { TablesInsert } from "@/lib/supabase/database.types";
 import { AddressInput } from "@/components/ui/address-input";
 import { Button } from "@/components/ui/button";
 import {
@@ -111,6 +112,7 @@ export function QuickLocationDialog({
     if (!form.name.trim()) return;
     setBusy(true);
     try {
+      // TODO(types): address est NOT NULL dans les migrations ; ce formulaire envoie null s'il est vide.
       const { data, error } = await supabase
         .from("locations")
         .insert([
@@ -122,7 +124,7 @@ export function QuickLocationDialog({
             capacity: form.capacity.trim() ? parseInt(form.capacity, 10) : null,
             is_organizer: form.is_organizer,
           },
-        ])
+        ] as TablesInsert<"locations">[])
         .select("id, name, address, capacity, latitude, longitude")
         .single();
       if (error) throw error;
@@ -339,6 +341,7 @@ export function QuickArtistDialog({
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      // TODO(types): slug (NOT NULL) est rempli par le trigger assign_artist_slug, l'Insert généré l'exige.
       const { data, error } = await supabase
         .from("artists")
         .insert([
@@ -351,7 +354,7 @@ export function QuickArtistDialog({
             website_url: form.website_url.trim() || null,
             created_by: user?.id || null,
           },
-        ])
+        ] as TablesInsert<"artists">[])
         .select("id, name, slug, image_url, origin_city")
         .single();
       if (error) throw error;

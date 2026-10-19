@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
+import type { TablesInsert } from "@/lib/supabase/database.types";
 import {
   Table,
   TableBody,
@@ -109,10 +110,11 @@ export function FeedbackManagement() {
       
       // Pour chaque user_id, on ne peut pas récupérer l'email directement depuis auth.users
       // On va simplement stocker le user_id et afficher "Utilisateur #{id}" ou essayer via une fonction
+      // TODO(types): status (text + CHECK) et les dates sont nullables en base, pas dans Feedback.
       const feedbacksWithUser = (feedbacksData || []).map((feedback) => ({
         ...feedback,
         user: { id: feedback.user_id } as { id: string; email?: string },
-      }));
+      })) as Feedback[];
 
       setFeedbacks(feedbacksWithUser);
       setFilteredFeedbacks(feedbacksWithUser);
@@ -133,7 +135,8 @@ export function FeedbackManagement() {
 
       if (error) throw error;
 
-      setFeedbackObjects(data || []);
+      // TODO(types): is_active, display_order et les dates sont nullables en base, pas dans FeedbackObject.
+      setFeedbackObjects((data || []) as FeedbackObject[]);
     } catch (error) {
       console.error("Erreur lors du chargement des types:", error);
     }
@@ -237,7 +240,8 @@ export function FeedbackManagement() {
 
         const { error: insertError, data } = await supabase
           .from("feedback_objects")
-          .insert([newObject])
+          // TODO(types): name est optionnel dans le formulaire, requis par la table.
+          .insert([newObject as TablesInsert<"feedback_objects">])
           .select();
 
         if (insertError) {
