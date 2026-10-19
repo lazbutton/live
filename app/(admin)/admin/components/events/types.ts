@@ -39,6 +39,7 @@ export type AdminEvent = AdminEventColumns & {
   is_featured?: boolean | null;
   hide_from_home?: boolean | null;
   show_on_app?: boolean | null;
+  is_young_audience?: boolean | null;
   agenda_types?: string[] | null;
   tag_ids?: string[];
   archived?: boolean;
@@ -121,6 +122,7 @@ export type EventFormData = {
   is_featured: boolean;
   hide_from_home: boolean;
   show_on_app: boolean;
+  is_young_audience: boolean;
   agenda_types: string[];
   major_event_id: string;
 };

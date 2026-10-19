@@ -28,6 +28,10 @@ export type DiscoveredAgendaEvent = {
   image_url?: string;
   /** Données complètes quand l'agenda publie des données structurées. */
   structured?: StructuredEvent;
+  /** Agenda partagé (On sort !) : lieu, adresse et organisateur annoncés. */
+  venue?: string;
+  address?: string;
+  organizer?: string;
 };
 
 export type AgendaDiscoveryOptions = {

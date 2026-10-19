@@ -765,6 +765,7 @@ export type Database = {
           is_full: boolean | null
           is_pay_what_you_want: boolean
           is_safety_hidden: boolean
+          is_young_audience: boolean
           latitude: number | null
           location_id: string | null
           longitude: number | null
@@ -814,6 +815,7 @@ export type Database = {
           is_full?: boolean | null
           is_pay_what_you_want?: boolean
           is_safety_hidden?: boolean
+          is_young_audience?: boolean
           latitude?: number | null
           location_id?: string | null
           longitude?: number | null
@@ -863,6 +865,7 @@ export type Database = {
           is_full?: boolean | null
           is_pay_what_you_want?: boolean
           is_safety_hidden?: boolean
+          is_young_audience?: boolean
           latitude?: number | null
           location_id?: string | null
           longitude?: number | null
@@ -2512,6 +2515,7 @@ export type Database = {
           is_full: boolean | null
           is_pay_what_you_want: boolean
           is_safety_hidden: boolean
+          is_young_audience: boolean
           latitude: number | null
           location_id: string | null
           longitude: number | null

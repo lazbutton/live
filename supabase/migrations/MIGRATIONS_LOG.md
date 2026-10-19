@@ -60,6 +60,7 @@
   `GET /rest/v1/rpc/app_cities` → une ligne par ville active, ou dans le SQL Editor
   `select label, upcoming_events_count, recent_events_count from public.app_cities();`.
 
+
 ## 2026-10-19 — Vignettes des affiches (C7a)
 
 - `20261019190000_add_event_image_cards` : `events.image_card_url`, `image_width`, `image_height`,
@@ -78,3 +79,18 @@
   changement et pour une suppression), contraintes, `app_events()` avec les colonnes, enregistrement
   maintenu si pg_net échoue.
 - **Pas encore appliquée en prod.** Ordre de mise en route et vérifications : `docs/EVENT_IMAGE_CARDS.md`.
+
+## 2026-10-19 — `events.is_young_audience` : jeune public
+
+- `20261019120000_add_is_young_audience_to_events` : booléen `NOT NULL DEFAULT false` (ajout instantané, pas de
+  réécriture de la table), commentaire. Rempli par la collecte (`lib/events/young-audience.ts`, catégorie de la
+  source, `create_event`) et modifiable dans le formulaire d'événement de l'admin.
+- Indicateur seulement : `app_events()` ne change pas ; l'app peut lire la colonne (`_eventColumns`) pour signaler
+  ou masquer ces événements.
+- `lib/supabase/database.types.ts` régénéré par `npm run db:types` : la colonne dans `events` (Row / Insert / Update)
+  et le retour de `app_events`, plus `app_cities()`, absente des types depuis `20261018200000`.
+- Appliquée en prod le 19/10/2026 (SQL Editor), avant le déploiement de l'admin : le nouveau code écrit la colonne
+  à chaque création d'événement. Vérification :
+  `select count(*) filter (where is_young_audience) as jeune_public, count(*) from events;`
+- Même jour : 52 événements existants cochés d'après `lib/events/young-audience.ts`, liste relue avant écriture.
+
