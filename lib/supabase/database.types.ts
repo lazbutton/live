@@ -754,7 +754,12 @@ export type Database = {
           facebook_url: string | null
           hide_from_home: boolean
           id: string
+          image_card_error: string | null
+          image_card_url: string | null
+          image_color: string | null
+          image_height: number | null
           image_url: string | null
+          image_width: number | null
           instagram_url: string | null
           is_featured: boolean
           is_full: boolean | null
@@ -798,7 +803,12 @@ export type Database = {
           facebook_url?: string | null
           hide_from_home?: boolean
           id?: string
+          image_card_error?: string | null
+          image_card_url?: string | null
+          image_color?: string | null
+          image_height?: number | null
           image_url?: string | null
+          image_width?: number | null
           instagram_url?: string | null
           is_featured?: boolean
           is_full?: boolean | null
@@ -842,7 +852,12 @@ export type Database = {
           facebook_url?: string | null
           hide_from_home?: boolean
           id?: string
+          image_card_error?: string | null
+          image_card_url?: string | null
+          image_color?: string | null
+          image_height?: number | null
           image_url?: string | null
+          image_width?: number | null
           instagram_url?: string | null
           is_featured?: boolean
           is_full?: boolean | null
@@ -2447,6 +2462,21 @@ export type Database = {
         Args: { invitation_token: string; user_id_param: string }
         Returns: Json
       }
+      app_cities: {
+        Args: never
+        Returns: {
+          center_lat: number
+          center_lng: number
+          id: string
+          label: string
+          last_event_date: string
+          next_event_date: string
+          recent_events_count: number
+          search_aliases: string[]
+          source_ids: string[]
+          upcoming_events_count: number
+        }[]
+      }
       app_events: {
         Args: never
         Returns: {
@@ -2471,7 +2501,12 @@ export type Database = {
           facebook_url: string | null
           hide_from_home: boolean
           id: string
+          image_card_error: string | null
+          image_card_url: string | null
+          image_color: string | null
+          image_height: number | null
           image_url: string | null
+          image_width: number | null
           instagram_url: string | null
           is_featured: boolean
           is_full: boolean | null
