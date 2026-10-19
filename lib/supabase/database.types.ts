@@ -2447,6 +2447,21 @@ export type Database = {
         Args: { invitation_token: string; user_id_param: string }
         Returns: Json
       }
+      app_cities: {
+        Args: never
+        Returns: {
+          center_lat: number
+          center_lng: number
+          id: string
+          label: string
+          last_event_date: string
+          next_event_date: string
+          recent_events_count: number
+          search_aliases: string[]
+          source_ids: string[]
+          upcoming_events_count: number
+        }[]
+      }
       app_events: {
         Args: never
         Returns: {
@@ -2611,14 +2626,6 @@ export type Database = {
       normalize_artist_label: { Args: { value: string }; Returns: string }
       normalize_city_label: { Args: { value: string }; Returns: string }
       normalize_entity_label: { Args: { value: string }; Returns: string }
-      notify_admins_new_feedback: {
-        Args: { feedback_id: string }
-        Returns: undefined
-      }
-      notify_admins_new_request: {
-        Args: { request_id: string }
-        Returns: undefined
-      }
       pick_event_source_capture_mode: {
         Args: {
           facebook_url: string
