@@ -219,7 +219,12 @@
   `max_results`, noms et leurs comptes, homonymes, droits) ; par PostgREST v13.0.5 sur l'instantané prod du
   2026-10-20 (367 événements à venir, lu en anon) : comptes des noms égaux à ceux des trois fonctions de comptes,
   appel complet de l'app 25 à 45 ms en local. `lib/supabase/database.types.ts` régénéré par `npm run db:types`.
-- **Pas encore appliquée en prod** (accord de l'utilisateur attendu).
+- **Appliquée en prod le 20/10/2026** avec l'accord de l'utilisateur (psql, une transaction, `SET ROLE postgres`,
+  après une répétition dans une transaction annulée), sans erreur : `unaccent` et `pg_trgm` créées dans
+  `extensions`. Vérifiée en anon le même jour, l'appel exact de l'app : « concert » (les deux titres, puis les
+  concerts ; « Concert » 47 et « #Concert » 8 en noms), « theatre d orleans » (le lieu, 84, puis ses événements),
+  « luiza » (ses 2 événements), « jaz » (« #Jazz » 5) ; `app_search_results` illisible en anon (401). Mesurée :
+  `app_search` seule ~125 ms, l'appel de l'app 140 à 200 ms : d'où `20261020210000_speed_up_app_search`.
 
 ## 2026-10-20 — `event_like_counts()` et lecture de `event_likes` réservée à son auteur
 
@@ -266,3 +271,20 @@
   contraintes uniques en place, aucun trigger à l'insertion. Vérifié après : propriétaire postgres, `security definer`,
   `search_path` vide, `execute` à authenticated et pas à anon ; dans une transaction annulée, un appelant inconnu →
   `42501` ; par PostgREST avec la clé anon → 401 (`42501`). Pas d'appel avec un vrai compte (aucune donnée recopiée).
+
+## 2026-10-20 — `app_search()` deux fois plus rapide
+
+- `20261020210000_speed_up_app_search` : `app_search` compare les noms (lieux, salles, artistes, organisateurs,
+  catégories, tags, villes) une fois chacun, puis rattache ceux qui correspondent aux événements à venir par leurs
+  liens, au lieu de reconstruire les textes de chaque événement (artistes et organisateurs relus événement par
+  événement sous la RLS de leurs liens : plus de la moitié du temps, d'après un EXPLAIN ANALYZE en prod, lecture
+  seule). Même signature, mêmes règles et poids, mêmes résultats.
+- Testée : `npm run db:test` (les 37 cas de `supabase/tests/app_search.test.sql`) ; résultats identiques, ordre
+  compris, à la première version sur 28 requêtes (instantané du 2026-10-20) ; en local, 11 à 16 ms au lieu de
+  23 à 27 ms.
+- **Appliquée en prod le 20/10/2026** avec l'accord de l'utilisateur : répétition dans une transaction annulée (mêmes
+  résultats que la version en place sur 9 requêtes, ordre compris), puis application. Le corps d'`app_search` en
+  prod est celui de ce fichier (appliqué en rejouant, en une transaction, la migration 20261020170000 qui le
+  contenait alors). Mesurée en anon : `app_search` seule 40 à 70 ms, l'appel de l'app 60 à 95 ms avec peu de
+  résultats et ~100 à 120 ms avec 30 événements embarqués (l'embarquement seul : ~50 à 60 ms) ;
+  `app_search_names` 25 à 40 ms.
