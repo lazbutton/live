@@ -28,8 +28,6 @@ run_native_supabase_dump >"$backup_dir/schema.sql"
 run_native_supabase_dump \
   --data-only \
   --use-copy \
-  -x "public.notion_sync_jobs" \
-  -x "public.notion_sync_errors" \
   -x "storage.buckets_vectors" \
   -x "storage.vector_indexes" \
   >"$backup_dir/data.sql"
@@ -40,11 +38,6 @@ eval "$(
   supabase db dump --linked --dry-run 2>/dev/null |
     awk '/^export PG/{print; if (++count == 5) exit}'
 )"
-
-psql -X -v ON_ERROR_STOP=1 \
-  -c "set role postgres" \
-  -c "\\copy (select * from public.notion_sync_jobs where status in ('pending','processing','failed')) to '$backup_dir/notion_sync_jobs_active.csv' with (format csv, header true)" \
-  -c "\\copy public.notion_sync_errors to '$backup_dir/notion_sync_errors.csv' with (format csv, header true)"
 
 psql -X -v ON_ERROR_STOP=1 -P pager=off \
   -c "set role postgres;
@@ -76,8 +69,6 @@ shasum -a 256 \
   "$backup_dir/roles.sql" \
   "$backup_dir/schema.sql" \
   "$backup_dir/data.sql" \
-  "$backup_dir/notion_sync_jobs_active.csv" \
-  "$backup_dir/notion_sync_errors.csv" \
   >"$backup_dir/SHA256SUMS"
 
 echo "Sauvegarde terminée: $backup_dir"

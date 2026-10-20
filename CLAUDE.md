@@ -50,10 +50,10 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
 
 - `app/(admin)/admin/` back-office (`components/` = l'essentiel de l'UI), `app/(organizer)/` espace organisateurs.
 - `app/api/` routes : `mobile/` et `notifications/` (appelées par l'app), `v1/` (API publique documentée,
-  zod-to-openapi), `admin/`, `cron/`, `notion/`, `mcp/` (outils de l'agent de collecte).
+  zod-to-openapi), `admin/`, `cron/`, `mcp/` (outils de l'agent de collecte).
 - `lib/` logique serveur : `supabase/` (clients ; `service.ts` = service role, serveur uniquement),
   `api/` (`v1/` API publique, `app/` contrat de l'app), `events/`, `scraping/`, `agent/`, `collecte/`,
-  `notifications/`, `notion/`, `image-cards/` (vignettes des affiches, `docs/EVENT_IMAGE_CARDS.md`),
+  `notifications/`, `image-cards/` (vignettes des affiches, `docs/EVENT_IMAGE_CARDS.md`),
   `school-holidays/` (vacances scolaires du calendrier de l'app, cron hebdomadaire).
 - `.claude/skills/collecte/` : la routine de collecte d'événements.
 - Textes importés : `lib/collecte/event-text.ts` (titre sans date ni lieu répété, capitales, guillemets ;
@@ -70,7 +70,8 @@ Contrat décrit route par route dans `docs/API_APP.md`, schémas zod dans `lib/a
   `POST /api/notifications/admin/new-request` et `new-report`, `POST /api/user-requests`,
   `POST /api/mobile/events/extract-from-image`, `PATCH /api/admin/mobile/events/[id]` (actions rapides).
 - Gardées pour les anciennes versions, à ne pas modifier : les autres `/api/admin/mobile/*`,
-  `/api/notifications/send` et `send-test`, `/api/notifications/admin/new-feedback`, `/api/notion/resync`.
+  `/api/notifications/send` et `send-test`, `/api/notifications/admin/new-feedback`, `/api/notion/resync`
+  (sans effet depuis le retrait de Notion, 2026-10-20 : JWT admin vérifié, 200 sans rien faire).
 
 Des builds de l'app sont publiés : une réponse peut gagner un champ, pas en perdre ni en renommer,
 et un corps que l'app envoie doit rester accepté. Changer une forme : modifier les deux repos ensemble.

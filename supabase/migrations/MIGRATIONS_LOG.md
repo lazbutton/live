@@ -360,8 +360,10 @@
 - Testée : `npm run db:test` (12 cas dans `supabase/tests/anon_privacy.test.sql` + suite complète verte). App et
   admin vérifiés par grep des deux dépôts : l'app n'appelle aucune fonction restreinte ; les deux appelants de
   `get_user_emails` (route admin, page équipe d'un organisateur) sont admin ou propriétaire.
-- **Pas encore appliquée en prod** : en attente de l'accord de l'utilisateur. Confirmation des droits réels en prod
-  (les grants ne se voient pas dans les types générés) : requêtes de l'annexe A d'AMELIORATIONS.md dans le SQL Editor.
+- **Appliquée en prod le 21/10/2026** par l'utilisateur (psql, `--single-transaction`, `SET ROLE postgres`), dans
+  sa version de cette PR (droits Notion seulement si les fonctions existent : elles étaient déjà retirées), après une
+  répétition dans une transaction annulée, sans erreur. Les deux NOTICE « policy … does not exist, skipping » sont
+  attendus (nouvelles policies, `DROP … IF EXISTS` avant leur création).
 
 ## 2026-10-20 — Noms en français (U34) ; titres et descriptions des événements repris (U31, U32)
 
@@ -387,8 +389,74 @@
   lus (non archivés, publiés ou en attente), **249 mis à jour** (239 titres, 52 descriptions), 0 échec, une ligne
   `event.text_cleanup` par événement dans `admin_audit_log`. Une nouvelle simulation ne trouve plus rien. Gardés :
   le lieu en fin de titre de 7 événements en attente sans lieu ni adresse (« … - Théâtre de la Tête Noire »).
-- Vu en passant : `notion_sync_jobs` ne se vide plus depuis le 17/10/2026 10 h (532 tâches en attente le 20/10 au
-  soir, dont celles de ces corrections) : le cron `notion-sync` ne traite plus la file. Non corrigé ici.
+- Vu en passant : la file Notion grossissait (532 tâches en attente le 20/10 au soir, dont celles de ces corrections ;
+  cron trop lent, pas bloqué). La synchro est retirée : voir « 2026-10-20 — Synchronisation Notion retirée » ci-dessous.
+
+## 2026-10-20 — Fiches d'artistes qui sont des titres d'événements
+
+- `20261020233000_clean_title_artists` : données seulement (schéma et `database.types.ts` inchangés). 22 fiches
+  créées le 17/10/2026, avant que l'import découpe les plateaux (`splitArtistNames`, `lib/events/artist-names.ts`) :
+  nom du plateau, du titre, ou mention qui n'est pas un artiste. Relevé sur l'instantané public du 2026-10-20
+  (195 artistes, tous lisibles en anon ; descriptions des événements et pages de L'Astrolabe pour les titres).
+  - 14 renommées, même id (l'app ouvre une fiche par son id) ; le slug, donc l'URL `/artists/<slug>`, suit le nom :
+    « Alcest + 1ere Partie » → « Alcest », de même « Jeanne Added », « Les Louanges », « Luiza », « Razorlight »,
+    « Robert Finley », « Syd Matters », « Zed Yun Pavarotti », « Folie's », « Zélie » (orthographe de la salle) ;
+    « Assassin + Triptik » → « Assassin » + « Triptik » (créée), « La Jungle + Sodom & Sagesse » → « La Jungle »
+    + « Sodom & Sagesse » (créée), « Pluto #1 : The Gnomes » → « The Gnomes », « Piche "Carré" » → « Piche ».
+  - 8 supprimées avec leurs liens, les autres artistes des événements restent : « Le Cabaret Magnifique : 1926 »,
+    « Coeur Gruyère - Ciné Concert », « Bubble Boum, Ça Chauffe sur le Ring », « Panique!! » (titres sans artiste
+    nommé), « Atelier Afro-Cubain » et « Atelier Jazzy » (restent Igor Ivanov et Franck Sallé), « Bahini
+    Illustration » (animatrice d'atelier), « Lucernaire Diffusion » (diffuseur ; reste la Cie les Modits).
+  - Si la vraie fiche existe au moment d'appliquer (même nom normalisé), fusion : liens repris, champs vides de la
+    vraie fiche complétés par ceux de la fiche-titre, tags réunis. Une ligne `artist.title_cleanup` par fiche dans
+    `admin_audit_log` (avant, après, slugs, événements). Rejouable : une fiche déjà traitée est sautée, une fiche
+    modifiée à la main depuis le relevé est laissée (NOTICE).
+- Testée sur un Postgres 17 local en collation ICU comme la prod (toutes les migrations, plus celles de la PR #29
+  déjà en prod) : sans effet sur une base vide ; sur l'instantané public, 14 renommées, 8 supprimées, 2 créées
+  (195 → 189 fiches), 22 événements touchés, noms et slugs ci-dessus ; second passage sans effet. Chemins de
+  fusion (vraie fiche déjà là, photo et tag repris, lien déjà présent, second nom connu) et fiche modifiée à la main
+  vérifiés à part.
+- Non relevé : les liens vers des événements non publics (en attente, archivés), que la clé anon ne lit pas ; la
+  migration les traite de la même façon (par id d'artiste). Tags homonymes laissés tels quels : « Assassin »,
+  « Luiza », « Razorlight », « Robert Finley », « Syd Matters » (portés par aucun événement public ni artiste).
+- **Appliquée en prod le 21/10/2026** par l'utilisateur (psql, `--single-transaction`, `SET ROLE postgres`), après
+  une répétition dans une transaction annulée au résultat identique : 14 renommées, 0 fusionnées, 8 supprimées,
+  2 fiches créées (Triptik, Sodom & Sagesse), noms et slugs ci-dessus, 23 liens d'événements traités (Bahini
+  Illustration en avait 2).
+
+## 2026-10-20 — Synchronisation Notion retirée
+
+- `20261020235000_remove_notion_sync` : l'utilisateur retire la synchronisation avec Notion plutôt que de réparer sa
+  file. Relevé en prod (lecture seule, 20/10 au soir) : le cron `notion-sync` n'était pas bloqué, il traitait
+  25 tâches par passage (un par jour, 02:00 UTC, le dernier le 20/10 à 02:19) quand les modifications en ajoutaient
+  70 à 200 par jour depuis le 17/10 (532 en attente) ; l'import Notion → admin ne servait plus depuis mai (dernier
+  webhook reçu le 15/05/2026).
+- Retirés : les 5 triggers `queue_notion_*` (events, user_requests, locations, organizers, event_organizers) et leurs
+  fonctions, `enqueue_notion_sync_job`, `claim_notion_sync_jobs`, `convert_event_request_to_event_service` (écrite
+  pour le worker Notion, appelée par personne), les 7 tables `notion_*` (liens : 286 événements dont 173 supprimés
+  depuis, 24 demandes, 41 lieux, 43 organisateurs ; 609 tâches, 8 erreurs, 5 points de reprise).
+  `cleanup_free_tier_technical_data` ne purge plus la file : même signature, `p_batch_size` sans effet.
+- `20261020220000` (U39, appliquée en prod le 21/10/2026, après ce retrait) : ses droits sur les trois fonctions
+  Notion ne s'appliquent plus que si elles existent ; elle passe avant ou après le retrait.
+- Code, même PR : `lib/notion/`, `/api/notion/webhook` et `bootstrap`, `/api/cron/notion-sync` et son cron
+  (`vercel.json`), la carte « Synchronisation Notion » des réglages, `@notionhq/client`, `docs/notion-import/`.
+  `POST /api/notion/resync` reste pour les anciennes versions de l'app : JWT admin vérifié, 200 sans effet
+  (`docs/API_APP.md`, test dans `lib/api/app/routes.test.mjs`).
+- Testée : `npm run db:test` (copie privée du script) : `supabase/tests/remove_notion_sync.test.sql` (7 cas : plus
+  aucun objet Notion, écritures sur les 5 tables, purge) et toute la suite ; U39 rejouée après le retrait, puis le
+  retrait rejoué, sans erreur. `lib/supabase/database.types.ts` régénéré : 7 tables et 3 fonctions en moins.
+- Répétée en prod dans une transaction annulée : 7 tables, 9 fonctions (purge comprise) et 5 triggers Notion avant,
+  aucun après ; droits de la purge réduits à postgres et service_role ; U39 rejouée derrière, sans erreur.
+- Données exportées avant l'application (lecture seule, 20/10 à 23:04 UTC) dans
+  `~/Documents/Backups/outlive/notion-2026-10-20/` sur la machine de l'utilisateur, hors dépôt : un CSV par table
+  (lignes recomptées), `SHA256SUMS`, `README.txt` (comment restaurer).
+- **Appliquée en prod le 21/10/2026 à 01:05 (23:05 UTC le 20/10)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s), sans erreur, en environ 1 s. Vérifié après, en
+  lecture seule : aucune table, fonction ni trigger Notion ; purge à postgres et service_role seulement ; autres
+  triggers des 5 tables intacts ; `app_events()` rend 391 événements. Jusqu'au déploiement de ce code, l'ancien
+  cron `notion-sync` (02:00 UTC) et la carte Notion des réglages échouent, sans autre effet.
+- Vercel : les 9 variables `NOTION_*` (Production, Preview, Development) seront retirées une fois ce code déployé,
+  avec l'accord de l'utilisateur. Côté Notion (à faire par l'utilisateur) : l'intégration et son abonnement webhook.
 
 ## 2026-10-21 — Mesure d'audience de l'app (U41)
 

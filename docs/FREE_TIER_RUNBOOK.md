@@ -17,9 +17,8 @@ pas couverts ici.
 
 L'incident de volume initial provenait de 5,36 millions de lignes dans
 `notion_sync_jobs` (2,83 GB). Une boucle Lieux/Organisateurs réécrivait des
-valeurs identiques entre Notion et Supabase. La synchronisation ignore
-désormais les hashes inchangés et la rétention supprime les jobs techniques
-terminés après trois jours.
+valeurs identiques entre Notion et Supabase. La synchronisation Notion a
+été retirée le 2026-10-20 (code, cron et tables `notion_*`).
 
 ## Seuils opérationnels
 
@@ -56,12 +55,8 @@ Un dossier daté est créé par défaut dans
 
 - `roles.sql`, `schema.sql` et `data.sql`
 - les trois buckets Storage
-- les jobs Notion actifs et erreurs en CSV diagnostique
 - un inventaire de taille
 - `SHA256SUMS`
-
-La file Notion terminée est volontairement exclue : elle est technique,
-jetable et ne doit pas être restaurée.
 
 Après chaque sauvegarde :
 
@@ -104,11 +99,8 @@ Après restauration :
 1. Redéployer `delete-user`.
 2. Reconfigurer les secrets des Edge Functions.
 3. Vérifier les fournisseurs Auth, URLs OAuth et SMTP Resend.
-4. Vérifier les webhooks Notion et Supabase.
+4. Vérifier les webhooks Supabase.
 5. Tester auth, lecture, upload, CRUD admin, push et suppression de compte.
-
-Les CSV Notion servent au diagnostic. Ne les réinjecter que si un job actif
-est encore pertinent et après inspection manuelle.
 
 ## Maintenance mensuelle
 
@@ -122,23 +114,15 @@ Le premier jour ouvré du mois :
 1. Lancer la sauvegarde.
 2. Relever DB, Storage, egress, MAU et Edge Functions dans Supabase.
 3. Relever invocations, CPU, mémoire et transfert dans Vercel.
-4. Contrôler `notion_sync_jobs` :
-
-```sql
-select status, count(*)
-from public.notion_sync_jobs
-group by status;
-```
-
-5. Déclencher le nettoyage depuis l'admin ou appeler
-   `cleanup_free_tier_technical_data(10000)`.
-6. Lancer l'audit Storage :
+4. Déclencher le nettoyage depuis l'admin ou appeler
+   `cleanup_free_tier_technical_data()`.
+5. Lancer l'audit Storage :
 
 ```bash
 node --env-file=.env.local scripts/audit-storage.mjs --grace-days=30
 ```
 
-7. Si le dry-run est validé et la sauvegarde existe :
+6. Si le dry-run est validé et la sauvegarde existe :
 
 ```bash
 node --env-file=.env.local scripts/audit-storage.mjs \
@@ -147,23 +131,18 @@ node --env-file=.env.local scripts/audit-storage.mjs \
   --confirm=tkyuiltgvqcgebnqdgmb
 ```
 
-8. Contrôler le dernier passage de chaque cron et le checkpoint
-   `notion:queue:last_drain`.
+7. Contrôler le dernier passage de chaque cron.
 
 ## Planning Vercel Hobby
 
 Les crons sont en UTC et leur précision est d'une heure :
 
-- `notion-sync` : tous les jours à 02:00 UTC
 - `cleanup` : tous les jours à 03:00 UTC
 - `image-cards` : tous les jours à 04:00 UTC (vignettes d'affiches manquantes,
   voir `docs/EVENT_IMAGE_CARDS.md`)
+- `school-holidays` : le lundi à 05:00 UTC (vacances scolaires du calendrier de l'app)
 - `daily-events` : tous les jours à 08:00 UTC
 - `weekly-summary` : le lundi à 08:00 UTC
-
-Le webhook Notion traite les changements entrants immédiatement. Le cron
-quotidien est un rattrapage. Une synchronisation sortante urgente se lance
-manuellement depuis l'admin.
 
 ## Pause Supabase
 
@@ -173,7 +152,7 @@ Un projet Free peu actif peut être pausé.
 2. Cliquer sur Restore project.
 3. Attendre le retour des APIs.
 4. Tester une lecture publique et une authentification.
-5. Exécuter manuellement les crons Notion et notifications.
+5. Exécuter manuellement les crons de notifications.
 6. Consulter les logs dans la journée, leur rétention Free étant courte.
 
 Le cron quotidien de nettoyage produit normalement une activité DB, mais il
