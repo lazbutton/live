@@ -263,23 +263,23 @@ Deux crons de notifications produit sont configurés :
 
 #### a. Notifications quotidiennes (`/api/cron/notifications/daily-events`)
 - **Schedule** : `0 8 * * *` (une fois par jour à 08:00 UTC)
-- **Fonction** : Envoie la passe quotidienne des notifications par catégories suivies
+- **Fonction** : Envoie le résumé du matin par catégories suivies : « 3 événements ce soir dans tes catégories » (à défaut, la journée) ; voir `docs/API_APP.md`, « Résumés poussés »
 - **Fichier** : `app/api/cron/notifications/daily-events/route.ts`
 - **Précision Hobby** : l'exécution peut démarrer à n'importe quel moment entre 08:00 et 08:59 UTC
 
 #### b. Résumé hebdomadaire (`/api/cron/notifications/weekly-summary`)
 - **Schedule** : `0 8 * * 1` (le lundi à 08:00 UTC)
-- **Fonction** : Envoie le résumé hebdomadaire des événements de la semaine en début de semaine
+- **Fonction** : Envoie le résumé de la semaine (du lundi au dimanche) en début de semaine
 - **Fichier** : `app/api/cron/notifications/weekly-summary/route.ts`
 
 **Fonctionnalités communes :**
 - ✅ Vérifient l'authentification via `CRON_SECRET`
-- ✅ Récupèrent uniquement les événements avec `status = 'approved'`
+- ✅ Lisent les événements de l'accueil de l'app (`app_events_in_range` : visibles dans l'app, pas terminés), en heure de Paris
 - ✅ Envoient uniquement aux utilisateurs ayant activé les notifications (`user_notification_preferences.is_enabled = true`)
 - ✅ Respectent la fréquence choisie (`daily` ou `weekly`)
 - ✅ Respectent les catégories suivies via `user_notification_preferences.category_ids`
 - ✅ Utilisent temporairement un fallback vers `user_notification_categories` tant que le mobile n'alimente pas encore `category_ids`
-- ✅ Respectent `notification_settings.notification_time`
+- ⚠️ Ne lisent pas `notification_settings.notification_time` : l'heure est celle de `vercel.json`
 - ✅ Évitent les doubles envois sur une même passe grâce à l'anti-doublon
 - ✅ Log les résultats dans `notification_logs`
 - ✅ Gèrent automatiquement les tokens invalides (suppression)

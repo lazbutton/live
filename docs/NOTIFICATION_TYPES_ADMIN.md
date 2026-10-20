@@ -80,6 +80,20 @@ Implementation attendue :
 - la fenetre couverte va du lundi au dimanche
 - l'heure d'envoi reste lue depuis `notification_settings.notification_time`
 
+## Fenetres et messages (U9, 2026-10-20)
+
+Ce que font les crons aujourd'hui (`lib/notifications/digest.ts`, contrat des donnees : `docs/API_APP.md`,
+« Résumés poussés ») :
+
+- passe `daily` : les evenements de ce soir (18 h a 6 h, heure de Paris, comme « Ce soir » dans l'app) ;
+  s'il n'y en a aucun dans les categories de l'utilisateur, ceux de la journee ; sinon rien
+- passe `weekly` : du lundi au dimanche
+- les evenements sont ceux de l'accueil de l'app (`app_events_in_range`), sans les complets ni ceux retires
+  de l'accueil, comptes quand ils commencent dans la fenetre
+- message : « 3 événements ce soir dans tes catégories », puis les deux premiers titres
+- heure d'envoi : celle de `vercel.json` (08:00 UTC) ; `notification_settings.notification_time` n'est pas
+  lu par les crons
+
 ## Regles de selection des evenements
 
 Pour chaque passe d'envoi :
