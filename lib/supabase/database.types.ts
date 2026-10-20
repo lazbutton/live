@@ -2856,6 +2856,7 @@ export type Database = {
       }
       slugify_artist_label: { Args: { value: string }; Returns: string }
       slugify_city_label: { Args: { value: string }; Returns: string }
+      to_tag_title_case: { Args: { input_text: string }; Returns: string }
       upsert_city: {
         Args: { p_center_lat?: number; p_center_lng?: number; p_label: string }
         Returns: string
