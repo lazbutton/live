@@ -188,4 +188,6 @@
   qui organise et accueille, simple salle, passé, en attente, exposition en cours, périmètre, événement masqué,
   ids inconnus ou en double) ; par PostgREST v13.0.5 sur l'instantané prod du 2026-10-20 : 28 organisateurs,
   aucun écart avec un calcul indépendant (Théâtre d'orléans 84, Tête Noire 48, Artéphé 35) ; environ 9 ms.
-- **Pas encore appliquée en prod.**
+- **Appliquée en prod le 20/10/2026** (psql, une transaction, `SET ROLE postgres`), sans erreur. Vérifiée en anon
+  le même jour : les 28 organisateurs reliés à des événements, aucun écart avec un calcul indépendant ; Théâtre
+  d'orléans 84.
