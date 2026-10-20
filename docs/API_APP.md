@@ -263,9 +263,8 @@ l'app lit ces comptes dans Supabase au lieu de les calculer en Dart. Migrations 
 `20261019210000_create_app_events_in_range_and_counts.sql` (règle complète en tête),
 `20261019211000_create_school_holidays.sql`, `20261019212000_create_app_search_counts.sql`, et pour la
 fiche `20261020140000_create_app_organizer_counts.sql`. Tests : `supabase/tests/*.test.sql`
-(`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`. Les trois premières sont en
-prod depuis le 2026-10-20, `school_holidays` est chargée (64 périodes) ; état de chacune :
-`supabase/migrations/MIGRATIONS_LOG.md`.
+(`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`. Toutes sont en prod depuis le
+2026-10-20, et `school_holidays` est chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`.
 
 | Objet | Appel Dart | Rend |
 | --- | --- | --- |
