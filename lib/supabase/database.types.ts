@@ -2145,6 +2145,48 @@ export type Database = {
           },
         ]
       }
+      school_holidays: {
+        Row: {
+          academy: string
+          created_at: string
+          first_day: string
+          id: string
+          last_day: string
+          name: string
+          school_year: string
+          source_end_date: string
+          source_start_date: string
+          updated_at: string
+          zone: string
+        }
+        Insert: {
+          academy: string
+          created_at?: string
+          first_day: string
+          id?: string
+          last_day: string
+          name: string
+          school_year: string
+          source_end_date: string
+          source_start_date: string
+          updated_at?: string
+          zone: string
+        }
+        Update: {
+          academy?: string
+          created_at?: string
+          first_day?: string
+          id?: string
+          last_day?: string
+          name?: string
+          school_year?: string
+          source_end_date?: string
+          source_start_date?: string
+          updated_at?: string
+          zone?: string
+        }
+        Relationships: []
+      }
       tags: {
         Row: {
           created_at: string | null
@@ -2465,6 +2507,15 @@ export type Database = {
         Args: { invitation_token: string; user_id_param: string }
         Returns: Json
       }
+      app_category_counts: {
+        Args: { at_time?: string; city_ids?: string[] }
+        Returns: {
+          category_id: string
+          display_order: number
+          events_count: number
+          name: string
+        }[]
+      }
       app_cities: {
         Args: never
         Returns: {
@@ -2479,6 +2530,31 @@ export type Database = {
           source_ids: string[]
           upcoming_events_count: number
         }[]
+      }
+      app_event_counts: {
+        Args: {
+          at_time?: string
+          category?: string
+          city_ids?: string[]
+          ranges: Json
+        }
+        Returns: {
+          events_count: number
+          range_end: string
+          range_index: number
+          range_key: string
+          range_start: string
+          starting_count: number
+        }[]
+      }
+      app_event_in_range: {
+        Args: {
+          event_date: string
+          event_end_date: string
+          range_end: string
+          range_start: string
+        }
+        Returns: boolean
       }
       app_events: {
         Args: never
@@ -2538,6 +2614,79 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      app_events_in_range: {
+        Args: {
+          at_time?: string
+          category?: string
+          city_ids?: string[]
+          range_end?: string
+          range_start: string
+        }
+        Returns: {
+          address: string | null
+          agenda_types: string[]
+          archived: boolean
+          capacity: number | null
+          category: string
+          city_id: string | null
+          community_attribution_opt_in: boolean
+          community_contributor_label: string | null
+          community_submission: boolean
+          created_at: string | null
+          created_by: string | null
+          date: string
+          description: string | null
+          door_opening_time: string | null
+          end_date: string | null
+          end_time: string | null
+          external_url: string | null
+          external_url_label: string | null
+          facebook_url: string | null
+          hide_from_home: boolean
+          id: string
+          image_card_error: string | null
+          image_card_url: string | null
+          image_color: string | null
+          image_height: number | null
+          image_url: string | null
+          image_width: number | null
+          instagram_url: string | null
+          is_featured: boolean
+          is_full: boolean | null
+          is_pay_what_you_want: boolean
+          is_safety_hidden: boolean
+          is_young_audience: boolean
+          latitude: number | null
+          location_id: string | null
+          longitude: number | null
+          presale_price: number | null
+          price: number | null
+          price_max: number | null
+          price_min: number | null
+          room_id: string | null
+          scraping_url: string | null
+          show_on_app: boolean
+          status: string | null
+          subscriber_price: number | null
+          tag_ids: string[] | null
+          title: string
+          updated_at: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      app_tag_counts: {
+        Args: { at_time?: string; city_ids?: string[]; max_tags?: number }
+        Returns: {
+          events_count: number
+          name: string
+          tag_id: string
+        }[]
       }
       can_use_ugc_features: { Args: never; Returns: boolean }
       check_organizer_id_exists: {

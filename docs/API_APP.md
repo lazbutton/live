@@ -238,6 +238,247 @@ jour) : garder `image_url`. Quand `image_card_url` est remplie, les trois autres
 L'app actuelle ne sélectionne pas ces colonnes : ce qu'elle reçoit ne change pas. Elles seront lues
 à l'étape C7b de `../live/docs/PLAN_REFONTE.md`. Fabrication et garanties : `EVENT_IMAGE_CARDS.md`.
 
+## Fonctions SQL de la refonte : calendrier, vacances scolaires, recherche
+
+Pour le calendrier « Quand ? » et la recherche des maquettes (`../live/docs/MAQUETTES_REFONTE.md`),
+l'app lit ces comptes dans Supabase au lieu de les calculer en Dart. Migrations :
+`20261019210000_create_app_events_in_range_and_counts.sql` (règle complète en tête),
+`20261019211000_create_school_holidays.sql`, `20261019212000_create_app_search_counts.sql`. Tests :
+`supabase/tests/*.test.sql` (`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`.
+Appliquées en prod le 2026-10-20 ; `school_holidays` reste vide jusqu'au premier chargement, après le
+déploiement de l'admin (voir `supabase/migrations/MIGRATIONS_LOG.md`).
+
+| Objet | Appel Dart | Rend |
+| --- | --- | --- |
+| `app_event_counts(ranges, city_ids, category, at_time)` | `rpc('app_event_counts', params: …)` | une ligne par plage : `events_count`, `starting_count` |
+| `app_events_in_range(range_start, range_end, city_ids, category, at_time)` | `rpc('app_events_in_range', params: …)` + filtres, `select`, tri, pagination | lignes de `events` (`setof events`, comme `app_events()`) |
+| table `school_holidays` | `from('school_holidays').select(…)` | périodes de vacances : `name`, `first_day`, `last_day` |
+| `app_category_counts(city_ids, at_time)` | `rpc('app_category_counts', params: …)` | catégories actives et leur nombre d'événements à venir |
+| `app_tag_counts(city_ids, max_tags, at_time)` | `rpc('app_tag_counts', params: …)` | tags populaires et leur nombre d'événements à venir |
+| `app_event_in_range(…)` | aucun | la règle d'appartenance à une plage, partagée par les fonctions ci-dessus |
+
+Appels en POST (`supabase.rpc` par défaut), arguments par leur nom ; un argument omis prend sa valeur
+par défaut. Une valeur illisible donne un 400 de PostgREST (`{"code":"22007","message":"invalid input
+syntax for type timestamp: …"}`). Vérifié le 2026-10-19 avec PostgREST v13.0.5 (la version de la
+prod) sur une base locale chargée de l'instantané prod : ci-dessous, les comptes de cet instantané.
+
+### Conventions communes
+
+- **Dates** : heure de Paris, comme `events.date` (voir les conventions plus haut). Les bornes sont
+  des `timestamp` sans fuseau : un décalage envoyé est ignoré. `DateTime(2026, 10, 23).toIso8601String()`
+  (`2026-10-23T00:00:00.000`) et `DateTime.utc(2026, 10, 23).toIso8601String()` (`…Z`) donnent la
+  même borne ; `toUtc()` la décalerait de 1 à 2 h. Les bornes rendues (`range_start`, `range_end`)
+  sont sans fuseau (`2026-10-23T00:00:00`).
+- **Maintenant** : l'heure de Paris du serveur. `at_time` (même format) le remplace, pour les tests
+  et les scénarios ; l'app ne l'envoie pas.
+- **Périmètre** : `city_ids` = les ids que l'app envoie déjà (`CityPreferencesController.effectiveCityIds`,
+  ceux de son filtre `city_id=in.(…)`), comparés à `events.city_id`, à défaut à la ville du lieu
+  (comme `app_cities()`). `null` ou `[]` : toutes les villes. Le filtre Dart au rayon
+  (`CityEventMatching`, sur les coordonnées) n'est pas repris : un événement d'une ville du
+  périmètre mais hors du rayon compte ici.
+- **Par utilisateur** : avec une session (anonyme comprise), sans les événements qu'il a masqués
+  (`user_hidden_events`) ni ceux des auteurs qu'il a bloqués (`blocked_users`), comme les filtres
+  Dart de l'accueil. Sans session : rien n'est retiré.
+- **Catégorie** (`category`) : son id ou son nom, sans tenir compte de la casse (« Spectacle »,
+  « SPECTACLE » ou l'uuid). `events.category` contient un id, ou pour quelques lignes anciennes un nom
+  (2 « Concert » en prod) : les deux comptent, comme le filtre de catégorie de l'app. `null` ou vide : Tout.
+
+### Règle d'appartenance à une plage
+
+Une plage est `[début, fin)`. Un événement en fait partie :
+
+1. s'il y commence (`début <= date < fin`) ;
+2. ou s'il dure plus de 12 h (13 h ou plus : `Duration.inHours > 12` de l'app) et a commencé avant
+   sans être fini au début de la plage. Un concert 20:30 → 02:30 n'appartient qu'à son jour de début ;
+   une exposition de trois semaines, à chacun de ses jours ;
+3. et s'il n'est pas terminé : `end_date` passée, ou sans `end_date` le lendemain 0 h de son début
+   (« reste affiché toute la journée », décision 1 des maquettes). Ne joue que sur la plage du jour.
+
+C'est la liste de l'accueil (requête de `EventService._getApprovedEventsFromNetwork` puis filtre de
+période de `EventsListLogic`), à trois écarts près, assumés : l'app compare la fin à l'instant UTC
+(1 à 2 h trop tôt) ; elle ne filtre que les événements chargés, au plus 200 par plage (limite
+atteinte sur « Tout ») plus son cache ; ces fonctions portent sur toute la base.
+
+### `app_event_counts` : comptes du calendrier
+
+```sql
+app_event_counts(ranges jsonb, city_ids uuid[] = null, category text = null, at_time timestamp = null)
+  returns table (range_index integer, range_key text, range_start timestamp, range_end timestamp,
+                 events_count integer, starting_count integer)
+```
+
+`ranges` : un tableau de plages `{"start": …, "end": …, "key": …}` (`key` facultative, texte libre
+rendu tel quel ; `start` ou `end` absents : sans borne). Au plus 500 plages par appel, les suivantes
+sont ignorées. Une ligne par plage, dans l'ordre reçu, même vide (0) ; `range_index` part de 0.
+
+- `events_count` : les événements de la plage selon la règle ci-dessus, chacun une fois (un
+  week-end compte une fois l'exposition qui le couvre), sans `hide_from_home` sur Tout. C'est le
+  nombre de lignes que rend `app_events_in_range` pour la même plage (avec `hide_from_home=is.false`
+  sur Tout) : le « Voir les N événements » d'une liste qui montre aussi les expositions en cours.
+- `starting_count` : ceux qui commencent dans la plage (règle 1 seule). Ce sont les comptes des
+  maquettes ; la liste correspondante ajoute le filtre `date >= début`.
+
+Points de densité (maquettes) : 1 point pour 1 ou 2 événements, 2 pour 3 à 5, 3 pour 6 et plus.
+
+```dart
+/// Heure murale sans fuseau (« 2026-10-23T00:00:00.000 »).
+String wall(DateTime d) =>
+    DateTime(d.year, d.month, d.day, d.hour, d.minute).toIso8601String();
+/// Minuit du jour [offset] (DateTime(y, m, d + n), pas add(Duration) : 23 ou 25 h aux changements d'heure).
+DateTime day(int offset) => DateTime(now.year, now.month, now.day + offset);
+
+final ranges = [
+  for (var i = 0; i < 42; i++)
+    {'key': 'day:$i', 'start': wall(day(i)), 'end': wall(day(i + 1))},
+  {'key': 'tonight', 'start': wall(now), 'end': wall(day(1))},
+  {'key': 'weekend', 'start': wall(saturday), 'end': wall(monday)},
+];
+final rows = await supabase.rpc(
+  'app_event_counts',
+  params: {
+    'ranges': ranges,
+    'city_ids': cityPreferences.effectiveCityIds, // [] : toutes les villes
+    'category': selectedCategory, // id ou nom ; null : Tout
+  },
+) as List<dynamic>;
+// [{"range_index":0,"range_key":"day:0","range_start":"2026-10-19T00:00:00",
+//   "range_end":"2026-10-20T00:00:00","events_count":4,"starting_count":1}, …]
+```
+
+Comparaison avec les maquettes (scénario du vendredi 23 octobre 2026 à 19:15, toutes villes,
+instantané du 2026-10-19, `at_time` fixé) :
+
+| | Maquettes | `starting_count` | `events_count` |
+| --- | --- | --- | --- |
+| Jours du 23 octobre au 29 novembre | — | = maquettes sauf le 23 (3 au lieu de 4 : l'atelier 16:00-19:00 est terminé) ; mêmes points les 38 jours | +1 à +3 par jour (CIRCUS jusqu'au 7 mars 2027, Salon des Artistes Orléanais jusqu'au 1er novembre, Salon des Anonymes, Confluence IV, Fulgurances Électroniques) ; points différents 22 jours sur 38 |
+| Ce soir (19:15 → minuit) | 2 | 2 | 4 |
+| Demain | 7 | 7 | 9 |
+| Ce week-end (samedi et dimanche) | 9 | 9 | 11 |
+| Semaine prochaine (26 octobre → 1er novembre) | 24 | 24 | 26 |
+| Vacances de la Toussaint (23 octobre → 1er novembre) | 37 | 36 (l'atelier terminé) | 38 |
+
+À trancher par le calendrier : `starting_count` reproduit les points validés (une exposition de cinq
+mois mettrait sinon un point sur chaque jour jusqu'en mars) ; le nombre du bouton doit être celui de
+la liste qu'il ouvre (`events_count` si elle montre les expositions en cours).
+
+### `app_events_in_range` : les événements d'une plage
+
+```sql
+app_events_in_range(range_start timestamp, range_end timestamp = null, city_ids uuid[] = null,
+                    category text = null, at_time timestamp = null)
+  returns setof public.events
+```
+
+Les lignes de `app_events()` qui appartiennent à `[range_start, range_end)` (fin nulle : sans fin),
+dans le périmètre et la catégorie, sans les événements masqués par l'utilisateur ni les auteurs
+bloqués. Avec `hide_from_home` : sur Tout, l'accueil les filtre lui-même. Comme sur `rpc/app_events` :
+filtres avant `select`, tri et pagination après (PostgREST v13 ne filtre pas une jointure d'un RPC).
+Trié par date, un événement commencé avant la plage (exposition en cours) vient en premier.
+
+```dart
+var query = supabase.rpc('app_events_in_range', params: {
+  'range_start': wall(start),
+  'range_end': wall(end),
+  'city_ids': cityPreferences.effectiveCityIds,
+  'category': selectedCategory,
+});
+if (selectedCategory == null) query = query.eq('hide_from_home', false);
+// Ceux qui commencent dans la plage seulement (starting_count) :
+// query = query.gte('date', DateTime.utc(start.year, start.month, start.day).toIso8601String());
+final data = await query
+    .select(_eventColumns) // jointures comprises : 'id, title, …, locations(name)'
+    .order('date', ascending: true)
+    .range(0, 49);
+```
+
+Pas de limite de 200 : paginer (`range`, `limit`/`offset`), `events_count` donnant le total.
+
+### Vacances scolaires : table `school_holidays`
+
+Vacances des élèves de l'académie d'Orléans-Tours (zone B), une ligne par période, lisible par tous,
+écrite par la clé service role seulement. Rechargée chaque lundi à 5 h UTC depuis le calendrier
+scolaire officiel (data.education.gouv.fr, jeu `fr-en-calendrier-scolaire`) par
+`GET /api/cron/school-holidays` (`lib/school-holidays/official-calendar.ts`).
+
+| Colonne | Type | |
+| --- | --- | --- |
+| `name` | texte | « Vacances de la Toussaint », « Pont de l'Ascension »… (nom du jeu officiel) |
+| `first_day` | date | premier jour de vacances : jour de fin des cours, souvent un samedi |
+| `last_day` | date | dernier jour de vacances, compris : la veille de la reprise |
+| `school_year` | texte | « 2026-2027 » |
+| `academy`, `zone` | texte | « Orléans-Tours », « Zone B » |
+| `source_start_date`, `source_end_date` | date et heure | valeurs brutes du jeu (fin des cours, reprise) |
+
+Toussaint 2026 : `first_day` 2026-10-17, `last_day` 2026-11-01 (fin des cours le samedi 17 octobre,
+reprise le lundi 2 novembre : Onisep et le jeu officiel). Le jeu donne le jour de la reprise :
+`last_day` en est la veille, sauf pour une période d'un jour, à la même date aux deux bornes (pont de
+l'Ascension 2027 : vendredi 7 mai). Pas chargées : les lignes « Enseignants » et « Début des
+Vacances d'Été » (2028, fin pas encore connue).
+
+```dart
+final holidays = await supabase
+    .from('school_holidays')
+    .select('name, first_day, last_day')
+    .gte('last_day', today) // 'AAAA-MM-JJ'
+    .order('first_day')
+    .limit(3);
+// [{"name":"Vacances de la Toussaint","first_day":"2026-10-17","last_day":"2026-11-01"}, …]
+```
+
+Bande : les jours de `first_day` à `last_day`. Raccourci « Vacances de la Toussaint » : la plage
+`[aujourd'hui (ou first_day s'il est plus tard), last_day + 1 jour)` dans `app_event_counts`.
+
+### Recherche : `app_category_counts`, `app_tag_counts`, recherche par tag
+
+« À venir » : `app_events_in_range` à partir d'aujourd'hui 0 h, sans fin (événements du jour pas
+terminés compris, expositions en cours comprises), dans le périmètre, avec `hide_from_home` (la
+recherche n'est pas l'accueil).
+
+```sql
+app_category_counts(city_ids uuid[] = null, at_time timestamp = null)
+  returns table (category_id uuid, name text, display_order integer, events_count integer)
+app_tag_counts(city_ids uuid[] = null, max_tags integer = 20, at_time timestamp = null)
+  returns table (tag_id uuid, name text, events_count integer)
+```
+
+- `app_category_counts` : une ligne par catégorie active, même à 0, la plus fournie d'abord (à
+  égalité : `display_order`, puis le nom). L'icône reste celle de `categories.icon_svg`, déjà lue.
+- `app_tag_counts` : les tags d'au moins un événement à venir, le plus fourni d'abord (à égalité :
+  le nom), `max_tags` au plus (1 à 100).
+
+```dart
+final categories = await supabase.rpc('app_category_counts',
+    params: {'city_ids': cityPreferences.effectiveCityIds}) as List<dynamic>;
+// [{"category_id":"c56a…","name":"Spectacle","display_order":4,"events_count":205}, …]
+final tags = await supabase.rpc('app_tag_counts',
+    params: {'city_ids': cityPreferences.effectiveCityIds, 'max_tags': 12}) as List<dynamic>;
+// [{"tag_id":"…","name":"Théâtre","events_count":73}, …]
+
+// Toucher un tag : ses événements à venir.
+final events = await supabase
+    .rpc('app_events_in_range', params: {
+      'range_start': wall(today),
+      'city_ids': cityPreferences.effectiveCityIds,
+    })
+    .contains('tag_ids', [tagId]) // tag_ids=cs.{…}
+    .select(_eventColumns)
+    .order('date', ascending: true)
+    .range(0, 29);
+```
+
+Instantané du 2026-10-19, toutes villes : Spectacle 205, Atelier 58, Concert 47, Danse 33 ; #Théâtre
+73, #Humour 44, #Danse 43, #Cirque 28, #Musique 27, #Jeune Public 24 ; les mêmes que les maquettes,
+sauf Concert (45 dans les maquettes, qui ne comptaient pas les 2 événements dont la catégorie est
+écrite « Concert »). Orléans seul : Spectacle 101, Atelier 49, Concert 33, Danse 21.
+
+Index : la recherche par tag passe par l'index sur `date` (`idx_events_approved_visible_date`). Un
+index GIN sur `tag_ids` ne servirait pas à l'app : sous la RLS, Postgres évalue `@>` (fonction non
+« leakproof ») après les politiques de `events` et ne l'utilise que pour une requête qui passe outre
+la RLS (vérifié sur 20 000 événements : GIN en service role, index sur `date` en anon). Pour la même
+raison, les fonctions comparent `date` à des bornes calculées à part : les plans des appels ci-dessus
+utilisent les index sur `date` et `end_date` (0,4 à 6 ms sur l'instantané ; 2 à 10 ms sur 20 000
+événements).
+
 ## Incohérences relevées, non corrigées
 
 1. **Alertes admin rejouables.** Les données personnelles exposées (`diagnostics`, ids d'admin dans
@@ -295,6 +536,20 @@ L'app actuelle ne sélectionne pas ces colonnes : ce qu'elle reçoit ne change p
    `jsonb` : l'appel échoue, l'erreur finit en WARNING et rien ne part (vérifié sur une base locale,
    pg_net 0.19.5). Les deux triggers sont retirés par `20261019200000_drop_notify_admins_triggers.sql`,
    à appliquer en prod.
+7. **Prix inconnu affiché « Gratuit » dans l'app** (relevé le 2026-10-19, règle proposée, en attente
+   de l'utilisateur). `Event.getCompactPriceLabel` et `isFreeEvent` (app) traitent un prix absent
+   comme gratuit ; l'admin (`formatGenericPriceLabel`) et la page de partage (`formatPriceLabel`,
+   `lib/public-share-data.ts`) n'affichent rien. Événements publiés (`app_events()`) : 393, dont
+   154 sans aucun prix (148 à venir), 33 à 0 €, 184 payants, 22 en prix libre. Tous les chemins
+   d'écriture notent « gratuit » par 0 et « inconnu » par null : formulaire de l'admin (« Non précisé »
+   / « Gratuit » / « Payant » / « Prix libre »), collecte (`is_free` → `price_min = 0`), scraping
+   (`isAccessibleForFree`, « gratuit », « entrée libre » → 0), import par lot, assistant de l'app
+   (champ « Prix » facultatif). Exception : l'espace organisateur (un seul champ « Prix (€) ») affiche
+   un prix de 0 vide à la modification (`event.price ? … : ""`) et l'enregistre alors à null.
+   Proposition : 0 = « Gratuit », null partout (sans prix libre) = rien d'affiché, comme l'admin et les
+   maquettes ; la règle en SQL (une colonne calculée de `events`, par exemple `price_kind` :
+   `free`, `paid`, `pay_what_you_want`, `unknown`) lue par l'app et l'admin ; corriger l'espace
+   organisateur et lui donner le même choix que l'admin.
 
 ## Comportements changés
 
