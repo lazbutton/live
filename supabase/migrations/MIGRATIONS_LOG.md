@@ -160,5 +160,6 @@
 - Testée : `npm run db:test` (9 cas dans `supabase/tests/price_kind.test.sql`), `lib/events/price-mode.test.mjs`,
   et par PostgREST v13.0.5 sur l'instantané prod du 2026-10-19 : `paid` 184, `unknown` 154, `free` 33,
   `pay_what_you_want` 22 ; « Fora | ALICE RENDE » (sans prix) en `unknown`, « PLUTO #1 » (0 à 5 €) en `paid`.
-- **À appliquer en prod avant de déployer l'admin** (ses pages sélectionnent la colonne) et avant la PR de l'app.
-  Vérification, en anon : `GET /rest/v1/rpc/app_events?select=price_kind` (aucune ligne à `null`).
+- **Appliquée en prod le 20/10/2026** (psql, une transaction, `SET ROLE postgres`), avant le déploiement de l'admin
+  et de l'app (leurs requêtes sélectionnent la colonne). Vérifié en anon le même jour : 391 événements publiés, aucun
+  `price_kind` nul ; `paid` 184, `unknown` 152, `free` 33, `pay_what_you_want` 22 ; `app_events_in_range()` la rend.
