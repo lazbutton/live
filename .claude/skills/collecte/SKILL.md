@@ -40,9 +40,11 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
   nom de scène complet ou le compte Instagram, sinon pas de fiche. Les noms écartés reviennent dans
   `artists_skipped` avec la raison : ne les recrée pas avec `upsert_artist`, signale-les dans le récapitulatif.
 - **Dates** : heure de Paris ; sans année écrite, l'année est celle où le jour de la semaine annoncé tombe juste
-  (« mercredi 7 octobre » = 2026, pas 2027) et un événement déjà passé n'est jamais reporté à l'an prochain. Titre
-  sans date (l'outil retire de toute façon celle collée au début ou à la fin). Une exposition déjà ouverte s'ajoute
-  avec `start` = ouverture et `end` = dernier jour.
+  (« mercredi 7 octobre » = 2026, pas 2027) et un événement déjà passé n'est jamais reporté à l'an prochain. Une
+  exposition déjà ouverte s'ajoute avec `start` = ouverture et `end` = dernier jour.
+- **Titres** : courts, en casse normale (pas tout en capitales), sans date ni lieu ; l'outil retire de toute façon la
+  date et le lieu collés au titre, remet les capitales en casse normale (noms propres en majuscule initiale, sigles
+  gardés), pose les guillemets français et recolle les lignes coupées des descriptions (lib/collecte/event-text.ts).
 - **Statut `to_check`** (date douteuse : page qui se contredit, titre qui annonce un autre jour) : rien n'a été créé.
   Relis la page (navigateur ou WebFetch), trouve la vraie date, puis `create_event` avec `source_id`, `source_url`
   = la page et cette date. Si la page ne permet pas de trancher, signale-le dans le récapitulatif.
