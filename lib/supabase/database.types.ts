@@ -2685,6 +2685,14 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      app_organizer_counts: {
+        Args: { at_time?: string; city_ids?: string[]; organizer_ids: string[] }
+        Returns: {
+          events_count: number
+          kind: string
+          organizer_id: string
+        }[]
+      }
       app_tag_counts: {
         Args: { at_time?: string; city_ids?: string[]; max_tags?: number }
         Returns: {

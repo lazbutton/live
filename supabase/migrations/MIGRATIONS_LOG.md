@@ -163,3 +163,17 @@
 - **Appliquée en prod le 20/10/2026** (psql, une transaction, `SET ROLE postgres`), avant le déploiement de l'admin
   et de l'app (leurs requêtes sélectionnent la colonne). Vérifié en anon le même jour : 391 événements publiés, aucun
   `price_kind` nul ; `paid` 184, `unknown` 152, `free` 33, `pay_what_you_want` 22 ; `app_events_in_range()` la rend.
+
+## 2026-10-20 — `app_organizer_counts()` : événements à venir des organisateurs
+
+- `20261020140000_create_app_organizer_counts` : pour chaque id demandé, organisateur (`organizers`, par
+  `event_organizers.organizer_id`) ou lieu (`locations`, par `event_organizers.location_id` et
+  `events.location_id`, chaque événement une fois), le nombre d'événements à venir
+  (`app_events_in_range` à partir d'aujourd'hui, périmètre facultatif). Pour la fiche de l'app
+  (« Organisé par … · 40 événements à venir »), décision de l'utilisateur du 2026-10-20.
+- `language sql`, `stable`, `security invoker`, `execute` à anon et authenticated ; aucune table modifiée.
+- Testée : `npm run db:test` (5 cas dans `supabase/tests/app_organizer_counts.test.sql` : organisateur, lieu
+  qui organise et accueille, simple salle, passé, en attente, exposition en cours, périmètre, événement masqué,
+  ids inconnus ou en double) ; par PostgREST v13.0.5 sur l'instantané prod du 2026-10-20 : 28 organisateurs,
+  aucun écart avec un calcul indépendant (Théâtre d'orléans 84, Tête Noire 48, Artéphé 35) ; environ 9 ms.
+- **Pas encore appliquée en prod.**

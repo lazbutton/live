@@ -261,10 +261,11 @@ l'app continue d'envoyer `price` (et l'admin `price`, `price_min`, `price_max`, 
 Pour le calendrier « Quand ? » et la recherche des maquettes (`../live/docs/MAQUETTES_REFONTE.md`),
 l'app lit ces comptes dans Supabase au lieu de les calculer en Dart. Migrations :
 `20261019210000_create_app_events_in_range_and_counts.sql` (règle complète en tête),
-`20261019211000_create_school_holidays.sql`, `20261019212000_create_app_search_counts.sql`. Tests :
-`supabase/tests/*.test.sql` (`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`.
-Appliquées en prod le 2026-10-20 ; `school_holidays` reste vide jusqu'au premier chargement, après le
-déploiement de l'admin (voir `supabase/migrations/MIGRATIONS_LOG.md`).
+`20261019211000_create_school_holidays.sql`, `20261019212000_create_app_search_counts.sql`, et pour la
+fiche `20261020140000_create_app_organizer_counts.sql`. Tests : `supabase/tests/*.test.sql`
+(`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`. Les trois premières sont en
+prod depuis le 2026-10-20, `school_holidays` est chargée (64 périodes) ; état de chacune :
+`supabase/migrations/MIGRATIONS_LOG.md`.
 
 | Objet | Appel Dart | Rend |
 | --- | --- | --- |
@@ -273,6 +274,7 @@ déploiement de l'admin (voir `supabase/migrations/MIGRATIONS_LOG.md`).
 | table `school_holidays` | `from('school_holidays').select(…)` | périodes de vacances : `name`, `first_day`, `last_day` |
 | `app_category_counts(city_ids, at_time)` | `rpc('app_category_counts', params: …)` | catégories actives et leur nombre d'événements à venir |
 | `app_tag_counts(city_ids, max_tags, at_time)` | `rpc('app_tag_counts', params: …)` | tags populaires et leur nombre d'événements à venir |
+| `app_organizer_counts(organizer_ids, city_ids, at_time)` | `rpc('app_organizer_counts', params: …)` | nombre d'événements à venir de chaque organisateur (fiche, « Organisé par ») |
 | `app_event_in_range(…)` | aucun | la règle d'appartenance à une plage, partagée par les fonctions ci-dessus |
 
 Appels en POST (`supabase.rpc` par défaut), arguments par leur nom ; un argument omis prend sa valeur
@@ -497,6 +499,44 @@ raison, les fonctions comparent `date` à des bornes calculées à part : les pl
 utilisent les index sur `date` et `end_date` (0,4 à 6 ms sur l'instantané ; 2 à 10 ms sur 20 000
 événements).
 
+### Fiche : `app_organizer_counts`, événements à venir des organisateurs
+
+```sql
+app_organizer_counts(organizer_ids uuid[], city_ids uuid[] = null, at_time timestamp = null)
+  returns table (organizer_id uuid, kind text, events_count integer)
+```
+
+Sous « Organisé par », chaque organisateur affiche « 40 événements à venir » (décision du 2026-10-20).
+Un organisateur de l'app est une ligne de `organizers` ou un lieu relié comme organisateur
+(`event_organizers.location_id`) : `organizer_ids` accepte les deux sortes d'id, telles que la fiche
+les lit dans `event_organizers`. Une ligne par id qui existe (inconnu, nul : pas de ligne ; en double :
+une ligne ; au plus 200 ids), le plus fourni d'abord.
+
+- `kind = 'organizer'` : ses événements par `event_organizers.organizer_id` ;
+- `kind = 'location'` : les événements que le lieu organise (`event_organizers.location_id`) et ceux qui
+  s'y tiennent (`events.location_id`), chacun une fois, comme la page d'un lieu dans l'app (un lieu qui
+  organise ses propres soirées ne les compte pas deux fois). Une simple salle (non organisatrice) donne
+  donc le nombre d'événements qui s'y tiennent.
+- « À venir » : comme les comptes de la recherche (à partir d'aujourd'hui 0 h, expositions en cours
+  comprises, pas terminé, sans les événements masqués par l'utilisateur ni les auteurs bloqués).
+- `city_ids` : null pour la fiche (tous les événements de l'organisateur) ; le périmètre de l'app
+  sinon.
+
+```dart
+final rows = await supabase.rpc(
+  'app_organizer_counts',
+  params: {'organizer_ids': [for (final o in event.organizers) o.id]},
+) as List<dynamic>;
+// [{"organizer_id":"78d1fda4-3d58-412f-8105-b35a04227428","kind":"location","events_count":84}]
+final countById = {
+  for (final row in rows) row['organizer_id'] as String: row['events_count'] as int,
+};
+```
+
+Instantané prod du 2026-10-20 : Théâtre d'orléans 84, Théâtre de la Tête Noire 48, La Passerelle 35,
+Artéphé 35, L'astrolabe 22. Les maquettes affichaient 40 pour le Théâtre d'orléans : l'app comptait
+alors les seuls événements chargés (`SearchPlace.index`), une partie des 84.
+
 ## Incohérences relevées, non corrigées
 
 1. **Alertes admin rejouables.** Les données personnelles exposées (`diagnostics`, ids d'admin dans
@@ -560,9 +600,9 @@ utilisent les index sur `date` et `end_date` (0,4 à 6 ms sur l'instantané ; 2 
    (page de partage, page d'artiste, visuels pour les réseaux, espace organisateur) depuis la
    migration `20261020100000_add_price_kind_to_events.sql`. L'espace organisateur a le même choix que
    l'admin (Non précisé, Gratuit, Payant, Prix libre) et garde un prix de 0 à la modification.
-   **Reste côté app** : lire `price_kind` (`Event.getCompactPriceLabel`, `isFreeEvent`), PR de l'app
-   à merger après l'application de la migration en prod. Le 2026-10-19 : 154 des 393 événements
-   publiés sans aucun prix, affichés « Gratuit » par l'app.
+   L'app le lit aussi depuis lazbutton/live-app#54 (`Event.priceKind`, `getCompactPriceLabel()` rend
+   null quand le prix n'est pas renseigné), mergée le 2026-10-20 après la migration. Le 2026-10-19 :
+   154 des 393 événements publiés sans aucun prix, affichés « Gratuit » par l'app.
 
 ## Comportements changés
 
