@@ -387,8 +387,8 @@
   lus (non archivés, publiés ou en attente), **249 mis à jour** (239 titres, 52 descriptions), 0 échec, une ligne
   `event.text_cleanup` par événement dans `admin_audit_log`. Une nouvelle simulation ne trouve plus rien. Gardés :
   le lieu en fin de titre de 7 événements en attente sans lieu ni adresse (« … - Théâtre de la Tête Noire »).
-- Vu en passant : `notion_sync_jobs` ne se vide plus depuis le 17/10/2026 10 h (532 tâches en attente le 20/10 au
-  soir, dont celles de ces corrections) : le cron `notion-sync` ne traite plus la file. Non corrigé ici.
+- Vu en passant : la file Notion grossissait (532 tâches en attente le 20/10 au soir, dont celles de ces corrections ;
+  cron trop lent, pas bloqué). La synchro est retirée : voir « 2026-10-20 — Synchronisation Notion retirée » ci-dessous.
 
 ## 2026-10-20 — Synchronisation Notion retirée
 
