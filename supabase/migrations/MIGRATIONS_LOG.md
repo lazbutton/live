@@ -389,3 +389,35 @@
   le lieu en fin de titre de 7 événements en attente sans lieu ni adresse (« … - Théâtre de la Tête Noire »).
 - Vu en passant : `notion_sync_jobs` ne se vide plus depuis le 17/10/2026 10 h (532 tâches en attente le 20/10 au
   soir, dont celles de ces corrections) : le cron `notion-sync` ne traite plus la file. Non corrigé ici.
+
+## 2026-10-20 — Fiches d'artistes qui sont des titres d'événements
+
+- `20261020233000_clean_title_artists` : données seulement (schéma et `database.types.ts` inchangés). 22 fiches
+  créées le 17/10/2026, avant que l'import découpe les plateaux (`splitArtistNames`, `lib/events/artist-names.ts`) :
+  nom du plateau, du titre, ou mention qui n'est pas un artiste. Relevé sur l'instantané public du 2026-10-20
+  (195 artistes, tous lisibles en anon ; descriptions des événements et pages de L'Astrolabe pour les titres).
+  - 14 renommées, même id (l'app ouvre une fiche par son id) ; le slug, donc l'URL `/artists/<slug>`, suit le nom :
+    « Alcest + 1ere Partie » → « Alcest », de même « Jeanne Added », « Les Louanges », « Luiza », « Razorlight »,
+    « Robert Finley », « Syd Matters », « Zed Yun Pavarotti », « Folie's », « Zélie » (orthographe de la salle) ;
+    « Assassin + Triptik » → « Assassin » + « Triptik » (créée), « La Jungle + Sodom & Sagesse » → « La Jungle »
+    + « Sodom & Sagesse » (créée), « Pluto #1 : The Gnomes » → « The Gnomes », « Piche "Carré" » → « Piche ».
+  - 8 supprimées avec leurs liens, les autres artistes des événements restent : « Le Cabaret Magnifique : 1926 »,
+    « Coeur Gruyère - Ciné Concert », « Bubble Boum, Ça Chauffe sur le Ring », « Panique!! » (titres sans artiste
+    nommé), « Atelier Afro-Cubain » et « Atelier Jazzy » (restent Igor Ivanov et Franck Sallé), « Bahini
+    Illustration » (animatrice d'atelier), « Lucernaire Diffusion » (diffuseur ; reste la Cie les Modits).
+  - Si la vraie fiche existe au moment d'appliquer (même nom normalisé), fusion : liens repris, champs vides de la
+    vraie fiche complétés par ceux de la fiche-titre, tags réunis. Une ligne `artist.title_cleanup` par fiche dans
+    `admin_audit_log` (avant, après, slugs, événements). Rejouable : une fiche déjà traitée est sautée, une fiche
+    modifiée à la main depuis le relevé est laissée (NOTICE).
+- Testée sur un Postgres 17 local en collation ICU comme la prod (toutes les migrations, plus celles de la PR #29
+  déjà en prod) : sans effet sur une base vide ; sur l'instantané public, 14 renommées, 8 supprimées, 2 créées
+  (195 → 189 fiches), 22 événements touchés, noms et slugs ci-dessus ; second passage sans effet. Chemins de
+  fusion (vraie fiche déjà là, photo et tag repris, lien déjà présent, second nom connu) et fiche modifiée à la main
+  vérifiés à part.
+- Non relevé : les liens vers des événements non publics (en attente, archivés), que la clé anon ne lit pas ; la
+  migration les traite de la même façon (par id d'artiste). Tags homonymes laissés tels quels : « Assassin »,
+  « Luiza », « Razorlight », « Robert Finley », « Syd Matters » (portés par aucun événement public ni artiste).
+- **Appliquée en prod le 21/10/2026** par l'utilisateur (psql, `--single-transaction`, `SET ROLE postgres`), après
+  une répétition dans une transaction annulée au résultat identique : 14 renommées, 0 fusionnées, 8 supprimées,
+  2 fiches créées (Triptik, Sodom & Sagesse), noms et slugs ci-dessus, 23 liens d'événements traités (Bahini
+  Illustration en avait 2).
