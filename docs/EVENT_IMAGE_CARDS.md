@@ -46,13 +46,39 @@ avec le ratio et la couleur. `app_events()` rend `setof events` : les colonnes s
    `image_card_error`, plus retenté tant que l'affiche ne change pas. Passager (réseau, HTTP 5xx,
    408 ou 429, Storage) : rien de noté, la route répond 503 et le cron reprend.
 4. **Cron quotidien** `GET /api/cron/image-cards` (4 h UTC, `vercel.json`) : le filet des envois
-   ratés et des échecs passagers, 200 événements et 35 s au plus par passage. Déclenchable à la
-   main depuis l'admin (page des crons).
+   ratés et des échecs passagers, 200 événements et 35 s au plus par passage, puis la copie des
+   affiches restées hors de Storage (plus bas). Déclenchable à la main depuis l'admin (page des
+   crons).
 5. **Rattrapage** des affiches existantes : `scripts/backfill-image-cards.mjs`, même traitement, sur
    la machine locale.
 
 Le code : `lib/image-cards/render.ts` (rendu) et `lib/image-cards/service.ts` (téléchargement,
 Storage, écriture, lots). Tests : `lib/image-cards/*.test.mjs`.
+
+## Affiches hors de Storage
+
+Une affiche laissée sur le site d'origine finit par casser (11 liens billetweb.fr en 404 le
+2026-10-20) et le web de l'app ne la charge pas si l'hébergeur refuse le CORS (lastrolabe.org).
+Toutes les affiches vont donc dans le bucket `event-images`, à sa racine (`<horodatage>-<aléa>.<ext>`),
+comme celles de l'admin :
+
+- **à l'import** : la collecte (`copyImageToStorage`, `lib/agent/images.ts`) copie l'affiche avant de
+  créer l'événement. Même téléchargement que les vignettes (15 Mo, ni hôte local ni adresse IP) ; le
+  format est lu dans le fichier, pas dans l'en-tête HTTP (Weezevent envoie ses affiches en
+  `application/octet-stream`) ; JPEG pour les formats que l'app n'affiche pas (AVIF, HEIF, TIFF…) et
+  au-delà de 2 Mo (1 600 px de côté au plus) ; SVG refusé. Si la copie échoue, le lien d'origine est
+  gardé (sauf Instagram et Facebook, dont les liens expirent) ;
+- **chaque nuit** : le cron des vignettes recopie ensuite jusqu'à 20 affiches restées ailleurs
+  (`lib/image-cards/external-posters.ts`, événements non archivés, sauf échec de vignette noté) et
+  remplace `image_url` sur toutes les lignes qui la portent ; la base remet leur vignette à zéro et
+  le webhook la refait d'après la copie ;
+- **à la main**, pour tout reprendre, avec aussi les photos des lieux, les logos des organisateurs et
+  les photos des artistes :
+  ```bash
+  node --env-file=.env.local scripts/copy-external-images.mjs
+  node --env-file=.env.local scripts/copy-external-images.mjs --write --confirm=<ref du projet>
+  ```
+  La première commande ne fait que lister ; `--only=events,locations,organizers,artists` restreint.
 
 ## Mise en route en production
 
@@ -89,6 +115,10 @@ from public.events;
 -- Échecs notés
 select id, title, image_url, image_card_error from public.events
 where image_card_error is not null order by date desc;
+
+-- Affiches hors de Storage (le cron les recopie)
+select id, title, image_url from public.events
+where image_url <> '' and image_url not like '%/storage/v1/object/public/%' and not archived;
 
 -- Derniers appels du webhook (pg_net les garde 6 h) : 200, 503 (repris par le cron)…
 select created, status_code, left(content, 200) from net._http_response order by created desc limit 20;
