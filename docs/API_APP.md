@@ -261,9 +261,10 @@ l'app continue d'envoyer `price` (et l'admin `price`, `price_min`, `price_max`, 
 Pour le calendrier « Quand ? » et la recherche des maquettes (`../live/docs/MAQUETTES_REFONTE.md`),
 l'app lit ces comptes dans Supabase au lieu de les calculer en Dart. Migrations :
 `20261019210000_create_app_events_in_range_and_counts.sql` (règle complète en tête),
-`20261019211000_create_school_holidays.sql`, `20261019212000_create_app_search_counts.sql`, et pour la
-fiche `20261020140000_create_app_organizer_counts.sql`. Tests : `supabase/tests/*.test.sql`
-(`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`. Toutes sont en prod depuis le
+`20261019211000_create_school_holidays.sql`, `20261019212000_create_app_search_counts.sql`, pour la
+fiche `20261020140000_create_app_organizer_counts.sql`, et pour la recherche plein texte
+`20261020160000_create_app_search.sql`. Tests : `supabase/tests/*.test.sql` (`npm run db:test`) et
+`lib/school-holidays/official-calendar.test.mjs`. Les quatre premières sont en prod depuis le
 2026-10-20, et `school_holidays` est chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`.
 
 | Objet | Appel Dart | Rend |
@@ -274,6 +275,8 @@ fiche `20261020140000_create_app_organizer_counts.sql`. Tests : `supabase/tests/
 | `app_category_counts(city_ids, at_time)` | `rpc('app_category_counts', params: …)` | catégories actives et leur nombre d'événements à venir |
 | `app_tag_counts(city_ids, max_tags, at_time)` | `rpc('app_tag_counts', params: …)` | tags populaires et leur nombre d'événements à venir |
 | `app_organizer_counts(organizer_ids, city_ids, at_time)` | `rpc('app_organizer_counts', params: …)` | nombre d'événements à venir de chaque organisateur (fiche, « Organisé par ») |
+| `app_search(query, city_ids, at_time, max_results)` | `rpc('app_search', params: …)` + `select('rank, event:events(…)')`, `order('rank')` | événements à venir qui correspondent à la requête, par pertinence puis date |
+| `app_search_names(query, city_ids, at_time, max_results)` | `rpc('app_search_names', params: …)` + `order('rank')` | catégories, tags, lieux et organisateurs dont le nom correspond, avec leur nombre d'événements à venir |
 | `app_event_in_range(…)` | aucun | la règle d'appartenance à une plage, partagée par les fonctions ci-dessus |
 
 Appels en POST (`supabase.rpc` par défaut), arguments par leur nom ; un argument omis prend sa valeur
@@ -535,6 +538,107 @@ final countById = {
 Instantané prod du 2026-10-20 : Théâtre d'orléans 84, Théâtre de la Tête Noire 48, La Passerelle 35,
 Artéphé 35, L'astrolabe 22. Les maquettes affichaient 40 pour le Théâtre d'orléans : l'app comptait
 alors les seuls événements chargés (`SearchPlace.index`), une partie des 84.
+
+### Recherche : `app_search`, `app_search_names`
+
+```sql
+app_search(query text, city_ids uuid[] = null, at_time timestamp = null, max_results integer = 30)
+  returns setof public.app_search_results   -- (event_id uuid, rank integer)
+app_search_names(query text, city_ids uuid[] = null, at_time timestamp = null, max_results integer = 10)
+  returns table (rank integer, kind text, id uuid, name text, events_count integer,
+                 is_organizer boolean, image_url text, city text)
+```
+
+La recherche de l'app sur toute la base (audit du 2026-10-20, `../live/docs/AMELIORATIONS.md`, U1 :
+« concert » ne rendait qu'un résultat quand la tuile Concert en annonce 47, l'app ne cherchant que
+dans les 200 événements chargés par l'accueil). « À venir », périmètre et filtres par utilisateur :
+ceux des comptes de la recherche (à partir d'aujourd'hui 0 h, expositions en cours comprises, avec
+`hide_from_home`), si bien que « Concert · 47 » ouvre les 47 événements de la tuile.
+
+Correspondance, sans accents ni casse, ponctuation en espaces (« Théâtre d’Orléans » et
+« theatre d orleans » se valent) :
+
+- chaque mot de la requête doit se trouver quelque part ; les mots vides (« de », « d », « la »…) et
+  d'une lettre ne sont pas exigés (tous le sont si la requête n'a que ceux-là) ; moins de 2
+  caractères : rien ; au-delà de 200 caractères et de 10 mots, la suite est ignorée ;
+- un mot se trouve : mot entier, début de mot (« jaz » → Jazz, la recherche à la frappe), même
+  racine française en plein texte (« concerts » → Concert), ou, à partir de 4 lettres, mot proche
+  (trigrammes de `pg_trgm`, « concrt » → Concert) ;
+- pertinence d'un événement : titre (1) avant artistes liés, lieu et organisateurs (0,6), avant
+  catégorie, tags et ville (0,45), avant description (0,25, plein texte seul) ; une requête de
+  plusieurs mots lue d'un bloc passe devant les mêmes mots épars ; un titre égal à la requête passe
+  devant. À pertinence égale : par date (une exposition en cours d'abord).
+
+`app_search` rend une ligne `(event_id, rank)` par événement, `rank` partant de 1 (le plus
+pertinent), `max_results` au plus (1 à 100). Ce sont des lignes de la table `app_search_results`,
+toujours vide (RLS sans politique, aucun droit), dont la clé étrangère vers `events` permet
+d'embarquer l'événement avec le select habituel de l'app et de trier par rang, en un seul appel. Un
+`setof events` trié par la fonction ne suffisait pas : PostgREST joint lieux et villes par hachage
+autour d'elle, et l'ordre des lignes se perdait (vu sur PostgREST v13.0.5, la version de la prod).
+
+```dart
+final rows = await supabase
+    .rpc('app_search', params: {
+      'query': query,
+      'city_ids': cityPreferences.effectiveCityIds, // [] : toutes les villes
+    })
+    .select('rank, event:events($eventSelect)') // le select de la liste, jointures comprises
+    .order('rank', ascending: true) as List<dynamic>;
+// [{"rank":1,"event":{"id":"…","title":"Concert de LUIZA avec Première Partie",…}}, …]
+final events = [
+  for (final row in rows)
+    if (row['event'] is Map<String, dynamic>) Event.fromJson(row['event']),
+];
+```
+
+`app_search_names` : les noms qui correspondent (mêmes règles, sur le nom seul), au plus
+`max_results` de chaque sorte (1 à 50), seulement s'ils ont au moins un événement à venir ; `rank` :
+catégories, puis tags, lieux, organisateurs, chacun du plus pertinent au moins pertinent (puis le plus
+fourni). L'ordre n'étant pas garanti sans `order`, trier sur `rank`.
+
+| `kind` | `events_count` | `is_organizer` | `image_url` | `city` |
+| --- | --- | --- | --- | --- |
+| `category` (active) | comme `app_category_counts` (par id ou nom) | false | null | null |
+| `tag` | comme `app_tag_counts` | false | null | null |
+| `location` | comme `app_organizer_counts` (s'y tient ou organisé par lui, une fois chacun) | organise au moins un de ces événements | image du lieu | ville du lieu |
+| `organizer` | comme `app_organizer_counts` | true | logo, à défaut icône | null |
+
+Un organisateur qui porte le nom d'un lieu (sans accents ni casse ; un en prod, « Noraebang ») n'est
+pas rendu à part : ses événements comptent avec ceux du lieu, comme l'app réunissait déjà les deux.
+
+```dart
+final names = await supabase
+    .rpc('app_search_names', params: {
+      'query': query,
+      'city_ids': cityPreferences.effectiveCityIds,
+    })
+    .order('rank', ascending: true) as List<dynamic>;
+// [{"rank":1,"kind":"location","id":"78d1fda4-…","name":"Théâtre d'orléans","events_count":84,
+//   "is_organizer":true,"image_url":"https://…/locations-images/…","city":"Orléans"}]
+```
+
+Sur l'instantané prod du 2026-10-20 (367 événements à venir, toutes villes) :
+
+| Requête | `app_search` (au plus 100) | `app_search_names` |
+| --- | --- | --- |
+| concert | 54 : les 2 titres, puis les autres événements de la catégorie (47 en tout), puis 6 descriptions | Concert (catégorie) 47, #Concert 8 |
+| concrt | 48 | les mêmes |
+| theatre d orleans | 100, ceux du lieu d'abord | Théâtre d'orléans (lieu) 84 |
+| luiza | 2 (titres ; « LUIZA + 1ERE PARTIE » a aussi l'artiste lié) | — |
+| jaz | 8 : « … Jazzy » (titre), puis les 4 autres du tag Jazz, puis 3 descriptions | #Jazz 5 |
+| tete noire | 49 | Théâtre de la Tête Noire (lieu) 48 |
+
+Les comptes de `app_search_names` égalent, sur tout l'instantané, ceux d'`app_category_counts`
+(9 catégories), d'`app_tag_counts` (71 tags) et d'`app_organizer_counts` (33 lieux et organisateurs).
+
+Index : aucun. Sous la RLS d'`events`, ni `%` ni `@@` (non « leakproof ») ne serviraient d'index : la
+fonction lit les événements à venir par l'index sur `date` (`app_events_in_range`), puis compare leurs
+textes ; le plein texte d'une description et les trigrammes ne sont calculés que pour un texte qui
+contient le début de la racine ou un trigramme du mot. Mesuré sur une base locale chargée de
+l'instantané (Postgres 17.6, PostgREST v13.0.5, rôle anon, l'appel complet de l'app avec ses
+jointures, 30 événements, ~90 Ko) : `app_search` 25 à 45 ms aller-retour, dont ~25 ms en base ;
+`app_search_names` 7 à 11 ms. Avec 5 000 événements passés de plus : inchangé (index sur `date`) ;
+avec 3 fois plus d'événements à venir (1 137) : ~75 ms en base, linéaire.
 
 ## Incohérences relevées, non corrigées
 
