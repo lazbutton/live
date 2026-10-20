@@ -1,3 +1,4 @@
+import { cleanEventDescription, cleanEventTitle } from "@/lib/collecte/event-text";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import { toDatetimeLocal } from "@/lib/date-utils";
@@ -21,8 +22,12 @@ export function buildEventFormPrefillFromRequest(request: any): EventFormPrefill
 
   return {
     form: {
-      title: eventData.title || eventData.name || "",
-      description: eventData.description || request?.notes || "",
+      // Pages lues par la collecte automatique, saisies de l'app : titre et description nettoyés.
+      title: cleanEventTitle(eventData.title || eventData.name || "", {
+        venues: [eventData.location, request?.location_name],
+        category: typeof eventData.category === "string" ? eventData.category : null,
+      }),
+      description: cleanEventDescription(eventData.description) || request?.notes || "",
       date: toDatetimeLocal(eventData.date),
       end_date: toDatetimeLocal(eventData.end_date),
       category: eventData.category || "",
