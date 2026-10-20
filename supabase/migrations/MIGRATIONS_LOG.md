@@ -213,3 +213,8 @@
   ids inconnus ou en double, droits d'exécution, lignes lisibles par chacun, favori ajouté et retiré).
   `lib/supabase/database.types.ts` régénéré.
 - App : PR de `live` qui passe « Mes suggestions » par `event_like_counts` (un appel pour toutes les contributions).
+- **Les deux appliquées en prod le 20/10/2026** (psql, une transaction par fichier, `SET ROLE postgres`), sans
+  erreur, sur décision de l'utilisateur de ne pas attendre la mise à jour de l'app (une seule ligne dans la table).
+  Vérifié le même jour : en anon, `GET /rest/v1/event_likes` → `[]` ; `rpc/event_like_counts` → le compte (1) de
+  l'événement aimé, rien pour un id inconnu ; policy SELECT « Users can view their own event likes » seule.
+  Les versions de l'app d'avant la PR afficheront 0 favori dans « Mes suggestions ».

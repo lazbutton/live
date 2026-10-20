@@ -4,6 +4,7 @@
 -- PAR event_like_counts() (20261020180000_create_event_like_counts.sql). Avant, « Mes suggestions »
 -- lisait toutes les lignes d'un événement pour les compter : avec cette policy, une ancienne version
 -- y afficherait 0 (ou 1, le favori de l'utilisateur). Date d'application : voir MIGRATIONS_LOG.md.
+-- Appliquée en prod le 2026-10-20 sans attendre (décision de l'utilisateur : une seule ligne dans la table).
 --
 -- Avant : « Users can view all event likes », `USING (true)` pour public (anon compris) : avec la
 -- clé publique, n'importe qui lisait quel utilisateur avait aimé quel événement.
