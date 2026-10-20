@@ -411,6 +411,15 @@
 - Testée : `npm run db:test` (copie privée du script) : `supabase/tests/remove_notion_sync.test.sql` (7 cas : plus
   aucun objet Notion, écritures sur les 5 tables, purge) et toute la suite ; U39 rejouée après le retrait, puis le
   retrait rejoué, sans erreur. `lib/supabase/database.types.ts` régénéré : 7 tables et 3 fonctions en moins.
-- **Pas encore appliquée en prod.**
+- Répétée en prod dans une transaction annulée : 7 tables, 9 fonctions (purge comprise) et 5 triggers Notion avant,
+  aucun après ; droits de la purge réduits à postgres et service_role ; U39 rejouée derrière, sans erreur.
+- Données exportées avant l'application (lecture seule, 20/10 à 23:04 UTC) dans
+  `~/Documents/Backups/outlive/notion-2026-10-20/` sur la machine de l'utilisateur, hors dépôt : un CSV par table
+  (lignes recomptées), `SHA256SUMS`, `README.txt` (comment restaurer).
+- **Appliquée en prod le 21/10/2026 à 01:05 (23:05 UTC le 20/10)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s), sans erreur, en environ 1 s. Vérifié après, en
+  lecture seule : aucune table, fonction ni trigger Notion ; purge à postgres et service_role seulement ; autres
+  triggers des 5 tables intacts ; `app_events()` rend 391 événements. Jusqu'au déploiement de ce code, l'ancien
+  cron `notion-sync` (02:00 UTC) et la carte Notion des réglages échouent, sans autre effet.
 - Vercel : les 9 variables `NOTION_*` (Production, Preview, Development) seront retirées une fois ce code déployé,
   avec l'accord de l'utilisateur. Côté Notion (à faire par l'utilisateur) : l'intégration et son abonnement webhook.
