@@ -185,6 +185,14 @@ const PHRASE_WORDS = new Set(["a", "au", "aux", "avec", "d", "dans", "de", "des"
 
 const PLAIN_FIRST_NAMES = new Set([...FIRST_NAMES].map(plain));
 
+/** Adjectifs placés avant le nom, en majuscule eux aussi dans un titre (« La Petite Scène », « Le Grand Bain »). */
+const PRE_NOUN_ADJECTIVES = new Set([
+  "beau", "belle", "bon", "bonne", "dernier", "derniere", "grand", "grande", "grands", "grandes", "gros", "grosse",
+  "jeune", "nouveau", "nouvelle", "petit", "petite", "petits", "petites", "premier", "premiere", "vieux", "vieille",
+]);
+/** Mots qui ne prennent pas la majuscule après l'article d'un titre (« Le plus beau… »). */
+const TITLE_STOP_WORDS = new Set(["meme", "memes", "moins", "plus", "tres", "trop"]);
+
 /** Majuscule à la première lettre, minuscules ensuite (« (BY » → « (By »). */
 function capitalize(word: string) {
   return word.toLowerCase().replace(/^(\P{L}*)(\p{L})/u, (_match, lead: string, letter: string) => lead + letter.toUpperCase());
@@ -260,15 +268,38 @@ function sentenceCase(segment: string, knownNames: KnownName[]) {
     }
     return sentenceWord(word);
   });
-  // Majuscule en tête (pas après un nombre : « 20 ans ») et après une fin de phrase (« ! La Passerelle »).
+  const upperFirst = (word: string) => word.replace(/\p{L}/u, (letter) => letter.toUpperCase());
+  const startsWithLetter = (word: string) => /^\P{L}*\p{L}/u.test(word) && !/^\P{L}*\p{N}/u.test(word);
+  // Majuscule en tête (pas après un nombre : « 20 ans ») et après une fin de phrase (« ! La Passerelle »),
+  // pas après des points de suspension (« Paul... et les autres »).
   let atStart = true;
   for (let index = 0; index < cased.length; index += 1) {
     const word = cased[index];
-    const startsSentence = atStart || (index > 0 && /[.!?…]$/.test(cased[index - 1]));
-    if (startsSentence && /^\P{L}*\p{L}/u.test(word) && !/^\P{L}*\p{N}/u.test(word)) {
-      cased[index] = word.replace(/\p{L}/u, (letter) => letter.toUpperCase());
-    }
+    const previous = index > 0 ? cased[index - 1] : "";
+    const startsSentence = atStart || (/[.!?]$/.test(previous) && !/(\.\.|…)$/.test(previous));
+    if (startsSentence && startsWithLetter(word)) cased[index] = upperFirst(word);
     if (/[\p{L}\p{N}]/u.test(word)) atStart = false;
+  }
+  const first = cased.findIndex((word) => LETTER.test(word));
+  const firstKey = first >= 0 ? plain(cased[first]) : "";
+  if (first >= 0 && /^(?:le|la|les)$/.test(firstKey)) {
+    // Titre d'œuvre qui commence par l'article défini : majuscule au nom qui suit, et à l'adjectif qui le
+    // précède (« Le Malade imaginaire », « La Petite Scène », « Les Simones »).
+    let next = first + 1;
+    for (let count = 0; next < cased.length && count < 2; next += 1) {
+      if (!LETTER.test(cased[next])) continue;
+      if (TITLE_STOP_WORDS.has(plain(cased[next]))) break;
+      cased[next] = upperFirst(cased[next]);
+      if (!PRE_NOUN_ADJECTIVES.has(plain(cased[next]))) break;
+      count += 1;
+    }
+  } else if (first >= 0 && /^l'\p{L}/u.test(firstKey)) {
+    cased[first] = cased[first].replace(/^(\P{L}*\p{L}['’])(\p{L})/u, (_match, head: string, letter: string) => head + letter.toUpperCase());
+  } else if (first >= 0 && PLAIN_FIRST_NAMES.has(firstKey.replace(/[^a-z]/g, "")) && /,$/.test(cased[first])) {
+    // Liste de prénoms en tête : « William, Yolanda, Paul... et les autres ».
+    for (let index = first + 1; index < cased.length && /,$/.test(cased[index - 1]); index += 1) {
+      cased[index] = upperFirst(cased[index]);
+    }
   }
   // Noms connus de plusieurs mots (« La Passerelle ») : leur graphie.
   const keys = words.map(plain);

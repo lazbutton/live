@@ -28,6 +28,7 @@ type ReviewedEvent = {
   date: string | null;
   status: string | null;
   category: string | null;
+  address: string | null;
   location: { name: string | null } | null;
 };
 
@@ -60,7 +61,7 @@ async function loadTitleGroups(ignored: Set<string>): Promise<TitleReviewGroup[]
   const [eventsResult, categoriesResult, ...names] = await Promise.all([
     supabase
       .from("events")
-      .select("id, title, date, status, category, location:locations(name)")
+      .select("id, title, date, status, category, address, location:locations(name)")
       .eq("archived", false)
       .in("status", ["approved", "pending"])
       .or(`date.gte.${today}T00:00:00,end_date.gte.${today}T00:00:00`)
@@ -82,7 +83,8 @@ async function loadTitleGroups(ignored: Set<string>): Promise<TitleReviewGroup[]
     if (!title || ignored.has(title)) continue;
     const venue = event.location?.name ?? null;
     const { issues, suggestion } = findTitleIssues(title, {
-      venues: [venue],
+      // Sans fiche de lieu, l'adresse garde le lieu annoncé (« Église Saint-Paterne, … »).
+      venues: [venue, event.address?.split(",")[0]],
       category: event.category ? (categories.get(event.category) ?? event.category) : null,
       knownNames,
     });

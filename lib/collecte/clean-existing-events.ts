@@ -14,6 +14,8 @@ export type EventTextRow = {
   status: string | null;
   categoryName: string | null;
   locationName: string | null;
+  /** Adresse : celle du lieu, ou le lieu annoncé d'un événement en attente (« Église Saint-Paterne, … »). */
+  address: string | null;
   artistNames: string[];
 };
 
@@ -36,7 +38,7 @@ export function planEventTextCleanup(
     const description = row.description ?? "";
     const newTitle = fields.includes("title")
       ? cleanEventTitle(title, {
-          venues: [row.locationName],
+          venues: [row.locationName, row.address?.split(",")[0]],
           category: row.categoryName,
           knownNames: [...knownNames, ...row.artistNames],
         })
@@ -69,7 +71,7 @@ export async function loadEventTextRows(supabase: Client) {
     readAll<any>(() =>
       supabase
         .from("events")
-        .select("id, title, description, date, status, category, location:locations(name), event_artists(artist:artists(name))")
+        .select("id, title, description, date, status, category, address, location:locations(name), event_artists(artist:artists(name))")
         .eq("archived", false)
         .in("status", ["approved", "pending"])
         .order("date", { ascending: true }),
@@ -88,6 +90,7 @@ export async function loadEventTextRows(supabase: Client) {
     status: event.status,
     categoryName: event.category ? (categoryNames.get(event.category) ?? null) : null,
     locationName: event.location?.name ?? null,
+    address: event.address ?? null,
     artistNames: ((event.event_artists || []) as any[]).map((link) => link.artist?.name).filter(Boolean),
   }));
   const knownNames = names.flat().map((row) => row.name).filter((name): name is string => Boolean(name));
