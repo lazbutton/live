@@ -205,7 +205,8 @@
 - Testée : `npm run db:test` (14 cas dans `supabase/tests/copy_guest_data.test.sql` : compte neuf, compte qui a
   ses préférences, appel rejoué, invité appelant, session d'un compte, inconnue ou nulle, id d'utilisateur à la
   place de l'id de session, anon). `lib/supabase/database.types.ts` régénéré.
-- **Pas encore appliquée en prod.** À appliquer (psql, une transaction, `SET ROLE postgres`) avant de publier la
-  version de l'app qui l'appelle ; une version qui l'appelle sans elle reçoit une erreur et ne recopie que les
-  favoris connus sur l'appareil, comme avant. Vérification en authenticated : `rpc/copy_guest_data` avec un id de
-  session inconnu → 403 (`42501`) ; en anon → 401 ou 403 (pas d'`execute`).
+- **Appliquée en prod le 20/10/2026** (psql, une transaction, `SET ROLE postgres`), sans erreur, avec l'accord de
+  l'utilisateur. Vérifié avant : `auth.users.is_anonymous` présent, `auth.sessions` lisible par postgres, les quatre
+  contraintes uniques en place, aucun trigger à l'insertion. Vérifié après : propriétaire postgres, `security definer`,
+  `search_path` vide, `execute` à authenticated et pas à anon ; dans une transaction annulée, un appelant inconnu →
+  `42501` ; par PostgREST avec la clé anon → 401 (`42501`). Pas d'appel avec un vrai compte (aucune donnée recopiée).
