@@ -429,9 +429,9 @@ const HASHTAG = /#\p{L}[\p{L}\p{N}_]*/gu;
 const SIGNATURE =
   /^(?:[-–—]\s*)?(?:l['’]équipe|toute l['’]équipe|la team|bisous|bises|à (?:très )?(?:vite|bientôt)|a (?:tres )?(?:vite|bientot)|cordialement|amicalement|see you)\b/iu;
 
-/** Débuts de phrase reconnus quand ils sont collés au mot précédent (« ansSoyez », « ArcEn »). */
+/** Débuts de phrase reconnus quand ils sont collés au mot précédent (« ansSoyez », « ArcEn », « 20 €A partir »). */
 const SENTENCE_STARTS = [
-  "Au", "Aux", "Avec", "Ce", "Cette", "Dans", "Des", "Elle", "Elles", "En", "Et", "Il", "Ils", "La", "Le", "Les",
+  "A partir", "À partir", "Au", "Aux", "Avec", "Ce", "Cette", "Dans", "Des", "Elle", "Elles", "En", "Et", "Il", "Ils", "La", "Le", "Les",
   "Mais", "Nous", "On", "Pour", "Puis", "Réservez", "Si", "Soyez", "Sur", "Un", "Une", "Venez", "Vous",
 ].join("|");
 
@@ -468,6 +468,10 @@ export function cleanEventDescription(text: string | null | undefined) {
     .replace(/^ ?[-*•·]{4,} ?$/gm, "")
     // Fin de phrase collée au début d'un bloc : « possible.Tu verras », « Orléans !Jusqu'ici ».
     .replace(/([\p{Ll}\p{N}…»)\]] ?[.!?…]+)(?=\p{Lu}\p{Ll})/gu, "$1\n")
+    // Phrase en capitales collée : « le coeur ?OUVERTURE DES PORTES ».
+    .replace(/([\p{Ll}\p{N}…»)\]] ?[.!?…]+)(?=\p{Lu}{2,}(?!\p{Ll}))/gu, "$1\n")
+    // Puce collée : « Sessions :• 18h45 (…)• 20h15 ».
+    .replace(/(\S)•(?= )/g, "$1\n•")
     // Intitulé collé à la suite : « Y accéder :En tram ».
     .replace(/(\S) ?:(?=\p{Lu}\p{Ll})/gu, "$1 :\n")
     // Puce en émoji collée : « pratiques📍 Lieu », « Orléans🚋 Y accéder ».
@@ -475,10 +479,16 @@ export function cleanEventDescription(text: string | null | undefined) {
     // Bloc en capitales collé : « Palapapai ProdTOUT PUBLIC » (pas « iOS »), « COMEDY CLUBPréparez-vous »,
     // « FANJANCe groupe » (pas « DVDs »), « rafraîchissanteJ'ai connu ».
     .replace(/(\p{Ll})(?=\p{Lu}{3,}(?!\p{Ll}))/gu, "$1\n")
-    .replace(/(\p{Lu}{2,})(?=\p{Lu}(?:\p{Ll}{2,}|[a-rt-zà-ÿ](?!\p{L})))/gu, "$1\n")
+    .replace(/(\p{Lu}{2,})(\p{Lu}\p{Ll}+)/gu, (match, caps: string, word: string) =>
+      // Pas un nombre romain et son suffixe (« XXIe siècle », « XIXème »), ni un sigle au pluriel (« DVDs »).
+      /^[IVXLCDM]+$/.test(caps + word[0]) && /^(?:e|er|re|ère|ème|eme|es|ers|res)$/.test(word.slice(1)) ||
+      word.slice(1) === "s"
+        ? match
+        : `${caps}\n${word}`,
+    )
     .replace(/(\p{Ll})(?=\p{Lu}['’]\p{Ll})/gu, "$1\n")
     // Phrase collée au mot précédent : « 16 ansSoyez sur place », « Jeanne d'ArcEn voiture » (pas « YouTube »).
-    .replace(new RegExp(`(\\p{Ll})(?=(?:${SENTENCE_STARTS})\\s)`, "gu"), "$1\n")
+    .replace(new RegExp(`([\\p{Ll}€)])(?=(?:${SENTENCE_STARTS})\\s)`, "gu"), "$1\n")
     .replace(/⟦(\d+)⟧/g, (_match, index: string) => urls[Number(index)]);
 
   const lines: string[] = [];
