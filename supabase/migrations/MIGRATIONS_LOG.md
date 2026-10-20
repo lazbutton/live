@@ -191,3 +191,30 @@
 - **Appliquée en prod le 20/10/2026** (psql, une transaction, `SET ROLE postgres`), sans erreur. Vérifiée en anon
   le même jour : les 28 organisateurs reliés à des événements, aucun écart avec un calcul indépendant ; Théâtre
   d'orléans 84.
+
+## 2026-10-20 — `event_like_counts()` et lecture de `event_likes` réservée à son auteur
+
+- Constat (prod, 2026-10-20) : la policy SELECT « Users can view all event likes » de `event_likes` est
+  `USING (true)` pour public, et anon a SELECT : avec la clé publique, n'importe qui lit quel utilisateur
+  (`user_id`) a aimé quel événement. L'app s'en servait pour compter les favoris de « Mes suggestions »
+  (`EventLikeService.getLikeCount` : toutes les lignes d'un événement).
+- `20261020180000_create_event_like_counts` : `event_like_counts(event_ids uuid[])` → `(event_id, likes_count)`,
+  pour les événements visibles dans l'app (`app_events()`) et ceux créés par l'appelant (`created_by`, quel que
+  soit leur statut) ; pas de ligne pour les autres ; au plus 200 ids. `security definer`, `set search_path = ''`,
+  `stable` ; `execute` à anon et authenticated, retiré à public. Aucune table modifiée.
+- `20261020181000_restrict_event_likes_select` : remplace la policy par « Users can view their own event likes »
+  (`TO authenticated USING ((select auth.uid()) = user_id)`), comme INSERT et DELETE. L'app ne lit que les lignes
+  de l'utilisateur (`user_id` filtré : cœur, liste des favoris) ; l'admin ne lit pas la table. **À appliquer
+  quand les versions de l'app en circulation passent par `event_like_counts`** : une ancienne version
+  afficherait 0 favori (ou 1) dans « Mes suggestions ». En prod le 2026-10-20 : une seule ligne dans
+  `event_likes`, sur un événement qui n'est pas une suggestion communautaire (aucun compteur affiché) :
+  appliquer maintenant ne change rien de visible.
+- Testées : `npm run db:test` (9 cas dans `supabase/tests/event_likes.test.sql` : anon, auteur, autre compte,
+  ids inconnus ou en double, droits d'exécution, lignes lisibles par chacun, favori ajouté et retiré).
+  `lib/supabase/database.types.ts` régénéré.
+- App : PR de `live` qui passe « Mes suggestions » par `event_like_counts` (un appel pour toutes les contributions).
+- **Les deux appliquées en prod le 20/10/2026** (psql, une transaction par fichier, `SET ROLE postgres`), sans
+  erreur, sur décision de l'utilisateur de ne pas attendre la mise à jour de l'app (une seule ligne dans la table).
+  Vérifié le même jour : en anon, `GET /rest/v1/event_likes` → `[]` ; `rpc/event_like_counts` → le compte (1) de
+  l'événement aimé, rien pour un id inconnu ; policy SELECT « Users can view their own event likes » seule.
+  Les versions de l'app d'avant la PR afficheront 0 favori dans « Mes suggestions ».
