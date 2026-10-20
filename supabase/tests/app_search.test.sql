@@ -1,4 +1,4 @@
--- Tests de app_search() et app_search_names() (migration 20261020160000_create_app_search.sql).
+-- Tests de app_search() et app_search_names() (migration 20261020170000_create_app_search.sql).
 --
 -- Sur une base jetable avec toutes les migrations et aucun événement : scripts/db-test.sh.
 -- Jamais en prod : tout se passe dans une transaction annulée, mais le script s'arrête de lui-même

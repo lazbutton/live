@@ -355,7 +355,7 @@ AS $$
 $$;
 
 COMMENT ON FUNCTION public.app_search(text, uuid[], timestamp, integer) IS
-  'Recherche de l''app : événements à venir (app_events_in_range à partir d''aujourd''hui, heure de Paris, périmètre city_ids) dont chaque mot exigé de la requête se trouve dans le titre, les artistes liés, le lieu, les organisateurs, la catégorie, les tags, la ville ou la description (sans accents ni casse ; mot entier, début de mot, racine française, faute de frappe). Une ligne (event_id, rank) par événement, rank 1 le plus pertinent puis par date ; max_results au plus (1 à 100, 30 par défaut). Appel : rpc/app_search?select=rank,event:events(…)&order=rank. Règle complète : migration 20261020160000.';
+  'Recherche de l''app : événements à venir (app_events_in_range à partir d''aujourd''hui, heure de Paris, périmètre city_ids) dont chaque mot exigé de la requête se trouve dans le titre, les artistes liés, le lieu, les organisateurs, la catégorie, les tags, la ville ou la description (sans accents ni casse ; mot entier, début de mot, racine française, faute de frappe). Une ligne (event_id, rank) par événement, rank 1 le plus pertinent puis par date ; max_results au plus (1 à 100, 30 par défaut). Appel : rpc/app_search?select=rank,event:events(…)&order=rank. Règle complète : migration 20261020170000.';
 
 GRANT EXECUTE ON FUNCTION public.app_search(text, uuid[], timestamp, integer) TO anon, authenticated;
 

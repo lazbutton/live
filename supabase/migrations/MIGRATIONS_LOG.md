@@ -194,7 +194,7 @@
 
 ## 2026-10-20 — `app_search()` et `app_search_names()` : recherche plein texte de l'app
 
-- `20261020160000_create_app_search` : la recherche de l'app sur toute la base (audit UI/UX du 2026-10-20,
+- `20261020170000_create_app_search` : la recherche de l'app sur toute la base (audit UI/UX du 2026-10-20,
   U1 : « concert » ne rendait qu'un résultat, l'app ne cherchant que dans les 200 événements chargés).
   - `app_search(query, city_ids, at_time, max_results)` : événements à venir (comme les comptes de la recherche)
     dont chaque mot exigé se trouve dans le titre, les artistes liés, le lieu, les organisateurs, la catégorie,
