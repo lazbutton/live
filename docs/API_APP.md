@@ -536,6 +536,37 @@ Instantané prod du 2026-10-20 : Théâtre d'orléans 84, Théâtre de la Tête 
 Artéphé 35, L'astrolabe 22. Les maquettes affichaient 40 pour le Théâtre d'orléans : l'app comptait
 alors les seuls événements chargés (`SearchPlace.index`), une partie des 84.
 
+## Données d'un invité recopiées sur le compte : `copy_guest_data`
+
+```sql
+copy_guest_data(guest_session_id uuid)
+  returns table (likes integer, hidden_events integer, notification_preferences integer,
+                 notification_categories integer)
+```
+
+L'app ouvre une session anonyme par installation. Quand la personne se connecte ou crée un compte,
+`AuthCoordinator` (app) appelle cette fonction avec le jeton du compte : elle recopie sur lui les favoris
+(`event_likes`) et les événements masqués (`user_hidden_events`) de l'invité, sans doublons, et ses
+préférences de notification (`user_notification_preferences` et `user_notification_categories`) si le
+compte n'en a pas encore. L'invité garde les siennes ; rejouer l'appel n'ajoute rien. Rend une ligne : le
+nombre de lignes ajoutées par table.
+
+- `guest_session_id` : l'id de la session de l'invité (`auth.sessions.id`), claim `session_id` de son jeton.
+  Il prouve que l'appelant a tenu cette session ; l'id de l'utilisateur invité ne suffit pas (il est public
+  s'il a créé un événement publié). La session reste en base quand l'app passe au compte.
+- Refusé (erreur `42501`, HTTP 403, rien d'écrit) : appelant invité ou sans session, session inconnue ou
+  d'un compte. `execute` à authenticated seulement.
+- Avant cette fonction, l'app lisait les lignes de l'invité avec le jeton du compte : la RLS (« chacun les
+  siennes ») ne rendait rien, et seuls les favoris connus sur l'appareil passaient.
+
+```dart
+final rows = await supabase.rpc(
+  'copy_guest_data',
+  params: {'guest_session_id': decodeJwt(guestSession.accessToken).payload.claims['session_id']},
+) as List<dynamic>;
+// [{"likes":2,"hidden_events":1,"notification_preferences":1,"notification_categories":1}]
+```
+
 ## Incohérences relevées, non corrigées
 
 1. **Alertes admin rejouables.** Les données personnelles exposées (`diagnostics`, ids d'admin dans

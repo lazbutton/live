@@ -191,3 +191,21 @@
 - **Appliquée en prod le 20/10/2026** (psql, une transaction, `SET ROLE postgres`), sans erreur. Vérifiée en anon
   le même jour : les 28 organisateurs reliés à des événements, aucun écart avec un calcul indépendant ; Théâtre
   d'orléans 84.
+
+## 2026-10-20 — `copy_guest_data()` : les données d'un invité passent sur son compte
+
+- `20261020200000_create_copy_guest_data` : appelée par l'app à la connexion d'un compte, avec l'id de la session
+  invitée (`auth.sessions.id`, claim `session_id` du jeton de l'invité). Recopie sur l'appelant les favoris et les
+  masqués de l'invité (sans doublons), et ses préférences de notification avec leurs catégories si le compte n'en a
+  pas. Appelant non anonyme, source anonyme (`auth.users.is_anonymous`), sinon `42501`. Audit UI/UX du 2026-10-20
+  (U6) : l'app lisait ces lignes avec le jeton du compte, la RLS ne lui rendait rien.
+- `language plpgsql`, `security definer`, `set search_path = ''` ; `execute` à authenticated seulement. Lit
+  `auth.users` et `auth.sessions`, écrit `event_likes`, `user_hidden_events`, `user_notification_preferences`,
+  `user_notification_categories` (aucun trigger à l'insertion sur ces tables).
+- Testée : `npm run db:test` (14 cas dans `supabase/tests/copy_guest_data.test.sql` : compte neuf, compte qui a
+  ses préférences, appel rejoué, invité appelant, session d'un compte, inconnue ou nulle, id d'utilisateur à la
+  place de l'id de session, anon). `lib/supabase/database.types.ts` régénéré.
+- **Pas encore appliquée en prod.** À appliquer (psql, une transaction, `SET ROLE postgres`) avant de publier la
+  version de l'app qui l'appelle ; une version qui l'appelle sans elle reçoit une erreur et ne recopie que les
+  favoris connus sur l'appareil, comme avant. Vérification en authenticated : `rpc/copy_guest_data` avec un id de
+  session inconnu → 403 (`42501`) ; en anon → 401 ou 403 (pas d'`execute`).
