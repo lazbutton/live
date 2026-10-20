@@ -53,7 +53,7 @@ INSERT INTO public.cities (id, label, label_normalized, slug, is_active) VALUES
   ('0a000000-0000-4000-8000-000000000002', 'Ville B', 'ville b', 'ville-b', true);
 
 -- L1 : théâtre qui organise aussi (ville A) ; L2 : salle (ville B) ; L3 : bar (ville A), homonyme de
--- l'organisateur O2. Les noms passent par format_entity_name_trigger : « Zz Théâtre d'orléans ».
+-- l'organisateur O2. Les noms passent par format_entity_name_trigger : « Zz Théâtre d'Orléans ».
 INSERT INTO public.locations (id, name, address, is_organizer, image_url) VALUES
   ('1a000000-0000-4000-8000-000000000001', 'Zz Théâtre d’Orléans', '1 rue A', true, 'https://img.test/l1.jpg'),
   ('1a000000-0000-4000-8000-000000000002', 'Zz Salle Bleue', '1 rue B', false, NULL),
@@ -202,7 +202,7 @@ SELECT pg_temp.verifie('« fanfare » : la catégorie, ses 7 événements à ven
 SELECT pg_temp.verifie('« jaz » : le tag',
   pg_temp.noms('jaz'), 'tag:Zz Jazz=3');
 SELECT pg_temp.verifie('« theatre d orleans » : le lieu, ses événements et celui qu''il organise ailleurs',
-  pg_temp.noms('theatre d orleans'), 'location:Zz Théâtre d''orléans=11');
+  pg_temp.noms('theatre d orleans'), 'location:Zz Théâtre d''Orléans=11');
 SELECT pg_temp.verifie('lieu : organisateur, image, ville',
   (SELECT is_organizer || ' ' || image_url || ' ' || city FROM public.app_search_names('orleans', NULL, '2026-11-06 19:15')),
   'true https://img.test/l1.jpg Ville A');
@@ -219,7 +219,7 @@ SELECT pg_temp.verifie('salle simple : pas organisatrice',
 SELECT pg_temp.verifie('catégorie inactive, tag sans événement à venir : rien',
   pg_temp.noms('inactive') || '|' || pg_temp.noms('humour'), '|');
 SELECT pg_temp.verifie('« zz », 1 de chaque sorte, dans l''ordre catégories, tags, lieux, organisateurs',
-  pg_temp.noms('zz', nombre => 1), 'category:Zz Fanfare=7 tag:Zz Jazz=3 location:Zz Théâtre d''orléans=11 organizer:Zz Collectif Lune=1');
+  pg_temp.noms('zz', nombre => 1), 'category:Zz Fanfare=7 tag:Zz Jazz=3 location:Zz Théâtre d''Orléans=11 organizer:Zz Collectif Lune=1');
 SELECT pg_temp.verifie('noms, périmètre : ville B',
   pg_temp.noms('fanfare', ARRAY['0a000000-0000-4000-8000-000000000002']::uuid[]), 'category:Zz Fanfare=3');
 SELECT pg_temp.verifie('noms, moins de 2 caractères : rien',

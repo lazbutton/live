@@ -376,7 +376,7 @@ export function onSortCategory(event: OnSortEvent): string | undefined {
   if (concert) return DJ.test(text) ? "DJ Set" : "Concert";
   if (has(CATEGORY.spectacle)) return showTypes.length > 0 && showTypes.every((id) => id === DANCE) ? "Danse" : "Spectacle";
   if (has(CATEGORY.exposition)) return "Expo";
-  if (has(CATEGORY.cinema)) return "Cinema";
+  if (has(CATEGORY.cinema)) return "Cinéma";
   if (has(CATEGORY.rencontre)) return "Rencontre";
   if (has(CATEGORY.atelier)) return "Atelier";
   return undefined;
