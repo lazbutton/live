@@ -7,11 +7,19 @@ import {
   sendNotificationToUser,
 } from "@/lib/notifications";
 import {
-  addDaysToLocalDate,
+  categoryIdsOf,
+  dayRange,
+  digestBody,
+  digestData,
+  digestTitle,
+  planDailyDigest,
+  tonightRange,
+} from "@/lib/notifications/digest";
+import { loadDigestCategories, loadDigestEvents } from "@/lib/notifications/digest-events";
+import {
   getIsoLocalDate,
   getIsoLocalTime,
   getZonedDateParts,
-  zonedTimeToUtc,
 } from "@/lib/cron-timezone";
 
 const DAILY_FLOW = {
@@ -27,33 +35,29 @@ const DAILY_FLOW = {
 };
 const MAX_ROUTE_DIAGNOSTICS = 25;
 
-type DailyDigestEventRow = {
-  id: string;
-  title: string;
-  date: string;
-  end_date: string | null;
-  category: string | null;
-};
-
 /**
  * Vérifie que la requête vient bien de Vercel Cron
  */
 function verifyCronRequest(request: NextRequest): boolean {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  
+
   if (!cronSecret) {
     console.error("❌ CRON_SECRET n'est pas défini dans les variables d'environnement");
     return false;
   }
-  
+
   return authHeader === `Bearer ${cronSecret}`;
 }
 
 /**
  * GET /api/cron/notifications/daily-events
  *
- * Cron job pour envoyer la passe quotidienne des notifications par categories suivies.
+ * Le résumé du matin (U9, `lib/notifications/digest.ts`) : à chaque utilisateur en `daily`, « 3 événements
+ * ce soir dans tes catégories » (de 18 h à 6 h, comme « Ce soir » dans l'app) ; rien ce soir, ce qui reste
+ * aujourd'hui ; rien du tout, pas de message. Les événements sont ceux de l'accueil de l'app
+ * (`app_events_in_range`, heure de Paris). Toucher la notification ouvre l'accueil sur cette période et ces
+ * catégories (données : `docs/API_APP.md`, « Résumés poussés »).
  * Sur Vercel Hobby, l'horaire est pilote par vercel.json avec une precision a l'heure.
  */
 export async function GET(request: NextRequest) {
@@ -68,65 +72,41 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createServiceClient();
     console.log("📅 Démarrage du cron de notifications pour les événements du jour");
-    
-    const now = new Date();
-    const nowInParis = getZonedDateParts(now);
+
+    const nowInParis = getZonedDateParts(new Date());
     const todayInParis = {
       year: nowInParis.year,
       month: nowInParis.month,
       day: nowInParis.day,
     };
-    const tomorrowInParis = addDaysToLocalDate(todayInParis, 1);
-    const todayStart = zonedTimeToUtc({
-      ...todayInParis,
-      hour: 0,
-      minute: 0,
-      second: 0,
-    }).toISOString();
-    const tomorrowStart = zonedTimeToUtc({
-      ...tomorrowInParis,
-      hour: 0,
-      minute: 0,
-      second: 0,
-    }).toISOString();
     const todayLabel = getIsoLocalDate(todayInParis);
 
     console.log(
       `🕒 Référence Europe/Paris: ${todayLabel} ${getIsoLocalTime(nowInParis)}`,
     );
-    
-    // Récupérer les événements approuvés du jour avec leurs catégories (exclure les événements complets)
-    const { data: events, error: eventsError } = await supabase
-      .from("events")
-      .select("id, title, date, end_date, category, location:locations(name, address), event_organizers(organizer:organizers(name))")
-      .eq("status", "approved")
-      .or("is_full.is.null,is_full.eq.false") // Exclure les événements complets
-      .eq("show_on_app", true)
-      .gte("date", todayStart)
-      .lt("date", tomorrowStart)
-      .order("date", { ascending: true });
-    
-    if (eventsError) {
+
+    // Ce soir, et toute la journée (repli) : ce qui y commence, comme l'accueil de l'app le montre.
+    let tonightEvents;
+    let todayEvents;
+    let categories;
+    try {
+      [tonightEvents, todayEvents, categories] = await Promise.all([
+        loadDigestEvents(tonightRange(todayInParis)),
+        loadDigestEvents(dayRange(todayInParis)),
+        loadDigestCategories(),
+      ]);
+    } catch (eventsError: any) {
       console.error("❌ Erreur lors de la récupération des événements:", eventsError);
       return NextResponse.json(
-        { 
-          success: false, 
-          error: eventsError.message 
+        {
+          success: false,
+          error: eventsError?.message || "Impossible de récupérer les événements",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
-    
-    const relevantEvents = ((events ?? []) as DailyDigestEventRow[]).filter((event) => {
-      const start = new Date(event.date);
-      const end = event.end_date ? new Date(event.end_date) : null;
-      if (end && !Number.isNaN(end.getTime())) {
-        return end >= now;
-      }
-      return !Number.isNaN(start.getTime()) && start >= now;
-    });
 
-    if (relevantEvents.length === 0) {
+    if (todayEvents.length === 0 && tonightEvents.length === 0) {
       console.log("ℹ️ Aucun événement aujourd'hui");
       return NextResponse.json({
         success: true,
@@ -135,25 +115,11 @@ export async function GET(request: NextRequest) {
         flow: DAILY_FLOW,
       });
     }
-    
-    console.log(`📋 ${relevantEvents.length} événement(s) pertinent(s) trouvé(s) pour aujourd'hui`);
-    
-    // Filtrer les événements avec catégorie
-    const eventsWithCategory = relevantEvents.filter(
-      (event): event is DailyDigestEventRow & { category: string } =>
-        typeof event.category === "string" && event.category.length > 0,
+
+    const eventsCount = new Set([...tonightEvents, ...todayEvents].map((event) => event.id)).size;
+    console.log(
+      `📋 ${eventsCount} événement(s) aujourd'hui, dont ${tonightEvents.length} ce soir`,
     );
-    
-    if (eventsWithCategory.length === 0) {
-      console.log("ℹ️ Aucun événement avec catégorie trouvé aujourd'hui");
-      return NextResponse.json({
-        success: true,
-        message: "Aucun événement avec catégorie aujourd'hui",
-        eventsCount: 0,
-        notificationsSent: 0,
-        flow: DAILY_FLOW,
-      });
-    }
 
     // Vérifier si les notifications globales sont activées
     const { data: globalSettings } = await supabase
@@ -166,7 +132,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: "Notifications globales désactivées",
-        eventsCount: eventsWithCategory.length,
+        eventsCount,
         notificationsSent: 0,
         flow: DAILY_FLOW,
       });
@@ -192,14 +158,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: "Aucun utilisateur avec notifications activées",
-        eventsCount: eventsWithCategory.length,
+        eventsCount,
         notificationsSent: 0,
         flow: DAILY_FLOW,
       });
     }
 
-    // Grouper les événements par utilisateur selon leurs préférences
-    const eventsByUser: Record<string, typeof eventsWithCategory> = {};
+    // Le résumé de chaque utilisateur, selon ses catégories
+    const digestByUser = new Map<string, NonNullable<ReturnType<typeof planDailyDigest>>>();
 
     let usersWithoutCategories = 0;
     let usersWithoutTokens = 0;
@@ -216,22 +182,20 @@ export async function GET(request: NextRequest) {
         return;
       }
 
-      const userEvents = eventsWithCategory.filter(
-        (event) => userCategoryIds.includes(event.category),
-      );
-      if (userEvents.length > 0) {
-        eventsByUser[user.user_id] = userEvents;
+      const plan = planDailyDigest(tonightEvents, todayEvents, userCategoryIds, categories);
+      if (plan) {
+        digestByUser.set(user.user_id, plan);
       }
     });
 
-    if (Object.keys(eventsByUser).length === 0) {
+    if (digestByUser.size === 0) {
       console.log(
         `ℹ️ Aucun utilisateur éligible pour les événements d'aujourd'hui (users=${enabledUsers.length}, sans_categories=${usersWithoutCategories}, sans_tokens=${usersWithoutTokens})`,
       );
       return NextResponse.json({
         success: true,
         message: "Aucun utilisateur éligible",
-        eventsCount: eventsWithCategory.length,
+        eventsCount,
         notificationsSent: 0,
         flow: DAILY_FLOW,
         debug: {
@@ -244,7 +208,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(
-      `📱 ${Object.keys(eventsByUser).length} utilisateur(s) éligible(s) sur ${enabledUsers.length} (sans_categories=${usersWithoutCategories}, sans_tokens=${usersWithoutTokens})`,
+      `📱 ${digestByUser.size} utilisateur(s) éligible(s) sur ${enabledUsers.length} (sans_categories=${usersWithoutCategories}, sans_tokens=${usersWithoutTokens})`,
     );
 
     let totalSent = 0;
@@ -254,36 +218,23 @@ export async function GET(request: NextRequest) {
     const deliveryDiagnostics: Array<Record<string, any>> = [];
 
     // Envoyer une seule notification par utilisateur avec tous ses événements
-    for (const [userId, userEvents] of Object.entries(eventsByUser)) {
+    for (const [userId, plan] of digestByUser) {
       try {
-        const eventIds = userEvents.map((event) => event.id);
-        const eventTitles = userEvents
-          .slice(0, 3)
-          .map((event) => event.title)
-          .join(", ");
-        const moreEvents = userEvents.length > 3 ? ` et ${userEvents.length - 3} autre(s)` : "";
-        
-        const title = "Événements du jour 📅";
-        const body = userEvents.length === 1
-          ? `${userEvents[0].title} a lieu aujourd'hui !`
-          : `${userEvents.length} événement(s) prévu(s) aujourd'hui : ${eventTitles}${moreEvents}`;
-        
-        const categories = [...new Set(userEvents.map((event) => event.category))];
+        const userEvents = plan.events;
+        const categoryIds = categoryIdsOf(userEvents, categories);
+        const title = digestTitle(userEvents.length, plan.period);
+        const body = digestBody(userEvents.map((event) => event.title));
+        const data = digestData({
+          period: plan.period,
+          date: todayLabel,
+          categoryIds,
+          eventIds: userEvents.map((event) => event.id),
+        });
 
         const deliveryKey = `daily_events:${todayLabel}:${userId}`;
         const claim = await claimNotificationDelivery({
           userId,
-          payload: {
-            title,
-            body,
-            data: {
-              type: "daily_events",
-              date: todayLabel,
-              event_ids: eventIds,
-              events_count: userEvents.length,
-              categories,
-            },
-          },
+          payload: { title, body, data },
           deliveryDate: todayLabel,
           deliveryKey,
           flowType: "daily_events",
@@ -300,24 +251,15 @@ export async function GET(request: NextRequest) {
                   ? "Notification déjà réservée par une autre exécution en cours"
                   : "Notification déjà envoyée pour ce digest quotidien",
               eventsCount: userEvents.length,
-              categories,
+              period: plan.period,
+              categories: categoryIds,
               deliveryKey,
             });
           }
           continue;
         }
 
-        const result = await sendNotificationToUser(userId, {
-          title,
-          body,
-          data: {
-            type: "daily_events",
-            date: todayLabel,
-            event_ids: eventIds,
-            events_count: userEvents.length,
-            categories,
-          },
-        }, {
+        const result = await sendNotificationToUser(userId, { title, body, data }, {
           notificationLogId: claim.logId,
         });
 
@@ -335,7 +277,8 @@ export async function GET(request: NextRequest) {
             userId,
             status: result.success && result.sent > 0 ? "sent" : "failed",
             eventsCount: userEvents.length,
-            categories,
+            period: plan.period,
+            categories: categoryIds,
             deliveryKey,
             reclaimedStaleClaim: claim.reclaimedStale ?? false,
             diagnostics: result.diagnostics,
@@ -354,21 +297,21 @@ export async function GET(request: NextRequest) {
         }
       }
     }
-    
+
     const result = {
       success: totalFailed === 0,
       sent: totalSent,
       failed: totalFailed,
       errors: errors.length > 0 ? errors : [],
     };
-    
+
     console.log(`✅ Notifications envoyées: ${result.sent} réussies, ${result.failed} échecs`);
-    
+
     return NextResponse.json({
       success: result.success,
-      message: `Notifications envoyées pour ${eventsWithCategory.length} événement(s)`,
-      eventsCount: eventsWithCategory.length,
-      usersEligible: Object.keys(eventsByUser).length,
+      message: `Notifications envoyées pour ${eventsCount} événement(s)`,
+      eventsCount,
+      usersEligible: digestByUser.size,
       enabledUsers: enabledUsers.length,
       notificationsSent: result.sent,
       notificationsFailed: result.failed,
@@ -379,11 +322,11 @@ export async function GET(request: NextRequest) {
         enabledUsers: enabledUsers.length,
         usersWithoutCategories,
         usersWithoutTokens,
-        eligibleUsers: Object.keys(eventsByUser).length,
+        eligibleUsers: digestByUser.size,
         deliveryDiagnostics,
       },
     });
-    
+
   } catch (error: any) {
     console.error("❌ Erreur lors de l'exécution du cron:", error);
     return NextResponse.json(
@@ -395,4 +338,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
