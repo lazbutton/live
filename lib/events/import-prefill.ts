@@ -4,6 +4,7 @@
  * navigateur comme côté serveur (outils de l'agent).
  */
 
+import { cleanEventDescription, cleanEventTitle } from "@/lib/collecte/event-text";
 import { toDatetimeLocal } from "@/lib/date-utils";
 import {
   extractImportedCategoryLabels,
@@ -366,10 +367,17 @@ export async function buildEventFormPrefillFromImport({
 
   const derivedPrices = deriveGenericPriceRange(data);
   const isPayWhatYouWant = data.is_pay_what_you_want === true;
+  // Titre et description tels que l'app les affichera : date, lieu et capitales retirés, lignes
+  // recollées (lib/collecte/event-text.ts).
+  const title = cleanEventTitle((data.title || "").toString(), {
+    venues: [matchedLocation?.name, typeof data.location === "string" ? data.location : null],
+    category: categories.find((category) => category.id === resolvedCategory.id)?.name ?? null,
+    knownNames: [...artists, ...organizers, ...locations].map((entry) => entry.name),
+  });
   const prefill: EventFormPrefill = {
     form: {
-      title: (data.title || "").toString(),
-      description: (data.description || "").toString(),
+      title,
+      description: cleanEventDescription((data.description || "").toString()),
       date: data.date ? toDatetimeLocal(String(data.date)) : "",
       end_date: data.end_date ? toDatetimeLocal(String(data.end_date)) : "",
       category: resolvedCategory.id,

@@ -325,12 +325,18 @@ export function titleDateConflict(title: string, dates: Array<string | null | un
 const TITLE_DATE = `(?:(?:${WEEKDAY})\\.?\\s+)?\\d{1,2}(?:er)?(?:\\s+(?:${MONTHS})\\.?|\\s*/\\s*\\d{1,2})(?:(?:\\s+|\\s*/\\s*)(?:19|20)\\d{2})?`;
 const TRAILING_TITLE_DATE = new RegExp(`\\s*[-–—|:,]\\s*${TITLE_DATE}\\s*$`, "i");
 const LEADING_TITLE_DATE = new RegExp(`^${TITLE_DATE}\\s*[-–—|:,]\\s*`, "i");
+/** « Live de chant - Novembre 2026 », « Expo (octobre 2026) ». */
+const TRAILING_MONTH_YEAR = new RegExp(`\\s*[-–—|:,(]\\s*(?:${MONTHS})\\.?\\s+(?:19|20)\\d{2}\\s*\\)?\\s*$`, "i");
 
 /**
  * Retire la date collée au début ou à la fin d'un titre (« Atelier broderie - dim. 01/11 »,
- * « Samedi 31 octobre 2026 : Atelier SITA ») : l'agenda affiche déjà la date.
+ * « Samedi 31 octobre 2026 : Atelier SITA », « … - Novembre 2026 ») : l'agenda affiche déjà la date.
  */
 export function stripDateFromTitle(title: string) {
-  const stripped = title.replace(TRAILING_TITLE_DATE, "").replace(LEADING_TITLE_DATE, "").trim();
+  const stripped = title
+    .replace(TRAILING_TITLE_DATE, "")
+    .replace(TRAILING_MONTH_YEAR, "")
+    .replace(LEADING_TITLE_DATE, "")
+    .trim();
   return stripped.length >= 3 ? stripped : title.trim();
 }

@@ -200,7 +200,7 @@ const createEvent = defineTool({
   input: z.object({
     source_id: z.string().optional().describe("Source suivie d'où vient l'événement (list_sources)."),
     source_url: z.string().url().optional().describe("Lien du post ou de la page lue."),
-    title: z.string().min(2).describe("Titre court et propre, sans emoji ni date."),
+    title: z.string().min(2).describe("Titre court et propre, en casse normale, sans emoji, ni date, ni lieu."),
     start: localDate("Début, heure de Paris : 2026-11-20T20:30 (ou 2026-11-20 si l'heure est inconnue)."),
     end: localDate("Fin éventuelle, même format.").optional(),
     additional_dates: z

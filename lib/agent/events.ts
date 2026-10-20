@@ -16,7 +16,7 @@ import { isFacebookEventUrl } from "@/lib/facebook/event-url";
 import { scrapeFacebookEvent } from "@/lib/facebook/scrape-facebook-event";
 import { instagramPostImageUrl, isInstagramPostUrl } from "@/lib/instagram/post-url";
 import { urlMatchKey, urlMatchKeys } from "@/lib/scraping/agenda";
-import { parisToday, stripDateFromTitle, titleDateConflict } from "@/lib/scraping/dates";
+import { parisToday, titleDateConflict } from "@/lib/scraping/dates";
 import { onSortEventUid } from "@/lib/scraping/on-sort";
 import { scrapeEventPage } from "@/lib/scraping/scrape-event-page";
 
@@ -390,9 +390,10 @@ export async function createAgentEvent(
   // Lieu annoncé mais inconnu : on ne retombe pas sur le lieu de la source (événement « hors les murs »).
   const locationWarning = warnings.find((warning) => warning.field === "location");
   if (locationWarning && typeof data.location_id !== "string") form.location_id = "";
-  const rawTitle = (form.title || "").trim();
-  // L'agenda affiche déjà la date : on la retire du titre (« Atelier broderie - dim. 01/11 »).
-  const title = stripDateFromTitle(rawTitle);
+  // Titre déjà nettoyé par le préremplissage (date, lieu répété, capitales : lib/collecte/event-text.ts) ;
+  // la date écrite dans le titre lu sert encore au contrôle des séances.
+  const rawTitle = typeof data.title === "string" ? data.title.trim() : "";
+  const title = (form.title || "").trim();
   if (!title) return { ...base, reason: "Titre introuvable" };
   if (!form.date) return { ...base, title, reason: "Date introuvable" };
 
