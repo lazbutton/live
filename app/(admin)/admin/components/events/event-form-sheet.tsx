@@ -45,7 +45,15 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
-import { deriveGenericPriceRange, toNullablePrice } from "@/lib/events/price-utils";
+import {
+  PRICE_MODE_ITEMS,
+  applyPriceMode as applyPriceModeToFields,
+  derivePriceMode,
+  priceColumnsFromFields,
+  priceFieldsError,
+  priceFieldsFromEvent,
+  type PriceMode,
+} from "@/lib/events/price-mode";
 import {
   fetchPotentialDuplicateEvents,
   type PotentialDuplicateEvent,
@@ -100,8 +108,6 @@ type AdditionalTimeSlot = {
   start: string;
   end: string;
 };
-
-type PriceMode = "unknown" | "free" | "paid" | "pwyw";
 
 type QuickCreateState = { kind: "location" | "organizer" | "artist"; name: string } | null;
 
@@ -192,15 +198,6 @@ function emptyForm(): EventFormData {
     agenda_types: [],
     major_event_id: "",
   };
-}
-
-function derivePriceMode(form: EventFormData): PriceMode {
-  if (form.is_pay_what_you_want) return "pwyw";
-  const min = toNullablePrice(form.price_min);
-  const max = toNullablePrice(form.price_max);
-  if (min === null && max === null) return "unknown";
-  if ((min ?? 0) <= 0 && (max === null || max <= 0)) return "free";
-  return "paid";
 }
 
 /** Décale une fin pour conserver la durée quand le début change. */
@@ -384,16 +381,13 @@ export function EventFormSheet({
     setAdditionalTimeSlots([]);
 
     if (event) {
-      const derivedPrices = deriveGenericPriceRange(event);
       const nextForm: EventFormData = {
         title: event.title || "",
         description: event.description || "",
         date: toDatetimeLocal(event.date),
         end_date: event.end_date ? toDatetimeLocal(event.end_date) : "",
         category: event.category || "",
-        price_min: derivedPrices.priceMin != null ? String(derivedPrices.priceMin) : "",
-        price_max: derivedPrices.priceMax != null ? String(derivedPrices.priceMax) : "",
-        is_pay_what_you_want: Boolean(event.is_pay_what_you_want),
+        ...priceFieldsFromEvent(event),
         capacity: event.capacity != null ? String(event.capacity) : "",
         is_full: Boolean(event.is_full),
         location_id: event.location_id || "",
@@ -893,8 +887,6 @@ export function EventFormSheet({
 
   /* -------------------------------- Validation ------------------------------ */
 
-  const normalizedPriceMin = toNullablePrice(formData.price_min);
-  const normalizedPriceMax = toNullablePrice(formData.price_max);
   const endBeforeStart = (() => {
     const start = parseLocalDateTime(formData.date)?.js;
     const end = parseLocalDateTime(formData.end_date)?.js;
@@ -921,14 +913,7 @@ export function EventFormSheet({
       showErrors && formData.show_on_app && !formData.category.trim()
         ? "Requise pour afficher l’événement dans l’app."
         : null,
-    price:
-      formData.is_pay_what_you_want || priceMode !== "paid"
-        ? null
-        : normalizedPriceMin === null && normalizedPriceMax !== null
-          ? "Renseigne le prix avant le maximum."
-          : normalizedPriceMin !== null && normalizedPriceMax !== null && normalizedPriceMax < normalizedPriceMin
-            ? "Le maximum doit être supérieur au prix."
-            : null,
+    price: priceFieldsError(formData, priceMode),
     slots: invalidSlotIndexes.length > 0 ? "Une des dates supplémentaires finit avant de commencer." : null,
   };
 
@@ -998,22 +983,13 @@ export function EventFormSheet({
           : null;
 
       const statusToSave: EventStatus = forceApproved ? "approved" : formData.status;
-      const isPayWhatYouWant = Boolean(formData.is_pay_what_you_want);
-
       const baseData: any = {
         title: formData.title.trim(),
         description: normalizeNullable(formData.description || ""),
         date: fromDatetimeLocal(formData.date) || formData.date,
         end_date: formData.end_date ? fromDatetimeLocal(formData.end_date) || null : null,
         category: formData.category.trim(),
-        price: isPayWhatYouWant ? null : normalizedPriceMin,
-        price_min: isPayWhatYouWant ? null : normalizedPriceMin,
-        price_max: isPayWhatYouWant
-          ? null
-          : normalizedPriceMax !== null && normalizedPriceMin !== null && normalizedPriceMax > normalizedPriceMin
-            ? normalizedPriceMax
-            : null,
-        is_pay_what_you_want: isPayWhatYouWant,
+        ...priceColumnsFromFields(formData),
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         is_full: Boolean(formData.is_full),
         location_id: normalizeUuid(formData.location_id),
@@ -1291,17 +1267,7 @@ export function EventFormSheet({
 
   function applyPriceMode(mode: PriceMode) {
     setPriceMode(mode);
-    patchForm((previous) => {
-      if (mode === "pwyw") return { ...previous, is_pay_what_you_want: true, price_min: "", price_max: "" };
-      if (mode === "free") return { ...previous, is_pay_what_you_want: false, price_min: "0", price_max: "" };
-      if (mode === "unknown") return { ...previous, is_pay_what_you_want: false, price_min: "", price_max: "" };
-      const currentMin = toNullablePrice(previous.price_min);
-      return {
-        ...previous,
-        is_pay_what_you_want: false,
-        price_min: currentMin && currentMin > 0 ? previous.price_min : "",
-      };
-    });
+    patchForm((previous) => applyPriceModeToFields(previous, mode));
     if (mode === "paid") window.setTimeout(() => document.getElementById("event-price-min")?.focus(), 50);
   }
 
@@ -1847,12 +1813,7 @@ export function EventFormSheet({
                           value={priceMode}
                           onValueChange={applyPriceMode}
                           className="w-full @lg:w-auto [&>button]:flex-1"
-                          items={[
-                            { value: "unknown", label: "Non précisé" },
-                            { value: "free", label: "Gratuit" },
-                            { value: "paid", label: "Payant" },
-                            { value: "pwyw", label: "Prix libre" },
-                          ]}
+                          items={PRICE_MODE_ITEMS}
                         />
                       </Field>
                       {priceMode === "paid" ? (

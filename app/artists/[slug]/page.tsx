@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { ArtistPageLogo } from "@/components/artists/artist-page-logo";
+import { formatGenericPriceLabel } from "@/lib/events/price-utils";
 import { buildPublicMetadata } from "@/lib/metadata";
 import {
   buildArtistOpenPath,
@@ -78,6 +79,7 @@ type RawArtistEventRow = {
   price: number | string | null;
   price_min: number | string | null;
   price_max: number | string | null;
+  price_kind: string | null;
   image_url: string | null;
   external_url: string | null;
   external_url_label: string | null;
@@ -98,7 +100,7 @@ type ArtistEvent = {
   date: string;
   endDate: string | null;
   category: string | null;
-  priceLabel: string;
+  priceLabel: string | null;
   imageUrl: string | null;
   externalUrl: string | null;
   externalUrlLabel: string | null;
@@ -178,12 +180,6 @@ function normalizeLocationRow(location: EventLocationRow) {
   return location ?? null;
 }
 
-function toNumberOrNull(value: number | string | null | undefined) {
-  if (value === null || value === undefined || value === "") return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function getEventEndMs(dateIso: string, endDateIso: string | null) {
   const fallbackStartMs = parseDatePreservingClock(dateIso).getTime();
   if (!endDateIso) return fallbackStartMs;
@@ -195,25 +191,8 @@ function getEventEndMs(dateIso: string, endDateIso: string | null) {
 function formatPriceLabel(event: RawArtistEventRow) {
   if (event.is_full) return "Complet";
 
-  const priceMin = toNumberOrNull(event.price_min) ?? toNumberOrNull(event.price);
-  const priceMax = toNumberOrNull(event.price_max);
-
-  if (priceMin == null || priceMin == 0) return "Gratuit";
-
-  if (priceMax != null && priceMax > priceMin) {
-    return `${priceMin.toLocaleString("fr-FR", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    })} à ${priceMax.toLocaleString("fr-FR", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    })} EUR`;
-  }
-
-  return `${priceMin.toLocaleString("fr-FR", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  })} EUR`;
+  // Genre de prix calculé par la base (events.price_kind) : rien quand le prix n'est pas renseigné.
+  return formatGenericPriceLabel(event, { suffix: " EUR" });
 }
 
 function buildLocationLabel(event: RawArtistEventRow) {
@@ -373,6 +352,7 @@ const getArtistPageData = cache(async (slug: string): Promise<ArtistPageData | n
         price,
         price_min,
         price_max,
+        price_kind,
         image_url,
         external_url,
         external_url_label,

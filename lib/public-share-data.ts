@@ -1,6 +1,7 @@
 import { cache } from "react";
 
 import { formatDateWithoutTimezone } from "@/lib/date-utils";
+import { formatGenericPriceLabel } from "@/lib/events/price-utils";
 import {
   buildArtistPath,
   buildEntityReference,
@@ -82,6 +83,7 @@ type RawEventRow = {
   price: number | string | null;
   price_min: number | string | null;
   price_max: number | string | null;
+  price_kind: string | null;
   location: SingleOrArray<RawLocationRelation>;
 };
 
@@ -345,45 +347,13 @@ function formatHubDateLabel(startAt: string, endAt: string) {
   return `${startLabel} -> ${endLabel}`;
 }
 
-function toNumberOrNull(value: number | string | null | undefined) {
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function formatPriceLabel(event: RawEventRow) {
   if (event.is_full) {
     return "Complet";
   }
 
-  const priceMin = toNumberOrNull(event.price_min) ?? toNumberOrNull(event.price);
-  const priceMax = toNumberOrNull(event.price_max);
-
-  if (priceMin === null) {
-    return null;
-  }
-
-  if (priceMin <= 0) {
-    return "Gratuit";
-  }
-
-  if (priceMax != null && priceMax > priceMin) {
-    return `${priceMin.toLocaleString("fr-FR", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    })} à ${priceMax.toLocaleString("fr-FR", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    })} EUR`;
-  }
-
-  return `${priceMin.toLocaleString("fr-FR", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  })} EUR`;
+  // Genre de prix calculé par la base (events.price_kind) : rien quand le prix n'est pas renseigné.
+  return formatGenericPriceLabel(event, { suffix: " EUR" });
 }
 
 async function resolveCategoryNames(categoryValues: Array<string | null | undefined>) {
@@ -630,6 +600,7 @@ export const getEventSharePageData = cache(
           price,
           price_min,
           price_max,
+          price_kind,
           location:locations(
             id,
             name,
@@ -834,6 +805,7 @@ export const getLocationSharePageData = cache(
             price,
             price_min,
             price_max,
+            price_kind,
             location:locations(
               id,
               name,
@@ -931,6 +903,7 @@ export const getOrganizerSharePageData = cache(
             price,
             price_min,
             price_max,
+            price_kind,
             location:locations(
               id,
               name,
@@ -1043,6 +1016,7 @@ export const getHubSharePageData = cache(
               price,
               price_min,
               price_max,
+              price_kind,
               location:locations(
                 id,
                 name,

@@ -141,7 +141,24 @@
   `supabase db dump --linked --dry-run`, `SET ROLE postgres`), sans erreur. Vérifié en anon le même jour :
   `rpc/app_category_counts` (9 catégories, Spectacle 205), `rpc/app_tag_counts`, `rpc/app_event_counts`
   (GET avec `ranges` en JSON), `rpc/app_events_in_range`, `school_holidays` (table vide).
-- **Reste** : merger et déployer l'admin, puis charger les vacances une première fois
-  (`curl -H "Authorization: Bearer $CRON_SECRET" https://www.outlive.fr/api/cron/school-holidays`, sinon le
-  cron du lundi) ; avant le déploiement, la route répond 404. Vérification :
+- PR mergée et déployée le 20/10/2026, vacances chargées le même jour par la route du cron (75 lignes
+  lues, 64 périodes écrites, « Début des Vacances d'Été » 2028 écartée) ; vérifié en anon :
   `GET /rest/v1/school_holidays?last_day=gte.2026-10-19` (Toussaint du 17/10 au 1/11).
+
+## 2026-10-20 — `events.price_kind` : genre de prix
+
+- `20261020100000_add_price_kind_to_events` : colonne générée (STORED) `price_kind` : `pay_what_you_want`,
+  `unknown` (aucun prix connu), `free` (tous les prix connus à 0), `paid`. Prix connus : `price_min`,
+  `price_max`, à défaut `price` ; une valeur négative ne compte pas. Décision de l'utilisateur : 0 = « Gratuit »,
+  prix non renseigné = rien d'affiché ; avant, l'app, la page d'artiste et les visuels affichaient « Gratuit ».
+- L'ajout réécrit `events` une fois sans déclencher ses triggers (pas de job Notion, `updated_at` inchangé).
+  Aucun code n'écrit la colonne : tous les inserts et updates de `events` listent leurs colonnes (admin, app,
+  fonctions SQL, vérifié) ; une écriture de `price_kind` est refusée (`428C9`).
+- Lue par l'admin : `formatGenericPriceLabel` (`lib/events/price-utils.ts`), page de partage, page d'artiste,
+  visuels pour les réseaux, liste de l'espace organisateur. L'espace organisateur a le choix de tarif de l'admin
+  (`lib/events/price-mode.ts`, composant `event-price-field.tsx`). `lib/supabase/database.types.ts` régénéré.
+- Testée : `npm run db:test` (9 cas dans `supabase/tests/price_kind.test.sql`), `lib/events/price-mode.test.mjs`,
+  et par PostgREST v13.0.5 sur l'instantané prod du 2026-10-19 : `paid` 184, `unknown` 154, `free` 33,
+  `pay_what_you_want` 22 ; « Fora | ALICE RENDE » (sans prix) en `unknown`, « PLUTO #1 » (0 à 5 €) en `paid`.
+- **À appliquer en prod avant de déployer l'admin** (ses pages sélectionnent la colonne) et avant la PR de l'app.
+  Vérification, en anon : `GET /rest/v1/rpc/app_events?select=price_kind` (aucune ligne à `null`).
