@@ -40,6 +40,9 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   `events.price_kind`, lue par `formatGenericPriceLabel` ; ne pas le recalculer en TS ni en Dart.
 - Données d'un invité (session anonyme) recopiées sur le compte qui se connecte : `copy_guest_data()`
   (`security definer`, l'id de la session invitée sert de preuve ; `docs/API_APP.md`).
+- Mesure d'audience de l'app (U41) : `app_audience_add(day, counts)` additionne des compteurs quotidiens envoyés
+  sans identité (clé publique seule) dans `app_audience_counts`, lisible par les admins (`/admin/audience`) ;
+  conditions de la CNIL : `docs/AUDIENCE_ET_PLANTAGES.md` de l'app, contrat dans `docs/API_APP.md`.
 - Une nouvelle colonne sur `events` que l'app doit lire : migration ici, puis ajout dans
   `_eventColumns` côté app (`lib/services/event_service.dart`).
 

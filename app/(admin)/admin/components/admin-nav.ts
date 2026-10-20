@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   Building2,
   Calendar,
   ImageIcon,
@@ -100,6 +101,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         url: "/admin/share",
         icon: ImageIcon,
         keywords: "instagram partage social",
+      },
+      {
+        title: "Audience de l'app",
+        url: "/admin/audience",
+        icon: BarChart3,
+        keywords: "statistiques mesure compteurs usage fiches billetterie recherche",
       },
       { title: "Réglages", url: "/admin/settings", icon: Settings, keywords: "settings parametres" },
     ],
