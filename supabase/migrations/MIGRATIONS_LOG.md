@@ -137,8 +137,11 @@
   Toussaint 2026 du 17 octobre au 1er novembre) ; les appels de l'app rejoués par PostgREST v13.0.5 sur
   une base locale chargée de l'instantané prod du 2026-10-19 (lu en anon), plans compris.
   `lib/supabase/database.types.ts` régénéré par `npm run db:types`.
-- **Pas encore appliquées en prod.** Ordre : les trois fichiers dans l'ordre des noms (une transaction
-  par fichier), puis un premier chargement des vacances (cron appelé à la main avec `CRON_SECRET`, une
-  fois l'admin déployé). Vérification, en anon : `GET /rest/v1/rpc/app_category_counts`,
-  `POST /rest/v1/rpc/app_event_counts` (`{"ranges":[{"start":"2026-10-23","end":"2026-10-24"}]}`) et
-  `GET /rest/v1/school_holidays?last_day=gte.2026-10-19`.
+- **Appliquées en prod le 20/10/2026** (psql, une transaction par fichier, identifiants temporaires de
+  `supabase db dump --linked --dry-run`, `SET ROLE postgres`), sans erreur. Vérifié en anon le même jour :
+  `rpc/app_category_counts` (9 catégories, Spectacle 205), `rpc/app_tag_counts`, `rpc/app_event_counts`
+  (GET avec `ranges` en JSON), `rpc/app_events_in_range`, `school_holidays` (table vide).
+- **Reste** : merger et déployer l'admin, puis charger les vacances une première fois
+  (`curl -H "Authorization: Bearer $CRON_SECRET" https://www.outlive.fr/api/cron/school-holidays`, sinon le
+  cron du lundi) ; avant le déploiement, la route répond 404. Vérification :
+  `GET /rest/v1/school_holidays?last_day=gte.2026-10-19` (Toussaint du 17/10 au 1/11).
