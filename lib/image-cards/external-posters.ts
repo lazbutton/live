@@ -1,5 +1,5 @@
 /*
- * Affiches hébergées hors de Storage (billetteries, sites des lieux, lien saisi dans Notion…),
+ * Affiches hébergées hors de Storage (billetteries, sites des lieux, lien saisi à la main…),
  * recopiées dans le bucket des affiches : un hébergeur peut retirer son image (11 affiches
  * billetweb.fr en 404 le 2026-10-20) ou la refuser au web (CORS de lastrolabe.org). image_url
  * prend l'adresse de la copie ; la base remet alors la vignette à zéro et son webhook la refait

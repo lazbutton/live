@@ -389,16 +389,13 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
 - **Hobby** : précision à l'heure ; un job prévu à 08:00 peut démarrer entre 08:00 et 08:59
 - **Pro / Enterprise** : jusqu'à 100 cron jobs avec une précision à la minute et des cadences sous-journalières
 
-La configuration gratuite du projet conserve quatre jobs :
+La configuration gratuite du projet (`vercel.json`) compte cinq jobs :
 
 - `cleanup` : tous les jours à 03:00 UTC
-- `notion-sync` : rattrapage quotidien à 02:00 UTC
+- `image-cards` : tous les jours à 04:00 UTC
+- `school-holidays` : le lundi à 05:00 UTC
 - `daily-events` : tous les jours à 08:00 UTC
 - `weekly-summary` : le lundi à 08:00 UTC
-
-Le webhook Notion traite les changements entrants immédiatement. Le cron
-`notion-sync` n'est qu'un rattrapage et peut donc accepter un délai maximal
-d'environ 24 heures.
 
 Les crons sont uniquement disponibles en **Production** sur Vercel (pas en Preview/Development).
 

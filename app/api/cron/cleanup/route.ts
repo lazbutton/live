@@ -98,18 +98,10 @@ export async function GET(request: NextRequest) {
       results.tokensError = error.message;
     }
 
-    // 4. Appliquer les rétentions techniques bornées (Notion, scans et audits).
+    // 4. Appliquer les rétentions techniques (journaux de scan, audits, notifications).
     try {
-      const requestedBatchSize = Number(
-        process.env.FREE_TIER_CLEANUP_BATCH_SIZE ?? 10000,
-      );
-      const batchSize = Number.isFinite(requestedBatchSize)
-        ? Math.min(Math.max(Math.trunc(requestedBatchSize), 1), 100000)
-        : 10000;
       const { data: technicalCleanup, error: technicalCleanupError } =
-        await supabase.rpc("cleanup_free_tier_technical_data", {
-          p_batch_size: batchSize,
-        });
+        await supabase.rpc("cleanup_free_tier_technical_data");
 
       if (technicalCleanupError) throw technicalCleanupError;
       results.technicalCleanup = technicalCleanup;

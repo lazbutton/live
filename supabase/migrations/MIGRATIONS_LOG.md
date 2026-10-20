@@ -389,3 +389,28 @@
   le lieu en fin de titre de 7 événements en attente sans lieu ni adresse (« … - Théâtre de la Tête Noire »).
 - Vu en passant : `notion_sync_jobs` ne se vide plus depuis le 17/10/2026 10 h (532 tâches en attente le 20/10 au
   soir, dont celles de ces corrections) : le cron `notion-sync` ne traite plus la file. Non corrigé ici.
+
+## 2026-10-20 — Synchronisation Notion retirée
+
+- `20261020235000_remove_notion_sync` : l'utilisateur retire la synchronisation avec Notion plutôt que de réparer sa
+  file. Relevé en prod (lecture seule, 20/10 au soir) : le cron `notion-sync` n'était pas bloqué, il traitait
+  25 tâches par passage (un par jour, 02:00 UTC, le dernier le 20/10 à 02:19) quand les modifications en ajoutaient
+  70 à 200 par jour depuis le 17/10 (532 en attente) ; l'import Notion → admin ne servait plus depuis mai (dernier
+  webhook reçu le 15/05/2026).
+- Retirés : les 5 triggers `queue_notion_*` (events, user_requests, locations, organizers, event_organizers) et leurs
+  fonctions, `enqueue_notion_sync_job`, `claim_notion_sync_jobs`, `convert_event_request_to_event_service` (écrite
+  pour le worker Notion, appelée par personne), les 7 tables `notion_*` (liens : 286 événements dont 173 supprimés
+  depuis, 24 demandes, 41 lieux, 43 organisateurs ; 609 tâches, 8 erreurs, 5 points de reprise).
+  `cleanup_free_tier_technical_data` ne purge plus la file : même signature, `p_batch_size` sans effet.
+- `20261020220000` (U39, pas encore appliquée en prod) : ses droits sur les trois fonctions Notion ne s'appliquent
+  plus que si elles existent ; elle passe avant ou après le retrait.
+- Code, même PR : `lib/notion/`, `/api/notion/webhook` et `bootstrap`, `/api/cron/notion-sync` et son cron
+  (`vercel.json`), la carte « Synchronisation Notion » des réglages, `@notionhq/client`, `docs/notion-import/`.
+  `POST /api/notion/resync` reste pour les anciennes versions de l'app : JWT admin vérifié, 200 sans effet
+  (`docs/API_APP.md`, test dans `lib/api/app/routes.test.mjs`).
+- Testée : `npm run db:test` (copie privée du script) : `supabase/tests/remove_notion_sync.test.sql` (7 cas : plus
+  aucun objet Notion, écritures sur les 5 tables, purge) et toute la suite ; U39 rejouée après le retrait, puis le
+  retrait rejoué, sans erreur. `lib/supabase/database.types.ts` régénéré : 7 tables et 3 fonctions en moins.
+- **Pas encore appliquée en prod.**
+- Vercel : les 9 variables `NOTION_*` (Production, Preview, Development) seront retirées une fois ce code déployé,
+  avec l'accord de l'utilisateur. Côté Notion (à faire par l'utilisateur) : l'intégration et son abonnement webhook.

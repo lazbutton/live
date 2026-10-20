@@ -901,7 +901,10 @@ décrites ici, ni à modifier :
 - `POST /api/notifications/send-test`, `POST /api/notifications/send` (repli de `send-test`)
 - `POST /api/notifications/admin/new-feedback` (notification relue en base depuis le 2026-10-19,
   voir « Comportements changés »)
-- `POST /api/notion/resync`
+- `POST /api/notion/resync` : sans effet depuis le retrait de Notion (2026-10-20). Le JWT admin est
+  toujours vérifié (401 et 403 inchangés) ; un admin reçoit 200
+  `{ "ok": true, "result": { "mode": "notion_removed" }, "drainResult": null }`, la forme d'avant (les
+  anciens builds n'en lisent rien et affichent « Resync Notion lancé »). Test : `lib/api/app/routes.test.mjs`.
 
 Docs plus anciennes sur ces routes, antérieures à ce contrat : `MOBILE_NOTIFICATIONS_API.md`,
 `ADMIN_NOTIFICATIONS_NEW_REQUESTS.md`.
