@@ -247,3 +247,22 @@
   Vérifié le même jour : en anon, `GET /rest/v1/event_likes` → `[]` ; `rpc/event_like_counts` → le compte (1) de
   l'événement aimé, rien pour un id inconnu ; policy SELECT « Users can view their own event likes » seule.
   Les versions de l'app d'avant la PR afficheront 0 favori dans « Mes suggestions ».
+
+## 2026-10-20 — `copy_guest_data()` : les données d'un invité passent sur son compte
+
+- `20261020200000_create_copy_guest_data` : appelée par l'app à la connexion d'un compte, avec l'id de la session
+  invitée (`auth.sessions.id`, claim `session_id` du jeton de l'invité). Recopie sur l'appelant les favoris et les
+  masqués de l'invité (sans doublons), et ses préférences de notification avec leurs catégories si le compte n'en a
+  pas. Appelant non anonyme, source anonyme (`auth.users.is_anonymous`), sinon `42501`. Audit UI/UX du 2026-10-20
+  (U6) : l'app lisait ces lignes avec le jeton du compte, la RLS ne lui rendait rien.
+- `language plpgsql`, `security definer`, `set search_path = ''` ; `execute` à authenticated seulement. Lit
+  `auth.users` et `auth.sessions`, écrit `event_likes`, `user_hidden_events`, `user_notification_preferences`,
+  `user_notification_categories` (aucun trigger à l'insertion sur ces tables).
+- Testée : `npm run db:test` (14 cas dans `supabase/tests/copy_guest_data.test.sql` : compte neuf, compte qui a
+  ses préférences, appel rejoué, invité appelant, session d'un compte, inconnue ou nulle, id d'utilisateur à la
+  place de l'id de session, anon). `lib/supabase/database.types.ts` régénéré.
+- **Appliquée en prod le 20/10/2026** (psql, une transaction, `SET ROLE postgres`), sans erreur, avec l'accord de
+  l'utilisateur. Vérifié avant : `auth.users.is_anonymous` présent, `auth.sessions` lisible par postgres, les quatre
+  contraintes uniques en place, aucun trigger à l'insertion. Vérifié après : propriétaire postgres, `security definer`,
+  `search_path` vide, `execute` à authenticated et pas à anon ; dans une transaction annulée, un appelant inconnu →
+  `42501` ; par PostgREST avec la clé anon → 401 (`42501`). Pas d'appel avec un vrai compte (aucune donnée recopiée).

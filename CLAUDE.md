@@ -38,6 +38,8 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   `20261020181000` appliquée) ; contrat dans `docs/API_APP.md`, tests SQL dans `supabase/tests/`. Genre de prix
   (« Gratuit », prix libre, non renseigné) : colonne générée
   `events.price_kind`, lue par `formatGenericPriceLabel` ; ne pas le recalculer en TS ni en Dart.
+- Données d'un invité (session anonyme) recopiées sur le compte qui se connecte : `copy_guest_data()`
+  (`security definer`, l'id de la session invitée sert de preuve ; `docs/API_APP.md`).
 - Une nouvelle colonne sur `events` que l'app doit lire : migration ici, puis ajout dans
   `_eventColumns` côté app (`lib/services/event_service.dart`).
 

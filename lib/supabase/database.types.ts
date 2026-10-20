@@ -2838,6 +2838,15 @@ export type Database = {
         Args: { request_id: string; reviewed_by: string }
         Returns: string
       }
+      copy_guest_data: {
+        Args: { guest_session_id: string }
+        Returns: {
+          hidden_events: number
+          likes: number
+          notification_categories: number
+          notification_preferences: number
+        }[]
+      }
       enqueue_notion_sync_job: {
         Args: {
           p_dedupe_key?: string
