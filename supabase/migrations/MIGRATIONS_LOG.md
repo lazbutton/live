@@ -417,5 +417,7 @@
 - Non relevé : les liens vers des événements non publics (en attente, archivés), que la clé anon ne lit pas ; la
   migration les traite de la même façon (par id d'artiste). Tags homonymes laissés tels quels : « Assassin »,
   « Luiza », « Razorlight », « Robert Finley », « Syd Matters » (portés par aucun événement public ni artiste).
-- **Pas encore appliquée en prod** : en attente de l'accord de l'utilisateur ; répétition dans une transaction
-  annulée d'abord.
+- **Appliquée en prod le 21/10/2026** par l'utilisateur (psql, `--single-transaction`, `SET ROLE postgres`), après
+  une répétition dans une transaction annulée au résultat identique : 14 renommées, 0 fusionnées, 8 supprimées,
+  2 fiches créées (Triptik, Sodom & Sagesse), noms et slugs ci-dessus, 23 liens d'événements traités (Bahini
+  Illustration en avait 2).
