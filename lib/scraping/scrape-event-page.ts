@@ -155,7 +155,11 @@ async function loadSourceConfig($: CheerioDocument, args: ScrapeEventPageArgs): 
       const elements = $(normalizeConfiguredSelector(row.css_selector || ""));
       if (elements.length === 0) continue;
       let value: string | null | undefined;
-      if (!row.attribute || row.attribute === "textContent") value = elements.first().text().trim();
+      // Description lue en texte : son HTML, décodé plus bas bloc par bloc (`text()` colle les paragraphes).
+      const descriptionHtml = row.event_field === "description" && !row.text_prefix?.trim();
+      if (!row.attribute || row.attribute === "textContent") {
+        value = descriptionHtml ? elements.first().html() : elements.first().text().trim();
+      }
       else if (row.attribute === "innerHTML") value = elements.first().html();
       else value = elements.first().attr(row.attribute);
       if (!value) continue;

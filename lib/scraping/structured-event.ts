@@ -42,12 +42,22 @@ function asArray<T>(value: T | T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [value];
 }
 
-/** Décode les entités HTML et retire les balises d'une valeur textuelle. */
+/** Balises de bloc : leur présence fait lire la valeur comme du HTML. */
+const HTML_BLOCK = /<(?:p|br|div|li|ul|ol|h[1-6]|section|article|blockquote|tr|table)\b/i;
+
+/**
+ * Décode les entités HTML et retire les balises d'une valeur textuelle. En plusieurs lignes, du HTML
+ * se lit comme dans un navigateur : retours à la ligne du source repliés en espaces (« la quête
+ * ⏎ amoureuse »), un paragraphe par bloc, une ligne par élément de liste (« • ») ; un texte brut
+ * garde ses lignes.
+ */
 export function decodeHtmlText(value: string, { multiline = false } = {}) {
-  const withBreaks = value
+  const html = multiline && HTML_BLOCK.test(value);
+  const withBreaks = (html ? value.replace(/\s+/g, " ") : value)
     .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|h[1-6])>/gi, "\n\n")
-    .replace(/<li[^>]*>/gi, "• ");
+    .replace(/<\/(p|div|h[1-6]|section|article|blockquote|ul|ol|table)>/gi, "\n\n")
+    .replace(/<\/(li|tr)>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "\n• ");
   const text = cheerio.load(`<div id="decode">${withBreaks}</div>`)("#decode").text().replace(/\u00a0/g, " ");
   if (!multiline) return text.replace(/\s+/g, " ").trim();
   return text
@@ -55,6 +65,7 @@ export function decodeHtmlText(value: string, { multiline = false } = {}) {
     .split("\n")
     .map((line) => line.replace(/[ \t]+/g, " ").trim())
     .join("\n")
+    .replace(/\n{2,}(?=• )/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
@@ -287,7 +298,9 @@ function readMicrodataItem($: CheerioDocument, element: any): SchemaNode {
       } else if ($prop.is("img, source")) {
         value = $prop.attr("src") || $prop.attr("data-src");
       } else {
-        value = $prop.attr("content") || $prop.text();
+        // Description : son HTML, pour garder ses paragraphes (`text()` les colle : « partagé.Informations »).
+        const isDescription = ($prop.attr("itemprop") || "").split(/\s+/).includes("description");
+        value = $prop.attr("content") || (isDescription ? $prop.html() : $prop.text());
       }
       for (const name of ($prop.attr("itemprop") || "").split(/\s+/).filter(Boolean)) {
         result[name] = result[name] === undefined ? value : [...asArray(result[name]), value];

@@ -53,6 +53,10 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   `notifications/`, `notion/`, `image-cards/` (vignettes des affiches, `docs/EVENT_IMAGE_CARDS.md`),
   `school-holidays/` (vacances scolaires du calendrier de l'app, cron hebdomadaire).
 - `.claude/skills/collecte/` : la routine de collecte d'événements.
+- Textes importés : `lib/collecte/event-text.ts` (titre sans date ni lieu répété, capitales, guillemets ;
+  description recollée), appliqué par `buildEventFormPrefillFromImport` et aux demandes ; titres restants dans
+  l'admin, « Titres à revoir » ; données déjà en base : `scripts/clean-event-texts.mjs`. Noms de lieux,
+  organisateurs, artistes et tags : triggers SQL (`format_entity_label`, `to_tag_title_case`), pas de règle en TS.
 
 ## Lien avec l'app Flutter
 
