@@ -192,6 +192,35 @@
   le même jour : les 28 organisateurs reliés à des événements, aucun écart avec un calcul indépendant ; Théâtre
   d'orléans 84.
 
+## 2026-10-20 — `app_search()` et `app_search_names()` : recherche plein texte de l'app
+
+- `20261020170000_create_app_search` : la recherche de l'app sur toute la base (audit UI/UX du 2026-10-20,
+  U1 : « concert » ne rendait qu'un résultat, l'app ne cherchant que dans les 200 événements chargés).
+  - `app_search(query, city_ids, at_time, max_results)` : événements à venir (comme les comptes de la recherche)
+    dont chaque mot exigé se trouve dans le titre, les artistes liés, le lieu, les organisateurs, la catégorie,
+    les tags, la ville ou la description ; sans accents ni casse (`unaccent`), début de mot, racine française
+    (plein texte), fautes de frappe (`pg_trgm`, ressemblance stricte). Pertinence pondérée titre > artistes, lieu
+    et organisateurs > catégorie, tags et ville > description, puis date. Rend des lignes `(event_id, rank)` de la
+    table `app_search_results`, toujours vide (RLS sans politique, aucun droit), dont la clé étrangère vers
+    `events` permet à l'app `select=rank,event:events(…)&order=rank` : un `setof events` perdait son ordre dans
+    les jointures de PostgREST.
+  - `app_search_names(query, city_ids, at_time, max_results)` : catégories, tags, lieux et organisateurs dont le
+    nom correspond, avec leur nombre d'événements à venir (comptes d'`app_category_counts`, `app_tag_counts`,
+    `app_organizer_counts`), pour les raccourcis « Concert · 47 » et les lieux de la recherche.
+  - Fonctions d'appoint : `app_search_normalize`, `app_search_query_words`, `app_search_word_score`.
+  - Extensions `unaccent` et `pg_trgm` créées dans le schéma `extensions` si absentes (absentes en prod le
+    2026-10-20 : schémas `public` et `extensions` relus par `supabase gen types --project-id`) ; la migration
+    s'arrête si l'une est déjà installée ailleurs.
+- `language sql`, `stable`, `security invoker`, `execute` à anon et authenticated ; aucune table existante modifiée.
+  Pas d'index : sous la RLS d'`events`, `%` et `@@` n'en prendraient pas.
+- Testée : `npm run db:test` (37 cas dans `supabase/tests/app_search.test.sql` : titre, catégorie par id ou nom,
+  description, accents, début de mot, racine, fautes de frappe, artiste, organisateur, tag, ville, mots épars et
+  phrase, titre exact, mots vides, périmètre, passé, en attente, masqué, auteur bloqué, `hide_from_home`,
+  `max_results`, noms et leurs comptes, homonymes, droits) ; par PostgREST v13.0.5 sur l'instantané prod du
+  2026-10-20 (367 événements à venir, lu en anon) : comptes des noms égaux à ceux des trois fonctions de comptes,
+  appel complet de l'app 25 à 45 ms en local. `lib/supabase/database.types.ts` régénéré par `npm run db:types`.
+- **Pas encore appliquée en prod** (accord de l'utilisateur attendu).
+
 ## 2026-10-20 — `event_like_counts()` et lecture de `event_likes` réservée à son auteur
 
 - Constat (prod, 2026-10-20) : la policy SELECT « Users can view all event likes » de `event_likes` est

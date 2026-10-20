@@ -52,6 +52,29 @@ export type Database = {
         }
         Relationships: []
       }
+      app_search_results: {
+        Row: {
+          event_id: string
+          rank: number
+        }
+        Insert: {
+          event_id: string
+          rank: number
+        }
+        Update: {
+          event_id?: string
+          rank?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_search_results_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       artists: {
         Row: {
           artist_type_label: string | null
@@ -2692,6 +2715,66 @@ export type Database = {
           kind: string
           organizer_id: string
         }[]
+      }
+      app_search: {
+        Args: {
+          at_time?: string
+          city_ids?: string[]
+          max_results?: number
+          query: string
+        }
+        Returns: {
+          event_id: string
+          rank: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "app_search_results"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      app_search_names: {
+        Args: {
+          at_time?: string
+          city_ids?: string[]
+          max_results?: number
+          query: string
+        }
+        Returns: {
+          city: string
+          events_count: number
+          id: string
+          image_url: string
+          is_organizer: boolean
+          kind: string
+          name: string
+          rank: number
+        }[]
+      }
+      app_search_normalize: { Args: { value: string }; Returns: string }
+      app_search_query_words: {
+        Args: { query: string }
+        Returns: {
+          phrase: string
+          required: boolean
+          word: string
+          word_count: number
+          word_pattern: string
+          word_prefix: string
+          word_query: unknown
+        }[]
+      }
+      app_search_word_score: {
+        Args: {
+          content: string
+          document?: unknown
+          word: string
+          word_pattern: string
+          word_prefix: string
+          word_query: unknown
+        }
+        Returns: number
       }
       app_tag_counts: {
         Args: { at_time?: string; city_ids?: string[]; max_tags?: number }
