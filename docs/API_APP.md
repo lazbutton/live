@@ -263,9 +263,10 @@ l'app lit ces comptes dans Supabase au lieu de les calculer en Dart. Migrations 
 `20261019210000_create_app_events_in_range_and_counts.sql` (règle complète en tête),
 `20261019211000_create_school_holidays.sql`, `20261019212000_create_app_search_counts.sql`, pour la
 fiche `20261020140000_create_app_organizer_counts.sql`, et pour la recherche plein texte
-`20261020170000_create_app_search.sql`. Tests : `supabase/tests/*.test.sql` (`npm run db:test`) et
-`lib/school-holidays/official-calendar.test.mjs`. Les quatre premières sont en prod depuis le
-2026-10-20, et `school_holidays` est chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`.
+`20261020170000_create_app_search.sql` puis `20261020210000_speed_up_app_search.sql`. Tests :
+`supabase/tests/*.test.sql` (`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`. Toutes
+sont en prod depuis le 2026-10-20, et `school_holidays` est chargée (64 périodes) ; détail :
+`supabase/migrations/MIGRATIONS_LOG.md`.
 
 | Objet | Appel Dart | Rend |
 | --- | --- | --- |
@@ -632,13 +633,28 @@ Les comptes de `app_search_names` égalent, sur tout l'instantané, ceux d'`app_
 (9 catégories), d'`app_tag_counts` (71 tags) et d'`app_organizer_counts` (33 lieux et organisateurs).
 
 Index : aucun. Sous la RLS d'`events`, ni `%` ni `@@` (non « leakproof ») ne serviraient d'index : la
-fonction lit les événements à venir par l'index sur `date` (`app_events_in_range`), puis compare leurs
-textes ; le plein texte d'une description et les trigrammes ne sont calculés que pour un texte qui
-contient le début de la racine ou un trigramme du mot. Mesuré sur une base locale chargée de
-l'instantané (Postgres 17.6, PostgREST v13.0.5, rôle anon, l'appel complet de l'app avec ses
-jointures, 30 événements, ~90 Ko) : `app_search` 25 à 45 ms aller-retour, dont ~25 ms en base ;
-`app_search_names` 7 à 11 ms. Avec 5 000 événements passés de plus : inchangé (index sur `date`) ;
-avec 3 fois plus d'événements à venir (1 137) : ~75 ms en base, linéaire.
+fonction lit les événements à venir par l'index sur `date` (`app_events_in_range`) et compare leurs titres
+et descriptions ; les noms (lieux, salles, artistes, organisateurs, catégories, tags, villes) sont
+comparés une fois chacun, puis rattachés aux événements par leurs liens
+(`20261020210000_speed_up_app_search.sql` : la première version relisait artistes et organisateurs
+événement par événement, sous la RLS de leurs liens, deux fois plus lente). Le plein texte d'une
+description et les trigrammes ne sont calculés que pour un texte qui contient le début de la racine ou
+un trigramme du mot.
+
+Temps côté serveur (`x-envoy-upstream-service-time`), prod du 2026-10-20 (366 événements à venir), rôle
+anon, après quelques appels :
+
+| Appel | Temps |
+| --- | --- |
+| `app_search` seule (`select=rank`) | 40 à 70 ms (première version : ~125 ms) |
+| appel de l'app, peu de résultats (« luiza », « jaz ») | 60 à 95 ms |
+| appel de l'app, 30 événements embarqués (« concert », « theatre d orleans ») | ~100 à 120 ms (première version : 140 à 200 ms) |
+| `app_search_names` | 25 à 40 ms |
+
+Embarquer 30 événements avec le select de l'app coûte à lui seul ~50 à 60 ms : c'est le coût de la page
+d'un tag (`app_events_in_range`, 30 événements, ~68 ms). En local (Postgres 17.6 et PostgREST v13.0.5 sur
+l'instantané) : `app_search` 11 à 16 ms en base, l'appel de l'app 16 à 30 ms ; avec 5 000 événements
+passés de plus, inchangé (index sur `date`) ; le coût croît avec le nombre d'événements à venir.
 
 ## Favoris : `event_like_counts`, sans lire `event_likes`
 
