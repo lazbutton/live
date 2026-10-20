@@ -331,3 +331,30 @@
   contenait alors). Mesurée en anon : `app_search` seule 40 à 70 ms, l'appel de l'app 60 à 95 ms avec peu de
   résultats et ~100 à 120 ms avec 30 événements embarqués (l'embarquement seul : ~50 à 60 ms) ;
   `app_search_names` 25 à 40 ms.
+
+## 2026-10-20 — Noms en français (U34) ; titres et descriptions des événements repris (U31, U32)
+
+- `20261020223000_french_case_names` : `format_entity_label` (trigger des noms de lieux, d'organisateurs et
+  d'artistes) et `to_tag_title_case` (trigger des tags, `20261020160000`) passaient chaque mot par `initcap`, qui
+  en prod (collation ICU, `datlocprovider = i`) ne coupe pas le mot à l'apostrophe : « Théâtre d'orléans »,
+  « L'astrolabe », tags « Théâtre D'orléans ». Corrigés à la main, ces noms revenaient à l'écriture suivante.
+  Nouvelle règle, indépendante de la collation : capitale après une élision, petits mots en minuscules dans les noms
+  composés (« Saint-Jean-le-Blanc »), petit mot ou mot élidé en capitales jamais pris pour un sigle, virgule finale
+  retirée ; les tags suivent la même règle sur leur nom en minuscules, quelques sigles gardés (« DJ Set », « CDNO »).
+  Puis les noms existants repassent par leur trigger, et cinq corrections nommées (« Cinema » → « Cinéma »,
+  « Château de la Source », « Base de Loisirs de Chécy », « Collectif XY », tag « Orléans »).
+- Testée : `supabase/tests/entity_names.test.sql` (nouveau), `tag_title_case.test.sql` et `app_search.test.sql`
+  mis à la nouvelle règle, toute la suite sur une base Supabase locale (Postgres 17, ICU comme la prod).
+- Répétée en prod dans une transaction annulée (`BEGIN … ROLLBACK`) : 33 noms changés, les mêmes que sur
+  l'instantané public (16 lieux, 1 organisateur, 5 artistes, 8 tags, 1 catégorie), aucun slug d'artiste modifié,
+  21 synchronisations Notion mises en file.
+- **Appliquée en prod le 20/10/2026**, avec l'accord de l'utilisateur (psql, `--single-transaction`,
+  `SET ROLE postgres`), sans erreur. Vérifié après, en lecture seule : plus aucun nom à reformater dans les quatre
+  tables ; catégories « Concert | DJ Set | Expo | Atelier | Spectacle | Danse | Cinéma | Rencontre | Festival ».
+- Données des événements (pas une migration) : `scripts/clean-event-texts.mjs` (règles de
+  `lib/collecte/event-text.ts`), simulation relue par l'utilisateur, puis `--write` le 20/10/2026 : 469 événements
+  lus (non archivés, publiés ou en attente), **249 mis à jour** (239 titres, 52 descriptions), 0 échec, une ligne
+  `event.text_cleanup` par événement dans `admin_audit_log`. Une nouvelle simulation ne trouve plus rien. Gardés :
+  le lieu en fin de titre de 7 événements en attente sans lieu ni adresse (« … - Théâtre de la Tête Noire »).
+- Vu en passant : `notion_sync_jobs` ne se vide plus depuis le 17/10/2026 10 h (532 tâches en attente le 20/10 au
+  soir, dont celles de ces corrections) : le cron `notion-sync` ne traite plus la file. Non corrigé ici.
