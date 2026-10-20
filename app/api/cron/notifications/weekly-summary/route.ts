@@ -7,12 +7,20 @@ import {
   sendNotificationToUser,
 } from "@/lib/notifications";
 import {
+  categoryIdsOf,
+  digestBody,
+  digestData,
+  digestTitle,
+  inCategories,
+  weekRange,
+} from "@/lib/notifications/digest";
+import { loadDigestCategories, loadDigestEvents } from "@/lib/notifications/digest-events";
+import {
   addDaysToLocalDate,
   getIsoLocalDate,
   getIsoLocalTime,
   getLocalWeekday,
   getZonedDateParts,
-  zonedTimeToUtc,
 } from "@/lib/cron-timezone";
 
 const WEEKLY_FLOW = {
@@ -27,14 +35,6 @@ const WEEKLY_FLOW = {
   schedulePrecision: "hour",
 };
 const MAX_ROUTE_DIAGNOSTICS = 25;
-
-type WeeklyDigestEventRow = {
-  id: string;
-  title: string;
-  date: string;
-  end_date: string | null;
-  category: string | null;
-};
 
 /**
  * Vérifie que la requête vient bien de Vercel Cron
@@ -54,7 +54,10 @@ function verifyCronRequest(request: NextRequest): boolean {
 /**
  * GET /api/cron/notifications/weekly-summary
  *
- * Cron job pour envoyer un résumé hebdomadaire des événements à venir
+ * Le résumé de la semaine (U9, `lib/notifications/digest.ts`) : le lundi, à chaque utilisateur en `weekly`,
+ * « 12 événements cette semaine dans tes catégories » (ceux qui commencent du lundi au dimanche, comme
+ * l'accueil de l'app les montre : `app_events_in_range`, heure de Paris). Toucher la notification ouvre
+ * l'accueil sur la semaine et ces catégories (données : `docs/API_APP.md`, « Résumés poussés »).
  * Convention produit: la passe hebdomadaire part en debut de semaine, le lundi.
  */
 export async function GET(request: NextRequest) {
@@ -70,8 +73,7 @@ export async function GET(request: NextRequest) {
     const supabase = createServiceClient();
     console.log("📊 Démarrage du cron de résumé hebdomadaire");
 
-    const now = new Date();
-    const nowInParis = getZonedDateParts(now);
+    const nowInParis = getZonedDateParts(new Date());
     const todayInParis = {
       year: nowInParis.year,
       month: nowInParis.month,
@@ -98,54 +100,31 @@ export async function GET(request: NextRequest) {
     }
 
     const weekStartLocal = addDaysToLocalDate(todayInParis, -(weekDay - 1));
-    const nextWeekStartLocal = addDaysToLocalDate(weekStartLocal, 7);
-    const weekEndLocal = addDaysToLocalDate(nextWeekStartLocal, -1);
-    const weekStartIso = zonedTimeToUtc({
-      ...weekStartLocal,
-      hour: 0,
-      minute: 0,
-      second: 0,
-    }).toISOString();
-    const nextWeekStartIso = zonedTimeToUtc({
-      ...nextWeekStartLocal,
-      hour: 0,
-      minute: 0,
-      second: 0,
-    }).toISOString();
-    
-    // Récupérer les événements approuvés de la semaine à venir avec leurs catégories (exclure les événements complets)
-    const { data: events, error: eventsError } = await supabase
-      .from("events")
-      .select("id, title, date, end_date, category, location:locations(name, address), event_organizers(organizer:organizers(name))")
-      .eq("status", "approved")
-      .or("is_full.is.null,is_full.eq.false") // Exclure les événements complets
-      .eq("show_on_app", true)
-      .gte("date", weekStartIso)
-      .lt("date", nextWeekStartIso)
-      .order("date", { ascending: true })
-      .limit(20); // Limiter à 20 événements pour ne pas surcharger la notification
-    
-    if (eventsError) {
+    const weekEndLocal = addDaysToLocalDate(weekStartLocal, 6);
+    const weekStartLabel = getIsoLocalDate(weekStartLocal);
+    const weekEndLabel = getIsoLocalDate(weekEndLocal);
+
+    // Ce qui commence cette semaine, comme l'accueil de l'app le montre (sans limite : le compte de
+    // chacun dépend de ses catégories).
+    let weekEvents;
+    let categories;
+    try {
+      [weekEvents, categories] = await Promise.all([
+        loadDigestEvents(weekRange(weekStartLocal)),
+        loadDigestCategories(),
+      ]);
+    } catch (eventsError: any) {
       console.error("❌ Erreur lors de la récupération des événements:", eventsError);
       return NextResponse.json(
-        { 
-          success: false, 
-          error: eventsError.message 
+        {
+          success: false,
+          error: eventsError?.message || "Impossible de récupérer les événements",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
-    
-    const relevantEvents = ((events ?? []) as WeeklyDigestEventRow[]).filter((event) => {
-      const start = new Date(event.date);
-      const end = event.end_date ? new Date(event.end_date) : null;
-      if (end && !Number.isNaN(end.getTime())) {
-        return end >= now;
-      }
-      return !Number.isNaN(start.getTime()) && start >= now;
-    });
 
-    if (relevantEvents.length === 0) {
+    if (weekEvents.length === 0) {
       console.log("ℹ️ Aucun événement cette semaine");
       return NextResponse.json({
         success: true,
@@ -154,25 +133,9 @@ export async function GET(request: NextRequest) {
         flow: WEEKLY_FLOW,
       });
     }
-    
-    console.log(`📋 ${relevantEvents.length} événement(s) pertinent(s) trouvé(s) pour cette semaine`);
-    
-    // Filtrer les événements avec catégorie
-    const eventsWithCategory = relevantEvents.filter(
-      (event): event is WeeklyDigestEventRow & { category: string } =>
-        typeof event.category === "string" && event.category.length > 0,
-    );
-    
-    if (eventsWithCategory.length === 0) {
-      console.log("ℹ️ Aucun événement avec catégorie trouvé cette semaine");
-      return NextResponse.json({
-        success: true,
-        message: "Aucun événement avec catégorie cette semaine",
-        eventsCount: 0,
-        notificationsSent: 0,
-        flow: WEEKLY_FLOW,
-      });
-    }
+
+    const eventsCount = weekEvents.length;
+    console.log(`📋 ${eventsCount} événement(s) cette semaine`);
 
     // Vérifier si les notifications globales sont activées
     const { data: globalSettings } = await supabase
@@ -185,7 +148,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: "Notifications globales désactivées",
-        eventsCount: eventsWithCategory.length,
+        eventsCount,
         notificationsSent: 0,
         flow: WEEKLY_FLOW,
       });
@@ -211,14 +174,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: "Aucun utilisateur avec notifications activées",
-        eventsCount: eventsWithCategory.length,
+        eventsCount,
         notificationsSent: 0,
         flow: WEEKLY_FLOW,
       });
     }
 
     // Grouper les événements par utilisateur selon leurs préférences
-    const eventsByUser: Record<string, typeof eventsWithCategory> = {};
+    const eventsByUser: Record<string, typeof weekEvents> = {};
 
     let usersWithoutCategories = 0;
     let usersWithoutTokens = 0;
@@ -235,9 +198,7 @@ export async function GET(request: NextRequest) {
         return;
       }
 
-      const userEvents = eventsWithCategory.filter(
-        (event) => userCategoryIds.includes(event.category),
-      );
+      const userEvents = inCategories(weekEvents, userCategoryIds, categories);
       if (userEvents.length > 0) {
         eventsByUser[user.user_id] = userEvents;
       }
@@ -250,7 +211,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: "Aucun utilisateur éligible",
-        eventsCount: eventsWithCategory.length,
+        eventsCount,
         notificationsSent: 0,
         flow: WEEKLY_FLOW,
         debug: {
@@ -266,7 +227,6 @@ export async function GET(request: NextRequest) {
       `📱 ${Object.keys(eventsByUser).length} utilisateur(s) éligible(s) sur ${enabledUsers.length} (sans_categories=${usersWithoutCategories}, sans_tokens=${usersWithoutTokens})`,
     );
 
-    // Grouper les événements par jour pour chaque utilisateur
     let totalSent = 0;
     let totalFailed = 0;
     let skippedAlreadySent = 0;
@@ -276,44 +236,21 @@ export async function GET(request: NextRequest) {
     // Envoyer une seule notification par utilisateur avec tous ses événements
     for (const [userId, userEvents] of Object.entries(eventsByUser)) {
       try {
-        const eventIds = userEvents.map((event) => event.id);
-        
-        // Grouper par jour pour le message
-        const eventsByDay: Record<string, typeof userEvents> = {};
-        userEvents.forEach((event) => {
-          const eventDate = new Date(event.date).toISOString().split("T")[0];
-          if (!eventsByDay[eventDate]) {
-            eventsByDay[eventDate] = [];
-          }
-          eventsByDay[eventDate].push(event);
+        const categoryIds = categoryIdsOf(userEvents, categories);
+        const title = digestTitle(userEvents.length, "week");
+        const body = digestBody(userEvents.map((event) => event.title));
+        const data = digestData({
+          period: "week",
+          date: weekStartLabel,
+          endDate: weekEndLabel,
+          categoryIds,
+          eventIds: userEvents.map((event) => event.id),
         });
-        
-        const dayCount = Object.keys(eventsByDay).length;
-        const categories = [...new Set(userEvents.map((event) => event.category))];
-        
-        const title = "Résumé de la semaine 📅";
-        const body = userEvents.length === 1
-          ? `${userEvents[0].title} cette semaine !`
-          : `${userEvents.length} événement(s) prévu(s) cette semaine sur ${dayCount} jour(s). Ne manquez rien !`;
 
-        const weekStartLabel = getIsoLocalDate(weekStartLocal);
-        const weekEndLabel = getIsoLocalDate(weekEndLocal);
         const deliveryKey = `weekly_summary:${weekStartLabel}:${userId}`;
         const claim = await claimNotificationDelivery({
           userId,
-          payload: {
-            title,
-            body,
-            data: {
-              type: "weekly_summary",
-              start_date: weekStartLabel,
-              end_date: weekEndLabel,
-              event_ids: eventIds,
-              events_count: userEvents.length,
-              days_count: dayCount,
-              categories,
-            },
-          },
+          payload: { title, body, data },
           deliveryDate: weekStartLabel,
           deliveryKey,
           flowType: "weekly_summary",
@@ -330,26 +267,14 @@ export async function GET(request: NextRequest) {
                   ? "Notification déjà réservée par une autre exécution en cours"
                   : "Notification hebdomadaire déjà envoyée pour cette semaine",
               eventsCount: userEvents.length,
-              categories,
+              categories: categoryIds,
               deliveryKey,
             });
           }
           continue;
         }
 
-        const result = await sendNotificationToUser(userId, {
-          title,
-          body,
-          data: {
-            type: "weekly_summary",
-            start_date: weekStartLabel,
-            end_date: weekEndLabel,
-            event_ids: eventIds,
-            events_count: userEvents.length,
-            days_count: dayCount,
-            categories,
-          },
-        }, {
+        const result = await sendNotificationToUser(userId, { title, body, data }, {
           notificationLogId: claim.logId,
         });
 
@@ -367,7 +292,7 @@ export async function GET(request: NextRequest) {
             userId,
             status: result.success && result.sent > 0 ? "sent" : "failed",
             eventsCount: userEvents.length,
-            categories,
+            categories: categoryIds,
             deliveryKey,
             reclaimedStaleClaim: claim.reclaimedStale ?? false,
             diagnostics: result.diagnostics,
@@ -398,8 +323,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: result.success,
-      message: `Résumé hebdomadaire envoyé pour ${eventsWithCategory.length} événement(s) à ${Object.keys(eventsByUser).length} utilisateur(s)`,
-      eventsCount: eventsWithCategory.length,
+      message: `Résumé hebdomadaire envoyé pour ${eventsCount} événement(s) à ${Object.keys(eventsByUser).length} utilisateur(s)`,
+      eventsCount,
       usersNotified: Object.keys(eventsByUser).length,
       enabledUsers: enabledUsers.length,
       notificationsSent: result.sent,

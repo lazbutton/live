@@ -714,6 +714,39 @@ final rows = await supabase.rpc(
 // [{"likes":2,"hidden_events":1,"notification_preferences":1,"notification_categories":1}]
 ```
 
+## Résumés poussés : `daily-events` et `weekly-summary`
+
+Les crons (`app/api/cron/notifications/`, `lib/notifications/digest.ts`) envoient un message par
+utilisateur et par passe, sur ses catégories (`user_notification_preferences`, fréquence `daily` ou
+`weekly`). Les événements sont ceux de l'accueil de l'app : `app_events_in_range` (heure de Paris, pas
+terminés), sans les complets ni `hide_from_home`, comptés quand ils commencent dans la plage (une
+exposition de plusieurs mois ne fait pas un message chaque soir).
+
+| Passe | Plage | Titre | Corps |
+| --- | --- | --- | --- |
+| chaque matin (`daily`) | ce soir, de 18 h à 6 h (« Ce soir » de l'app) ; rien ce soir : la journée | « 3 événements ce soir dans tes catégories » ; « 2 événements aujourd’hui… » | les deux premiers titres, puis « et 1 autre » |
+| le lundi (`weekly`) | du lundi au dimanche | « 12 événements cette semaine dans tes catégories » | idem |
+
+Rien dans la plage, pas de message. Ni nom, ni e-mail, ni donnée personnelle. Envoi : 08:00 UTC
+(`vercel.json`, à l'heure près sur Hobby), soit 10 h l'été et 9 h l'hiver à Paris.
+
+Données de la notification, que l'app lit au toucher pour ouvrir l'accueil sur la période et ces
+catégories. FCM (Android) les reçoit en texte : une liste y devient `"a,b"` ; APNs (iOS) les garde en
+JSON, à la racine du message à côté de `aps`.
+
+| Champ | `daily_events` | `weekly_summary` |
+| --- | --- | --- |
+| `type` | `daily_events` | `weekly_summary` |
+| `period` | `tonight` ou `today` | `week` |
+| `date` / `start_date`, `end_date` | `date` : le jour (`2026-10-21`) | le lundi et le dimanche |
+| `categories` | ids des catégories des événements envoyés | idem |
+| `event_ids` | les 10 premiers, par date | idem |
+| `events_count` | le nombre d'événements du message | idem |
+
+Les versions de l'app d'avant le 2026-10-21 n'ouvrent rien de particulier au toucher (l'app s'ouvre
+là où elle était) : ces champs ne lui servent pas, et aucun n'a été retiré sauf `days_count` (hebdo,
+jamais lu).
+
 ## Incohérences relevées, non corrigées
 
 1. **Alertes admin rejouables.** Les données personnelles exposées (`diagnostics`, ids d'admin dans

@@ -95,7 +95,9 @@ export async function sendFCMNotification(
         priority: "high" as const,
         notification: {
           sound: "default",
-          channelId: "default",
+          // Le canal que l'app crée à chaque lancement (`PushNotificationService`, importance haute) ;
+          // « default » n'existe pas dans l'app : Android rangeait les messages dans « Divers ».
+          channelId: "push_notifications",
         },
       },
       apns: {
