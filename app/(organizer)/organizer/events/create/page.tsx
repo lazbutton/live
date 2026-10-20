@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { getUserOrganizers, OrganizerInfo } from "@/lib/auth";
 import { OrganizerLayout } from "../../components/organizer-layout";
+import { EventPriceField } from "../../components/event-price-field";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -39,7 +40,6 @@ import {
   Calendar,
   MapPin,
   Tag,
-  Euro,
   Users,
   Clock,
   ExternalLink,
@@ -61,6 +61,13 @@ import { compressImage } from "@/lib/image-compression";
 import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
 import { useAlertDialog } from "@/hooks/use-alert-dialog";
 import { organizerCache, CACHE_KEYS, CACHE_TTL } from "@/lib/organizer-cache";
+import {
+  applyPriceMode,
+  formatPriceFieldsLabel,
+  priceColumnsFromFields,
+  priceFieldsError,
+  type PriceMode,
+} from "@/lib/events/price-mode";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { SelectSearchable } from "@/components/ui/select-searchable";
 import { EventFormOverviewCard } from "@/components/events/event-form-overview-card";
@@ -147,7 +154,9 @@ function CreateEventContent() {
     date: "",
     end_date: "",
     category: "",
-    price: "",
+    price_min: "",
+    price_max: "",
+    is_pay_what_you_want: false,
     capacity: "",
     location_id: "",
     room_id: "",
@@ -157,6 +166,7 @@ function CreateEventContent() {
     instagram_url: "",
     facebook_url: "",
   });
+  const [priceMode, setPriceMode] = useState<PriceMode>("unknown");
   const externalUrlHref = getOpenableExternalUrl(formData.external_url);
   const [duplicateCandidates, setDuplicateCandidates] = useState<
     PotentialDuplicateEvent[]
@@ -505,6 +515,12 @@ function CreateEventContent() {
       return;
     }
 
+    const priceError = priceFieldsError(formData, priceMode);
+    if (priceError) {
+      showAlert({ title: "Tarif", description: priceError, confirmText: "OK" });
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -537,7 +553,7 @@ function CreateEventContent() {
         date: fromDatetimeLocal(formData.date) || formData.date,
         end_date: formData.end_date ? fromDatetimeLocal(formData.end_date) : null,
         category: formData.category,
-        price: formData.price ? parseFloat(formData.price) : null,
+        ...priceColumnsFromFields(formData),
         address: selectedLocation?.address || null,
         latitude: selectedLocation?.latitude || null,
         longitude: selectedLocation?.longitude || null,
@@ -672,7 +688,7 @@ function CreateEventContent() {
     !formData.category ? "Categorie" : null,
     selectedOrganizerIds.length === 0 ? "Organisateur" : null,
   ].filter((value): value is string => Boolean(value));
-  const priceSummary = formData.price.trim() ? `${formData.price.trim()} EUR` : undefined;
+  const priceSummary = formatPriceFieldsLabel(formData, priceMode, { suffix: " EUR" }) ?? undefined;
 
   return (
     <OrganizerLayout
@@ -850,23 +866,17 @@ function CreateEventContent() {
                         }
                       />
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="price" className="flex items-center gap-2">
-                        <Euro className="h-4 w-4" />
-                        Prix (€)
-                      </Label>
-                      <Input
-                        id="price"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.price}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, price: e.target.value }))}
-                        placeholder="0.00"
-                      />
-                    </div>
                   </div>
+
+                  <EventPriceField
+                    mode={priceMode}
+                    fields={formData}
+                    onModeChange={(mode) => {
+                      setPriceMode(mode);
+                      setFormData((prev) => applyPriceMode(prev, mode));
+                    }}
+                    onFieldsChange={(fields) => setFormData((prev) => ({ ...prev, ...fields }))}
+                  />
 
                   <div className="space-y-2">
                     <Label htmlFor="capacity" className="flex items-center gap-2">

@@ -37,6 +37,7 @@ import {
   fromDatetimeLocal,
   parseDateWithoutTimezone,
 } from "@/lib/date-utils";
+import { formatGenericPriceLabel } from "@/lib/events/price-utils";
 import { fetchAdminProxiedImageObjectUrl, isHttpImageUrl } from "@/lib/events/remote-image";
 import { cn } from "@/lib/utils";
 import {
@@ -86,6 +87,7 @@ type ShareEvent = {
   price_min: number | null;
   price_max: number | null;
   is_pay_what_you_want: boolean;
+  price_kind: string | null;
   image_url: string | null;
   tag_ids?: string[] | null;
   location?: ShareLocation | null;
@@ -218,48 +220,6 @@ function formatPosterDisplayDate(date: Date) {
   })}`;
 }
 
-function formatPosterPriceNumber(value: number) {
-  if (value === Math.round(value)) {
-    return value.toFixed(0);
-  }
-
-  return value
-    .toFixed(2)
-    .replace(/0+$/, "")
-    .replace(/\.$/, "")
-    .replace(".", ",");
-}
-
-function formatPosterPriceLabel(event: ShareEvent) {
-  if (event.is_pay_what_you_want) {
-    return "Prix libre";
-  }
-
-  const explicitMin = event.price_min;
-  const explicitMax = event.price_max;
-  const legacyPrice = event.price;
-  const minValue =
-    typeof explicitMin === "number"
-      ? explicitMin
-      : typeof legacyPrice === "number"
-        ? legacyPrice
-        : null;
-  const maxValue =
-    typeof explicitMax === "number" && minValue !== null && explicitMax > minValue
-      ? explicitMax
-      : null;
-
-  if (minValue === null || minValue <= 0) {
-    return "Gratuit";
-  }
-
-  if (maxValue !== null) {
-    return `${formatPosterPriceNumber(minValue)} à ${formatPosterPriceNumber(maxValue)}€`;
-  }
-
-  return `${formatPosterPriceNumber(minValue)}€`;
-}
-
 function formatCompactPosterDate(date: Date) {
   const month = format(date, "MMM", { locale: fr }).replace(/\.$/, "");
   return `${format(date, "d", { locale: fr })} ${month}.`;
@@ -387,7 +347,8 @@ function buildPosterData(
   tags: TagOption[],
 ): PosterData {
   const categoryLabel = resolveCategoryLabel(event, categories);
-  const priceLabel = formatPosterPriceLabel(event);
+  // Genre de prix calculé par la base (events.price_kind) : pas de ligne de prix s'il n'est pas renseigné.
+  const priceLabel = formatGenericPriceLabel(event) ?? undefined;
   const tagsLabel = resolveTagSummary(event, tags);
 
   return createPosterData({
@@ -979,6 +940,7 @@ export function SocialVisualStudio() {
                 price_min,
                 price_max,
                 is_pay_what_you_want,
+                price_kind,
                 image_url,
                 tag_ids,
                 location:locations(

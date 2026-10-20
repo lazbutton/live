@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import { getUserOrganizers, OrganizerInfo } from "@/lib/auth";
 import { canEditEvent } from "@/lib/auth-helpers";
 import { OrganizerLayout } from "../../../components/organizer-layout";
+import { EventPriceField } from "../../../components/event-price-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,7 +40,6 @@ import {
   Calendar,
   MapPin,
   Tag,
-  Euro,
   Users,
   Clock,
   ExternalLink,
@@ -63,6 +63,15 @@ import { compressImage } from "@/lib/image-compression";
 import { formatDateWithoutTimezone, toDatetimeLocal, fromDatetimeLocal } from "@/lib/date-utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { organizerCache, CACHE_KEYS, CACHE_TTL } from "@/lib/organizer-cache";
+import {
+  applyPriceMode,
+  derivePriceMode,
+  formatPriceFieldsLabel,
+  priceColumnsFromFields,
+  priceFieldsError,
+  priceFieldsFromEvent,
+  type PriceMode,
+} from "@/lib/events/price-mode";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { SelectSearchable } from "@/components/ui/select-searchable";
 import { EventFormOverviewCard } from "@/components/events/event-form-overview-card";
@@ -153,7 +162,9 @@ function EditEventContent() {
     date: "",
     end_date: "",
     category: "",
-    price: "",
+    price_min: "",
+    price_max: "",
+    is_pay_what_you_want: false,
     capacity: "",
     location_id: "",
     room_id: "",
@@ -165,6 +176,7 @@ function EditEventContent() {
     status: "draft" as "draft" | "pending" | "approved" | "rejected",
     is_full: false,
   });
+  const [priceMode, setPriceMode] = useState<PriceMode>("unknown");
   const externalUrlHref = getOpenableExternalUrl(formData.external_url);
   const [duplicateCandidates, setDuplicateCandidates] = useState<
     PotentialDuplicateEvent[]
@@ -306,14 +318,16 @@ function EditEventContent() {
         return;
       }
 
-      // Pré-remplir le formulaire
+      // Pré-remplir le formulaire (un prix de 0 reste « Gratuit »)
+      const priceFields = priceFieldsFromEvent(event);
+      setPriceMode(derivePriceMode(priceFields));
       setFormData({
         title: event.title || "",
         description: event.description || "",
         date: event.date ? toDatetimeLocal(event.date) || "" : "",
         end_date: event.end_date ? toDatetimeLocal(event.end_date) || "" : "",
         category: event.category || "",
-        price: event.price ? String(event.price) : "",
+        ...priceFields,
         capacity: event.capacity ? String(event.capacity) : "",
         location_id: event.location_id || "",
         room_id: event.room_id || "",
@@ -516,6 +530,12 @@ function EditEventContent() {
       return;
     }
 
+    const priceError = priceFieldsError(formData, priceMode);
+    if (priceError) {
+      alert(priceError);
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -543,7 +563,7 @@ function EditEventContent() {
         date: fromDatetimeLocal(formData.date) || formData.date,
         end_date: formData.end_date ? fromDatetimeLocal(formData.end_date) : null,
         category: formData.category,
-        price: formData.price ? parseFloat(formData.price) : null,
+        ...priceColumnsFromFields(formData),
         address: selectedLocation?.address || null,
         latitude: selectedLocation?.latitude || null,
         longitude: selectedLocation?.longitude || null,
@@ -668,7 +688,7 @@ function EditEventContent() {
     !formData.category ? "Categorie" : null,
     selectedOrganizerIds.length === 0 ? "Organisateur" : null,
   ].filter((value): value is string => Boolean(value));
-  const priceSummary = formData.price.trim() ? `${formData.price.trim()} EUR` : undefined;
+  const priceSummary = formatPriceFieldsLabel(formData, priceMode, { suffix: " EUR" }) ?? undefined;
 
   return (
     <OrganizerLayout
@@ -886,22 +906,17 @@ function EditEventContent() {
                         }
                       />
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="price" className="flex items-center gap-2">
-                        <Euro className="h-4 w-4" />
-                        Prix (€)
-                      </Label>
-                      <Input
-                        id="price"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.price}
-                        onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      />
-                    </div>
                   </div>
+
+                  <EventPriceField
+                    mode={priceMode}
+                    fields={formData}
+                    onModeChange={(mode) => {
+                      setPriceMode(mode);
+                      setFormData((prev) => applyPriceMode(prev, mode));
+                    }}
+                    onFieldsChange={(fields) => setFormData((prev) => ({ ...prev, ...fields }))}
+                  />
 
                   <div className="space-y-2">
                     <Label htmlFor="capacity" className="flex items-center gap-2">

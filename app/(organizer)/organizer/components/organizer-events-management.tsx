@@ -40,6 +40,7 @@ import {
   FileText
 } from "lucide-react";
 import { formatDateWithoutTimezone } from "@/lib/date-utils";
+import { formatGenericPriceLabel } from "@/lib/events/price-utils";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useAlertDialog } from "@/hooks/use-alert-dialog";
@@ -55,6 +56,10 @@ interface Event {
   status: "pending" | "approved" | "rejected" | "draft";
   category: string;
   price: number | null;
+  price_min: number | null;
+  price_max: number | null;
+  is_pay_what_you_want: boolean;
+  price_kind: string | null;
   presale_price: number | null;
   subscriber_price: number | null;
   address: string | null;
@@ -356,6 +361,9 @@ export function OrganizerEventsManagement() {
         status: "draft",
         category: event.category,
         price: event.price,
+        price_min: event.price_min,
+        price_max: event.price_max,
+        is_pay_what_you_want: event.is_pay_what_you_want,
         presale_price: event.presale_price,
         subscriber_price: event.subscriber_price,
         address: event.address,
@@ -645,9 +653,9 @@ export function OrganizerEventsManagement() {
                         <span>
                           📅 {formatDateWithoutTimezone(event.date)}
                         </span>
-                        {event.price !== null && (
+                        {formatGenericPriceLabel(event) && (
                           <span>
-                            💰 {event.price === 0 ? "Gratuit" : `${event.price}€`}
+                            💰 {formatGenericPriceLabel(event)}
                           </span>
                         )}
                         {event.capacity && (

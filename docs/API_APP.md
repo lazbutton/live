@@ -238,6 +238,24 @@ jour) : garder `image_url`. Quand `image_card_url` est remplie, les trois autres
 L'app actuelle ne sélectionne pas ces colonnes : ce qu'elle reçoit ne change pas. Elles seront lues
 à l'étape C7b de `../live/docs/PLAN_REFONTE.md`. Fabrication et garanties : `EVENT_IMAGE_CARDS.md`.
 
+## Genre de prix : `events.price_kind`
+
+Colonne générée par la base (migration `20261020100000_add_price_kind_to_events.sql`), donc aussi dans
+`rpc/app_events` et `rpc/app_events_in_range`, à ajouter à `_eventColumns` pour la lire. Seule source de
+la règle « gratuit » / « non renseigné » : l'app et l'admin ne la recalculent pas.
+
+| `price_kind` | Quand | À afficher |
+| --- | --- | --- |
+| `pay_what_you_want` | `is_pay_what_you_want` | « Prix libre » |
+| `free` | tous les prix connus valent 0 | « Gratuit » |
+| `paid` | un prix connu au-dessus de 0 (fourchette « 0 à 5 € » comprise) | le montant : `price_min`, ou « `price_min` à `price_max` » ; à défaut `price` |
+| `unknown` | aucun prix connu (`price_min`, `price_max` et `price` nuls) | rien |
+
+Prix connus : `price_min` et `price_max`, à défaut `price` ; une valeur négative ne compte pas. Jamais
+`null` sur une ligne. Instantané du 2026-10-19 (393 événements publiés) : `paid` 184, `unknown` 154,
+`free` 33, `pay_what_you_want` 22. La colonne ne s'écrit pas (PostgREST répond 400, code `428C9`) :
+l'app continue d'envoyer `price` (et l'admin `price`, `price_min`, `price_max`, `is_pay_what_you_want`).
+
 ## Fonctions SQL de la refonte : calendrier, vacances scolaires, recherche
 
 Pour le calendrier « Quand ? » et la recherche des maquettes (`../live/docs/MAQUETTES_REFONTE.md`),
@@ -536,20 +554,15 @@ utilisent les index sur `date` et `end_date` (0,4 à 6 ms sur l'instantané ; 2 
    `jsonb` : l'appel échoue, l'erreur finit en WARNING et rien ne part (vérifié sur une base locale,
    pg_net 0.19.5). Les deux triggers sont retirés par `20261019200000_drop_notify_admins_triggers.sql`,
    à appliquer en prod.
-7. **Prix inconnu affiché « Gratuit » dans l'app** (relevé le 2026-10-19, règle proposée, en attente
-   de l'utilisateur). `Event.getCompactPriceLabel` et `isFreeEvent` (app) traitent un prix absent
-   comme gratuit ; l'admin (`formatGenericPriceLabel`) et la page de partage (`formatPriceLabel`,
-   `lib/public-share-data.ts`) n'affichent rien. Événements publiés (`app_events()`) : 393, dont
-   154 sans aucun prix (148 à venir), 33 à 0 €, 184 payants, 22 en prix libre. Tous les chemins
-   d'écriture notent « gratuit » par 0 et « inconnu » par null : formulaire de l'admin (« Non précisé »
-   / « Gratuit » / « Payant » / « Prix libre »), collecte (`is_free` → `price_min = 0`), scraping
-   (`isAccessibleForFree`, « gratuit », « entrée libre » → 0), import par lot, assistant de l'app
-   (champ « Prix » facultatif). Exception : l'espace organisateur (un seul champ « Prix (€) ») affiche
-   un prix de 0 vide à la modification (`event.price ? … : ""`) et l'enregistre alors à null.
-   Proposition : 0 = « Gratuit », null partout (sans prix libre) = rien d'affiché, comme l'admin et les
-   maquettes ; la règle en SQL (une colonne calculée de `events`, par exemple `price_kind` :
-   `free`, `paid`, `pay_what_you_want`, `unknown`) lue par l'app et l'admin ; corriger l'espace
-   organisateur et lui donner le même choix que l'admin.
+7. **Prix inconnu affiché « Gratuit » dans l'app** (relevé le 2026-10-19). Règle fixée par
+   l'utilisateur le 2026-10-20 : un prix de 0 s'affiche « Gratuit », un prix non renseigné n'affiche
+   rien ; elle vit en SQL, dans `events.price_kind` (voir « Genre de prix » plus haut), lue par l'admin
+   (page de partage, page d'artiste, visuels pour les réseaux, espace organisateur) depuis la
+   migration `20261020100000_add_price_kind_to_events.sql`. L'espace organisateur a le même choix que
+   l'admin (Non précisé, Gratuit, Payant, Prix libre) et garde un prix de 0 à la modification.
+   **Reste côté app** : lire `price_kind` (`Event.getCompactPriceLabel`, `isFreeEvent`), PR de l'app
+   à merger après l'application de la migration en prod. Le 2026-10-19 : 154 des 393 événements
+   publiés sans aucun prix, affichés « Gratuit » par l'app.
 
 ## Comportements changés
 

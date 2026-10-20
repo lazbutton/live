@@ -771,6 +771,7 @@ export type Database = {
           longitude: number | null
           presale_price: number | null
           price: number | null
+          price_kind: string | null
           price_max: number | null
           price_min: number | null
           room_id: string | null
@@ -821,6 +822,7 @@ export type Database = {
           longitude?: number | null
           presale_price?: number | null
           price?: number | null
+          price_kind?: string | null
           price_max?: number | null
           price_min?: number | null
           room_id?: string | null
@@ -871,6 +873,7 @@ export type Database = {
           longitude?: number | null
           presale_price?: number | null
           price?: number | null
+          price_kind?: string | null
           price_max?: number | null
           price_min?: number | null
           room_id?: string | null
@@ -2597,6 +2600,7 @@ export type Database = {
           longitude: number | null
           presale_price: number | null
           price: number | null
+          price_kind: string | null
           price_max: number | null
           price_min: number | null
           room_id: string | null
@@ -2662,6 +2666,7 @@ export type Database = {
           longitude: number | null
           presale_price: number | null
           price: number | null
+          price_kind: string | null
           price_max: number | null
           price_min: number | null
           room_id: string | null
