@@ -192,6 +192,49 @@
   le même jour : les 28 organisateurs reliés à des événements, aucun écart avec un calcul indépendant ; Théâtre
   d'orléans 84.
 
+## 2026-10-20 — Rattrapage de la prod : trois migrations jamais appliquées
+
+- Écart trouvé en comparant les types générés depuis la prod
+  (`supabase gen types typescript --project-id tkyuiltgvqcgebnqdgmb --schema public`) à
+  `lib/supabase/database.types.ts`, puis confirmé en lecture seule (psql, `BEGIN READ ONLY … ROLLBACK`) :
+  - `20260415150000_add_notification_log_delivery_keys` absente : `notification_logs` sans `flow_type`,
+    `delivery_date`, `delivery_key`. `claimNotificationDelivery` (`lib/notifications/index.ts`) filtre sur
+    `delivery_key` et lève une erreur : les crons `daily-events` (tous les jours, 8 h UTC) et `weekly-summary`
+    (lundi, 8 h UTC) échouaient pour chaque utilisateur, sans rien envoyer. `notification_logs` était vide
+    (aucune ligne, le cron `cleanup` efface au-delà de 90 jours) : aucun résumé parti depuis au moins juillet,
+    sans doute depuis avril. Les journaux Vercel ne remontent pas assez loin pour le montrer.
+  - `20260428180500_add_scan_timing_and_opportunity_log_link` absente (32 scans, 166 opportunités).
+  - `20261019200000_drop_notify_admins_triggers` pas encore appliquée : les triggers
+    `trigger_notify_admins_new_request` (`user_requests`) et `trigger_notify_admins_new_feedback` (`feedbacks`)
+    et les quatre fonctions `notify_admins_new_*` existaient, aucun autre trigger ne les utilisait.
+  - En plus en prod, dans aucune migration ni archive : `to_tag_title_case(text)`, `tags_force_title_case()`
+    et le trigger `trg_tags_force_title_case` sur `tags`. Repris dans `20261020160000_capture_tag_title_case`
+    (décision de l'utilisateur : garder).
+- **Appliquées en prod le 20/10/2026**, avec l'accord de l'utilisateur, dans cet ordre : psql, une transaction
+  par fichier (`--single-transaction`, `ON_ERROR_STOP`), identifiants temporaires de
+  `supabase db dump --linked --dry-run`, `SET ROLE postgres`. Sans erreur.
+- Vérifié après, en lecture seule : les trois colonnes de `notification_logs` et ses deux index (unique partiel
+  sur `delivery_key`) ; les quatre colonnes de `event_source_scan_logs`, sa contrainte et son index,
+  `event_opportunities.source_scan_log_id` (FK `ON DELETE SET NULL`) et son index ; plus aucune fonction
+  `notify_admins_new_%` ni trigger `trigger_notify_admins_%`. Types régénérés depuis la prod : plus aucun écart
+  avec `lib/supabase/database.types.ts`.
+- `20261020160000_capture_tag_title_case` : recopie à l'identique de la prod (`pg_get_functiondef` comparé à
+  l'octet près, mêmes attributs : IMMUTABLE, SECURITY INVOKER, sans SET). **Rien à appliquer en prod.** Testée
+  sur un Postgres 17 local nu (table `tags` seule) : appliquée deux fois sans erreur,
+  `supabase/tests/tag_title_case.test.sql` passe (4 cas). `npm run db:test` pas relancé (Docker arrêté).
+  `to_tag_title_case` ajoutée à la main dans `database.types.ts`, ligne identique aux types générés depuis la prod.
+  Les 163 tags de la prod respectent déjà la règle.
+- Premier envoi attendu : `daily-events` le 21/10/2026 à 8 h UTC (10 h à Paris), `weekly-summary` le lundi
+  26/10/2026 à 8 h UTC (9 h à Paris). Les crons n'ont pas été lancés à la main (ils écrivent à de vrais
+  utilisateurs). Vérification, dans le SQL Editor, après 8 h UTC :
+  `select flow_type, delivery_date, count(*), count(sent_at) as envoyees from notification_logs where delivery_date >= '2026-10-21' group by 1, 2;`
+  (une ligne par utilisateur servi ; sans `sent_at`, l'envoi n'a pas abouti), et dans Vercel (projet `outlive`,
+  Logs, chemin `/api/cron/notifications/daily-events`) : ligne « Notifications envoyées: N réussies, 0 échecs ».
+- Reste ouvert : la policy `Users can view all event likes` (`event_likes`, SELECT `USING (true)`, rôle `public`)
+  est bien celle de la prod : avec la clé publique, n'importe qui lit qui a aimé quoi. L'app compte les likes de
+  « Mes contributions » en lisant ces lignes (`EventLikeService.getLikeCount`) : il faut d'abord une fonction de
+  comptage, puis restreindre la lecture à `auth.uid() = user_id`. Non appliqué.
+
 ## 2026-10-20 — `app_search()` et `app_search_names()` : recherche plein texte de l'app
 
 - `20261020170000_create_app_search` : la recherche de l'app sur toute la base (audit UI/UX du 2026-10-20,
