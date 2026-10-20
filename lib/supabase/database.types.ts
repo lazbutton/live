@@ -2776,6 +2776,13 @@ export type Database = {
         }
         Returns: string
       }
+      event_like_counts: {
+        Args: { event_ids: string[] }
+        Returns: {
+          event_id: string
+          likes_count: number
+        }[]
+      }
       extract_city_label_from_address: {
         Args: { address: string }
         Returns: string
