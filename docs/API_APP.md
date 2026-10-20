@@ -536,6 +536,33 @@ Instantané prod du 2026-10-20 : Théâtre d'orléans 84, Théâtre de la Tête 
 Artéphé 35, L'astrolabe 22. Les maquettes affichaient 40 pour le Théâtre d'orléans : l'app comptait
 alors les seuls événements chargés (`SearchPlace.index`), une partie des 84.
 
+## Favoris : `event_like_counts`, sans lire `event_likes`
+
+```sql
+event_like_counts(event_ids uuid[]) returns table (event_id uuid, likes_count integer)
+```
+
+Migration `20261020180000_create_event_like_counts.sql`, tests `supabase/tests/event_likes.test.sql`.
+Nombre de favoris de chaque événement demandé, pour « Mes suggestions » (compteur « 3 favoris » des
+contributions validées). Une ligne par id d'un événement visible dans l'app (`app_events()`) ou créé par
+l'appelant (`events.created_by`, quel que soit son statut) ; un autre id (inconnu, non visible, nul) n'a
+pas de ligne : compter 0. Ids en double : une ligne ; au plus 200 ids par appel. `security definer` :
+compte toutes les lignes sans les rendre.
+
+```dart
+final rows = await supabase.rpc(
+  'event_like_counts',
+  params: {'event_ids': [for (final e in events) e.id]},
+) as List<dynamic>;
+// [{"event_id":"…","likes_count":3}]
+```
+
+Jusqu'ici, l'app comptait en lisant les lignes (`from('event_likes').select('id').eq('event_id', …)`),
+ce que la policy SELECT `USING (true)` permettait à tous, anon compris : qui a aimé quoi était public.
+`20261020181000_restrict_event_likes_select.sql` réserve la lecture des lignes à leur auteur ; à
+appliquer quand les versions de l'app en circulation passent par `event_like_counts` (une ancienne
+version afficherait alors 0 favori, ou 1). L'app ne lit plus que ses propres lignes (`user_id` filtré).
+
 ## Incohérences relevées, non corrigées
 
 1. **Alertes admin rejouables.** Les données personnelles exposées (`diagnostics`, ids d'admin dans
