@@ -360,8 +360,10 @@
 - Testée : `npm run db:test` (12 cas dans `supabase/tests/anon_privacy.test.sql` + suite complète verte). App et
   admin vérifiés par grep des deux dépôts : l'app n'appelle aucune fonction restreinte ; les deux appelants de
   `get_user_emails` (route admin, page équipe d'un organisateur) sont admin ou propriétaire.
-- **Pas encore appliquée en prod** : en attente de l'accord de l'utilisateur. Confirmation des droits réels en prod
-  (les grants ne se voient pas dans les types générés) : requêtes de l'annexe A d'AMELIORATIONS.md dans le SQL Editor.
+- **Appliquée en prod le 21/10/2026** par l'utilisateur (psql, `--single-transaction`, `SET ROLE postgres`), dans
+  sa version de cette PR (droits Notion seulement si les fonctions existent : elles étaient déjà retirées), après une
+  répétition dans une transaction annulée, sans erreur. Les deux NOTICE « policy … does not exist, skipping » sont
+  attendus (nouvelles policies, `DROP … IF EXISTS` avant leur création).
 
 ## 2026-10-20 — Noms en français (U34) ; titres et descriptions des événements repris (U31, U32)
 
@@ -402,7 +404,7 @@
   pour le worker Notion, appelée par personne), les 7 tables `notion_*` (liens : 286 événements dont 173 supprimés
   depuis, 24 demandes, 41 lieux, 43 organisateurs ; 609 tâches, 8 erreurs, 5 points de reprise).
   `cleanup_free_tier_technical_data` ne purge plus la file : même signature, `p_batch_size` sans effet.
-- `20261020220000` (U39, pas encore appliquée en prod) : ses droits sur les trois fonctions Notion ne s'appliquent
+- `20261020220000` (U39, appliquée en prod le 21/10/2026, après ce retrait) : ses droits sur les trois fonctions Notion ne s'appliquent
   plus que si elles existent ; elle passe avant ou après le retrait.
 - Code, même PR : `lib/notion/`, `/api/notion/webhook` et `bootstrap`, `/api/cron/notion-sync` et son cron
   (`vercel.json`), la carte « Synchronisation Notion » des réglages, `@notionhq/client`, `docs/notion-import/`.
