@@ -288,3 +288,34 @@
   contenait alors). Mesurée en anon : `app_search` seule 40 à 70 ms, l'appel de l'app 60 à 95 ms avec peu de
   résultats et ~100 à 120 ms avec 30 événements embarqués (l'embarquement seul : ~50 à 60 ms) ;
   `app_search_names` 25 à 40 ms.
+
+## 2026-10-20 — U39 : fermer ce que la clé publique (anon) lisait/appelait
+
+- `20261020220000_restrict_anon_function_and_invitation_access` : audit de toutes les tables `public` portant un
+  `user_id`/`created_by`/une donnée personnelle et des fonctions SECURITY DEFINER exposées à anon (tableau table
+  par table dans la PR). Fuites fermées :
+  - **`organizer_invitations`** : la policy SELECT `USING (true)` rendait e-mail invité + token (le secret qui
+    permet de rejoindre l'équipe d'un organisateur) de toutes les invitations, à la clé anon. Remplacée par trois
+    policies (admin conservée ; propriétaire de l'organisateur ; utilisateur connecté dont l'e-mail est celui de
+    l'invitation). La vérification par lien (`/api/organizer/invite/verify`) lit déjà en service role ; l'acceptation
+    exige d'être connecté.
+  - **`make_user_admin(email)`** : EXECUTE à anon → escalade de privilèges (se nommer admin). Retirée de
+    anon/authenticated/PUBLIC.
+  - **`get_user_emails(uuid[])`** : résolvait uuid → e-mail pour tout le monde ; combinée à `events.created_by`
+    (public, nécessaire au blocage/signalement côté app), elle reliait un événement à l'e-mail de son auteur. Garde
+    interne ajoutée (admin ou propriétaire d'organisateur) ; retirée de anon.
+  - `get_or_create_user_by_email`, `get_invitation_by_token`, `check_rls_policies` : retirées de
+    anon/authenticated/PUBLIC (aucun appelant PostgREST).
+  - `convert_event_request_to_event_service`, `cleanup_free_tier_technical_data`, `enqueue_notion_sync_job`,
+    `claim_notion_sync_jobs`, `upsert_city`, `refresh_city_center`, `resolve_city_id_from_address` : réservées au
+    service role (triggers non concernés : ils tournent avec les droits du propriétaire).
+  - `accept_organizer_invitation` : garde `user_id_param = auth.uid()` ; retirée de anon.
+  - Inchangées : fonctions `app_*`, `event_like_counts`, `copy_guest_data` (l'app en dépend) ; `is_user_admin`,
+    `is_user_organizer`, `is_user_safety_suspended`, `can_use_ugc_features`, `is_event_approved_*` (évaluées dans
+    les policies RLS, ne renvoient qu'un booléen sur l'appelant).
+- Rejouable. Aucun changement de signature → `lib/supabase/database.types.ts` inchangé (régénéré, aucun diff).
+- Testée : `npm run db:test` (12 cas dans `supabase/tests/anon_privacy.test.sql` + suite complète verte). App et
+  admin vérifiés par grep des deux dépôts : l'app n'appelle aucune fonction restreinte ; les deux appelants de
+  `get_user_emails` (route admin, page équipe d'un organisateur) sont admin ou propriétaire.
+- **Pas encore appliquée en prod** : en attente de l'accord de l'utilisateur. Confirmation des droits réels en prod
+  (les grants ne se voient pas dans les types générés) : requêtes de l'annexe A d'AMELIORATIONS.md dans le SQL Editor.
