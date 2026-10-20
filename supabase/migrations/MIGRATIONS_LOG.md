@@ -98,7 +98,19 @@
   corps et délai de la requête, pas de job Notion pour une vignette posée (toujours un pour un autre
   changement et pour une suppression), contraintes, `app_events()` avec les colonnes, enregistrement
   maintenu si pg_net échoue.
-- **Pas encore appliquée en prod.** Ordre de mise en route et vérifications : `docs/EVENT_IMAGE_CARDS.md`.
+- **Appliquée en prod le 20/10/2026** (psql, une transaction, identifiants temporaires de
+  `supabase db dump --linked --dry-run`, `SET ROLE postgres`), après les migrations de #17 et #18, sans erreur.
+  Vérifié avant : `queue_event_sync_job()` en prod identique au repo (corps à l'octet près, mêmes attributs),
+  pg_net 0.19.5 (`http_post(text, jsonb, jsonb, jsonb, integer)`), Vault 0.3.1, aucun objet de C7a déjà là.
+  Testée avant sur une base jetable avec toutes les migrations de `main`, dans l'ordre des fichiers et dans celui
+  de la prod (celle-ci en dernier) : tests de `supabase/tests/` et contrôles des triggers, tout passe.
+- Même jour : `IMAGE_CARD_WEBHOOK_SECRET` sur Vercel (Production, sensible, redéploiement), puis le secret Vault
+  `image_card_webhook_secret`. Vérifié de bout en bout : pg_net → `https://www.outlive.fr` → la route répond 404
+  sur un id inexistant avec le secret de Vault (401 sans secret).
+- Rattrapage (`scripts/backfill-image-cards.mjs`) : 460 événements avec affiche, 338 affiches distinctes →
+  326 vignettes (448 événements), 11,0 Mo en tout ; 34,4 Ko en moyenne, médiane 27,6 Ko, 127,9 Ko au plus,
+  13 au-dessus de 70 Ko. 12 échecs notés dans `image_card_error` : 11 affiches billetweb.fr en 404, 1 image de
+  ccn-orleans.com au-delà de 15 Mo. Aucun job Notion créé.
 
 ## 2026-10-19 — `events.is_young_audience` : jeune public
 
