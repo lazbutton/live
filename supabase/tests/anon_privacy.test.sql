@@ -52,11 +52,10 @@ SELECT pg_temp.verifie('anon ne peut plus appeler les fonctions sensibles',
   || pg_temp.anon_execute('public.get_or_create_user_by_email(text)') || ' '
   || pg_temp.anon_execute('public.get_invitation_by_token(uuid)') || ' '
   || pg_temp.anon_execute('public.check_rls_policies()') || ' '
-  || pg_temp.anon_execute('public.convert_event_request_to_event_service(uuid,uuid)') || ' '
   || pg_temp.anon_execute('public.cleanup_free_tier_technical_data(integer)') || ' '
   || pg_temp.anon_execute('public.upsert_city(text,numeric,numeric)') || ' '
   || pg_temp.anon_execute('public.accept_organizer_invitation(uuid,uuid)'),
-  'false false false false false false false false false');
+  'false false false false false false false false');
 
 -- Les fonctions app_* et event_like_counts restent exécutables par anon (l'app en dépend).
 SELECT pg_temp.verifie('anon garde app_events / event_like_counts',

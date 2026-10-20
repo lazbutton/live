@@ -135,17 +135,26 @@ REVOKE ALL ON FUNCTION public.check_rls_policies() FROM PUBLIC, anon, authentica
 
 -- Écritures réservées au service role (cron / files Notion / conversion service) ; triggers non concernés
 -- (ils s'exécutent avec les droits du propriétaire, pas de l'appelant).
-REVOKE ALL ON FUNCTION public.convert_event_request_to_event_service(uuid, uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.convert_event_request_to_event_service(uuid, uuid) TO service_role;
-
 REVOKE ALL ON FUNCTION public.cleanup_free_tier_technical_data(integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_free_tier_technical_data(integer) TO service_role;
 
-REVOKE ALL ON FUNCTION public.enqueue_notion_sync_job(text, uuid, text, text, text, jsonb, text) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.enqueue_notion_sync_job(text, uuid, text, text, text, jsonb, text) TO service_role;
-
-REVOKE ALL ON FUNCTION public.claim_notion_sync_jobs(text, integer) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.claim_notion_sync_jobs(text, integer) TO service_role;
+-- Fonctions de la synchro Notion, retirées par 20261020235000_remove_notion_sync, qui peut passer avant
+-- celle-ci en prod : seulement si elles existent encore.
+DO $$
+DECLARE
+  sig text;
+BEGIN
+  FOREACH sig IN ARRAY ARRAY[
+    'public.convert_event_request_to_event_service(uuid, uuid)',
+    'public.enqueue_notion_sync_job(text, uuid, text, text, text, jsonb, text)',
+    'public.claim_notion_sync_jobs(text, integer)'
+  ] LOOP
+    IF to_regprocedure(sig) IS NOT NULL THEN
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', sig);
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', sig);
+    END IF;
+  END LOOP;
+END $$;
 
 -- Fonctions ville : seulement appelées par des triggers (sync_event_city, sync_location_city,
 -- sync_major_event_city, refresh_city_center_from_location_change). On laisse le service role pour un

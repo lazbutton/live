@@ -3,8 +3,7 @@
  * Titres et descriptions des événements déjà en base, repassés par les règles de la collecte
  * (lib/collecte/event-text.ts, U31 et U32) : date et lieu répétés, capitales, guillemets ; blocs
  * collés séparés, lignes recollées, hashtags et renvois de billetterie retirés.
- * Événements non archivés, publiés ou en attente. Chaque événement modifié met une synchronisation
- * Notion en file (trigger de la base), comme une modification dans l'admin.
+ * Événements non archivés, publiés ou en attente.
  *
  *   node --env-file=.env.local scripts/clean-event-texts.mjs [--out=rapport.md]
  *       → simulation : liste avant → après (et rapport complet dans --out), rien n'est écrit
