@@ -9,6 +9,7 @@ import {
   Music,
   Settings,
   ShieldAlert,
+  Type,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -68,6 +69,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         icon: ShieldAlert,
         countKey: "openReports",
         keywords: "signalements ugc reports",
+      },
+      {
+        title: "Titres à revoir",
+        url: "/admin/titles",
+        icon: Type,
+        keywords: "titres capitales dates lieu guillemets qualité collecte",
       },
     ],
   },
