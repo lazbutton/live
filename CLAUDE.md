@@ -33,8 +33,10 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   ni trier sur une colonne non sélectionnée. Au-dessus d'elle, pour l'app : `app_cities()`,
   `app_events_in_range()` et `app_event_counts()` (calendrier), `app_category_counts()` et
   `app_tag_counts()`, `app_search()` et `app_search_names()` (recherche ; extensions `unaccent` et `pg_trgm`
-  dans le schéma `extensions`), `app_organizer_counts()` (fiche), table `school_holidays` ; contrat dans
-  `docs/API_APP.md`, tests SQL dans `supabase/tests/`. Genre de prix (« Gratuit », prix libre, non renseigné) : colonne générée
+  dans le schéma `extensions`), `app_organizer_counts()` (fiche), table `school_holidays`, `event_like_counts()`
+  (favoris de « Mes suggestions » ; les lignes de `event_likes` ne sont lisibles que par leur auteur une fois
+  `20261020181000` appliquée) ; contrat dans `docs/API_APP.md`, tests SQL dans `supabase/tests/`. Genre de prix
+  (« Gratuit », prix libre, non renseigné) : colonne générée
   `events.price_kind`, lue par `formatGenericPriceLabel` ; ne pas le recalculer en TS ni en Dart.
 - Une nouvelle colonne sur `events` que l'app doit lire : migration ici, puis ajout dans
   `_eventColumns` côté app (`lib/services/event_service.dart`).
