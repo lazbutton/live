@@ -43,7 +43,7 @@ les deux repos ensemble.
 | `POST /api/notifications/admin/new-request` | `NotificationApiService.notifyAdminsNewRequest` | aucune | `adminNewRequestBodySchema` | `adminAlertResponseSchema` |
 | `POST /api/notifications/admin/new-report` | `NotificationApiService.notifyAdminsNewContentReport` | aucune | `adminNewReportBodySchema` | `adminAlertResponseSchema` |
 | `POST /api/user-requests` | `UserRequestApiService.createEventCreationRequest`, `createEventFromUrlRequest` | JWT | `createUserRequestBodySchema` | `createUserRequestResponseSchema` |
-| `POST /api/mobile/events/extract-from-image` | `UserRequestApiService.extractEventFromImage` | JWT, compte réel | `extractFromImageFormSchema` (multipart) | `extractFromImageResponseSchema` |
+| `POST /api/mobile/events/extract-from-image` | `UserRequestApiService.extractEventFromImage` | JWT, session invitée ou compte, plafond par jour | `extractFromImageFormSchema` (multipart) | `extractFromImageResponseSchema` |
 | `PATCH /api/admin/mobile/events/[id]` | `AdminMobileApiService.approveEvent`, `toggleEventFull`, `toggleEventFeatured`, `quickEditEvent` | JWT admin | `adminEventActionBodySchema` | `adminEventActionResponseSchema` |
 
 Services Dart : `lib/services/notification_api_service.dart`, `lib/services/user_request_api_service.dart`,
@@ -171,9 +171,23 @@ d'affiche a préremplie (avant le 2026-10-21, elle pouvait arriver en vrai UTC :
 ## Analyse d'affiche : `POST /api/mobile/events/extract-from-image`
 
 Appelée par le wizard de création (`EventWizardController`, via
-`UserRequestApiService.extractEventFromImage`). JWT d'un compte réel ayant accepté les conditions.
+`UserRequestApiService.extractEventFromImage`). JWT de toute session de l'app, invitée (anonyme)
+comprise, sauf un compte suspendu : depuis le 2026-10-21, « Proposer un événement » s'ouvre sans
+compte (`../live/docs/AMELIORATIONS.md`, § 5 et partie E, point 6) ; le compte et les conditions
+ne sont demandés qu'à l'envoi (`/api/user-requests`). Avant, un compte réel ayant accepté les
+conditions.
 Formulaire multipart : champ `image`, fichier JPEG pour l'app (`imageUrl`, URL d'une image, sert
 aux autres appelants).
+
+**Plafond par jour** (heure de Paris), compté en base par `take_poster_analysis()` (table
+`poster_analysis_usage` : l'id de la session et le nombre d'analyses du jour, rien au-delà de la veille ;
+migration `20261021200000_create_poster_analysis_quota.sql`) : 10 analyses par session, invitée ou compte,
+et 200 pour l'ensemble des sessions invitées (une session invitée ne coûte rien à créer : ce total borne
+la dépense) ; `lib/events/poster-analysis-quota.ts`. L'analyse est réservée juste avant l'appel à l'IA :
+un formulaire refusé ne compte pas, un échec de l'IA si. Au-delà : 429 « Tu as fait lire beaucoup
+d'affiches aujourd'hui. Remplis les infos à la main, ou réessaie demain. ». Si le compteur ne répond pas
+(migration pas encore appliquée, base injoignable) : une session invitée reçoit 403 (« Connecte-toi pour
+faire lire l'affiche. », comme avant), un compte est lu sans plafond.
 
 - 200 : `{ data, metadata, warnings }`.
   - `data` : champs lus par l'IA, tous facultatifs et éventuellement `null` : `title`,
@@ -194,9 +208,10 @@ aux autres appelants).
     `requester_id`.
   - `warnings` : `[{ field, message, value? }]`, champs que l'IA n'a pas su lire.
 - 400 formulaire invalide, image absente, fichier vide ou qui n'est pas une image ;
-  401 token absent ou invalide ; 403 compte anonyme, suspendu ou conditions non acceptées ;
-  413 au-delà de 12 Mo ; 422 affiche trop peu lisible (avec `warnings`) ; 500 (clé OpenAI absente,
-  exception, avec `details`) ; 502 réponse de l'IA inexploitable.
+  401 token absent ou invalide ; 403 compte suspendu, ou session invitée sans compteur (voir
+  plus haut) ; 413 au-delà de 12 Mo ; 422 affiche trop peu lisible (avec `warnings`) ; 429 plafond
+  du jour atteint ; 500 (clé OpenAI absente, exception, avec `details`) ; 502 réponse de l'IA
+  inexploitable.
 
 ## Actions rapides admin : `PATCH /api/admin/mobile/events/[id]`
 
@@ -275,7 +290,9 @@ fiche `20261020140000_create_app_organizer_counts.sql` et `20261021110000_create
 `20261020210000_speed_up_app_search.sql`. Tests :
 `supabase/tests/*.test.sql` (`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`. Toutes
 sont en prod depuis le 2026-10-20 (`app_see_also` depuis le 2026-10-21), et `school_holidays` est
-chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`.
+chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`. Pour « Proposer » :
+`20261021201000_create_app_possible_duplicates.sql` (à appliquer en prod avant la sortie de l'app qui
+l'appelle ; sans elle, l'app n'affiche simplement pas le bloc).
 
 | Objet | Appel Dart | Rend |
 | --- | --- | --- |
@@ -287,6 +304,7 @@ chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`.
 | `app_organizer_counts(organizer_ids, city_ids, at_time)` | `rpc('app_organizer_counts', params: …)` | nombre d'événements à venir de chaque organisateur (fiche, « Organisé par ») |
 | `app_see_also(event_id, city_ids, at_time, max_results)` | `rpc('app_see_also', params: …)` + `select('section, rank, …, event:events(…)')`, `order('rank')` | « À voir aussi » en bas de la fiche : les rangées « Aussi à <lieu> » et « Dans le même genre » |
 | `app_search(query, city_ids, at_time, max_results)` | `rpc('app_search', params: …)` + `select('rank, event:events(…)')`, `order('rank')` | événements à venir qui correspondent à la requête, par pertinence puis date |
+| `app_possible_duplicates(title, starts_at, location_id, link, at_time, max_results)` | `rpc('app_possible_duplicates', params: …)` + `select('rank, reason, event:events(…)')`, `order('rank')` | « Cet événement existe peut-être déjà » avant l'envoi d'une proposition : les événements à venir qui lui ressemblent |
 | `app_search_names(query, city_ids, at_time, max_results)` | `rpc('app_search_names', params: …)` + `order('rank')` | catégories, tags, lieux et organisateurs dont le nom correspond, avec leur nombre d'événements à venir |
 | `app_event_in_range(…)` | aucun | la règle d'appartenance à une plage, partagée par les fonctions ci-dessus |
 
@@ -628,6 +646,60 @@ Embarquer les 6 événements avec le select de la liste coûte 25 à 45 ms : ces
 titre, une date, une affiche, un lieu et une catégorie, un select plus léger ferait gagner d'autant. En
 local (Postgres 17.6 et PostgREST v13.0.5 sur l'instantané), la fonction s'exécute en 5 à 12 ms (lecture
 des 363 événements à venir : 2,5 ms).
+
+### Proposer : `app_possible_duplicates`, « Cet événement existe peut-être déjà »
+
+```sql
+app_possible_duplicates(title text = null, starts_at timestamp = null, location_id uuid = null,
+  link text = null, at_time timestamp = null, max_results integer = 3)
+  returns setof public.app_possible_duplicate_results  -- (rank integer, event_id uuid, reason text)
+```
+
+Avant l'envoi d'une proposition, l'app montre l'événement déjà publié qui lui ressemble, avec « Voir la
+fiche » et « Ce n'est pas le même » (audit du 2026-10-20, `../live/docs/AMELIORATIONS.md`, partie E,
+point 6 ; maquettes du lot 2 : « Proposer, affiche lue »). La règle est celle de la collecte
+(`findDuplicateEvent`, `lib/agent/events.ts`), réduite à ce qu'une proposition connaît, en SQL pour que
+l'admin puisse la reprendre.
+
+- Candidats : les événements à venir d'`app_events_in_range` (à partir d'aujourd'hui 0 h, expositions en
+  cours comprises, toutes villes, sans les événements masqués par l'utilisateur ni les auteurs qu'il a
+  bloqués) ; jamais un événement en attente, pas même le sien.
+- `reason = 'link'` : `link` (le lien de la proposition, avec son `https://`) désigne la même page que
+  `external_url`, `facebook_url`, `instagram_url` ou `scraping_url` (la page d'où la collecte l'a
+  importé). Comparés par `app_link_keys(text)`, comme `urlMatchKeys` de la collecte : sans protocole,
+  « www. », fragment, paramètres de suivi (`utm_*`, `fbclid`, `igsh`…) ni slash final, en minuscules ; le
+  chemin seul suffit quand son dernier segment est précis (8 caractères au moins, pas une page `.php`,
+  `.asp(x)`, `.htm(l)`). Un autre domaine (`m.facebook.com`) ne correspond pas.
+- `reason = 'place'` : même lieu (`location_id`) et début à deux heures près de `starts_at`.
+- `reason = 'title'` : titre équivalent (`app_similar_titles(text, text)`, la règle `similarTitles` de la
+  collecte : sans accents, casse ni ponctuation, identiques, l'un contenu dans l'autre à partir de 6
+  caractères, ou mots de plus de 2 lettres communs à 60 %) le jour de `starts_at`, ou en cours ce
+  jour-là (exposition).
+- `starts_at` : heure de Paris sans fuseau, comme `events.date` (conventions communes). Sans lien ni date,
+  aucune ligne. Un événement qui a plusieurs raisons prend la plus sûre (`link`, puis `place`, puis
+  `title`) ; rang par raison, puis du plus proche de `starts_at` au plus loin, puis date et id.
+  `max_results` : 1 à 5 (3 par défaut) ; l'app montre la première ligne.
+- Comme `app_search` : des lignes de la table `app_possible_duplicate_results` (toujours vide, illisible)
+  dont la clé étrangère vers `events` permet d'embarquer l'événement avec le select de l'app ; trier sur
+  `rank`. `language sql`, `stable`, `security invoker` : la RLS de l'appelant s'applique, avec ou sans
+  session.
+
+```dart
+final rows = await supabase
+    .rpc('app_possible_duplicates', params: {
+      'title': draft.title,
+      'starts_at': draft.startDateTime?.toIso8601String(), // heure de Paris, sans fuseau
+      'location_id': draft.matchedLocation?.id,
+      'link': normalizedLink, // mode lien
+    })
+    .select('rank, reason, event:events($eventSelect)')
+    .order('rank', ascending: true) as List<dynamic>;
+// [{"rank":1,"reason":"place","event":{"id":"…","title":"Youn Sun Nah + 1ère partie Nit And Dogs",…}}]
+```
+
+Tests : `supabase/tests/app_possible_duplicates.test.sql` (les trois règles, les exclusions, l'ordre,
+`app_link_keys` et `app_similar_titles`) ; chaque règle a été changée une fois pour vérifier qu'un test
+échoue.
 
 ### Recherche : `app_search`, `app_search_names`
 

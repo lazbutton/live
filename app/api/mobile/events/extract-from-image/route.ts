@@ -11,7 +11,12 @@ import {
   type ExtractFromImageResponse,
 } from "@/lib/api/app/schemas";
 import { extractEventFromImage } from "@/lib/events/extract-event-from-image";
-import { requireMobileUserAuth } from "@/lib/mobile-user-auth";
+import {
+  POSTER_ANALYSIS_LIMIT_MESSAGE,
+  takePosterAnalysis,
+} from "@/lib/events/poster-analysis-quota";
+import { requireMobileSession } from "@/lib/mobile-user-auth";
+import { createServiceClient } from "@/lib/supabase/service";
 
 const MAX_IMAGE_SIZE_BYTES = 12 * 1024 * 1024;
 const IMAGE_EXTENSION_TO_MIME: Record<string, string> = {
@@ -44,10 +49,13 @@ function resolveMimeType(file: File) {
  *
  * Pré-remplit une demande d'événement à partir d'une affiche. Formulaire multipart :
  * `extractFromImageFormSchema` (lib/api/app/schemas.ts), voir docs/API_APP.md.
+ *
+ * Ouverte à toute session de l'app, invitée comprise (« Proposer » ne demande le compte qu'à
+ * l'envoi), avec un plafond par jour (lib/events/poster-analysis-quota.ts).
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireMobileUserAuth(request);
+    const auth = await requireMobileSession(request);
     if (auth instanceof NextResponse) {
       return auth;
     }
@@ -90,6 +98,19 @@ export async function POST(request: NextRequest) {
           400,
         );
       }
+    }
+
+    // Le plafond du jour, réservé juste avant l'appel à l'IA (un formulaire refusé ne compte pas).
+    const quota = await takePosterAnalysis(createServiceClient, {
+      userId: auth.user.id,
+      isGuest: auth.isGuest,
+    });
+    if (quota === "user_limit" || quota === "guest_limit") {
+      return appError(POSTER_ANALYSIS_LIMIT_MESSAGE, 429);
+    }
+    if (quota === "unavailable" && auth.isGuest) {
+      // Sans compteur, pas d'analyse pour une session invitée : comme avant l'ouverture à tous.
+      return appError("Connecte-toi pour faire lire l'affiche.", 403);
     }
 
     const result = await extractEventFromImage({

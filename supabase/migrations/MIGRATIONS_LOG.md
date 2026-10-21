@@ -557,3 +557,28 @@
   335 affiches distinctes, toutes dans Storage.
 - Rattrapage en prod (`scripts/backfill-image-cards.mjs --write`) : en attente de l'accord de l'utilisateur, après
   le déploiement. Il réécrit les 457 lignes (`updated_at` compris, comme le rattrapage de C7a).
+
+## 2026-10-21 — Proposer un événement : analyse d'affiche ouverte à tous, « Cet événement existe peut-être déjà »
+
+- Décisions du 2026-10-21 (`../live/docs/AMELIORATIONS.md`, § 5 et partie E, point 6) : « Proposer » s'ouvre sans
+  compte, l'analyse d'affiche aussi, avec un plafond par jour ; le compte et les conditions ne sont demandés qu'à
+  l'envoi.
+- `20261021200000_create_poster_analysis_quota` : table `poster_analysis_usage (day, user_id, is_guest,
+  analyses_count)` (RLS sans politique, aucun droit pour anon ni authenticated ; rien au-delà de la veille) et
+  `take_poster_analysis(user_id, is_guest, per_user_limit, guest_total_limit)` (`security definer`, service role
+  seulement) : réserve une analyse du jour, rend `ok`, `user_limit` ou `guest_limit`. Appelée par
+  `/api/mobile/events/extract-from-image` (10 par session, 200 pour l'ensemble des invités,
+  `lib/events/poster-analysis-quota.ts`). Sans elle, la route garde l'ancien comportement pour les invités (403)
+  et lit l'affiche d'un compte sans plafond : la route peut être déployée avant la migration.
+- `20261021201000_create_app_possible_duplicates` : `app_possible_duplicates(title, starts_at, location_id, link,
+  at_time, max_results)` (lignes de la table toujours vide `app_possible_duplicate_results`, clé étrangère vers
+  `events`), `app_link_keys(text)` et `app_similar_titles(text, text)` (`immutable`), exécutables par anon et
+  authenticated. Les événements à venir qui ressemblent à une proposition : même lien, même lieu à deux heures
+  près, titre équivalent le même jour. Contrat : `docs/API_APP.md`, « Proposer : app_possible_duplicates ».
+- Testées sur un Postgres 17 local (Homebrew, ICU, bouchons Supabase ; Docker arrêté) avec toutes les migrations :
+  `supabase/tests/app_possible_duplicates.test.sql` (26 cas ; 14 changements des règles, chacun repéré par un
+  test) et `supabase/tests/poster_analysis_quota.test.sql` (12 cas). `lib/supabase/database.types.ts` complété à la
+  main (les deux tables et les quatre fonctions, à la place et dans la forme du générateur) : `npm run db:types`
+  demande Docker.
+- **À appliquer en prod avec l'accord de l'utilisateur**, après une répétition dans une transaction annulée ; avant
+  la sortie de l'app qui les appelle.
