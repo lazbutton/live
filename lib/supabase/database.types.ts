@@ -2381,6 +2381,20 @@ export type Database = {
           series_id: string
         }[]
       }
+      app_event_series_of: {
+        Args: {
+          dates: string[]
+          event_ids: string[]
+          location_ids: string[]
+          titles: string[]
+        }
+        Returns: {
+          date: string
+          dates_count: number
+          event_id: string
+          series_id: string
+        }[]
+      }
       app_event_series_title: { Args: { title: string }; Returns: string }
       app_event_title_without_date: {
         Args: { title: string }

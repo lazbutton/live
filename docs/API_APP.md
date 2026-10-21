@@ -701,6 +701,10 @@ tranchée le 2026-10-21 (AMELIORATIONS.md, § 5) : automatique, sans lien posé 
   ce titre à ce lieu qui se suivent à 7 jours au plus. Les jours sont ceux du calendrier, heure de Paris :
   vendredi 20:30 et le vendredi suivant 21:00 se suivent. Une série chaque semaine reste une seule série
   tant qu'il n'y a pas de trou de plus de 7 jours ; deux séances le même jour sont deux dates.
+- **La règle seule** : `app_event_series_of(event_ids, dates, location_ids, titles)` l'applique à des
+  événements donnés en tableaux parallèles, sans rien lire ; `app_event_series` la passe sur les événements
+  à venir, `app_see_also` sur ceux qu'il a déjà lus (sous la RLS d'`events`, une lecture de plus coûte :
+  ~0,5 ms par événement en prod le 2026-10-21).
 - **Titre normalisé** (`app_event_series_title(title)`) : sans la date écrite au début ou à la fin
   (`app_event_title_without_date`, les motifs de `stripDateFromTitle` de `lib/scraping/dates.ts`, qui la
   retire déjà à l'import : « Atelier broderie - dim. 01/11 », « Samedi 31 octobre 2026 : Atelier SITA »,
@@ -733,8 +737,8 @@ Sur l'instantané prod du 2026-10-21 (363 événements à venir, à 17:30) : 52 
 longue, « Les Croquis du TTN » (Théâtre de la Tête Noire), 7 dates en 3 jours ; « Le Dîner de Condé »,
 4 dates à l'Espace Béraire (29 octobre au 1er novembre) et 3 à La Passerelle (12 au 14 novembre), deux
 séries ; « Plateau stand-up Orlin's Comedy » (Java Pop), 6 mercredis d'affilée, une série. En local
-(Postgres 17, rôle anon), la fonction s'exécute en ~3 ms ; avec elle, `app_see_also` passe de ~11 à
-~17 ms (une lecture de plus des événements à venir, et le plan de son corps, refait à chaque appel).
+(Postgres 17, rôle anon), la fonction s'exécute en ~3,5 ms, dont ~2 ms pour les titres ; `app_see_also`
+prend ~5 ms de plus (les titres des événements qu'il lit déjà).
 
 ### Recherche : `app_search`, `app_search_names`
 

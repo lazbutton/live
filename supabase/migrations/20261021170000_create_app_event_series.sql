@@ -25,8 +25,9 @@
 --   « À voir aussi » et les pages de lieu. Les dates passées ne changent rien : celles qui restent se
 --   suivent de la même façon.
 --
--- app_event_series(at_time) : une ligne par événement à venir d'une série de 2 dates ou plus (un
--- événement seul n'a pas de ligne) :
+-- app_event_series_of(event_ids, dates, location_ids, titles) : la règle seule, sur des événements donnés
+-- en tableaux, sans rien lire ; app_event_series(at_time) la passe sur les événements à venir : une ligne
+-- par événement à venir d'une série de 2 dates ou plus (un événement seul n'a pas de ligne) :
 -- - event_id, date : l'événement et sa date (events.date) ;
 -- - series_id : la première date de la série (par date, puis id), l'événement à ouvrir pour la série ;
 -- - dates_count : le nombre de dates de la série (2 ou plus), l'événement compris.
@@ -34,7 +35,9 @@
 -- l'accueil par series_id, « et 3 autres dates » (dates_count − 1), les puces de la fiche.
 --
 -- app_see_also (migration 20261021110000) reprend la même règle à la place du « même titre » : une ligne
--- par série, jamais celles de la série de la fiche (ses dates sont dans ses puces).
+-- par série, jamais celles de la série de la fiche (ses dates sont dans ses puces). Il passe
+-- app_event_series_of sur les événements à venir qu'il lit déjà : sous la RLS d'events, une lecture de
+-- plus coûterait autant que la fonction entière en prod (~0,5 ms par événement le 2026-10-21).
 --
 -- `language sql`, `stable`, `security invoker`, sans clause SET, comme app_events() : la RLS de
 -- l'appelant s'applique. Tous les objets sont qualifiés par leur schéma. Prérequis :
@@ -98,7 +101,15 @@ COMMENT ON FUNCTION public.app_event_series_title(text) IS
 
 GRANT EXECUTE ON FUNCTION public.app_event_series_title(text) TO anon, authenticated;
 
-CREATE OR REPLACE FUNCTION public.app_event_series(at_time timestamp DEFAULT NULL)
+-- La règle, sur des événements donnés en tableaux parallèles (id, date, lieu, titre), sans rien lire :
+-- app_event_series la passe sur les événements à venir, app_see_also sur ceux qu'il a déjà lus (une lecture
+-- d'events coûte, sous la RLS : ne la faire qu'une fois par appel).
+CREATE OR REPLACE FUNCTION public.app_event_series_of(
+  event_ids uuid[],
+  dates timestamptz[],
+  location_ids uuid[],
+  titles text[]
+)
 RETURNS TABLE (
   event_id uuid,
   series_id uuid,
@@ -106,36 +117,35 @@ RETURNS TABLE (
   dates_count integer
 )
 LANGUAGE sql
-STABLE
-SECURITY INVOKER
-ROWS 150
+IMMUTABLE
+PARALLEL SAFE
 AS $$
-  WITH a_venir AS (
-    SELECT e.id, e.date, e.location_id, public.app_event_series_title(e.title) AS titre
-    FROM public.app_events_in_range(
-      date_trunc('day', coalesce(app_event_series.at_time, now() AT TIME ZONE 'Europe/Paris')),
-      NULL,
-      NULL,
-      NULL,
-      app_event_series.at_time
-    ) AS e
-    WHERE e.location_id IS NOT NULL
+  WITH evenements AS (
+    SELECT u.id, u.date, u.location_id, public.app_event_series_title(u.title) AS titre
+    FROM unnest(
+      app_event_series_of.event_ids,
+      app_event_series_of.dates,
+      app_event_series_of.location_ids,
+      app_event_series_of.titles
+    ) AS u(id, date, location_id, title)
+    -- Sans lieu, d'aucune série.
+    WHERE u.id IS NOT NULL AND u.date IS NOT NULL AND u.location_id IS NOT NULL
   ),
   -- Une série commence à la première date d'un titre à un lieu, et après plus de 7 jours sans date.
   debuts AS (
     SELECT
-      a.id,
-      a.date,
-      a.location_id,
-      a.titre,
+      e.id,
+      e.date,
+      e.location_id,
+      e.titre,
       CASE
-        WHEN (a.date AT TIME ZONE 'UTC')::date
-          - (lag(a.date) OVER (PARTITION BY a.location_id, a.titre ORDER BY a.date, a.id) AT TIME ZONE 'UTC')::date
+        WHEN (e.date AT TIME ZONE 'UTC')::date
+          - (lag(e.date) OVER (PARTITION BY e.location_id, e.titre ORDER BY e.date, e.id) AT TIME ZONE 'UTC')::date
           <= 7
         THEN 0
         ELSE 1
       END AS debut
-    FROM a_venir AS a
+    FROM evenements AS e
   ),
   -- Le numéro de la série de chaque date, dans son titre et son lieu.
   chaines AS (
@@ -160,8 +170,44 @@ AS $$
   ORDER BY s.premiere_date, s.premiere, s.date, s.id
 $$;
 
+COMMENT ON FUNCTION public.app_event_series_of(uuid[], timestamptz[], uuid[], text[]) IS
+  'Séries de l''app (U14), la règle seule : sur les événements donnés (tableaux parallèles id, date, lieu, titre), une ligne par événement d''une série de 2 dates ou plus (même titre normalisé, même lieu, 7 jours de calendrier au plus entre deux dates qui se suivent ; sans lieu, d''aucune série) : event_id, date, series_id (sa première date), dates_count. Ne lit rien : app_event_series et app_see_also la passent sur les événements à venir. Règle complète : migration 20261021170000.';
+
+GRANT EXECUTE ON FUNCTION public.app_event_series_of(uuid[], timestamptz[], uuid[], text[]) TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.app_event_series(at_time timestamp DEFAULT NULL)
+RETURNS TABLE (
+  event_id uuid,
+  series_id uuid,
+  date timestamptz,
+  dates_count integer
+)
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+ROWS 150
+AS $$
+  SELECT s.event_id, s.series_id, s.date, s.dates_count
+  FROM (
+    SELECT
+      array_agg(e.id) AS ids,
+      array_agg(e.date) AS dates,
+      array_agg(e.location_id) AS lieux,
+      array_agg(e.title) AS titres
+    FROM public.app_events_in_range(
+      date_trunc('day', coalesce(app_event_series.at_time, now() AT TIME ZONE 'Europe/Paris')),
+      NULL,
+      NULL,
+      NULL,
+      app_event_series.at_time
+    ) AS e
+  ) AS a
+  CROSS JOIN LATERAL public.app_event_series_of(a.ids, a.dates, a.lieux, a.titres) AS s
+  ORDER BY min(s.date) OVER (PARTITION BY s.series_id), s.series_id, s.date, s.event_id
+$$;
+
 COMMENT ON FUNCTION public.app_event_series(timestamp) IS
-  'Séries de l''app (U14) : une ligne par événement à venir d''une série de 2 dates ou plus (même titre normalisé par app_event_series_title, même lieu, 7 jours au plus entre deux dates qui se suivent) : event_id, date, series_id (la première date de la série), dates_count (ses dates, l''événement compris). À venir comme app_events_in_range à partir d''aujourd''hui 0 h, toutes villes, par utilisateur. Rendues par série puis par date. Règle complète : migration 20261021170000.';
+  'Séries de l''app (U14) : une ligne par événement à venir d''une série de 2 dates ou plus (app_event_series_of : même titre normalisé par app_event_series_title, même lieu, 7 jours au plus entre deux dates qui se suivent) : event_id, date, series_id (la première date de la série), dates_count (ses dates, l''événement compris). À venir comme app_events_in_range à partir d''aujourd''hui 0 h, toutes villes, par utilisateur. Rendues par série puis par date. Règle complète : migration 20261021170000.';
 
 GRANT EXECUTE ON FUNCTION public.app_event_series(timestamp) TO anon, authenticated;
 
@@ -207,11 +253,21 @@ AS $$
         date_trunc('day', coalesce(app_see_also.at_time, now() AT TIME ZONE 'Europe/Paris')) AS aujourdhui
     ) AS m
   ),
-  -- Les séries des événements à venir (app_event_series), lues seulement pour une fiche visible.
+  -- Les événements à venir, toutes villes : ceux des pages de lieu et d'organisateur.
+  a_venir AS MATERIALIZED (
+    SELECT e.id, e.date, e.location_id, e.title
+    FROM bornes AS b
+    CROSS JOIN LATERAL public.app_events_in_range(b.aujourdhui, NULL, NULL, NULL, app_see_also.at_time) AS e
+  ),
+  -- Leurs séries (app_event_series_of, la règle d'app_event_series), sur ce qui est déjà lu.
   series AS MATERIALIZED (
     SELECT s.event_id, s.series_id
-    FROM public.app_event_series(app_see_also.at_time) AS s
-    WHERE EXISTS (SELECT 1 FROM courant)
+    FROM (
+      SELECT array_agg(a.id) AS ids, array_agg(a.date) AS dates, array_agg(a.location_id) AS lieux,
+        array_agg(a.title) AS titres
+      FROM a_venir AS a
+    ) AS t
+    CROSS JOIN LATERAL public.app_event_series_of(t.ids, t.dates, t.lieux, t.titres) AS s
   ),
   -- La série de la fiche, ou l'événement lui-même s'il n'en a pas (seul, ou passé).
   serie_courante AS MATERIALIZED (
@@ -219,12 +275,6 @@ AS $$
       (SELECT s.series_id FROM series AS s JOIN courant AS c ON c.id = s.event_id),
       (SELECT c.id FROM courant AS c)
     ) AS serie
-  ),
-  -- Les événements à venir, toutes villes : ceux des pages de lieu et d'organisateur.
-  a_venir AS MATERIALIZED (
-    SELECT e.id, e.date, e.location_id
-    FROM bornes AS b
-    CROSS JOIN LATERAL public.app_events_in_range(b.aujourdhui, NULL, NULL, NULL, app_see_also.at_time) AS e
   ),
   -- Les sources possibles de « Aussi à » : le lieu de l'événement, puis ses organisateurs (un lieu qui
   -- organise, autre que le lieu de l'événement, compte comme un lieu).
@@ -397,5 +447,6 @@ GRANT EXECUTE ON FUNCTION public.app_see_also(uuid, uuid[], timestamp, integer) 
 
 -- Rollback : rejouer 20261021110000_create_app_see_also.sql (app_see_also au « même titre »), puis
 -- DROP FUNCTION IF EXISTS public.app_event_series(timestamp);
+-- DROP FUNCTION IF EXISTS public.app_event_series_of(uuid[], timestamptz[], uuid[], text[]);
 -- DROP FUNCTION IF EXISTS public.app_event_series_title(text);
 -- DROP FUNCTION IF EXISTS public.app_event_title_without_date(text);

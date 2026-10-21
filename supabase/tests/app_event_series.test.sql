@@ -1,4 +1,4 @@
--- Tests de app_event_series() et app_event_series_title() (migration
+-- Tests de app_event_series(), app_event_series_of() et des titres de série (migration
 -- 20261021170000_create_app_event_series.sql), et de la règle des séries dans app_see_also().
 --
 -- Sur une base jetable avec toutes les migrations et aucun événement : scripts/db-test.sh.
@@ -86,6 +86,23 @@ SELECT pg_temp.verifie('titre : ce qui n''est pas une date à retirer reste',
 SELECT pg_temp.verifie('titre : casse, accents, ponctuation ; nul',
   public.app_event_series_title('THÉÂTRE  Samedi !') || ' / ' || public.app_event_series_title(NULL) || '|',
   'theatre samedi / |');
+
+-- La règle seule, sur des tableaux : deux dates d'un titre au même lieu, une autre à 8 jours, une sans
+-- lieu ; par série puis par date.
+SELECT pg_temp.verifie('règle seule : sur des événements donnés, sans rien lire',
+  (SELECT string_agg(right(s.event_id::text, 1) || '>' || right(s.series_id::text, 1) || ':' || s.dates_count, ' '
+     ORDER BY n)
+   FROM public.app_event_series_of(
+     ARRAY['a0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000002',
+       'a0000000-0000-4000-8000-000000000003', 'a0000000-0000-4000-8000-000000000004',
+       'a0000000-0000-4000-8000-000000000005']::uuid[],
+     ARRAY['2026-11-03 20:00', '2026-11-01 20:00', '2026-11-11 20:00', '2026-11-02 20:00',
+       '2026-11-01 18:00']::timestamptz[],
+     ARRAY['1c000000-0000-4000-8000-000000000001', '1c000000-0000-4000-8000-000000000001',
+       '1c000000-0000-4000-8000-000000000001', NULL, '1c000000-0000-4000-8000-000000000001']::uuid[],
+     ARRAY['Bal', 'BAL !', 'Bal', 'Bal', 'Autre']::text[]
+   ) WITH ORDINALITY AS s(event_id, series_id, date, dates_count, n)),
+  '2>2:2 1>2:2');
 
 -- Jeu d'essai --------------------------------------------------------------------------------------
 
