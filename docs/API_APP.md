@@ -296,6 +296,35 @@ afficher. Le crédit suit toujours la photo de sa ligne (remis à `null` par la 
 L'app actuelle ne sélectionne pas ces colonnes : tant qu'elle ne les affiche pas, seules des photos CC0 ou du
 domaine public sont posées. Règles et script : `ARTIST_PHOTOS.md`.
 
+## La zone : `app_zone`, `app_events_in_zone`, `app_zone_counts`, `app_cities`
+
+« Ville et rayon » de l'app (`../live/docs/VILLES.md`, décisions du 2026-10-21) : une ville et un rayon, une
+seule règle en SQL pour la liste, les comptes, la recherche, la carte et « À voir aussi ». Migration
+`20261021220000_create_app_zone.sql` (règle complète en tête), tests `supabase/tests/app_zone.test.sql`.
+
+- **La règle** (`app_in_zone`) : un événement est dans la zone s'il est dans la ville choisie (sa ville, à
+  défaut celle de son lieu, est une ville de son groupe : « 45000 Orléans » = « Orléans »), ou si son lieu, à
+  défaut l'événement lui-même, est à `zone_km` km ou moins (vol d'oiseau, `app_distance_km`) du centre de cette
+  ville (moyenne des centres du groupe). « Orléans · 5 km » montre donc tout Orléans, La Source comprise.
+- **`zone_city`** : l'id ou le slug d'une ville active (`app_cities().slug` ; « orleans » sans rien avoir lu),
+  casse et espaces ignorés. Nul ou inconnu : pas de zone, toutes les villes. **`zone_km`** : le rayon ; nul :
+  la ville seule.
+- Les fonctions du tableau plus haut la prennent en arguments nommés, à la fin ; l'accueil « Toutes les dates »
+  et « À la une » lisent `app_events_in_zone` à la place d'`app_events()` :
+
+| Objet | Appel Dart | Rend |
+| --- | --- | --- |
+| `app_events_in_zone(zone_city, zone_km)` | `rpc('app_events_in_zone', params: …, get: true)` + filtres, `select`, tri | lignes de `events` dans la zone, toutes dates (`setof events`, comme `app_events()`) |
+| `app_major_events_in_zone(zone_city, zone_km)` | `rpc('app_major_events_in_zone', params: …, get: true)` + `eq('status', 'approved')`, `select`, tri | grands événements de la zone : leur ville ou leur centre sur la carte, l'un de leurs lieux ou de leurs événements |
+| `app_zone_counts(zone_city, radii, at_time)` | `rpc('app_zone_counts', params: {'zone_city': …, 'radii': [5, 10, 25, 50]}, get: true)` | une ligne par rayon, dans l'ordre : `radius_km`, `events_count` (à venir comme l'accueil sur « Tout » : à partir d'aujourd'hui, sans `hide_from_home`) |
+| `app_cities(at_time)` | `rpc('app_cities', get: true)` + `select(…)` | les villes qui ont un centre et des événements : `id`, `slug`, `label`, centre, alias, `source_ids`, `upcoming_events_count` (comme `app_zone_counts`), `recent_events_count` (commencés dans les 120 derniers jours), `next_event_date`, `last_event_date` |
+| `app_zone(zone_city, zone_km)`, `app_in_zone(…)`, `app_city_groups()`, `app_distance_km(…)` | aucun | la règle, partagée par les fonctions ci-dessus |
+
+`app_cities` ne rend plus les villes sans centre ni événement (le 2026-10-21 : Paris, Joué-lès-Tours, une
+adresse prise pour une ville…) ; ses comptes à venir suivent `app_events_in_range` (heure de Paris, sans
+`hide_from_home`) au lieu de leur ancienne fenêtre (minuit UTC, 365 jours). Les versions installées de l'app
+la lisent comme avant (une colonne de plus).
+
 ## Fonctions SQL de la refonte : calendrier, vacances scolaires, recherche
 
 Pour le calendrier « Quand ? » et la recherche des maquettes (`../live/docs/MAQUETTES_REFONTE.md`),
@@ -316,17 +345,17 @@ prod depuis le 2026-10-21 vers 18:32.
 
 | Objet | Appel Dart | Rend |
 | --- | --- | --- |
-| `app_event_counts(ranges, city_ids, category, at_time, free, family)` | `rpc('app_event_counts', params: …)` | une ligne par plage : `events_count`, `starting_count` |
-| `app_events_in_range(range_start, range_end, city_ids, category, at_time, free, family)` | `rpc('app_events_in_range', params: …)` + filtres, `select`, tri, pagination | lignes de `events` (`setof events`, comme `app_events()`) |
+| `app_event_counts(ranges, city_ids, category, at_time, free, family, zone_city, zone_km)` | `rpc('app_event_counts', params: …)` | une ligne par plage : `events_count`, `starting_count` |
+| `app_events_in_range(range_start, range_end, city_ids, category, at_time, free, family, zone_city, zone_km)` | `rpc('app_events_in_range', params: …)` + filtres, `select`, tri, pagination | lignes de `events` (`setof events`, comme `app_events()`) |
 | table `school_holidays` | `from('school_holidays').select(…)` | périodes de vacances : `name`, `first_day`, `last_day` |
-| `app_category_counts(city_ids, at_time)` | `rpc('app_category_counts', params: …)` | catégories actives et leur nombre d'événements à venir |
-| `app_tag_counts(city_ids, max_tags, at_time)` | `rpc('app_tag_counts', params: …)` | tags populaires et leur nombre d'événements à venir |
-| `app_organizer_counts(organizer_ids, city_ids, at_time)` | `rpc('app_organizer_counts', params: …)` | nombre d'événements à venir de chaque organisateur (fiche, « Organisé par ») |
-| `app_see_also(event_id, city_ids, at_time, max_results)` | `rpc('app_see_also', params: …)` + `select('section, rank, …, event:events(…)')`, `order('rank')` | « À voir aussi » en bas de la fiche : les rangées « Aussi à <lieu> » et « Dans le même genre » |
+| `app_category_counts(city_ids, at_time, zone_city, zone_km)` | `rpc('app_category_counts', params: …)` | catégories actives et leur nombre d'événements à venir |
+| `app_tag_counts(city_ids, max_tags, at_time, zone_city, zone_km)` | `rpc('app_tag_counts', params: …)` | tags populaires et leur nombre d'événements à venir |
+| `app_organizer_counts(organizer_ids, city_ids, at_time, zone_city, zone_km)` | `rpc('app_organizer_counts', params: …)` | nombre d'événements à venir de chaque organisateur (fiche, « Organisé par ») |
+| `app_see_also(event_id, city_ids, at_time, max_results, zone_city, zone_km)` | `rpc('app_see_also', params: …)` + `select('section, rank, …, event:events(…)')`, `order('rank')` | « À voir aussi » en bas de la fiche : les rangées « Aussi à <lieu> » et « Dans le même genre » |
 | `app_event_series(at_time)` | `rpc('app_event_series', get: true)` + `select('event_id, series_id, date, dates_count')` | les séries à venir (dates d'un même spectacle) : une carte par série sur l'accueil, « Autres dates » sur la fiche |
-| `app_search(query, city_ids, at_time, max_results)` | `rpc('app_search', params: …)` + `select('rank, event:events(…)')`, `order('rank')` | événements à venir qui correspondent à la requête, par pertinence puis date |
+| `app_search(query, city_ids, at_time, max_results, zone_city, zone_km)` | `rpc('app_search', params: …)` + `select('rank, event:events(…)')`, `order('rank')` | événements à venir qui correspondent à la requête, par pertinence puis date |
 | `app_possible_duplicates(title, starts_at, location_id, link, at_time, max_results)` | `rpc('app_possible_duplicates', params: …)` + `select('rank, reason, event:events(…)')`, `order('rank')` | « Cet événement existe peut-être déjà » avant l'envoi d'une proposition : les événements à venir qui lui ressemblent |
-| `app_search_names(query, city_ids, at_time, max_results)` | `rpc('app_search_names', params: …)` + `order('rank')` | catégories, tags, lieux et organisateurs dont le nom correspond, avec leur nombre d'événements à venir |
+| `app_search_names(query, city_ids, at_time, max_results, zone_city, zone_km)` | `rpc('app_search_names', params: …)` + `order('rank')` | catégories, tags, lieux et organisateurs dont le nom correspond, avec leur nombre d'événements à venir |
 | `app_event_in_range(…)` | aucun | la règle d'appartenance à une plage, partagée par les fonctions ci-dessus |
 
 Appels en POST (`supabase.rpc` par défaut), arguments par leur nom ; un argument omis prend sa valeur
@@ -343,11 +372,11 @@ prod) sur une base locale chargée de l'instantané prod : ci-dessous, les compt
   sont sans fuseau (`2026-10-23T00:00:00`).
 - **Maintenant** : l'heure de Paris du serveur. `at_time` (même format) le remplace, pour les tests
   et les scénarios ; l'app ne l'envoie pas.
-- **Périmètre** : `city_ids` = les ids que l'app envoie déjà (`CityPreferencesController.effectiveCityIds`,
-  ceux de son filtre `city_id=in.(…)`), comparés à `events.city_id`, à défaut à la ville du lieu
-  (comme `app_cities()`). `null` ou `[]` : toutes les villes. Le filtre Dart au rayon
-  (`CityEventMatching`, sur les coordonnées) n'est pas repris : un événement d'une ville du
-  périmètre mais hors du rayon compte ici.
+- **Zone** (`zone_city`, `zone_km`, depuis la migration `20261021220000`) : la ville choisie et le rayon ; règle
+  et appels dans « La zone » plus bas. Sans zone : toutes les villes.
+- **Ancien périmètre** (`city_ids`), gardé pour les versions de l'app déjà installées : les ids qu'elles
+  envoient (`CityPreferencesController.effectiveCityIds`), comparés à `events.city_id`, à défaut à la ville du
+  lieu. `null` ou `[]` : toutes les villes. Avec une zone en plus, les deux s'appliquent.
 - **Par utilisateur** : avec une session (anonyme comprise), sans les événements qu'il a masqués
   (`user_hidden_events`) ni ceux des auteurs qu'il a bloqués (`blocked_users`), comme les filtres
   Dart de l'accueil. Sans session : rien n'est retiré.

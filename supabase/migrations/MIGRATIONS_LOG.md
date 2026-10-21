@@ -745,3 +745,58 @@
   `rpc/app_see_also` du Dîner de Condé avec 6 événements embarqués ~440 ms (relevé des séries) → 48–107 ms
   (médiane 53) ; `rpc/app_events` avec `limit=30` 5–16 ms, inchangé (il s'arrête aux 30 premières lignes). Mêmes
   nombres de lignes qu'avant : 141 séries, 362 à venir, 392 visibles en anon.
+
+## 2026-10-21 — La zone de l'app : une ville et un rayon (« Ville et rayon »)
+
+- `20261021220000_create_app_zone` : refonte du choix des villes de l'app (`../live/docs/VILLES.md`). Une seule
+  règle en SQL : un événement est dans la zone (ville, rayon) s'il est dans la ville choisie (tout son groupe :
+  « 45000 Orléans » = « Orléans »), ou si son lieu, à défaut l'événement, est à moins du rayon du centre de la
+  ville. Avant, l'app envoyait les villes dont le centre était dans le rayon, puis retirait en Dart ceux dont les
+  coordonnées en sortaient : « Orléans · 5 km » cachait 8 événements d'Orléans (La Source), et les comptes SQL
+  comptaient ce que la liste ne montrait pas.
+  - nouvelles : `app_distance_km`, `app_city_groups` (le regroupement d'`app_cities`, sorti tel quel), `app_zone`,
+    `app_in_zone`, `app_events_in_zone` (l'accueil « Toutes les dates » et « À la une »),
+    `app_major_events_in_zone`, `app_zone_counts` (l'écran « Ville et rayon ») ;
+  - `zone_city` et `zone_km` à la fin d'`app_events_in_range`, et transmis par `app_event_counts`,
+    `app_category_counts`, `app_tag_counts`, `app_organizer_counts`, `app_search`, `app_search_names`,
+    `app_see_also` (corps inchangés sinon : générés depuis leurs dernières définitions, diff vérifié) ; `city_ids`
+    reste pour les versions installées ;
+  - `app_cities(at_time)` : colonne `slug`, comptes à venir par `app_events_in_range`, seulement les villes avec
+    un centre et des événements (en prod le 2026-10-21 : 9 sur 19 ; plus de Paris, Joué-lès-Tours, Vald'Yerre,
+    Châlette-sur-Loing, « SAINT DENIS EN VAL » ni « place sainte beuve orleans »).
+- Testée sur un Postgres 17 Homebrew local en ICU (bouchons Supabase, toutes les migrations ; Docker arrêté) :
+  `supabase/tests/app_zone.test.sql`, 26 cas (distance, zone par slug ou id, groupe, ville inconnue, chaque rayon,
+  rayon nul, ancien `city_ids` seul et avec la zone, chaque fonction qui transmet la zone, accueil, grands
+  événements, comptes de l'écran, villes proposées, session qui masque un événement). Les 21 autres fichiers de
+  `supabase/tests` restent verts.
+- Répétée en prod le 21/10/2026 dans une transaction annulée, avec l'accord de l'utilisateur (psql, `SET ROLE
+  postgres`, `lock_timeout` 5 s), en anon : `app_zone_counts('orleans')` 5 km = 340, 10, 25 et 50 km = 360 ;
+  `olivet` 5 km = 226 ; `app_cities()` les 9 villes qui ont des événements (Orléans 212 à venir) ;
+  `app_events_in_zone('orleans', 25)` à partir d'aujourd'hui 363 ; l'ancien appel d'`app_events_in_range` 362 ;
+  EXPLAIN ANALYZE : `app_zone_counts` 16 ms, la requête de l'accueil 1,8 ms ; rien n'est resté après l'annulation.
+- **Appliquée en prod le 21/10/2026 à 23:04 (21:04 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier commité), sans erreur. Vérifiée en
+  anon par l'API publique : `rpc/app_zone_counts` et `rpc/app_cities` (avec `slug`) 200, mêmes valeurs que la
+  répétition ; `rpc/app_events_in_zone` 200, 12–29 ms (`x-envoy-upstream-service-time`, 5 appels) ;
+  `rpc/app_events_in_range` sans zone et `rpc/app_events` 200 (versions installées).
+
+## 2026-10-21 — Villes : un centre fixe (la mairie), deux lignes fautives
+
+- `20261021230000_fix_city_centers` : décision de l'utilisateur du 2026-10-21 (corriger aussi les données).
+  `refresh_city_center` ne remplace plus un centre existant ; le centre des 18 villes connues = leur mairie
+  (geo.api.gouv.fr, champ `mairie` ; Orléans : 47,9028 ; 1,9093, le centre de secours de l'app, au lieu de la
+  moyenne de ses lieux à 800 m de là) ; « SAINT DENIS EN VAL » renommée « Saint-Denis-en-Val » (même slug) ;
+  « place sainte beuve orleans » (une adresse prise pour une ville) : ses rattachements passent à Orléans, la ligne
+  est supprimée. Par slug : sans effet sur une base de test.
+- Sur l'instantané public de la prod chargé en local : `app_zone_counts('orleans')` inchangé (5 km = 340),
+  `saran` 5 km 298 → 98 (sa mairie est à 5,6 km du centre d'Orléans ; la moyenne de ses lieux en était plus
+  près). `supabase/tests/app_zone.test.sql` : un cas de plus (centre gardé, ou pris aux lieux s'il manque), qui
+  échoue sans la migration ; les 22 fichiers verts avec les deux migrations.
+- Répétée en prod le 21/10/2026 dans une transaction annulée, avec l'accord de l'utilisateur : avant, 19 villes dont
+  2 sans centre ; rattachés à « place sainte beuve orleans » : 0 lieu, 1 événement (non public), 0 grand événement ;
+  1 événement (non public) à Saint-Denis-en-Val. Après : 18 villes, toutes avec un centre ; en anon,
+  `app_zone_counts('orleans')` 5 km = 340 (inchangé), `saran` 5 km = 98, `app_cities()` 9 villes.
+- **Appliquée en prod le 21/10/2026 à 23:09 (21:09 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s), sans erreur. Vérifiée en anon par l'API
+  publique : `rpc/app_zone_counts` de Saran 5 km = 98, 10 km = 352 ; `cities` : Orléans à 47,9028,
+  « Saint-Denis-en-Val », plus de « place sainte beuve orleans ».
