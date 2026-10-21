@@ -579,3 +579,36 @@
   24 qui ont le tag ont aussi la case) ; aucun n'est retiré de l'accueil.
 - **À appliquer en prod avant de merger la PR de l'app (U5)**, avec l'accord de l'utilisateur, après une
   répétition dans une transaction annulée.
+
+## 2026-10-21 — Séries (U14) : `app_event_series`, et « À voir aussi » par série
+
+- `20261021170000_create_app_event_series` : la règle des séries de l'app (audit UI/UX du 2026-10-20, U14 ;
+  maquettes, lot 3 ; tranchée le 2026-10-21 : automatique, en SQL, sans lien posé dans l'admin). Deux événements
+  à venir sont de la même série : même titre normalisé, même lieu, et des dates qui se suivent à 7 jours de
+  calendrier au plus. Contrat : `docs/API_APP.md`, « Séries : app_event_series ».
+  - `app_event_title_without_date(title)` : `stripDateFromTitle` (`lib/scraping/dates.ts`) en SQL, mêmes motifs,
+    même garde des 3 caractères ; `app_event_series_title(title)` : ce titre, sans accents, casse ni ponctuation
+    (`app_search_normalize`), une expression que Postgres recopie dans l'appelant (les motifs ne sont lus que
+    pour un titre qui a un chiffre et un séparateur : 19 sur 363 à venir).
+  - `app_event_series(at_time)` : une ligne `(event_id, series_id, date, dates_count)` par événement à venir d'une
+    série de 2 dates ou plus (à venir et par utilisateur comme `app_see_also`), `series_id` = sa première date.
+  - `app_see_also()` recréée (même signature) : une ligne par série à la place du « même titre » ; jamais une date
+    de la série de la fiche. Un même titre à un autre lieu, ou au même lieu à plus de 7 jours, est désormais une
+    autre série.
+- `language sql`, `stable` (les deux fonctions de titre `immutable`), `security invoker`, `execute` à anon et
+  authenticated ; aucune table modifiée, aucun index, aucune donnée écrite.
+- Testée sur un Postgres 17 Homebrew local en ICU (bouchons Supabase, toutes les migrations ; Docker arrêté) :
+  `supabase/tests/app_event_series.test.sql` (11 cas : motifs du titre et leur garde, même titre normalisé, même
+  lieu, 7 jours de calendrier, deux séances le même jour, date dans le titre, en cours, ce matin sans heure de
+  fin, passé, en attente, sans lieu, hors accueil, ordre des lignes, masqué, auteur bloqué ; « À voir aussi »
+  par série) ; chaque règle faussée à tour de rôle fait échouer au moins un cas (18 mutations).
+  `app_see_also.test.sql` : 2 attentes changent (39, du titre de 09 à un autre lieu, est une autre série : elle
+  entre dans « Dans le même genre »), 28 cas verts ; les 16 autres fichiers verts (257 cas en tout). Les motifs
+  rendent les mêmes titres que `stripDateFromTitle` sur 20 exemples. `lib/supabase/database.types.ts` : les trois
+  fonctions, à la main (pas de Docker ce jour-là).
+- Sur l'instantané prod du 2026-10-21 lu en anon (392 événements, 363 à venir), à 17:30 : 52 séries, 141 dates, la
+  plus longue de 7 (« Les Croquis du TTN »). `app_see_also` change sur 30 fiches sur 362, toutes par la règle : la
+  prochaine édition d'un même titre à plus de 7 jours (« La Scène est à toi », « Cabaret d'impro », « Match
+  d'impro ») entre dans « Aussi à ». En local : `app_event_series` ~3 ms ; `app_see_also` de ~11 à ~17 ms.
+- **À appliquer en prod avant de merger la PR de l'app (U14)**, avec l'accord de l'utilisateur, après une
+  répétition dans une transaction annulée.

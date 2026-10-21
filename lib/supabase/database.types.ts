@@ -2372,6 +2372,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      app_event_series: {
+        Args: { at_time?: string }
+        Returns: {
+          date: string
+          dates_count: number
+          event_id: string
+          series_id: string
+        }[]
+      }
+      app_event_series_title: { Args: { title: string }; Returns: string }
+      app_event_title_without_date: {
+        Args: { title: string }
+        Returns: string
+      }
       app_events: {
         Args: never
         Returns: {

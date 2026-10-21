@@ -290,7 +290,8 @@ l'app lit ces comptes dans Supabase au lieu de les calculer en Dart. Migrations 
 fiche `20261020140000_create_app_organizer_counts.sql` et `20261021110000_create_app_see_also.sql`
 (« À voir aussi »), et pour la recherche plein texte `20261020170000_create_app_search.sql` puis
 `20261020210000_speed_up_app_search.sql` ; filtres « Gratuit » et « En famille » :
-`20261021160000_add_free_family_filters.sql`. Tests :
+`20261021160000_add_free_family_filters.sql` ; séries (U14, et leur règle dans « À voir aussi ») :
+`20261021170000_create_app_event_series.sql`. Tests :
 `supabase/tests/*.test.sql` (`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`. Toutes
 sont en prod depuis le 2026-10-20 (`app_see_also` depuis le 2026-10-21), et `school_holidays` est
 chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`.
@@ -304,6 +305,7 @@ chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`.
 | `app_tag_counts(city_ids, max_tags, at_time)` | `rpc('app_tag_counts', params: …)` | tags populaires et leur nombre d'événements à venir |
 | `app_organizer_counts(organizer_ids, city_ids, at_time)` | `rpc('app_organizer_counts', params: …)` | nombre d'événements à venir de chaque organisateur (fiche, « Organisé par ») |
 | `app_see_also(event_id, city_ids, at_time, max_results)` | `rpc('app_see_also', params: …)` + `select('section, rank, …, event:events(…)')`, `order('rank')` | « À voir aussi » en bas de la fiche : les rangées « Aussi à <lieu> » et « Dans le même genre » |
+| `app_event_series(at_time)` | `rpc('app_event_series', get: true)` + `select('event_id, series_id, date, dates_count')` | les séries à venir (dates d'un même spectacle) : une carte par série sur l'accueil, « Autres dates » sur la fiche |
 | `app_search(query, city_ids, at_time, max_results)` | `rpc('app_search', params: …)` + `select('rank, event:events(…)')`, `order('rank')` | événements à venir qui correspondent à la requête, par pertinence puis date |
 | `app_search_names(query, city_ids, at_time, max_results)` | `rpc('app_search_names', params: …)` + `order('rank')` | catégories, tags, lieux et organisateurs dont le nom correspond, avec leur nombre d'événements à venir |
 | `app_event_in_range(…)` | aucun | la règle d'appartenance à une plage, partagée par les fonctions ci-dessus |
@@ -628,10 +630,12 @@ en un appel une fois la fiche affichée.
   toutes les villes), sans ceux de la première rangée. Les plus proches sont retenus (le plus de tags en
   communs, plus 1 pour la même catégorie, puis le plus près dans le temps), puis rendus par date. Les
   champs `source_*` sont `null`.
-- Une ligne par spectacle : des événements de même titre (sans accents, casse ni ponctuation, comme la
-  recherche) sont les dates d'un même spectacle, la moitié des événements à venir au 2026-10-21. Une
-  rangée n'en montre que la première date (« Dans le même genre » : la plus proche), jamais celles du
-  spectacle de la fiche : ses autres dates sont l'affaire d'U14. Les comptes comptent chaque date.
+- Une ligne par série (`app_event_series`, ci-dessous ; un événement seul est sa propre série, depuis la
+  migration `20261021170000` : avant, le même titre suffisait, sans lieu ni écart de dates). Une rangée
+  n'en montre que la première date (« Dans le même genre » : la plus proche), jamais une date de la
+  série de la fiche : elles sont dans ses puces (« Autres dates »). Un même titre au même lieu à plus de
+  7 jours d'écart est une autre série : « La Scène est à toi » de novembre est proposée sur la fiche de
+  celle d'avril. Les comptes comptent chaque date.
 - « À venir » et filtres par utilisateur : ceux des comptes de la recherche (`app_events_in_range` à
   partir d'aujourd'hui 0 h, expositions en cours comprises, avec `hide_from_home`, sans les événements
   masqués par l'utilisateur ni les auteurs qu'il a bloqués). L'événement de la fiche est lu sous la RLS
@@ -679,6 +683,58 @@ Embarquer les 6 événements avec le select de la liste coûte 25 à 45 ms : ces
 titre, une date, une affiche, un lieu et une catégorie, un select plus léger ferait gagner d'autant. En
 local (Postgres 17.6 et PostgREST v13.0.5 sur l'instantané), la fonction s'exécute en 5 à 12 ms (lecture
 des 363 événements à venir : 2,5 ms).
+
+### Séries : `app_event_series`
+
+```sql
+app_event_series(at_time timestamp = null)
+  returns table (event_id uuid, series_id uuid, date timestamptz, dates_count integer)
+```
+
+Les dates d'un même spectacle (audit du 2026-10-20, `../live/docs/AMELIORATIONS.md`, U14 ; maquettes,
+lot 3 : « Séries ») : sur l'accueil, une carte par série, à sa première date, avec « et 3 autres dates »
+dans la ligne d'infos ; sur la fiche, « 4 dates » et les dates en puces, chacune ouvrant sa fiche. Règle
+tranchée le 2026-10-21 (AMELIORATIONS.md, § 5) : automatique, sans lien posé dans l'admin.
+
+- **Règle** : deux événements à venir sont de la même série s'ils ont le même titre normalisé, le même
+  lieu (`location_id` ; sans lieu, d'aucune série), et si l'on passe de l'un à l'autre par des dates de
+  ce titre à ce lieu qui se suivent à 7 jours au plus. Les jours sont ceux du calendrier, heure de Paris :
+  vendredi 20:30 et le vendredi suivant 21:00 se suivent. Une série chaque semaine reste une seule série
+  tant qu'il n'y a pas de trou de plus de 7 jours ; deux séances le même jour sont deux dates.
+- **Titre normalisé** (`app_event_series_title(title)`) : sans la date écrite au début ou à la fin
+  (`app_event_title_without_date`, les motifs de `stripDateFromTitle` de `lib/scraping/dates.ts`, qui la
+  retire déjà à l'import : « Atelier broderie - dim. 01/11 », « Samedi 31 octobre 2026 : Atelier SITA »,
+  « Live - Novembre 2026 » ; s'il reste moins de 3 caractères, le titre entier : « 30/30 »), puis sans
+  accents, casse ni ponctuation, comme la recherche (`app_search_normalize`).
+- **À venir et par utilisateur** : comme `app_see_also` (`app_events_in_range` à partir d'aujourd'hui 0 h,
+  expositions en cours comprises, toutes villes, avec `hide_from_home`, sans les événements masqués par
+  l'utilisateur ni les auteurs qu'il a bloqués). Une date passée n'est plus une date de la série.
+- **Lignes** : une par événement à venir d'une série de 2 dates ou plus ; un événement seul n'a pas de
+  ligne. `series_id` : la première date de la série (par date, puis id), l'événement à ouvrir pour la
+  série ; `dates_count` : le nombre de dates de la série, l'événement compris (« 4 dates » ; « et 3 autres
+  dates » = `dates_count - 1`) ; `date` : celle de l'événement (`events.date`), pour les puces sans autre
+  appel. Rendues par série (sa première date), puis par date.
+- **Pour l'app** : lue une fois, toutes villes (les séries ne dépendent pas du périmètre). L'accueil garde,
+  pour chaque `series_id`, la première date de sa liste ; la fiche affiche les dates de sa série. Une
+  série peut commencer avant la plage d'une liste (« Demain » d'une série commencée ce soir) : la carte
+  est alors à sa première date dans la liste, et « et N autres dates » compte toutes les dates de la
+  série. Au-delà de 1 000 lignes (le `max_rows` de PostgREST chez Supabase), la réponse serait tronquée :
+  141 lignes le 2026-10-21.
+
+```dart
+final rows = await supabase
+    .rpc('app_event_series', get: true)
+    .select('event_id, series_id, date, dates_count') as List<dynamic>;
+// [{"event_id":"…","series_id":"…","date":"2026-10-29T20:30:00+00:00","dates_count":4},
+//  {"event_id":"…","series_id":"…","date":"2026-10-30T20:30:00+00:00","dates_count":4}, …]
+```
+
+Sur l'instantané prod du 2026-10-21 (363 événements à venir, à 17:30) : 52 séries, 141 dates ; la plus
+longue, « Les Croquis du TTN » (Théâtre de la Tête Noire), 7 dates en 3 jours ; « Le Dîner de Condé »,
+4 dates à l'Espace Béraire (29 octobre au 1er novembre) et 3 à La Passerelle (12 au 14 novembre), deux
+séries ; « Plateau stand-up Orlin's Comedy » (Java Pop), 6 mercredis d'affilée, une série. En local
+(Postgres 17, rôle anon), la fonction s'exécute en ~3 ms ; avec elle, `app_see_also` passe de ~11 à
+~17 ms (une lecture de plus des événements à venir, et le plan de son corps, refait à chaque appel).
 
 ### Recherche : `app_search`, `app_search_names`
 
