@@ -617,6 +617,12 @@
   `supabase/tests/app_possible_duplicates.test.sql` (26 cas ; 14 changements des règles, chacun repéré par un
   test) et `supabase/tests/poster_analysis_quota.test.sql` (12 cas). `lib/supabase/database.types.ts` complété à la
   main (les deux tables et les quatre fonctions, à la place et dans la forme du générateur) : `npm run db:types`
-  demande Docker.
+  demande Docker. Après la fusion de main (U5 : `app_events_in_range` à sept arguments, les deux nouveaux faux par
+  défaut), les 19 fichiers de `supabase/tests` passent sur les 88 migrations.
+- Prod, lecture seule, le 21/10/2026 à 18:15 : `app_events()`, `app_events_in_range()` (U5) et
+  `app_search_normalize()` identiques à la base de test (md5 de `pg_get_functiondef`), colonnes d'`events` lues
+  présentes, rien de ce que créent ces migrations. Le même jour, l'utilisateur a remis leur application à plus tard.
 - **À appliquer en prod avec l'accord de l'utilisateur**, après une répétition dans une transaction annulée ; avant
-  la sortie de l'app qui les appelle.
+  la sortie de l'app qui les appelle. `app_possible_duplicates` lit `app_events_in_range` : en prod, la RLS
+  d'`events` lui coûte environ 0,5 ms par événement à venir pour anon (mesure du 2026-10-21, PR #45) ; à mesurer à
+  la répétition (EXPLAIN ANALYZE en anon).
