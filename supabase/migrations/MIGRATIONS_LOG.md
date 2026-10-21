@@ -29,7 +29,6 @@
 - Ajoutées : `20260915120000_add_show_on_app_and_agenda_types`, `20261017120000_create_app_events_function`.
 - Aussi déplacés depuis l'app : `supabase/functions/delete-user`, `supabase/templates/otp_email.html`.
 
-
 ## 2026-10-18 — Application en prod
 
 - État relevé avant : les 8 migrations recopiées depuis l'app étaient déjà appliquées ; `show_on_app` et
@@ -125,7 +124,6 @@
   à chaque création d'événement. Vérification :
   `select count(*) filter (where is_young_audience) as jeune_public, count(*) from events;`
 - Même jour : 52 événements existants cochés d'après `lib/events/young-audience.ts`, liste relue avant écriture.
-
 
 ## 2026-10-19 — Calendrier, vacances scolaires et recherche de l'app (refonte)
 
@@ -511,3 +509,27 @@
   pour le Théâtre d'Orléans), les premiers appels d'une série 100 à 500 ms, comme `app_search`. Embarquer les 6
   événements avec le select de la liste coûte 25 à 45 ms : un select plus léger pour ces lignes ferait gagner
   d'autant.
+
+## 2026-10-21 — Suivis (U8) : `user_follows`, « Mes suivis » et leur notification
+
+- `20261021140000_add_events_published_at` : `events.published_at`, l'instant où un événement est apparu dans
+  l'app pour la première fois (conditions d'`app_events()`), tenu par le trigger `trg_events_set_published_at`
+  (jamais effacé ni déplacé, valeurs des clients ignorées) ; les événements déjà visibles prennent leur
+  `created_at`, sans toucher à `updated_at` (trigger `update_events_updated_at` désactivé le temps du remplissage :
+  l'API v1 expose `updatedAt`). Index partiel `idx_events_published_at`.
+- `20261021141000_create_user_follows` : table `user_follows (user_id, target_type, target_id, created_at)`
+  (lieu, organisateur, artiste ; invités compris), RLS « chacun ses lignes » en lecture comme en écriture,
+  droits réduits (authenticated : lire, suivre, ne plus suivre ; anon : rien) ; trigger de cible (23503 si
+  elle n'existe pas) et triggers de suppression sur `locations`, `organizers`, `artists` ;
+  `user_notification_preferences.follows_enabled` (vrai par défaut) ; `app_follows()` (« Mes suivis ») ;
+  `copy_guest_data()` recréée (DROP + CREATE : une colonne `follows` de plus), qui recopie aussi les suivis
+  et `follows_enabled`.
+- `20261021142000_create_follows_digest` : `notification_logs.covered_until` et `follows_digest()` (service
+  role seulement), lue par le nouveau cron `/api/cron/notifications/follows-digest` (`vercel.json`, 08:00
+  UTC). Contrat : `docs/API_APP.md`, « Suivis ».
+- Testées : `npm run db:test` (copie privée du script) : `supabase/tests/user_follows.test.sql` (24 cas),
+  `supabase/tests/follows_digest.test.sql` (13 cas) et `copy_guest_data.test.sql` inchangé, vert avec la
+  fonction recréée. `lib/supabase/database.types.ts` régénéré.
+- **Pas encore appliquées en prod.** Ordre : les trois fichiers dans l'ordre des noms, avant le déploiement du
+  cron (sans elles, il répond 500 sans rien envoyer) et avant la version de l'app qui suit. Avec l'accord de
+  l'utilisateur, après une répétition dans une transaction annulée.

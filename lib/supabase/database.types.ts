@@ -853,6 +853,7 @@ export type Database = {
           price_kind: string | null
           price_max: number | null
           price_min: number | null
+          published_at: string | null
           room_id: string | null
           scraping_url: string | null
           show_on_app: boolean
@@ -904,6 +905,7 @@ export type Database = {
           price_kind?: string | null
           price_max?: number | null
           price_min?: number | null
+          published_at?: string | null
           room_id?: string | null
           scraping_url?: string | null
           show_on_app?: boolean
@@ -955,6 +957,7 @@ export type Database = {
           price_kind?: string | null
           price_max?: number | null
           price_min?: number | null
+          published_at?: string | null
           room_id?: string | null
           scraping_url?: string | null
           show_on_app?: boolean
@@ -1400,6 +1403,7 @@ export type Database = {
       notification_logs: {
         Row: {
           body: string
+          covered_until: string | null
           created_at: string | null
           delivery_date: string | null
           delivery_key: string | null
@@ -1412,6 +1416,7 @@ export type Database = {
         }
         Insert: {
           body: string
+          covered_until?: string | null
           created_at?: string | null
           delivery_date?: string | null
           delivery_key?: string | null
@@ -1424,6 +1429,7 @@ export type Database = {
         }
         Update: {
           body?: string
+          covered_until?: string | null
           created_at?: string | null
           delivery_date?: string | null
           delivery_key?: string | null
@@ -1979,6 +1985,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_follows: {
+        Row: {
+          created_at: string
+          target_id: string
+          target_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          target_id: string
+          target_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          target_id?: string
+          target_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_hidden_events: {
         Row: {
           created_at: string | null
@@ -2041,6 +2068,7 @@ export type Database = {
         Row: {
           category_ids: string[] | null
           created_at: string | null
+          follows_enabled: boolean
           frequency: string
           id: string
           is_enabled: boolean | null
@@ -2050,6 +2078,7 @@ export type Database = {
         Insert: {
           category_ids?: string[] | null
           created_at?: string | null
+          follows_enabled?: boolean
           frequency?: string
           id?: string
           is_enabled?: boolean | null
@@ -2059,6 +2088,7 @@ export type Database = {
         Update: {
           category_ids?: string[] | null
           created_at?: string | null
+          follows_enabled?: boolean
           frequency?: string
           id?: string
           is_enabled?: boolean | null
@@ -2375,6 +2405,7 @@ export type Database = {
           price_kind: string | null
           price_max: number | null
           price_min: number | null
+          published_at: string | null
           room_id: string | null
           scraping_url: string | null
           show_on_app: boolean
@@ -2441,6 +2472,7 @@ export type Database = {
           price_kind: string | null
           price_max: number | null
           price_min: number | null
+          published_at: string | null
           room_id: string | null
           scraping_url: string | null
           show_on_app: boolean
@@ -2456,6 +2488,18 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      app_follows: {
+        Args: { at_time?: string }
+        Returns: {
+          followed_at: string
+          image_url: string
+          name: string
+          new_count: number
+          target_id: string
+          target_type: string
+          upcoming_count: number
+        }[]
       }
       app_organizer_counts: {
         Args: { at_time?: string; city_ids?: string[]; organizer_ids: string[] }
@@ -2581,6 +2625,7 @@ export type Database = {
       copy_guest_data: {
         Args: { guest_session_id: string }
         Returns: {
+          follows: number
           hidden_events: number
           likes: number
           notification_categories: number
@@ -2597,6 +2642,18 @@ export type Database = {
       extract_city_label_from_address: {
         Args: { address: string }
         Returns: string
+      }
+      follows_digest: {
+        Args: { at_time?: string }
+        Returns: {
+          event_date: string
+          event_id: string
+          event_title: string
+          target_id: string
+          target_name: string
+          target_type: string
+          user_id: string
+        }[]
       }
       format_entity_label: { Args: { value: string }; Returns: string }
       get_invitation_by_token: {
