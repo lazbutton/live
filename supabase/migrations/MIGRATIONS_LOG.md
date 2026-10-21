@@ -528,8 +528,8 @@
   `copy_guest_data()` recréée (DROP + CREATE : une colonne `follows` de plus), qui recopie aussi les suivis
   et `follows_enabled`.
 - `20261021142000_create_follows_digest` : `notification_logs.covered_until` et `follows_digest()` (service
-  role seulement), lue par le nouveau cron `/api/cron/notifications/follows-digest` (`vercel.json`, 08:00
-  UTC). Contrat : `docs/API_APP.md`, « Suivis ».
+  role seulement), lue par le nouveau cron `/api/cron/notifications/follows-digest` (`vercel.json`, 16:00
+  UTC depuis le 21/10/2026, voir plus bas). Contrat : `docs/API_APP.md`, « Suivis ».
 - Testées : `npm run db:test` (copie privée du script) : `supabase/tests/user_follows.test.sql` (24 cas),
   `supabase/tests/follows_digest.test.sql` (13 cas) et `copy_guest_data.test.sql` inchangé, vert avec la
   fonction recréée. `lib/supabase/database.types.ts` régénéré.
@@ -544,3 +544,6 @@
   les mêmes nombres qu'à la répétition, `copy_guest_data` rend sa colonne `follows` ; par l'API publique en anon,
   `user_follows`, `app_follows`, `follows_digest` et `copy_guest_data` refusés (401, 42501). Le cron des suivis part
   au déploiement de cette PR.
+- Heure du message des suivis : 16:00 UTC (18 h l'été, 17 h l'hiver à Paris) depuis le 21/10/2026, au lieu de
+  08:00 UTC, pour ne pas tomber à la même minute que le résumé du matin (décision de l'utilisateur ; une ligne de
+  `vercel.json`, aucune migration).
