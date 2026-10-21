@@ -555,8 +555,15 @@
   Les vignettes de 800 px restent affichées jusqu'à être refaites par le rattrapage ; le cron ne les refait pas.
 - Simulation en prod (lecture seule) : 0 événement sans vignette, 457 avec une vignette de 800 px,
   335 affiches distinctes, toutes dans Storage.
-- Rattrapage en prod (`scripts/backfill-image-cards.mjs --write`) : en attente de l'accord de l'utilisateur, après
-  le déploiement. Il réécrit les 457 lignes (`updated_at` compris, comme le rattrapage de C7a).
+- Rattrapage en prod (`scripts/backfill-image-cards.mjs --write`), lancé par l'utilisateur le 21/10/2026 vers
+  15:30 UTC, après le déploiement de C7b (13:08 UTC) ; il réécrit les lignes (`updated_at` compris, comme C7a).
+  Simulation : 457 vignettes d'un ancien rendu, 335 affiches distinctes, toutes dans Storage. Premier passage :
+  324 vignettes fabriquées (408 événements), 38 événements servis par une vignette existante, 0 échec noté,
+  11 échecs passagers (Storage en HTTP 429, « Too many connections » au dépôt) ; 51,6 Ko en moyenne, 249,8 Ko
+  au plus (une affiche très haute : la qualité la plus basse ne descend pas sous 140 Ko). Ces 11 gardaient leur
+  vignette de 800 px, que le cron ne refait pas (il ne cherche que les manquantes, malgré le message « repris
+  par le cron » du script) : second passage, 11 fabriquées, 0 échec, 55,7 Ko en moyenne, 120,1 Ko au plus.
+  Plus aucune vignette d'un ancien rendu.
 
 ## 2026-10-21 — « Gratuit » et « En famille » (U5) : `free` et `family`
 
