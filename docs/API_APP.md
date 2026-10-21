@@ -714,6 +714,46 @@ final rows = await supabase.rpc(
 // [{"likes":2,"hidden_events":1,"notification_preferences":1,"notification_categories":1}]
 ```
 
+## Mesure d'audience : `app_audience_add`, sans identité
+
+```sql
+app_audience_add(day date, counts jsonb) returns integer
+```
+
+Migration `20261021013000_create_app_audience_counts.sql`, tests `supabase/tests/app_audience.test.sql` ;
+lecture dans l'admin : « Audience de l'app » (`/admin/audience`, `lib/audience/app-audience.ts`). Conditions
+de la CNIL pour se passer de consentement, et ce qui y répond : `docs/AUDIENCE_ET_PLANTAGES.md` de l'app (U41).
+
+L'app compte cinq gestes par jour, sur le téléphone, et envoie au plus une fois par jour les totaux des
+journées finies : `event_opened` (fiche ouverte), `ticket_tapped` (billetterie touchée), `search_no_result`
+(recherche sans résultat), `when_sheet_used` (feuille « Quand ? » utilisée), `event_liked` (cœur). Un appel par
+journée : `{"day": "2026-10-20", "counts": {"event_opened": 3, "event_liked": 1}}`.
+
+- **Sans identité** : l'app appelle avec la clé publique seule (`apikey` et `Authorization: Bearer <clé anon>`),
+  jamais avec le jeton de sa session, pour que rien ne relie l'envoi à un compte, journaux de Supabase compris.
+  La fonction n'enregistre ni l'IP ni un identifiant : elle additionne.
+- Gardes : compteurs connus seulement, nombres arrondis à l'entier inférieur et plafonnés à 200 par compteur et
+  par appel, jour des 7 derniers jours (heure de Paris), `counts` objet JSON. Le reste est ignoré **sans
+  erreur** : la fonction rend le nombre de compteurs ajoutés (0 si rien). L'app jette la journée envoyée dès la
+  réponse 2xx, qu'elle ait compté ou non.
+- Conservation : chaque appel efface les jours de plus de 25 mois.
+- Table `app_audience_counts (day, metric, count)`, une ligne par jour et par compteur : RLS, lecture par un admin
+  seulement ; ni anon ni un compte ordinaire ne la lisent ni ne l'écrivent directement.
+- Abus : sans identité, des appels répétés ne peuvent pas être refusés, seulement bornés. Chiffres indicatifs.
+
+```dart
+final response = await http.post(
+  Uri.parse('$supabaseUrl/rest/v1/rpc/app_audience_add'),
+  headers: {
+    'apikey': anonKey,
+    'Authorization': 'Bearer $anonKey',
+    'Content-Type': 'application/json',
+  },
+  body: jsonEncode({'day': '2026-10-20', 'counts': {'event_opened': 3, 'event_liked': 1}}),
+);
+// 200, corps : 2
+```
+
 ## Résumés poussés : `daily-events` et `weekly-summary`
 
 Les crons (`app/api/cron/notifications/`, `lib/notifications/digest.ts`) envoient un message par

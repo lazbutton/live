@@ -52,6 +52,24 @@ export type Database = {
         }
         Relationships: []
       }
+      app_audience_counts: {
+        Row: {
+          count: number
+          day: string
+          metric: string
+        }
+        Insert: {
+          count?: number
+          day: string
+          metric: string
+        }
+        Update: {
+          count?: number
+          day?: string
+          metric?: string
+        }
+        Relationships: []
+      }
       app_search_results: {
         Row: {
           event_id: string
@@ -2225,6 +2243,7 @@ export type Database = {
         Args: { invitation_token: string; user_id_param: string }
         Returns: Json
       }
+      app_audience_add: { Args: { counts: Json; day: string }; Returns: number }
       app_category_counts: {
         Args: { at_time?: string; city_ids?: string[] }
         Returns: {

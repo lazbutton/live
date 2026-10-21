@@ -457,3 +457,16 @@
   cron `notion-sync` (02:00 UTC) et la carte Notion des réglages échouent, sans autre effet.
 - Vercel : les 9 variables `NOTION_*` (Production, Preview, Development) seront retirées une fois ce code déployé,
   avec l'accord de l'utilisateur. Côté Notion (à faire par l'utilisateur) : l'intégration et son abonnement webhook.
+
+## 2026-10-21 — Mesure d'audience de l'app (U41)
+
+- `20261021013000_create_app_audience_counts` : table `app_audience_counts` (un total par jour et par compteur,
+  additionné par tous les téléphones ; RLS, lecture par un admin seulement) et fonction `app_audience_add(day,
+  counts)`, exécutable par anon et authenticated, sans identité : elle additionne des compteurs connus, de 1 à 200
+  par compteur et par appel, pour un jour des 7 derniers jours (heure de Paris), ignore le reste sans erreur et
+  efface au passage les jours de plus de 25 mois. Contrat : `docs/API_APP.md` ; conditions de la CNIL :
+  `docs/AUDIENCE_ET_PLANTAGES.md` de l'app. Lue par la page « Audience de l'app » (`/admin/audience`).
+- Testée : `supabase/tests/app_audience.test.sql` (13 cas) et toute la suite sur une base Supabase locale jetable ;
+  types régénérés (la table et la fonction seulement).
+- **Pas encore appliquée en prod** : en attente de l'accord de l'utilisateur. Sans elle, une version de l'app qui
+  compte garde ses totaux et les jette après 7 jours.
