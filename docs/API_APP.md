@@ -266,7 +266,7 @@ fiche `20261020140000_create_app_organizer_counts.sql` et `20261021110000_create
 (« À voir aussi »), et pour la recherche plein texte `20261020170000_create_app_search.sql` puis
 `20261020210000_speed_up_app_search.sql`. Tests :
 `supabase/tests/*.test.sql` (`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`. Toutes
-sont en prod depuis le 2026-10-20 (sauf `app_see_also`, voir sa section), et `school_holidays` est
+sont en prod depuis le 2026-10-20 (`app_see_also` depuis le 2026-10-21), et `school_holidays` est
 chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`.
 
 | Objet | Appel Dart | Rend |
@@ -608,9 +608,18 @@ maquettes, « Aussi au Théâtre d'Orléans » donne Fora, Atelier souplesse et 
 la rangée de la maquette A ; dans « Dans le même genre », la maquette avait Robert Finley (Concert, sans
 tag commun) à la place de Scène Ouverte Orléans (Concert, le même soir), plus proche.
 
-Temps : en local (Postgres 17.6 et PostgREST v13.0.5 sur l'instantané), la fonction s'exécute en 5 à
-12 ms (lecture des 363 événements à venir : 2,5 ms) ; l'appel de l'app, 6 événements embarqués, comme
-`app_search` avec 2 à 8 résultats mesurée au même moment. En prod : voir `MIGRATIONS_LOG.md`.
+Temps côté serveur (`x-envoy-upstream-service-time`), prod du 2026-10-21, rôle anon, une fois la
+connexion chaude (les premiers appels d'une série : 100 à 500 ms, comme `app_search`) :
+
+| Appel | Temps |
+| --- | --- |
+| `app_see_also` seule (`select=rank`) | ~40 ms (18 à 83) ; exécution en base 14 à 17 ms |
+| appel de l'app, 6 événements embarqués (select de la liste) | 45 à 90 ms (médiane 58 ms pour le TTN et L'Astrolabe, 80 à 86 ms pour le Théâtre d'Orléans) |
+
+Embarquer les 6 événements avec le select de la liste coûte 25 à 45 ms : ces lignes n'affichent qu'un
+titre, une date, une affiche, un lieu et une catégorie, un select plus léger ferait gagner d'autant. En
+local (Postgres 17.6 et PostgREST v13.0.5 sur l'instantané), la fonction s'exécute en 5 à 12 ms (lecture
+des 363 événements à venir : 2,5 ms).
 
 ### Recherche : `app_search`, `app_search_names`
 

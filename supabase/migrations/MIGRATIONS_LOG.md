@@ -485,5 +485,16 @@
   événements, 363 à venir) : rangées vérifiées sur des fiches du Théâtre d'Orléans, du TTN, de L'Astrolabe et une
   expo ; par PostgREST v13.0.5, ordre et embarquement corrects, id inconnu `[]`, id invalide 400, table 401 ;
   la fonction s'exécute en 5 à 12 ms. `lib/supabase/database.types.ts` régénéré : la table et la fonction.
-- **À appliquer en prod, avec l'accord de l'utilisateur**, après une répétition dans une transaction annulée ;
-  puis mesurer l'appel de l'app en anon (`x-envoy-upstream-service-time`, < 100 ms visés).
+- Répétée en prod dans une transaction annulée, avec l'accord de l'utilisateur : droits (anon exécute la fonction,
+  ne lit pas la table, vide), mêmes rangées que sur l'instantané pour Youn Sun Nah et les Croquis du TTN, compte
+  du Théâtre d'Orléans égal à `app_organizer_counts` (83) ; la fonction s'exécute en 14 à 17 ms (EXPLAIN ANALYZE
+  en anon, 18 appels sur 3 fiches).
+- **Appliquée en prod le 21/10/2026 à 09:30 (07:30 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s), sans erreur. Vérifiée en anon, l'appel exact
+  de l'app (select de la liste, 6 événements embarqués, `order=rank`) : rangées attendues sur 3 fiches (Théâtre
+  d'Orléans, TTN, L'Astrolabe), id inconnu `[]`, id invalide 400, `app_see_also_results` illisible (401).
+  Mesurée (`x-envoy-upstream-service-time`, statut 200) : la fonction seule (`select=rank`) ~40 ms (18 à 83) ;
+  l'appel de l'app 45 à 90 ms une fois la connexion chaude (médiane 58 ms pour le TTN et L'Astrolabe, 80 à 86 ms
+  pour le Théâtre d'Orléans), les premiers appels d'une série 100 à 500 ms, comme `app_search`. Embarquer les 6
+  événements avec le select de la liste coûte 25 à 45 ms : un select plus léger pour ces lignes ferait gagner
+  d'autant.
