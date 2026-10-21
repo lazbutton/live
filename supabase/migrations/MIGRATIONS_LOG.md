@@ -769,4 +769,13 @@
   rayon nul, ancien `city_ids` seul et avec la zone, chaque fonction qui transmet la zone, accueil, grands
   événements, comptes de l'écran, villes proposées, session qui masque un événement). Les 21 autres fichiers de
   `supabase/tests` restent verts.
-- **À appliquer** d'un bloc (`psql --single-transaction`), après une répétition dans une transaction annulée.
+- Répétée en prod le 21/10/2026 dans une transaction annulée, avec l'accord de l'utilisateur (psql, `SET ROLE
+  postgres`, `lock_timeout` 5 s), en anon : `app_zone_counts('orleans')` 5 km = 340, 10, 25 et 50 km = 360 ;
+  `olivet` 5 km = 226 ; `app_cities()` les 9 villes qui ont des événements (Orléans 212 à venir) ;
+  `app_events_in_zone('orleans', 25)` à partir d'aujourd'hui 363 ; l'ancien appel d'`app_events_in_range` 362 ;
+  EXPLAIN ANALYZE : `app_zone_counts` 16 ms, la requête de l'accueil 1,8 ms ; rien n'est resté après l'annulation.
+- **Appliquée en prod le 21/10/2026 à 23:04 (21:04 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier commité), sans erreur. Vérifiée en
+  anon par l'API publique : `rpc/app_zone_counts` et `rpc/app_cities` (avec `slug`) 200, mêmes valeurs que la
+  répétition ; `rpc/app_events_in_zone` 200, 12–29 ms (`x-envoy-upstream-service-time`, 5 appels) ;
+  `rpc/app_events_in_range` sans zone et `rpc/app_events` 200 (versions installées).
