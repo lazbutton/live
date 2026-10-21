@@ -311,8 +311,8 @@ fiche `20261020140000_create_app_organizer_counts.sql` et `20261021110000_create
 sont en prod depuis le 2026-10-20 (`app_see_also` depuis le 2026-10-21, `app_event_series` depuis le
 2026-10-21 à 18:04), et `school_holidays` est
 chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`. Pour « Proposer » :
-`20261021201000_create_app_possible_duplicates.sql` (à appliquer en prod avant la sortie de l'app qui
-l'appelle ; sans elle, l'app n'affiche simplement pas le bloc).
+`20261021200000_create_poster_analysis_quota.sql` et `20261021201000_create_app_possible_duplicates.sql`, en
+prod depuis le 2026-10-21 vers 18:32.
 
 | Objet | Appel Dart | Rend |
 | --- | --- | --- |

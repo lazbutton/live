@@ -679,7 +679,13 @@
 - Prod, lecture seule, le 21/10/2026 à 18:15 : `app_events()`, `app_events_in_range()` (U5) et
   `app_search_normalize()` identiques à la base de test (md5 de `pg_get_functiondef`), colonnes d'`events` lues
   présentes, rien de ce que créent ces migrations. Le même jour, l'utilisateur a remis leur application à plus tard.
-- **À appliquer en prod avec l'accord de l'utilisateur**, après une répétition dans une transaction annulée ; avant
-  la sortie de l'app qui les appelle. `app_possible_duplicates` lit `app_events_in_range` : en prod, la RLS
-  d'`events` lui coûte environ 0,5 ms par événement à venir pour anon (mesure du 2026-10-21, PR #45) ; à mesurer à
-  la répétition (EXPLAIN ANALYZE en anon).
+- Répétée en prod le 21/10/2026 dans une transaction annulée (psql, `SET LOCAL ROLE postgres`, `lock_timeout` 5 s,
+  les deux fichiers ensemble) : avant, ni la table ni les fonctions ; après, `poster_analysis_usage` illisible pour
+  anon et authenticated, `take_poster_analysis` exécutable par service_role seulement, `app_possible_duplicates`
+  par anon, `app_possible_duplicate_results` illisible ; une réservation pour une session invitée inventée : `ok` ;
+  en anon, le prochain événement à venir se retrouve lui-même (`place`, rang 1) en ~195 ms (EXPLAIN ANALYZE ;
+  presque tout pour la RLS d'`events`, voir « Séries ») ; rien n'est resté après l'annulation.
+- **Appliquée en prod le 21/10/2026 vers 18:32 (16:32 UTC)** par l'utilisateur (psql, `--single-transaction`,
+  `SET ROLE postgres`, `lock_timeout` 5 s, les deux fichiers de la branche `claude/proposer-affiche`), sans erreur.
+  Vérifiée par l'API publique en anon : `rpc/app_possible_duplicates` 200 ; `poster_analysis_usage` et
+  `rpc/take_poster_analysis` 401.
