@@ -262,11 +262,12 @@ Pour le calendrier « Quand ? » et la recherche des maquettes (`../live/docs/MA
 l'app lit ces comptes dans Supabase au lieu de les calculer en Dart. Migrations :
 `20261019210000_create_app_events_in_range_and_counts.sql` (règle complète en tête),
 `20261019211000_create_school_holidays.sql`, `20261019212000_create_app_search_counts.sql`, pour la
-fiche `20261020140000_create_app_organizer_counts.sql`, et pour la recherche plein texte
-`20261020170000_create_app_search.sql` puis `20261020210000_speed_up_app_search.sql`. Tests :
+fiche `20261020140000_create_app_organizer_counts.sql` et `20261021110000_create_app_see_also.sql`
+(« À voir aussi »), et pour la recherche plein texte `20261020170000_create_app_search.sql` puis
+`20261020210000_speed_up_app_search.sql`. Tests :
 `supabase/tests/*.test.sql` (`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`. Toutes
-sont en prod depuis le 2026-10-20, et `school_holidays` est chargée (64 périodes) ; détail :
-`supabase/migrations/MIGRATIONS_LOG.md`.
+sont en prod depuis le 2026-10-20 (`app_see_also` depuis le 2026-10-21), et `school_holidays` est
+chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`.
 
 | Objet | Appel Dart | Rend |
 | --- | --- | --- |
@@ -276,6 +277,7 @@ sont en prod depuis le 2026-10-20, et `school_holidays` est chargée (64 périod
 | `app_category_counts(city_ids, at_time)` | `rpc('app_category_counts', params: …)` | catégories actives et leur nombre d'événements à venir |
 | `app_tag_counts(city_ids, max_tags, at_time)` | `rpc('app_tag_counts', params: …)` | tags populaires et leur nombre d'événements à venir |
 | `app_organizer_counts(organizer_ids, city_ids, at_time)` | `rpc('app_organizer_counts', params: …)` | nombre d'événements à venir de chaque organisateur (fiche, « Organisé par ») |
+| `app_see_also(event_id, city_ids, at_time, max_results)` | `rpc('app_see_also', params: …)` + `select('section, rank, …, event:events(…)')`, `order('rank')` | « À voir aussi » en bas de la fiche : les rangées « Aussi à <lieu> » et « Dans le même genre » |
 | `app_search(query, city_ids, at_time, max_results)` | `rpc('app_search', params: …)` + `select('rank, event:events(…)')`, `order('rank')` | événements à venir qui correspondent à la requête, par pertinence puis date |
 | `app_search_names(query, city_ids, at_time, max_results)` | `rpc('app_search_names', params: …)` + `order('rank')` | catégories, tags, lieux et organisateurs dont le nom correspond, avec leur nombre d'événements à venir |
 | `app_event_in_range(…)` | aucun | la règle d'appartenance à une plage, partagée par les fonctions ci-dessus |
@@ -540,6 +542,85 @@ Instantané prod du 2026-10-20 : Théâtre d'orléans 84, Théâtre de la Tête 
 Artéphé 35, L'astrolabe 22. Les maquettes affichaient 40 pour le Théâtre d'orléans : l'app comptait
 alors les seuls événements chargés (`SearchPlace.index`), une partie des 84.
 
+### Fiche : `app_see_also`, « À voir aussi »
+
+```sql
+app_see_also(event_id uuid, city_ids uuid[] = null, at_time timestamp = null, max_results integer = 3)
+  returns setof public.app_see_also_results
+  -- (section text, rank integer, event_id uuid,
+  --  source_kind text, source_id uuid, source_name text, source_events_count integer)
+```
+
+La fiche ne finit plus sur « Organisé par » (audit du 2026-10-20, `../live/docs/AMELIORATIONS.md`, U11 ;
+maquettes, lot 1 : « Fiche, À voir aussi ») : deux rangées au plus, chacune masquée si elle est vide, lues
+en un appel une fois la fiche affichée.
+
+- `section = 'place'`, « Aussi à <lieu> » : les prochains événements du lieu de l'événement, ceux de sa
+  page (qui s'y tiennent ou qu'il organise, toutes villes), par date (une exposition en cours d'abord). Si
+  le lieu n'a pas d'autre spectacle, ou si l'événement n'a pas de lieu : ceux de l'organisateur de
+  l'événement qui en a le plus (un organisateur, ou un autre lieu qui organise ; à égalité, par nom).
+  Chaque ligne porte cette source : `source_kind` (`location` : la page d'un lieu ; `organizer` : celle
+  d'un organisateur), `source_id`, `source_name` et `source_events_count`, son nombre d'événements à
+  venir, l'événement de la fiche compris : le nombre de sa page et d'`app_organizer_counts` (« Les 83
+  événements du lieu »).
+- `section = 'genre'`, « Dans le même genre » : les événements de la même catégorie (par id ou par nom)
+  ou avec un tag en commun, à 7 jours au plus du jour de l'événement, avant ou après (du jour à
+  aujourd'hui pour un événement passé ou en cours), dans le périmètre `city_ids` (`null` ou `[]` :
+  toutes les villes), sans ceux de la première rangée. Les plus proches sont retenus (le plus de tags en
+  communs, plus 1 pour la même catégorie, puis le plus près dans le temps), puis rendus par date. Les
+  champs `source_*` sont `null`.
+- Une ligne par spectacle : des événements de même titre (sans accents, casse ni ponctuation, comme la
+  recherche) sont les dates d'un même spectacle, la moitié des événements à venir au 2026-10-21. Une
+  rangée n'en montre que la première date (« Dans le même genre » : la plus proche), jamais celles du
+  spectacle de la fiche : ses autres dates sont l'affaire d'U14. Les comptes comptent chaque date.
+- « À venir » et filtres par utilisateur : ceux des comptes de la recherche (`app_events_in_range` à
+  partir d'aujourd'hui 0 h, expositions en cours comprises, avec `hide_from_home`, sans les événements
+  masqués par l'utilisateur ni les auteurs qu'il a bloqués). L'événement de la fiche est lu sous la RLS
+  de l'appelant : publié, ou le sien en attente ; inconnu ou invisible, `[]`.
+- `max_results` : par rangée, 1 à 20 (3 par défaut, les trois lignes des maquettes). `rank` part de 1,
+  la rangée `place` d'abord : trier dessus (`order=rank`). Même raison que pour `app_search` : des lignes
+  de la table `app_see_also_results` (toujours vide, illisible : 401) dont la clé étrangère vers `events`
+  permet d'embarquer l'événement avec le select de l'app.
+
+```dart
+final rows = await supabase
+    .rpc('app_see_also', params: {
+      'event_id': event.id,
+      'city_ids': cityPreferences.effectiveCityIds, // pour « Dans le même genre »
+    })
+    .select('section, rank, source_kind, source_id, source_name, source_events_count, '
+        'event:events($eventSelect)') // le select de la liste, jointures comprises
+    .order('rank', ascending: true) as List<dynamic>;
+// [{"section":"place","rank":1,"source_kind":"location","source_id":"78d1fda4-…",
+//   "source_name":"Théâtre d'Orléans","source_events_count":83,"event":{"id":"…","title":"Plonger | …",…}},
+//  …,
+//  {"section":"genre","rank":4,"source_kind":null,"source_id":null,"source_name":null,
+//   "source_events_count":null,"event":{"id":"…","title":"Max De Bernardi & Veronica Sbergia",…}}, …]
+```
+
+Sur l'instantané prod du 2026-10-21 (363 événements à venir), fiche de « Youn Sun Nah + 1re partie Nit
+And Dogs » (Théâtre d'Orléans, mardi 17 novembre, Concert, #Jazz), le 21 octobre : « Aussi au Théâtre
+d'Orléans » Plonger (ce soir), Fora (22 octobre ; sa date du 23 n'est pas reprise), Atelier souplesse
+et exploration du mouvement (24 octobre), 83 événements ; « Dans le même genre » Max De Bernardi &
+Veronica Sbergia (15 novembre, Concert, #Blues #Jazz), Scène Ouverte Orléans (17 novembre, Concert),
+Live Atelier : Afro Cubain et Jazzy (20 novembre, Concert, #Jazz). Le 23 octobre, jour du scénario des
+maquettes, « Aussi au Théâtre d'Orléans » donne Fora, Atelier souplesse et Finale du concours de piano :
+la rangée de la maquette A ; dans « Dans le même genre », la maquette avait Robert Finley (Concert, sans
+tag commun) à la place de Scène Ouverte Orléans (Concert, le même soir), plus proche.
+
+Temps côté serveur (`x-envoy-upstream-service-time`), prod du 2026-10-21, rôle anon, une fois la
+connexion chaude (les premiers appels d'une série : 100 à 500 ms, comme `app_search`) :
+
+| Appel | Temps |
+| --- | --- |
+| `app_see_also` seule (`select=rank`) | ~40 ms (18 à 83) ; exécution en base 14 à 17 ms |
+| appel de l'app, 6 événements embarqués (select de la liste) | 45 à 90 ms (médiane 58 ms pour le TTN et L'Astrolabe, 80 à 86 ms pour le Théâtre d'Orléans) |
+
+Embarquer les 6 événements avec le select de la liste coûte 25 à 45 ms : ces lignes n'affichent qu'un
+titre, une date, une affiche, un lieu et une catégorie, un select plus léger ferait gagner d'autant. En
+local (Postgres 17.6 et PostgREST v13.0.5 sur l'instantané), la fonction s'exécute en 5 à 12 ms (lecture
+des 363 événements à venir : 2,5 ms).
+
 ### Recherche : `app_search`, `app_search_names`
 
 ```sql
@@ -688,13 +769,14 @@ version afficherait alors 0 favori, ou 1). L'app ne lit plus que ses propres lig
 ```sql
 copy_guest_data(guest_session_id uuid)
   returns table (likes integer, hidden_events integer, notification_preferences integer,
-                 notification_categories integer)
+                 notification_categories integer, follows integer)
 ```
 
 L'app ouvre une session anonyme par installation. Quand la personne se connecte ou crée un compte,
 `AuthCoordinator` (app) appelle cette fonction avec le jeton du compte : elle recopie sur lui les favoris
-(`event_likes`) et les événements masqués (`user_hidden_events`) de l'invité, sans doublons, et ses
-préférences de notification (`user_notification_preferences` et `user_notification_categories`) si le
+(`event_likes`), les événements masqués (`user_hidden_events`) et les suivis (`user_follows`, avec leur
+date ; depuis `20261021141000`) de l'invité, sans doublons, et ses préférences de notification
+(`user_notification_preferences`, `follows_enabled` compris, et `user_notification_categories`) si le
 compte n'en a pas encore. L'invité garde les siennes ; rejouer l'appel n'ajoute rien. Rend une ligne : le
 nombre de lignes ajoutées par table.
 
@@ -711,8 +793,11 @@ final rows = await supabase.rpc(
   'copy_guest_data',
   params: {'guest_session_id': decodeJwt(guestSession.accessToken).payload.claims['session_id']},
 ) as List<dynamic>;
-// [{"likes":2,"hidden_events":1,"notification_preferences":1,"notification_categories":1}]
+// [{"likes":2,"hidden_events":1,"notification_preferences":1,"notification_categories":1,"follows":2}]
 ```
+
+`follows` est arrivé avec les suivis (la fonction a été recréée) : une version de l'app qui ne le lit pas
+l'ignore ; une version qui le lit doit accepter son absence (base pas encore migrée).
 
 ## Mesure d'audience : `app_audience_add`, sans identité
 
@@ -786,6 +871,106 @@ JSON, à la racine du message à côté de `aps`.
 Les versions de l'app d'avant le 2026-10-21 n'ouvrent rien de particulier au toucher (l'app s'ouvre
 là où elle était) : ces champs ne lui servent pas, et aucun n'a été retiré sauf `days_count` (hebdo,
 jamais lu).
+
+## Suivis : `user_follows`, `app_follows`, notification `follows-digest`
+
+Migrations `20261021140000_add_events_published_at.sql`, `20261021141000_create_user_follows.sql` et
+`20261021142000_create_follows_digest.sql` ; tests `supabase/tests/user_follows.test.sql`,
+`supabase/tests/follows_digest.test.sql`, `lib/notifications/follows-digest.test.mjs` et
+`lib/notifications/digest-routes.test.mjs`. U8 de `../live/docs/AMELIORATIONS.md` : suivre un lieu, un
+organisateur ou un artiste, « Mes suivis », la notification qui va avec.
+
+### Table `user_follows`
+
+| Colonne | |
+| --- | --- |
+| `user_id` | l'utilisateur (invités compris : une session anonyme suit comme un compte) |
+| `target_type` | `location` (un lieu, y compris un lieu qui organise : sa page dans l'app est celle du lieu), `organizer` (une ligne d'`organizers`) ou `artist` |
+| `target_id` | l'id de la cible dans `locations`, `organizers` ou `artists` |
+| `created_at` | début du suivi : ce qui était publié avant n'est ni « nouveau » ni notifié |
+
+Clé primaire `(user_id, target_type, target_id)`. Chacun ne lit, n'ajoute et ne retire que ses lignes
+(RLS) ; anon : rien ; pas de mise à jour. Une cible qui n'existe pas est refusée (`23503`, HTTP 409), un
+type inconnu aussi (`23514`, HTTP 400) ; une ligne pour un autre utilisateur, `42501` (HTTP 403). Un lieu,
+un organisateur ou un artiste supprimé emporte ses suivis, un compte supprimé aussi.
+
+```dart
+// Suivre, sans erreur si c'est déjà fait.
+await supabase.from('user_follows').upsert(
+  {'user_id': userId, 'target_type': 'location', 'target_id': locationId},
+  onConflict: 'user_id,target_type,target_id',
+  ignoreDuplicates: true,
+);
+// Ne plus suivre.
+await supabase.from('user_follows').delete()
+    .eq('user_id', userId).eq('target_type', 'location').eq('target_id', locationId);
+// Ce que je suis (le bouton « Suivre » de chaque page).
+await supabase.from('user_follows').select('target_type, target_id, created_at').eq('user_id', userId);
+```
+
+### `app_follows` : la liste « Mes suivis »
+
+```sql
+app_follows(at_time timestamp default null)
+  returns table (target_type text, target_id uuid, name text, image_url text,
+                 upcoming_count integer, new_count integer, followed_at timestamptz)
+```
+
+Une ligne par suivi de l'appelant dont la cible existe : son nom et son image (lieu : sa photo ;
+organisateur : son logo, à défaut son icône ; artiste : sa photo ; `null` sans image), ses événements à
+venir (`upcoming_count`, comme `app_organizer_counts` : `app_events_in_range` à partir d'aujourd'hui,
+sans les masqués de l'appelant ni ses auteurs bloqués ; un lieu compte ceux qui s'y tiennent et ceux
+qu'il organise, chacun une fois) et, parmi eux, ceux publiés depuis 7 jours et depuis le début du suivi
+(`new_count`, « 2 nouveaux événements »). Triée : du nouveau d'abord, puis le plus d'événements à venir,
+puis le nom. `at_time` : « maintenant » en heure de Paris (tests) ; null, maintenant. Exécutable par
+authenticated.
+
+```dart
+final rows = await supabase.rpc('app_follows') as List<dynamic>;
+// [{"target_type":"location","target_id":"…","name":"L’Astrolabe","image_url":"https://…",
+//   "upcoming_count":12,"new_count":2,"followed_at":"2026-10-21T08:00:00+00:00"}]
+```
+
+### `events.published_at`
+
+L'instant où un événement est apparu dans l'app pour la première fois (conditions d'`app_events()`
+remplies), tenu par la base seule (trigger `trg_events_set_published_at`) : jamais effacé ni déplacé,
+une valeur envoyée est ignorée ; null, jamais visible. Les événements déjà visibles au 21/10/2026 ont
+leur `created_at`. C'est la date des « nouveaux événements » des suivis, pas `created_at` : un événement
+importé peut attendre la modération plusieurs jours.
+
+### La notification : `/api/cron/notifications/follows-digest`
+
+Chaque jour à 08:00 UTC (`vercel.json`, à l'heure près sur Hobby), comme le résumé du matin : à chaque
+personne dont un suivi a publié, un message (`lib/notifications/follows-digest.ts`), au plus un par
+jour (`notification_logs.delivery_key` `follows_digest:<jour>:<utilisateur>`). Ce qu'il contient vient
+de `follows_digest(at_time)` (service role seulement) : les événements visibles, pas complets, pas
+terminés, publiés depuis le dernier message des suivis envoyé (`notification_logs.covered_until`, l'instant
+du calcul ; un envoi qui échoue ne compte pas), depuis le début du suivi et depuis au plus 7 jours, sans
+les masqués de la personne ni ses auteurs bloqués.
+
+Envoyé si `user_notification_preferences.is_enabled` (l'interrupteur général) et `follows_enabled`
+(« Mes suivis », vrai par défaut) ; sans préférences en base, rien. Ni e-mail ni donnée personnelle : les
+noms sont ceux des lieux, organisateurs et artistes.
+
+| Cas | Titre | Corps |
+| --- | --- | --- |
+| une seule cible a publié | « 2 nouveaux événements chez L’Astrolabe » ; artiste : « 1 nouvel événement avec Youn Sun Nah » | les deux premiers titres, puis « et 1 autre » |
+| plusieurs | « 3 nouveaux événements chez tes suivis » | idem |
+
+Données (FCM : en texte, une liste y devient `"a,b"` ; APNs : en JSON, à côté de `aps`) :
+
+| Champ | `follows_digest` |
+| --- | --- |
+| `type` | `follows_digest` |
+| `date` | le jour du message (`2026-10-21`) |
+| `event_ids` | les 10 premiers, par date |
+| `events_count` | le nombre d'événements du message |
+| `follows_count` | le nombre de cibles suivies qui ont publié |
+| `target_type`, `target_id` | la cible, quand elle est seule (sinon absents) |
+
+Toucher, dans l'app : la page de la cible quand elle est seule (`target_type`, `target_id`), sinon
+l'onglet Favoris (« Mes suivis »).
 
 ## Incohérences relevées, non corrigées
 

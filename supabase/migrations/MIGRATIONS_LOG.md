@@ -29,7 +29,6 @@
 - Ajoutées : `20260915120000_add_show_on_app_and_agenda_types`, `20261017120000_create_app_events_function`.
 - Aussi déplacés depuis l'app : `supabase/functions/delete-user`, `supabase/templates/otp_email.html`.
 
-
 ## 2026-10-18 — Application en prod
 
 - État relevé avant : les 8 migrations recopiées depuis l'app étaient déjà appliquées ; `show_on_app` et
@@ -125,7 +124,6 @@
   à chaque création d'événement. Vérification :
   `select count(*) filter (where is_young_audience) as jeune_public, count(*) from events;`
 - Même jour : 52 événements existants cochés d'après `lib/events/young-audience.ts`, liste relue avant écriture.
-
 
 ## 2026-10-19 — Calendrier, vacances scolaires et recherche de l'app (refonte)
 
@@ -473,3 +471,76 @@
 - **Appliquée en prod le 21/10/2026**, avec l'accord de l'utilisateur (psql, `--single-transaction`,
   `SET ROLE postgres`), sans erreur. Vérifié après, par HTTP avec la clé publique, sans rien écrire : l'appel avec un
   jour hors fenêtre rend 0 (HTTP 200) ; la lecture de la table est refusée (401, 42501).
+
+## 2026-10-21 — `app_see_also()` : « À voir aussi » en bas de la fiche (U11)
+
+- `20261021110000_create_app_see_also` : les deux rangées qui terminent la fiche de l'app (audit UI/UX du
+  2026-10-20, U11 ; maquettes, lot 1), en un appel. `app_see_also(event_id, city_ids, at_time, max_results)` rend
+  des lignes `(section, rank, event_id, source_kind, source_id, source_name, source_events_count)` de la table
+  `app_see_also_results`, toujours vide (RLS sans politique, aucun droit), dont la clé étrangère vers `events`
+  permet à l'app `select=section,rank,…,event:events(…)&order=rank`, comme `app_search`.
+  - `place`, « Aussi à <lieu> » : les prochains événements du lieu de l'événement (ceux de sa page et
+    d'`app_organizer_counts`, toutes villes), à défaut de l'organisateur qui en a le plus ; par date, avec la
+    source et son nombre d'événements à venir (« Les 83 événements du lieu »).
+  - `genre`, « Dans le même genre » : même catégorie ou un tag commun, à 7 jours au plus du jour de l'événement,
+    dans le périmètre `city_ids`, sans ceux de la première rangée ; les plus proches retenus, rendus par date.
+  - Une ligne par spectacle (même titre, normalisé par `app_search_normalize`) : jamais les autres dates du
+    spectacle de la fiche (U14), une seule date des autres. La moitié des 363 événements à venir sont d'autres
+    dates d'un même spectacle au même lieu (« Les Croquis du TTN » : 7 en 3 jours).
+- `language sql`, `stable`, `security invoker`, `execute` à anon et authenticated ; aucune table existante modifiée,
+  aucun index.
+- Testée : `npm run db:test` (copie privée du script) : `supabase/tests/app_see_also.test.sql` (28 cas : lieu,
+  ce qu'il organise ailleurs, hors périmètre, hors accueil, événement passé, expo en cours, repli sur
+  l'organisateur ou le lieu qui organise, lieu avant organisateur, sans lieu, aucune source, égalité par nom,
+  plage de 7 jours et ses bords, à partir d'aujourd'hui 0 h, catégorie par id, par nom ou hors de `categories`,
+  tags, périmètre, rangée « Aussi à » exclue, dates d'un même spectacle, rangs, bornes de `max_results`, en
+  attente, inconnu, masqué, auteur bloqué, droits) ; chaque règle faussée à tour de rôle fait échouer au moins
+  un cas (27 mutations). Sur l'instantané prod du 2026-10-21 lu en anon (391
+  événements, 363 à venir) : rangées vérifiées sur des fiches du Théâtre d'Orléans, du TTN, de L'Astrolabe et une
+  expo ; par PostgREST v13.0.5, ordre et embarquement corrects, id inconnu `[]`, id invalide 400, table 401 ;
+  la fonction s'exécute en 5 à 12 ms. `lib/supabase/database.types.ts` régénéré : la table et la fonction.
+- Répétée en prod dans une transaction annulée, avec l'accord de l'utilisateur : droits (anon exécute la fonction,
+  ne lit pas la table, vide), mêmes rangées que sur l'instantané pour Youn Sun Nah et les Croquis du TTN, compte
+  du Théâtre d'Orléans égal à `app_organizer_counts` (83) ; la fonction s'exécute en 14 à 17 ms (EXPLAIN ANALYZE
+  en anon, 18 appels sur 3 fiches).
+- **Appliquée en prod le 21/10/2026 à 09:30 (07:30 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s), sans erreur. Vérifiée en anon, l'appel exact
+  de l'app (select de la liste, 6 événements embarqués, `order=rank`) : rangées attendues sur 3 fiches (Théâtre
+  d'Orléans, TTN, L'Astrolabe), id inconnu `[]`, id invalide 400, `app_see_also_results` illisible (401).
+  Mesurée (`x-envoy-upstream-service-time`, statut 200) : la fonction seule (`select=rank`) ~40 ms (18 à 83) ;
+  l'appel de l'app 45 à 90 ms une fois la connexion chaude (médiane 58 ms pour le TTN et L'Astrolabe, 80 à 86 ms
+  pour le Théâtre d'Orléans), les premiers appels d'une série 100 à 500 ms, comme `app_search`. Embarquer les 6
+  événements avec le select de la liste coûte 25 à 45 ms : un select plus léger pour ces lignes ferait gagner
+  d'autant.
+
+## 2026-10-21 — Suivis (U8) : `user_follows`, « Mes suivis » et leur notification
+
+- `20261021140000_add_events_published_at` : `events.published_at`, l'instant où un événement est apparu dans
+  l'app pour la première fois (conditions d'`app_events()`), tenu par le trigger `trg_events_set_published_at`
+  (jamais effacé ni déplacé, valeurs des clients ignorées) ; les événements déjà visibles prennent leur
+  `created_at`, sans toucher à `updated_at` (trigger `update_events_updated_at` désactivé le temps du remplissage :
+  l'API v1 expose `updatedAt`). Index partiel `idx_events_published_at`.
+- `20261021141000_create_user_follows` : table `user_follows (user_id, target_type, target_id, created_at)`
+  (lieu, organisateur, artiste ; invités compris), RLS « chacun ses lignes » en lecture comme en écriture,
+  droits réduits (authenticated : lire, suivre, ne plus suivre ; anon : rien) ; trigger de cible (23503 si
+  elle n'existe pas) et triggers de suppression sur `locations`, `organizers`, `artists` ;
+  `user_notification_preferences.follows_enabled` (vrai par défaut) ; `app_follows()` (« Mes suivis ») ;
+  `copy_guest_data()` recréée (DROP + CREATE : une colonne `follows` de plus), qui recopie aussi les suivis
+  et `follows_enabled`.
+- `20261021142000_create_follows_digest` : `notification_logs.covered_until` et `follows_digest()` (service
+  role seulement), lue par le nouveau cron `/api/cron/notifications/follows-digest` (`vercel.json`, 08:00
+  UTC). Contrat : `docs/API_APP.md`, « Suivis ».
+- Testées : `npm run db:test` (copie privée du script) : `supabase/tests/user_follows.test.sql` (24 cas),
+  `supabase/tests/follows_digest.test.sql` (13 cas) et `copy_guest_data.test.sql` inchangé, vert avec la
+  fonction recréée. `lib/supabase/database.types.ts` régénéré.
+- Répétées en prod dans une transaction annulée (psql, `SET ROLE postgres`, `lock_timeout` 5 s, les trois fichiers
+  par `\i`) : avant, 392 événements visibles sur 466, triggers de `events` sans surprise
+  (`events_request_image_card`, `events_reset_image_card`, `sync_event_city_before_write`,
+  `update_events_updated_at`) ; après, 392 `published_at` égaux à `created_at`, dernier `updated_at` inchangé,
+  `app_events()` toujours 392, triggers tous actifs, 3 policies pour authenticated, anon sans droit, 80 préférences
+  à `follows_enabled`, `follows_digest()` vide.
+- **Appliquées en prod le 21/10/2026 à 11:41 (09:41 UTC)**, avec l'accord de l'utilisateur (psql, une transaction
+  pour les trois fichiers, `SET ROLE postgres`, `lock_timeout` 5 s), sans erreur. Vérifié après, en lecture seule :
+  les mêmes nombres qu'à la répétition, `copy_guest_data` rend sa colonne `follows` ; par l'API publique en anon,
+  `user_follows`, `app_follows`, `follows_digest` et `copy_guest_data` refusés (401, 42501). Le cron des suivis part
+  au déploiement de cette PR.
