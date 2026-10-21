@@ -29,7 +29,6 @@
 - Ajoutées : `20260915120000_add_show_on_app_and_agenda_types`, `20261017120000_create_app_events_function`.
 - Aussi déplacés depuis l'app : `supabase/functions/delete-user`, `supabase/templates/otp_email.html`.
 
-
 ## 2026-10-18 — Application en prod
 
 - État relevé avant : les 8 migrations recopiées depuis l'app étaient déjà appliquées ; `show_on_app` et
@@ -125,7 +124,6 @@
   à chaque création d'événement. Vérification :
   `select count(*) filter (where is_young_audience) as jeune_public, count(*) from events;`
 - Même jour : 52 événements existants cochés d'après `lib/events/young-audience.ts`, liste relue avant écriture.
-
 
 ## 2026-10-19 — Calendrier, vacances scolaires et recherche de l'app (refonte)
 
@@ -458,6 +456,19 @@
 - Vercel : les 9 variables `NOTION_*` (Production, Preview, Development) seront retirées une fois ce code déployé,
   avec l'accord de l'utilisateur. Côté Notion (à faire par l'utilisateur) : l'intégration et son abonnement webhook.
 
+## 2026-10-21 — Mesure d'audience de l'app (U41)
+
+- `20261021013000_create_app_audience_counts` : table `app_audience_counts` (un total par jour et par compteur,
+  additionné par tous les téléphones ; RLS, lecture par un admin seulement) et fonction `app_audience_add(day,
+  counts)`, exécutable par anon et authenticated, sans identité : elle additionne des compteurs connus, de 1 à 200
+  par compteur et par appel, pour un jour des 7 derniers jours (heure de Paris), ignore le reste sans erreur et
+  efface au passage les jours de plus de 25 mois. Contrat : `docs/API_APP.md` ; conditions de la CNIL :
+  `docs/AUDIENCE_ET_PLANTAGES.md` de l'app. Lue par la page « Audience de l'app » (`/admin/audience`).
+- Testée : `supabase/tests/app_audience.test.sql` (13 cas) et toute la suite sur une base Supabase locale jetable ;
+  types régénérés (la table et la fonction seulement).
+- **Pas encore appliquée en prod** : en attente de l'accord de l'utilisateur. Sans elle, une version de l'app qui
+  compte garde ses totaux et les jette après 7 jours.
+
 ## 2026-10-21 — Suivis (U8) : `user_follows`, « Mes suivis » et leur notification
 
 - `20261021140000_add_events_published_at` : `events.published_at`, l'instant où un événement est apparu dans
@@ -481,3 +492,4 @@
 - **Pas encore appliquées en prod.** Ordre : les trois fichiers dans l'ordre des noms, avant le déploiement du
   cron (sans elles, il répond 500 sans rien envoyer) et avant la version de l'app qui suit. Avec l'accord de
   l'utilisateur, après une répétition dans une transaction annulée.
+
