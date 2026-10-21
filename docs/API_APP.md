@@ -237,7 +237,7 @@ a quatre colonnes de plus pour l'app, plus `image_card_error` (diagnostic de l'a
 
 | Colonne | Type | |
 | --- | --- | --- |
-| `image_card_url` | texte ou `null` | vignette WebP de `image_url`, ~800 px de large |
+| `image_card_url` | texte ou `null` | vignette WebP de `image_url`, 1 200 px de large au plus (800 px avant le 2026-10-21) |
 | `image_width`, `image_height` | entier ou `null` | dimensions de l'original (orientation EXIF appliquée), aussi le ratio de la vignette |
 | `image_color` | texte ou `null` | couleur dominante, `#rrggbb` |
 

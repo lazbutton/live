@@ -5,6 +5,12 @@ Les listes de l'app chargent les affiches à leur taille d'origine (9,8 Mo pour 
 l'accueil le 2026-10-19, cible < 2,5 Mo) et la transformation d'images de Supabase n'est pas activée
 (offre payante). live-admin fabrique donc une vignette par affiche, une fois pour toutes.
 
+Largeur (C7b, 2026-10-21) : 1 200 px. Une carte pleine largeur de l'app fait 362 à 400 pt sur un
+iPhone à ×3, soit 1 086 à 1 200 px ; les vignettes de 800 px de C7a y étaient agrandies de 1,36 à
+1,65 fois (les bannières en paysage, dont le cadre de 200 pt impose la hauteur), ce qui se voyait
+à côté de l'original. Mesuré sur les 40 premières cartes de l'accueil du 2026-10-21 (35 affiches) :
+8,2 Mo d'originaux, 1,4 Mo de vignettes de 800 px, 2,3 Mo de vignettes de 1 200 px.
+
 ## Ce que lit l'app
 
 Colonnes de `events` (migration `20261019190000_add_event_image_cards.sql`), toutes à `null` tant
@@ -12,7 +18,7 @@ que la vignette n'est pas faite :
 
 | Colonne | Contenu |
 | --- | --- |
-| `image_card_url` | vignette WebP de `image_url`, ~800 px de large (1600 px de haut au plus), 70 Ko au plus visés |
+| `image_card_url` | vignette WebP de `image_url`, 1 200 px de large au plus (2 400 px de haut au plus), 140 Ko au plus visés |
 | `image_width`, `image_height` | dimensions de l'original en pixels, orientation EXIF appliquée |
 | `image_color` | couleur dominante, `#rrggbb` |
 | `image_card_error` | dernier échec définitif (image introuvable, illisible…), pour l'admin |
@@ -38,19 +44,19 @@ avec le ratio et la couleur. `app_events()` rend `setof events` : les colonnes s
    l'app) passent tous par là, sans changement de leur code.
 2. **La route** (`app/api/events/[id]/image-card/route.ts`) relit l'événement, télécharge l'affiche
    (15 Mo au plus, ni hôte local ni adresse IP, redirections vérifiées), fabrique la vignette avec
-   `sharp` (qualité WebP 80, puis 70… 40 jusqu'à tenir sous 70 Ko), la dépose dans
-   `event-images/cards/<empreinte de l'adresse>.webp` et remplit les colonnes, seulement si
-   `image_url` n'a pas changé entre-temps. Une affiche déjà traitée (séances, doublon) est reprise
-   sans téléchargement : un fichier par affiche.
+   `sharp` (qualité WebP 80, puis 70… 40 jusqu'à tenir sous 140 Ko), la dépose dans
+   `event-images/cards/v<version>/<empreinte de l'adresse>.webp` et remplit les colonnes, seulement si
+   `image_url` n'a pas changé entre-temps. Une affiche déjà traitée par le rendu actuel (séances,
+   doublon) est reprise sans téléchargement : un fichier par affiche.
 3. **Échecs.** Définitif (HTTP 4xx, fichier illisible, SVG, adresse refusée) : noté dans
    `image_card_error`, plus retenté tant que l'affiche ne change pas. Passager (réseau, HTTP 5xx,
    408 ou 429, Storage) : rien de noté, la route répond 503 et le cron reprend.
 4. **Cron quotidien** `GET /api/cron/image-cards` (4 h UTC, `vercel.json`) : le filet des envois
    ratés et des échecs passagers, 200 événements et 35 s au plus par passage, puis la copie des
    affiches restées hors de Storage (plus bas). Déclenchable à la main depuis l'admin (page des
-   crons).
-5. **Rattrapage** des affiches existantes : `scripts/backfill-image-cards.mjs`, même traitement, sur
-   la machine locale.
+   crons). Il ne refait pas les vignettes d'un ancien rendu (plus bas).
+5. **Rattrapage** des affiches existantes (sans vignette, ou d'un ancien rendu) :
+   `scripts/backfill-image-cards.mjs`, même traitement, sur la machine locale.
 
 Le code : `lib/image-cards/render.ts` (rendu) et `lib/image-cards/service.ts` (téléchargement,
 Storage, écriture, lots). Tests : `lib/image-cards/*.test.mjs`.
@@ -129,14 +135,25 @@ de l'envoi.
 
 ## Coûts (offres gratuites)
 
-- Storage : environ 20 à 70 Ko par affiche distincte. Une vignette remplacée devient orpheline :
-  `scripts/audit-storage.mjs` compte `image_card_url` parmi les références et retire les orphelins.
+- Storage : environ 20 à 140 Ko par affiche distincte (66 Ko en moyenne sur l'accueil du 2026-10-21).
+  Une vignette remplacée devient orpheline : `scripts/audit-storage.mjs` compte `image_card_url` parmi
+  les références et retire les orphelins (après 30 jours par défaut).
 - Vercel : un appel de fonction par nouvelle affiche, ~0,1 à 0,7 s de CPU chacun ; un cron par jour.
 - Egress Supabase : chaque affiche est téléchargée une fois ; l'app charge ensuite des vignettes.
 
 ## Changer le rendu
 
-Changer `CARD_VERSION` (`lib/image-cards/service.ts`) donne de nouvelles adresses (pas de cache
-périmé), puis remettre les colonnes à `null` (`update events set image_card_url = null,
-image_width = null, image_height = null, image_color = null where image_card_url is not null;`) et
-relancer le rattrapage.
+Changer `CARD_VERSION` (`lib/image-cards/service.ts`) : les vignettes vont dans un nouveau dossier
+(`cards/v<version>/`), donc de nouvelles adresses, sans cache périmé. Celles d'avant restent
+affichées jusqu'à être remplacées, sans passer par `null` : une vignette est « d'un ancien rendu »
+quand son adresse n'est pas dans le dossier de la version courante. Seul le rattrapage les refait,
+après les manquantes (simulation, puis `--write --confirm=<ref du projet>`, voir plus haut) : une
+écriture sur tous les événements à affiche, lancée à la main avec l'accord de l'utilisateur, après
+le déploiement (sinon l'ancien webhook refait des vignettes de l'ancien rendu entre-temps). Une
+affiche qui ne se télécharge plus garde son ancienne vignette, l'échec noté.
+
+Chaque vignette posée réécrit sa ligne de `events`, donc son `updated_at` (trigger
+`update_events_updated_at`), comme au premier rattrapage.
+
+Versions : 1 (C7a, 2026-10-19) 800 px et 70 Ko, fichiers à la racine de `cards/` ; 2 (C7b,
+2026-10-21) 1 200 px et 140 Ko, dans `cards/v2/`.

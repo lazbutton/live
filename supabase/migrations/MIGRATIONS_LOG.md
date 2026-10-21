@@ -547,3 +547,13 @@
 - Heure du message des suivis : 16:00 UTC (18 h l'été, 17 h l'hiver à Paris) depuis le 21/10/2026, au lieu de
   08:00 UTC, pour ne pas tomber à la même minute que le résumé du matin (décision de l'utilisateur ; une ligne de
   `vercel.json`, aucune migration).
+
+## 2026-10-21 — Vignettes de 1 200 px (C7b)
+
+- Aucune migration : le rendu passe à 1 200 px de large et 140 Ko au plus (`lib/image-cards/render.ts`),
+  `CARD_VERSION` 2, fichiers dans `event-images/cards/v2/` (`docs/EVENT_IMAGE_CARDS.md`, « Changer le rendu »).
+  Les vignettes de 800 px restent affichées jusqu'à être refaites par le rattrapage ; le cron ne les refait pas.
+- Simulation en prod (lecture seule) : 0 événement sans vignette, 457 avec une vignette de 800 px,
+  335 affiches distinctes, toutes dans Storage.
+- Rattrapage en prod (`scripts/backfill-image-cards.mjs --write`) : en attente de l'accord de l'utilisateur, après
+  le déploiement. Il réécrit les 457 lignes (`updated_at` compris, comme le rattrapage de C7a).

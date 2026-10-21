@@ -20,8 +20,16 @@ type Client = SupabaseClient<Database>;
 export const CARDS_BUCKET = "event-images";
 /** Un fichier par adresse d'affiche, partagé par les séances qui la reprennent. */
 const CARDS_FOLDER = "cards";
-/** À changer si le rendu change : nouvelles adresses, pas de cache périmé. */
-const CARD_VERSION = 1;
+/**
+ * Version du rendu (render.ts), dans le chemin des vignettes (`cards/v2/…`). À changer si le rendu
+ * change : nouvelles adresses, pas de cache périmé ; les vignettes d'une autre version restent
+ * affichées jusqu'à être refaites par le rattrapage (scripts/backfill-image-cards.mjs). 1 : 800 px,
+ * 70 Ko, fichiers à la racine de `cards/` (C7a) ; 2 : 1 200 px, 140 Ko (C7b).
+ */
+const CARD_VERSION = 2;
+const CURRENT_CARDS_FOLDER = `${CARDS_FOLDER}/v${CARD_VERSION}`;
+/** Adresses des vignettes de la version courante (motif `like` de PostgREST). */
+const CURRENT_CARD_PATTERN = `%/${CARDS_BUCKET}/${CURRENT_CARDS_FOLDER}/%`;
 const MAX_DOWNLOAD_BYTES = 15 * 1024 * 1024;
 const MAX_REDIRECTS = 4;
 const DOWNLOAD_TIMEOUT_MS = 10_000;
@@ -69,7 +77,12 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
 /** Chemin de la vignette d'une affiche, dans le bucket des affiches. */
 export function imageCardPath(imageUrl: string) {
   const hash = createHash("sha256").update(`v${CARD_VERSION}:${imageUrl.trim()}`).digest("hex");
-  return `${CARDS_FOLDER}/${hash.slice(0, 32)}.webp`;
+  return `${CURRENT_CARDS_FOLDER}/${hash.slice(0, 32)}.webp`;
+}
+
+/** Vignette faite par le rendu actuel (sinon : à refaire, mais affichable d'ici là). */
+export function isCurrentImageCard(imageCardUrl: string | null | undefined) {
+  return Boolean(imageCardUrl?.includes(`/${CARDS_BUCKET}/${CURRENT_CARDS_FOLDER}/`));
 }
 
 /** Adresse téléchargeable : http(s), sans identifiants, ni hôte local ni adresse IP. */
@@ -162,13 +175,13 @@ export async function createImageCard(supabase: Client, imageUrl: string) {
   return { card, bytes: rendered.webp.byteLength };
 }
 
-/** Vignette déjà faite pour la même affiche (séances, événement dupliqué). */
+/** Vignette déjà faite par le rendu actuel pour la même affiche (séances, événement dupliqué). */
 async function findExistingCard(supabase: Client, imageUrl: string): Promise<ImageCardColumns | null> {
   const { data, error } = await supabase
     .from("events")
     .select("image_card_url, image_width, image_height, image_color")
     .eq("image_url", imageUrl)
-    .not("image_card_url", "is", null)
+    .like("image_card_url", CURRENT_CARD_PATTERN)
     .limit(1);
   if (error) throw new ImageCardError(`Lecture des vignettes impossible (${error.message})`, true);
   const row = data?.[0];
@@ -231,25 +244,32 @@ export async function refreshImageCard(supabase: Client, eventId: string): Promi
   if (error) return { eventId, status: "failed", error: `Lecture de l'événement impossible (${error.message})`, retry: true };
   if (!event) return { eventId, status: "not_found" };
   if (!event.image_url?.trim()) return { eventId, status: "no_image" };
-  if (event.image_card_url) return { eventId, status: "up_to_date" };
+  if (isCurrentImageCard(event.image_card_url)) return { eventId, status: "up_to_date" };
   const [result] = await applyToGroup(supabase, [eventId], event.image_url);
   return result;
 }
 
-/** Événements avec une affiche et sans vignette (ni échec noté, sauf `retryErrors`), les plus récents d'abord. */
+/**
+ * Vignettes à faire : `missing`, aucune ; `outdated`, faite par un autre rendu (CARD_VERSION), affichée
+ * d'ici là. Toujours pour un événement avec une affiche, sans échec noté (sauf `retryErrors`).
+ */
+export type ImageCardNeed = "missing" | "outdated";
+
+type ListOptions = { limit?: number; retryErrors?: boolean; need?: ImageCardNeed };
+
+/** Événements dont la vignette est à faire ([ImageCardNeed]), les plus récents d'abord. */
 export async function listMissingImageCards(
   supabase: Client,
-  { limit = Number.POSITIVE_INFINITY, retryErrors = false }: { limit?: number; retryErrors?: boolean } = {},
+  { limit = Number.POSITIVE_INFINITY, retryErrors = false, need = "missing" }: ListOptions = {},
 ): Promise<PendingImageCard[]> {
   const rows: PendingImageCard[] = [];
   while (rows.length < limit) {
     const size = Math.min(PAGE_SIZE, limit - rows.length);
-    let query = supabase
-      .from("events")
-      .select("id, image_url")
-      .not("image_url", "is", null)
-      .neq("image_url", "")
-      .is("image_card_url", null);
+    let query = supabase.from("events").select("id, image_url").not("image_url", "is", null).neq("image_url", "");
+    query =
+      need === "missing"
+        ? query.is("image_card_url", null)
+        : query.not("image_card_url", "is", null).not("image_card_url", "like", CURRENT_CARD_PATTERN);
     if (!retryErrors) query = query.is("image_card_error", null);
     const { data, error } = await query
       .order("date", { ascending: false })
@@ -262,13 +282,19 @@ export async function listMissingImageCards(
   return rows;
 }
 
-export async function countMissingImageCards(supabase: Client, { retryErrors = false } = {}) {
+export async function countMissingImageCards(
+  supabase: Client,
+  { retryErrors = false, need = "missing" }: Omit<ListOptions, "limit"> = {},
+) {
   let query = supabase
     .from("events")
     .select("id", { count: "exact", head: true })
     .not("image_url", "is", null)
-    .neq("image_url", "")
-    .is("image_card_url", null);
+    .neq("image_url", "");
+  query =
+    need === "missing"
+      ? query.is("image_card_url", null)
+      : query.not("image_card_url", "is", null).not("image_card_url", "like", CURRENT_CARD_PATTERN);
   if (!retryErrors) query = query.is("image_card_error", null);
   const { count, error } = await query;
   if (error) throw new Error(`Comptage des événements sans vignette impossible (${error.message})`);
@@ -324,7 +350,11 @@ export async function applyImageCards(
   return { results, report };
 }
 
-/** Filet du webhook : vignettes manquantes, dans la limite de temps d'une fonction Vercel. */
+/**
+ * Filet du webhook : vignettes manquantes, dans la limite de temps d'une fonction Vercel. Pas
+ * celles d'un ancien rendu : les refaire réécrit tous les événements, c'est au rattrapage
+ * (scripts/backfill-image-cards.mjs), lancé à la main.
+ */
 export async function fillMissingImageCards(
   supabase: Client,
   {
