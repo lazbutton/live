@@ -32,7 +32,8 @@ function isTruthy(value: unknown) {
   return normalized === "true" || normalized === "1";
 }
 
-export async function requireMobileUserAuth(
+/** JWT de la requête vérifié auprès de Supabase : la session, ou la réponse 401. */
+async function verifyMobileToken(
   request: NextRequest,
 ): Promise<MobileUserAuthContext | NextResponse> {
   const authHeader = request.headers.get("authorization");
@@ -61,13 +62,40 @@ export async function requireMobileUserAuth(
     );
   }
 
+  return { user, token };
+}
+
+function isAnonymousUser(user: MobileUserAuthContext["user"]) {
   const provider = user.app_metadata?.provider?.toString().trim().toLowerCase();
-  const isAnonymous =
+  return (
     user.is_anonymous === true ||
     provider === "anonymous" ||
-    isTruthy(user.user_metadata?.is_anonymous);
+    isTruthy(user.user_metadata?.is_anonymous)
+  );
+}
 
-  if (isAnonymous) {
+function suspendedResponse() {
+  return NextResponse.json(
+    {
+      error:
+        "Votre compte ne peut plus publier de contenu pour le moment.",
+    },
+    { status: 403 },
+  );
+}
+
+/**
+ * Compte réel de l'app, pas suspendu, qui a accepté la version en cours des conditions : ce
+ * qu'exige l'envoi d'une contribution (et l'API v1). Sinon 401 (JWT) ou 403.
+ */
+export async function requireMobileUserAuth(
+  request: NextRequest,
+): Promise<MobileUserAuthContext | NextResponse> {
+  const auth = await verifyMobileToken(request);
+  if (auth instanceof NextResponse) return auth;
+  const { user } = auth;
+
+  if (isAnonymousUser(user)) {
     return NextResponse.json(
       {
         error:
@@ -78,13 +106,7 @@ export async function requireMobileUserAuth(
   }
 
   if (isTruthy(user.user_metadata?.ugc_suspended)) {
-    return NextResponse.json(
-      {
-        error:
-          "Votre compte ne peut plus publier de contenu pour le moment.",
-      },
-      { status: 403 },
-    );
+    return suspendedResponse();
   }
 
   const acceptedVersion = user.user_metadata?.ugc_terms_accepted_version
@@ -101,8 +123,27 @@ export async function requireMobileUserAuth(
     );
   }
 
-  return {
-    user,
-    token,
-  };
+  return auth;
+}
+
+export type MobileSessionContext = MobileUserAuthContext & {
+  /** Session invitée (anonyme) : pas encore de compte. */
+  isGuest: boolean;
+};
+
+/**
+ * Session de l'app, invitée (anonyme) ou compte, avant tout envoi : l'analyse d'affiche de
+ * « Proposer », ouverte à tous (le compte et les conditions ne sont demandés qu'à l'envoi,
+ * requireMobileUserAuth). Un compte suspendu reste refusé (403) ; sinon 401 (JWT).
+ */
+export async function requireMobileSession(
+  request: NextRequest,
+): Promise<MobileSessionContext | NextResponse> {
+  const auth = await verifyMobileToken(request);
+  if (auth instanceof NextResponse) return auth;
+
+  if (isTruthy(auth.user.user_metadata?.ugc_suspended)) {
+    return suspendedResponse();
+  }
+  return { ...auth, isGuest: isAnonymousUser(auth.user) };
 }

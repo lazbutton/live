@@ -70,6 +70,32 @@ export type Database = {
         }
         Relationships: []
       }
+      app_possible_duplicate_results: {
+        Row: {
+          event_id: string
+          rank: number
+          reason: string
+        }
+        Insert: {
+          event_id: string
+          rank: number
+          reason: string
+        }
+        Update: {
+          event_id?: string
+          rank?: number
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_possible_duplicate_results_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_search_results: {
         Row: {
           event_id: string
@@ -1896,6 +1922,27 @@ export type Database = {
           },
         ]
       }
+      poster_analysis_usage: {
+        Row: {
+          analyses_count: number
+          day: string
+          is_guest: boolean
+          user_id: string
+        }
+        Insert: {
+          analyses_count?: number
+          day: string
+          is_guest?: boolean
+          user_id: string
+        }
+        Update: {
+          analyses_count?: number
+          day?: string
+          is_guest?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       rooms: {
         Row: {
           capacity: number | null
@@ -2542,6 +2589,7 @@ export type Database = {
           upcoming_count: number
         }[]
       }
+      app_link_keys: { Args: { link: string }; Returns: string[] }
       app_organizer_counts: {
         Args: { at_time?: string; city_ids?: string[]; organizer_ids: string[] }
         Returns: {
@@ -2549,6 +2597,27 @@ export type Database = {
           kind: string
           organizer_id: string
         }[]
+      }
+      app_possible_duplicates: {
+        Args: {
+          at_time?: string
+          link?: string
+          location_id?: string
+          max_results?: number
+          starts_at?: string
+          title?: string
+        }
+        Returns: {
+          event_id: string
+          rank: number
+          reason: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "app_possible_duplicate_results"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       app_search: {
         Args: {
@@ -2632,6 +2701,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      app_similar_titles: {
+        Args: { left_title: string; right_title: string }
+        Returns: boolean
       }
       app_tag_counts: {
         Args: { at_time?: string; city_ids?: string[]; max_tags?: number }
@@ -2781,6 +2854,15 @@ export type Database = {
       }
       slugify_artist_label: { Args: { value: string }; Returns: string }
       slugify_city_label: { Args: { value: string }; Returns: string }
+      take_poster_analysis: {
+        Args: {
+          guest_total_limit: number
+          is_guest: boolean
+          per_user_limit: number
+          user_id: string
+        }
+        Returns: string
+      }
       to_tag_title_case: { Args: { input_text: string }; Returns: string }
       upsert_city: {
         Args: { p_center_lat?: number; p_center_lng?: number; p_label: string }

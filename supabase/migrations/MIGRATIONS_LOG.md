@@ -555,8 +555,15 @@
   Les vignettes de 800 px restent affichées jusqu'à être refaites par le rattrapage ; le cron ne les refait pas.
 - Simulation en prod (lecture seule) : 0 événement sans vignette, 457 avec une vignette de 800 px,
   335 affiches distinctes, toutes dans Storage.
-- Rattrapage en prod (`scripts/backfill-image-cards.mjs --write`) : en attente de l'accord de l'utilisateur, après
-  le déploiement. Il réécrit les 457 lignes (`updated_at` compris, comme le rattrapage de C7a).
+- Déployée (PR #40) le 21/10/2026 à 13:08 UTC. **Rattrapage fait en prod le 21/10/2026 vers 15:18 UTC**
+  (`scripts/backfill-image-cards.mjs --write`, session de la PR #42) : 457 événements réécrits (`updated_at`
+  compris, comme le rattrapage de C7a), deux passages, aucun échec durable (11 échecs passagers au premier,
+  refaits au second). Un second lancement, à 16:41 UTC par la session vignettes avec l'accord de l'utilisateur,
+  n'a rien trouvé à refaire et n'a rien écrit.
+- Vérifié ensuite, en lecture seule : simulation du rattrapage, 0 vignette manquante ni d'un ancien rendu ; en anon,
+  les 392 événements visibles avec vignette sont tous dans `cards/v2/`. Trois vignettes dépassent 140 Ko
+  (212 à 250 Ko) ; la PR #46 borne le poids des suivantes. Les 326 fichiers de 800 px, orphelins, partiront avec
+  `scripts/audit-storage.mjs` (délai de 30 jours).
 
 ## 2026-10-21 — « Gratuit » et « En famille » (U5) : `free` et `family`
 
@@ -653,6 +660,43 @@
   Temps serveur (`x-envoy-upstream-service-time`) : `app_event_series` 226 à 259 ms (médiane 245, 10 appels) ;
   `app_see_also` avec 6 événements embarqués 287 à 340 ms. Presque tout ce temps est la RLS ci-dessus.
 
+## 2026-10-21 — Proposer un événement : analyse d'affiche ouverte à tous, « Cet événement existe peut-être déjà »
+
+- Décisions du 2026-10-21 (`../live/docs/AMELIORATIONS.md`, § 5 et partie E, point 6) : « Proposer » s'ouvre sans
+  compte, l'analyse d'affiche aussi, avec un plafond par jour ; le compte et les conditions ne sont demandés qu'à
+  l'envoi.
+- `20261021200000_create_poster_analysis_quota` : table `poster_analysis_usage (day, user_id, is_guest,
+  analyses_count)` (RLS sans politique, aucun droit pour anon ni authenticated ; rien au-delà de la veille) et
+  `take_poster_analysis(user_id, is_guest, per_user_limit, guest_total_limit)` (`security definer`, service role
+  seulement) : réserve une analyse du jour, rend `ok`, `user_limit` ou `guest_limit`. Appelée par
+  `/api/mobile/events/extract-from-image` (10 par session, 200 pour l'ensemble des invités,
+  `lib/events/poster-analysis-quota.ts`). Sans elle, la route garde l'ancien comportement pour les invités (403)
+  et lit l'affiche d'un compte sans plafond : la route peut être déployée avant la migration.
+- `20261021201000_create_app_possible_duplicates` : `app_possible_duplicates(title, starts_at, location_id, link,
+  at_time, max_results)` (lignes de la table toujours vide `app_possible_duplicate_results`, clé étrangère vers
+  `events`), `app_link_keys(text)` et `app_similar_titles(text, text)` (`immutable`), exécutables par anon et
+  authenticated. Les événements à venir qui ressemblent à une proposition : même lien, même lieu à deux heures
+  près, titre équivalent le même jour. Contrat : `docs/API_APP.md`, « Proposer : app_possible_duplicates ».
+- Testées sur un Postgres 17 local (Homebrew, ICU, bouchons Supabase ; Docker arrêté) avec toutes les migrations :
+  `supabase/tests/app_possible_duplicates.test.sql` (26 cas ; 14 changements des règles, chacun repéré par un
+  test) et `supabase/tests/poster_analysis_quota.test.sql` (12 cas). `lib/supabase/database.types.ts` complété à la
+  main (les deux tables et les quatre fonctions, à la place et dans la forme du générateur) : `npm run db:types`
+  demande Docker. Après la fusion de main (U5 : `app_events_in_range` à sept arguments, les deux nouveaux faux par
+  défaut), les 19 fichiers de `supabase/tests` passent sur les 88 migrations.
+- Prod, lecture seule, le 21/10/2026 à 18:15 : `app_events()`, `app_events_in_range()` (U5) et
+  `app_search_normalize()` identiques à la base de test (md5 de `pg_get_functiondef`), colonnes d'`events` lues
+  présentes, rien de ce que créent ces migrations. Le même jour, l'utilisateur a remis leur application à plus tard.
+- Répétée en prod le 21/10/2026 dans une transaction annulée (psql, `SET LOCAL ROLE postgres`, `lock_timeout` 5 s,
+  les deux fichiers ensemble) : avant, ni la table ni les fonctions ; après, `poster_analysis_usage` illisible pour
+  anon et authenticated, `take_poster_analysis` exécutable par service_role seulement, `app_possible_duplicates`
+  par anon, `app_possible_duplicate_results` illisible ; une réservation pour une session invitée inventée : `ok` ;
+  en anon, le prochain événement à venir se retrouve lui-même (`place`, rang 1) en ~195 ms (EXPLAIN ANALYZE ;
+  presque tout pour la RLS d'`events`, voir « Séries ») ; rien n'est resté après l'annulation.
+- **Appliquée en prod le 21/10/2026 vers 18:32 (16:32 UTC)** par l'utilisateur (psql, `--single-transaction`,
+  `SET ROLE postgres`, `lock_timeout` 5 s, les deux fichiers de la branche `claude/proposer-affiche`), sans erreur.
+  Vérifiée par l'API publique en anon : `rpc/app_possible_duplicates` 200 ; `poster_analysis_usage` et
+  `rpc/take_poster_analysis` 401.
+
 ## 2026-10-21 — RLS d'`events` : vérifications une fois par requête
 
 - `20261021190000_speed_up_events_rls` : reprend la RLS coûteuse relevée par les séries (plus haut). Mêmes
@@ -673,7 +717,8 @@
   d'avant) : elle ne change les droits de personne. Les 3 cas de forme (aucun appel par ligne dans les politiques,
   aucun sous-plan rejoué) ne passent qu'avec. 14 règles faussées à tour de rôle : 13 font échouer un cas ; la
   quatorzième (retirer `uo.user_id = auth.uid()` de la lecture) ne change rien, la RLS de `user_organizers` ne
-  laissant déjà voir que ses propres liens. Les 18 autres fichiers de `supabase/tests` restent verts.
+  laissant déjà voir que ses propres liens. Les 20 autres fichiers de `supabase/tests` restent verts (base neuve,
+  toutes les migrations, Proposer compris).
 - En local, jeu de mesure de 400 événements et 21 liens `user_organizers` (EXPLAIN ANALYZE, médiane de 9) :
   anon 2,7–9 ms → 0,1–3,4 ms, invité et compte sans organisateur 5–18 ms → 0,1–3,7 ms, organisateur 2–9 ms →
   0,6–4,6 ms ; mêmes ids visibles pour les cinq sessions.
