@@ -1,6 +1,7 @@
 -- Tests de la zone de l'app (migration 20261021220000_create_app_zone.sql) : app_distance_km, app_zone,
 -- app_in_zone par app_events_in_range et les fonctions qui la transmettent, app_events_in_zone,
--- app_major_events_in_zone, app_zone_counts, app_cities.
+-- app_major_events_in_zone, app_zone_counts, app_cities ; et le centre fixe d'une ville
+-- (20261021230000_fix_city_centers.sql).
 --
 -- Sur une base jetable avec toutes les migrations et aucun événement : scripts/db-test.sh.
 -- Jamais en prod : tout se passe dans une transaction annulée, mais le script s'arrête de lui-même
@@ -257,5 +258,16 @@ SELECT pg_temp.verifie('session : sans Z01 masqué, dans la liste et les comptes
   pg_temp.liste('centreville', 2) || ' | '
   || (SELECT events_count::text FROM public.app_zone_counts('centreville', ARRAY[2]::numeric[], '2026-11-06 19:15')),
   'Z02 Z05 Z07 Z08 | 3');
+
+-- Le centre d'une ville ne bouge plus avec ses lieux (20261021230000) ---------------------------
+
+RESET ROLE;
+SELECT public.refresh_city_center('0b000000-0000-4000-8000-000000000001');
+UPDATE public.cities SET center_lat = NULL, center_lng = NULL WHERE id = '0b000000-0000-4000-8000-000000000003';
+SELECT public.refresh_city_center('0b000000-0000-4000-8000-000000000003');
+SELECT pg_temp.verifie('centre posé : gardé (ses lieux sont en moyenne à 47,873) ; sans centre : celui de ses lieux',
+  (SELECT string_agg(round(center_lat, 3) || ',' || round(center_lng, 3), ' ' ORDER BY label)
+   FROM public.cities WHERE id IN ('0b000000-0000-4000-8000-000000000001', '0b000000-0000-4000-8000-000000000003')),
+  '47.900,1.900 47.900,1.940');
 
 ROLLBACK;

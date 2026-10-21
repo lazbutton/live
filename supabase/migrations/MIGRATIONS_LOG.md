@@ -779,3 +779,17 @@
   anon par l'API publique : `rpc/app_zone_counts` et `rpc/app_cities` (avec `slug`) 200, mêmes valeurs que la
   répétition ; `rpc/app_events_in_zone` 200, 12–29 ms (`x-envoy-upstream-service-time`, 5 appels) ;
   `rpc/app_events_in_range` sans zone et `rpc/app_events` 200 (versions installées).
+
+## 2026-10-21 — Villes : un centre fixe (la mairie), deux lignes fautives
+
+- `20261021230000_fix_city_centers` : décision de l'utilisateur du 2026-10-21 (corriger aussi les données).
+  `refresh_city_center` ne remplace plus un centre existant ; le centre des 18 villes connues = leur mairie
+  (geo.api.gouv.fr, champ `mairie` ; Orléans : 47,9028 ; 1,9093, le centre de secours de l'app, au lieu de la
+  moyenne de ses lieux à 800 m de là) ; « SAINT DENIS EN VAL » renommée « Saint-Denis-en-Val » (même slug) ;
+  « place sainte beuve orleans » (une adresse prise pour une ville) : ses rattachements passent à Orléans, la ligne
+  est supprimée. Par slug : sans effet sur une base de test.
+- Sur l'instantané public de la prod chargé en local : `app_zone_counts('orleans')` inchangé (5 km = 340),
+  `saran` 5 km 298 → 98 (sa mairie est à 5,6 km du centre d'Orléans ; la moyenne de ses lieux en était plus
+  près). `supabase/tests/app_zone.test.sql` : un cas de plus (centre gardé, ou pris aux lieux s'il manque), qui
+  échoue sans la migration ; les 22 fichiers verts avec les deux migrations.
+- **À appliquer** d'un bloc, après une répétition dans une transaction annulée.
