@@ -293,7 +293,8 @@ fiche `20261020140000_create_app_organizer_counts.sql` et `20261021110000_create
 `20261021160000_add_free_family_filters.sql` ; séries (U14, et leur règle dans « À voir aussi ») :
 `20261021170000_create_app_event_series.sql`. Tests :
 `supabase/tests/*.test.sql` (`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`. Toutes
-sont en prod depuis le 2026-10-20 (`app_see_also` depuis le 2026-10-21), et `school_holidays` est
+sont en prod depuis le 2026-10-20 (`app_see_also` depuis le 2026-10-21, `app_event_series` depuis le
+2026-10-21 à 18:04), et `school_holidays` est
 chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`.
 
 | Objet | Appel Dart | Rend |
@@ -738,7 +739,10 @@ longue, « Les Croquis du TTN » (Théâtre de la Tête Noire), 7 dates en 3 jou
 4 dates à l'Espace Béraire (29 octobre au 1er novembre) et 3 à La Passerelle (12 au 14 novembre), deux
 séries ; « Plateau stand-up Orlin's Comedy » (Java Pop), 6 mercredis d'affilée, une série. En local
 (Postgres 17, rôle anon), la fonction s'exécute en ~3,5 ms, dont ~2 ms pour les titres ; `app_see_also`
-prend ~5 ms de plus (les titres des événements qu'il lit déjà).
+prend ~5 ms de plus (les titres des événements qu'il lit déjà). En prod le 2026-10-21 (rôle anon, serveur) :
+`app_event_series` ~245 ms, presque tout pour lire les 362 événements à venir sous la RLS d'`events` (~0,5 ms
+par ligne, voir `MIGRATIONS_LOG.md`, « Séries ») ; `app_see_also` inchangée par les séries (~290 à 460 ms selon
+la fiche, la même RLS). L'app la garde 5 minutes.
 
 ### Recherche : `app_search`, `app_search_names`
 

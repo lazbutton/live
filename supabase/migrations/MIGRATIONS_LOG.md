@@ -590,25 +590,49 @@
     même garde des 3 caractères ; `app_event_series_title(title)` : ce titre, sans accents, casse ni ponctuation
     (`app_search_normalize`), une expression que Postgres recopie dans l'appelant (les motifs ne sont lus que
     pour un titre qui a un chiffre et un séparateur : 19 sur 363 à venir).
-  - `app_event_series(at_time)` : une ligne `(event_id, series_id, date, dates_count)` par événement à venir d'une
-    série de 2 dates ou plus (à venir et par utilisateur comme `app_see_also`), `series_id` = sa première date.
+  - `app_event_series_of(event_ids, dates, location_ids, titles)` : la règle seule, sur des événements donnés en
+    tableaux, sans rien lire ; `app_event_series(at_time)` la passe sur les événements à venir : une ligne
+    `(event_id, series_id, date, dates_count)` par date d'une série de 2 dates ou plus (à venir et par
+    utilisateur comme `app_see_also`), `series_id` = sa première date.
   - `app_see_also()` recréée (même signature) : une ligne par série à la place du « même titre » ; jamais une date
     de la série de la fiche. Un même titre à un autre lieu, ou au même lieu à plus de 7 jours, est désormais une
-    autre série.
-- `language sql`, `stable` (les deux fonctions de titre `immutable`), `security invoker`, `execute` à anon et
+    autre série. Elle passe `app_event_series_of` sur les événements à venir qu'elle lit déjà (pas de lecture
+    d'`events` de plus : voir la RLS plus bas).
+- `language sql`, `stable` (les trois fonctions de règle `immutable`), `security invoker`, `execute` à anon et
   authenticated ; aucune table modifiée, aucun index, aucune donnée écrite.
 - Testée sur un Postgres 17 Homebrew local en ICU (bouchons Supabase, toutes les migrations ; Docker arrêté) :
-  `supabase/tests/app_event_series.test.sql` (11 cas : motifs du titre et leur garde, même titre normalisé, même
-  lieu, 7 jours de calendrier, deux séances le même jour, date dans le titre, en cours, ce matin sans heure de
-  fin, passé, en attente, sans lieu, hors accueil, ordre des lignes, masqué, auteur bloqué ; « À voir aussi »
-  par série) ; chaque règle faussée à tour de rôle fait échouer au moins un cas (18 mutations).
+  `supabase/tests/app_event_series.test.sql` (12 cas : motifs du titre et leur garde, la règle seule, même titre
+  normalisé, même lieu, 7 jours de calendrier, deux séances le même jour, date dans le titre, en cours, ce matin
+  sans heure de fin, passé, en attente, sans lieu, hors accueil, ordre des lignes, masqué, auteur bloqué ; « À
+  voir aussi » par série) ; chaque règle faussée à tour de rôle fait échouer au moins un cas (19 mutations).
   `app_see_also.test.sql` : 2 attentes changent (39, du titre de 09 à un autre lieu, est une autre série : elle
-  entre dans « Dans le même genre »), 28 cas verts ; les 16 autres fichiers verts (257 cas en tout). Les motifs
-  rendent les mêmes titres que `stripDateFromTitle` sur 20 exemples. `lib/supabase/database.types.ts` : les trois
+  entre dans « Dans le même genre »), 28 cas verts ; les 16 autres fichiers verts (258 cas en tout). Les motifs
+  rendent les mêmes titres que `stripDateFromTitle` sur 20 exemples. `lib/supabase/database.types.ts` : les quatre
   fonctions, à la main (pas de Docker ce jour-là).
 - Sur l'instantané prod du 2026-10-21 lu en anon (392 événements, 363 à venir), à 17:30 : 52 séries, 141 dates, la
   plus longue de 7 (« Les Croquis du TTN »). `app_see_also` change sur 30 fiches sur 362, toutes par la règle : la
   prochaine édition d'un même titre à plus de 7 jours (« La Scène est à toi », « Cabaret d'impro », « Match
-  d'impro ») entre dans « Aussi à ». En local : `app_event_series` ~3 ms ; `app_see_also` de ~11 à ~17 ms.
-- **À appliquer en prod avant de merger la PR de l'app (U14)**, avec l'accord de l'utilisateur, après une
-  répétition dans une transaction annulée.
+  d'impro ») entre dans « Aussi à ». En local : `app_event_series` ~3,5 ms ; `app_see_also` ~5 ms de plus.
+- Répétée deux fois en prod dans une transaction annulée, avec l'accord de l'utilisateur (psql, `SET ROLE
+  postgres`, `lock_timeout` 5 s) :
+  - la première version (où `app_see_also` appelait `app_event_series`) : 52 séries, 141 dates, droits
+    d'anon et d'authenticated ; « À voir aussi » avant/après sur les 363 fiches : 30 changent, comme sur
+    l'instantané ; mais chaque appel relisait les événements à venir ;
+  - la version finale : mêmes séries et droits.
+- **RLS d'`events` coûteuse en anon (relevée là, non corrigée)** : la politique « Organizers can view their events »
+  (`is_user_admin() OR EXISTS (… event_organizers … user_organizers … uo.user_id = auth.uid())`, migration
+  20250114000000) est évaluée pour chaque ligne lue, même approuvée, et parcourt `user_organizers` (21 lignes en
+  prod, `is_user_admin()` à chaque ligne par sa propre RLS) : ~0,5 ms par événement. `app_events_in_range` sur
+  les 362 événements à venir prend ~188 ms en prod (EXPLAIN ANALYZE en anon), contre ~3 ms en local (table vide).
+  Le même coût pèse sur toute lecture d'événements de l'app (accueil, recherche, comptes du calendrier). Mesuré
+  avant la migration, `app_see_also` actuelle : 270 à 305 ms (Croquis du TTN), ~450 ms (Youn Sun Nah), ~434 ms (Le
+  Dîner de Condé) ; la version finale, répétée : 294, ~460 et ~440 ms, autant. À reprendre à part (politique en
+  `events.id IN (SELECT …)`, évaluée une fois par requête, ou réservée aux sessions qui ont un organisateur).
+- **Appliquée en prod le 21/10/2026 à 18:04 (16:04 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier répété à l'octet près), sans erreur.
+  Vérifiée en anon par l'API publique :
+  - `rpc/app_event_series?select=event_id,series_id,date,dates_count` (l'appel de l'app, en GET) : 200, 141
+    lignes, 52 séries ; `at_time` illisible : 400 (22007) ;
+  - `app_see_also` du Dîner de Condé (29 octobre) : 200, sans ses autres dates.
+  Temps serveur (`x-envoy-upstream-service-time`) : `app_event_series` 226 à 259 ms (médiane 245, 10 appels) ;
+  `app_see_also` avec 6 événements embarqués 287 à 340 ms. Presque tout ce temps est la RLS ci-dessus.
