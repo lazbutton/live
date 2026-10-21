@@ -289,15 +289,16 @@ l'app lit ces comptes dans Supabase au lieu de les calculer en Dart. Migrations 
 `20261019211000_create_school_holidays.sql`, `20261019212000_create_app_search_counts.sql`, pour la
 fiche `20261020140000_create_app_organizer_counts.sql` et `20261021110000_create_app_see_also.sql`
 (« À voir aussi »), et pour la recherche plein texte `20261020170000_create_app_search.sql` puis
-`20261020210000_speed_up_app_search.sql`. Tests :
+`20261020210000_speed_up_app_search.sql` ; filtres « Gratuit » et « En famille » :
+`20261021160000_add_free_family_filters.sql`. Tests :
 `supabase/tests/*.test.sql` (`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`. Toutes
 sont en prod depuis le 2026-10-20 (`app_see_also` depuis le 2026-10-21), et `school_holidays` est
 chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`.
 
 | Objet | Appel Dart | Rend |
 | --- | --- | --- |
-| `app_event_counts(ranges, city_ids, category, at_time)` | `rpc('app_event_counts', params: …)` | une ligne par plage : `events_count`, `starting_count` |
-| `app_events_in_range(range_start, range_end, city_ids, category, at_time)` | `rpc('app_events_in_range', params: …)` + filtres, `select`, tri, pagination | lignes de `events` (`setof events`, comme `app_events()`) |
+| `app_event_counts(ranges, city_ids, category, at_time, free, family)` | `rpc('app_event_counts', params: …)` | une ligne par plage : `events_count`, `starting_count` |
+| `app_events_in_range(range_start, range_end, city_ids, category, at_time, free, family)` | `rpc('app_events_in_range', params: …)` + filtres, `select`, tri, pagination | lignes de `events` (`setof events`, comme `app_events()`) |
 | table `school_holidays` | `from('school_holidays').select(…)` | périodes de vacances : `name`, `first_day`, `last_day` |
 | `app_category_counts(city_ids, at_time)` | `rpc('app_category_counts', params: …)` | catégories actives et leur nombre d'événements à venir |
 | `app_tag_counts(city_ids, max_tags, at_time)` | `rpc('app_tag_counts', params: …)` | tags populaires et leur nombre d'événements à venir |
@@ -352,7 +353,8 @@ atteinte sur « Tout ») plus son cache ; ces fonctions portent sur toute la bas
 ### `app_event_counts` : comptes du calendrier
 
 ```sql
-app_event_counts(ranges jsonb, city_ids uuid[] = null, category text = null, at_time timestamp = null)
+app_event_counts(ranges jsonb, city_ids uuid[] = null, category text = null, at_time timestamp = null,
+                 free boolean = false, family boolean = false)
   returns table (range_index integer, range_key text, range_start timestamp, range_end timestamp,
                  events_count integer, starting_count integer)
 ```
@@ -415,7 +417,8 @@ la liste qu'il ouvre (`events_count` si elle montre les expositions en cours).
 
 ```sql
 app_events_in_range(range_start timestamp, range_end timestamp = null, city_ids uuid[] = null,
-                    category text = null, at_time timestamp = null)
+                    category text = null, at_time timestamp = null,
+                    free boolean = false, family boolean = false)
   returns setof public.events
 ```
 
@@ -442,6 +445,37 @@ final data = await query
 ```
 
 Pas de limite de 200 : paginer (`range`, `limit`/`offset`), `events_count` donnant le total.
+
+### « Gratuit » et « En famille » : `free` et `family`
+
+Deux paramètres d'`app_events_in_range` et d'`app_event_counts` (migration
+`20261021160000_add_free_family_filters.sql`, U5 de l'app), faux par défaut ; vrais, ils ne gardent que :
+
+- `free` : les événements gratuits, `price_kind = 'free'` (tous les prix connus à 0 ; pas « 0 à 5 € », ni
+  le prix libre, ni un prix inconnu) ;
+- `family` : les événements en famille, `is_young_audience`, ou le tag « Jeune Public » (reconnu par son
+  nom, casse et espaces ignorés ; décision du 2026-10-21, le tag faisait doublon avec la case).
+
+Les deux ensemble : les deux à la fois. Les règles sont ici, pas dans l'app : elle passe le paramètre, ne
+lit ni la case ni le tag. Les appels sans ces paramètres ne changent pas. Prod, le 2026-10-21 (toutes
+villes, à venir) : 29 gratuits ; 43 en famille (les 24 événements qui ont le tag ont aussi la case).
+
+```dart
+// Tuile « Gratuit · 29 à venir », et « 29 événements gratuits à venir. » sur l'accueil filtré : le même
+// nombre (Tout, sans hide_from_home, comme l'accueil).
+final rows = await supabase.rpc('app_event_counts', params: {
+  'ranges': [{'start': wall(today)}],
+  'city_ids': cityPreferences.effectiveCityIds,
+  'free': true, // ou 'family': true
+}) as List<dynamic>;
+
+// La liste : celle de l'accueil filtré, dates choisies ou non.
+final events = await supabase.rpc('app_events_in_range', params: {
+  'range_start': wall(today),
+  'city_ids': cityPreferences.effectiveCityIds,
+  'free': true,
+}).eq('hide_from_home', false).select(_eventColumns).order('date').range(0, 199);
+```
 
 ### Vacances scolaires : table `school_holidays`
 
