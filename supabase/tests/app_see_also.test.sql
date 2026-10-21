@@ -1,4 +1,5 @@
--- Tests de app_see_also() (migration 20261021110000_create_app_see_also.sql).
+-- Tests de app_see_also() (migration 20261021110000_create_app_see_also.sql, règle des séries de la
+-- migration 20261021170000_create_app_event_series.sql).
 --
 -- Sur une base jetable avec toutes les migrations et aucun événement : scripts/db-test.sh.
 -- Jamais en prod : tout se passe dans une transaction annulée, mais le script s'arrête de lui-même
@@ -151,8 +152,9 @@ FROM (VALUES
   -- Premier et dernier jours de la plage.
   (33, 'Concert du 10 novembre',      '2026-11-10 12:00', NULL, 'C1', 4, NULL, NULL, ''),
   (34, 'Concert du 24 novembre',      '2026-11-24 20:00', NULL, 'C1', 4, NULL, NULL, ''),
-  -- Autres dates d'un même spectacle (même titre, sans accents, casse ni ponctuation) : de la fiche (36),
-  -- de 02 au théâtre (37), de 11 plus loin du 17 novembre (38), de 09 ailleurs (39) ; du bar (40).
+  -- Autres dates d'une même série (même titre, sans accents, casse ni ponctuation, même lieu, à 7 jours
+  -- au plus ; migration 20261021170000) : de la fiche (36), de 02 au théâtre (37), de 11 plus loin du
+  -- 17 novembre (38), du bar (40). 39 a le titre de 09, mais à un autre lieu : une autre série.
   (36, 'Courant au Théâtre',          '2026-11-18 20:00', NULL, 'C1', 1, NULL, NULL, '1 2'),
   (37, 'THÉÂTRE  Samedi !',           '2026-11-09 20:30', NULL, 'C2', 1, NULL, NULL, ''),
   (38, 'Jazz et blues à la cave',     '2026-11-22 12:00', NULL, 'C1', 4, NULL, NULL, '1 2'),
@@ -223,7 +225,7 @@ SET LOCAL ROLE anon;
 SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
 
 -- « Aussi à » : le théâtre, ses événements à venir par date (l'expo en cours d'abord, celui de ce matin
--- sans heure de fin), une ligne par spectacle ; pas 01 (la fiche), 36 (une autre date de la fiche), 37
+-- sans heure de fin), une ligne par série ; pas 01 (la fiche), 36 (une autre date de la fiche), 37
 -- (une autre date de 02), 04 (passé), 05 (en attente). Compte : 01, 02, 03, 06, 07, 08, 09, 36, 37, la
 -- fiche comprise, chaque date comptée, comme sa page.
 SELECT pg_temp.verifie('aussi : le lieu, par date, et son compte',
@@ -239,7 +241,7 @@ SELECT pg_temp.verifie('aussi : fiche d''un événement passé',
 SELECT pg_temp.verifie('aussi : fiche de l''expo en cours',
   pg_temp.aussi('06'), '09 02 03 (Zz Théâtre:location=9)');
 
--- Le lieu n'a pas d'autre spectacle (40 en est une autre date) : l'organisateur qui a le plus
+-- Le lieu n'a pas d'autre série (40 est une autre date de la sienne) : l'organisateur qui a le plus
 -- d'événements (Collectif : 22, 23 ; Asso : 25).
 SELECT pg_temp.verifie('aussi : à défaut du lieu, l''organisateur le plus fourni',
   pg_temp.aussi('21'), '22 23 (Zz Collectif:organizer=3)');
@@ -256,14 +258,15 @@ SELECT pg_temp.verifie('aussi : le lieu avant l''organisateur',
 
 -- « Dans le même genre » autour du 17 novembre ([10, 25 novembre)), le plus proche d'abord : 20 et 11
 -- (catégorie et deux tags), 12 et 07 (catégorie et un tag), puis 19 (un tag, en cours ce soir-là), 14
--- (catégorie, même soir), 15 (catégorie écrite par son nom), 13 (un tag), 33 et 34 (catégorie, premier
--- et dernier jours). Pas 16 (autre genre), 17 et 18 (hors des 7 jours), 05 (en attente), 36 (le spectacle
--- de la fiche), 38 (11, plus loin), 39 (09, montré dans « Aussi à »). Les trois retenus, par date.
+-- (catégorie, même soir), 15 (catégorie écrite par son nom), 39 (catégorie ; le titre de 09, montré dans
+-- « Aussi à », mais une autre série), 13 (un tag), 33 et 34 (catégorie, premier et dernier jours). Pas 16
+-- (autre genre), 17 et 18 (hors des 7 jours), 05 (en attente), 36 (la série de la fiche), 38 (la série
+-- de 11, plus loin). Les trois retenus, par date.
 SELECT pg_temp.verifie('genre : les plus proches, rendus par date',
   pg_temp.genre('01'), '11 12 20');
 SELECT pg_temp.verifie('genre : tous, par date',
   pg_temp.genre('01', NULL, 4) || ' / ' || pg_temp.genre('01', NULL, 20),
-  '11 12 20 07 / 33 19 11 12 14 20 15 13 34');
+  '11 12 20 07 / 33 19 11 39 12 14 20 15 13 34');
 -- Avec 5 par rangée, 07 est dans « Aussi à » : plus dans « Dans le même genre ».
 SELECT pg_temp.verifie('genre : sans ceux de la rangée « Aussi à »',
   pg_temp.aussi('01', NULL, 5) || ' / ' || pg_temp.genre('01', NULL, 5),
@@ -295,7 +298,7 @@ SELECT pg_temp.verifie('nombre par rangée : 1 au moins, 20 au plus, 3 par défa
   pg_temp.aussi('01', NULL, 0) || ' / ' || pg_temp.genre('01', NULL, 0) || ' / '
   || pg_temp.genre('01', NULL, NULL) || ' / '
   || (SELECT count(*) FROM public.app_see_also('e5000000-0000-4000-8000-000000000001', NULL, '2026-11-06 19:15', 1000))::text,
-  '06 (Zz Théâtre:location=9) / 20 / 11 12 20 / 15');
+  '06 (Zz Théâtre:location=9) / 20 / 11 12 20 / 16');
 -- 24 autres lectures à la médiathèque : 20 dans « Aussi à », les 4 dernières dans « Dans le même genre ».
 SELECT pg_temp.verifie('nombre par rangée : 20 au plus',
   (SELECT count(*) FILTER (WHERE s.section = 'place') || '/' || count(*) FILTER (WHERE s.section = 'genre')
