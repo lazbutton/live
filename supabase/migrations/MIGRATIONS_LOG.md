@@ -745,3 +745,28 @@
   `rpc/app_see_also` du Dîner de Condé avec 6 événements embarqués ~440 ms (relevé des séries) → 48–107 ms
   (médiane 53) ; `rpc/app_events` avec `limit=30` 5–16 ms, inchangé (il s'arrête aux 30 premières lignes). Mêmes
   nombres de lignes qu'avant : 141 séries, 362 à venir, 392 visibles en anon.
+
+## 2026-10-21 — La zone de l'app : une ville et un rayon (« Ville et rayon »)
+
+- `20261021220000_create_app_zone` : refonte du choix des villes de l'app (`../live/docs/VILLES.md`). Une seule
+  règle en SQL : un événement est dans la zone (ville, rayon) s'il est dans la ville choisie (tout son groupe :
+  « 45000 Orléans » = « Orléans »), ou si son lieu, à défaut l'événement, est à moins du rayon du centre de la
+  ville. Avant, l'app envoyait les villes dont le centre était dans le rayon, puis retirait en Dart ceux dont les
+  coordonnées en sortaient : « Orléans · 5 km » cachait 8 événements d'Orléans (La Source), et les comptes SQL
+  comptaient ce que la liste ne montrait pas.
+  - nouvelles : `app_distance_km`, `app_city_groups` (le regroupement d'`app_cities`, sorti tel quel), `app_zone`,
+    `app_in_zone`, `app_events_in_zone` (l'accueil « Toutes les dates » et « À la une »),
+    `app_major_events_in_zone`, `app_zone_counts` (l'écran « Ville et rayon ») ;
+  - `zone_city` et `zone_km` à la fin d'`app_events_in_range`, et transmis par `app_event_counts`,
+    `app_category_counts`, `app_tag_counts`, `app_organizer_counts`, `app_search`, `app_search_names`,
+    `app_see_also` (corps inchangés sinon : générés depuis leurs dernières définitions, diff vérifié) ; `city_ids`
+    reste pour les versions installées ;
+  - `app_cities(at_time)` : colonne `slug`, comptes à venir par `app_events_in_range`, seulement les villes avec
+    un centre et des événements (en prod le 2026-10-21 : 9 sur 19 ; plus de Paris, Joué-lès-Tours, Vald'Yerre,
+    Châlette-sur-Loing, « SAINT DENIS EN VAL » ni « place sainte beuve orleans »).
+- Testée sur un Postgres 17 Homebrew local en ICU (bouchons Supabase, toutes les migrations ; Docker arrêté) :
+  `supabase/tests/app_zone.test.sql`, 26 cas (distance, zone par slug ou id, groupe, ville inconnue, chaque rayon,
+  rayon nul, ancien `city_ids` seul et avec la zone, chaque fonction qui transmet la zone, accueil, grands
+  événements, comptes de l'écran, villes proposées, session qui masque un événement). Les 21 autres fichiers de
+  `supabase/tests` restent verts.
+- **À appliquer** d'un bloc (`psql --single-transaction`), après une répétition dans une transaction annulée.
