@@ -112,8 +112,16 @@ type ArtistEvent = {
   sortIndex: number;
 };
 
+/** Photo sous licence libre : auteur, licence et page d'origine, affichés avec elle. */
+type ArtistPhotoCredit = {
+  image_credit: string | null;
+  image_license: string | null;
+  image_source_url: string | null;
+};
+
 type ArtistPageData = {
   artist: ArtistRow;
+  photoCredit: ArtistPhotoCredit | null;
   tags: ArtistTagRow[];
   events: ArtistEvent[];
 };
@@ -376,7 +384,18 @@ const getArtistPageData = cache(async (slug: string): Promise<ArtistPageData | n
     .eq("event_artists.artist_id", artist.id)
     .order("date", { ascending: true });
 
-  const [tagsResult, eventsResult] = await Promise.all([tagsPromise, eventsPromise]);
+  // Lu à part, erreur ignorée : la page reste juste si la migration 20261021160000 (crédit des photos)
+  // n'est pas encore appliquée.
+  const photoCreditPromise = artist.image_url
+    ? supabase
+        .from("artists")
+        .select("image_credit, image_license, image_source_url")
+        .eq("id", artist.id)
+        .maybeSingle()
+        .then(({ data }) => (data as ArtistPhotoCredit | null) ?? null)
+    : Promise.resolve(null);
+
+  const [tagsResult, eventsResult, photoCredit] = await Promise.all([tagsPromise, eventsPromise, photoCreditPromise]);
 
   if (tagsResult.error) {
     throw tagsResult.error;
@@ -454,6 +473,7 @@ const getArtistPageData = cache(async (slug: string): Promise<ArtistPageData | n
 
   return {
     artist,
+    photoCredit,
     tags: orderedTags,
     events: normalizedEvents,
   };
@@ -605,7 +625,7 @@ export default async function ArtistPublicPage({ params }: PageProps) {
     notFound();
   }
 
-  const { artist, tags, events } = data;
+  const { artist, photoCredit, tags, events } = data;
   const now = Date.now();
 
   const upcomingEvents = events
@@ -703,24 +723,45 @@ export default async function ArtistPublicPage({ params }: PageProps) {
 
       <main className="relative mx-auto max-w-7xl px-4 pb-48 pt-10 sm:px-6 sm:pb-20 sm:pt-40 lg:px-8 lg:pt-36">
         <section className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
-          <div className="relative mx-auto w-full max-w-[280px] overflow-hidden rounded-[32px] border border-white/10 bg-[#141416] sm:max-w-[320px] lg:mx-0">
-            {artist.image_url ? (
-              <div
-                className="aspect-square bg-cover bg-center"
-                style={{ backgroundImage: `url(${artist.image_url})` }}
-              />
-            ) : (
-              <div className="flex aspect-square items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(222,51,51,0.45),_transparent_55%),linear-gradient(180deg,_#1d1d21_0%,_#101012_100%)] text-7xl font-semibold tracking-[0.18em] text-white/40">
-                {getArtistInitials(artist.name)}
-              </div>
-            )}
+          <div className="mx-auto w-full max-w-[280px] sm:max-w-[320px] lg:mx-0">
+            <div className="relative w-full overflow-hidden rounded-[32px] border border-white/10 bg-[#141416]">
+              {artist.image_url ? (
+                <div
+                  className="aspect-square bg-cover bg-center"
+                  style={{ backgroundImage: `url(${artist.image_url})` }}
+                />
+              ) : (
+                <div className="flex aspect-square items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(222,51,51,0.45),_transparent_55%),linear-gradient(180deg,_#1d1d21_0%,_#101012_100%)] text-7xl font-semibold tracking-[0.18em] text-white/40">
+                  {getArtistInitials(artist.name)}
+                </div>
+              )}
 
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0c]/85 via-transparent to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 p-6">
-              <div className="inline-flex rounded-full border border-white/15 bg-black/35 px-3 py-1 text-xs font-medium uppercase tracking-[0.24em] text-white/70 backdrop-blur-md">
-                {artistTypeLabel}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0c]/85 via-transparent to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-6">
+                <div className="inline-flex rounded-full border border-white/15 bg-black/35 px-3 py-1 text-xs font-medium uppercase tracking-[0.24em] text-white/70 backdrop-blur-md">
+                  {artistTypeLabel}
+                </div>
               </div>
             </div>
+            {artist.image_url && normalizeText(photoCredit?.image_credit) ? (
+              // Licence libre (Wikimedia Commons) : l'auteur et la licence s'affichent avec la photo.
+              <p className="mt-2 px-2 text-xs text-white/45">
+                Photo :{" "}
+                {photoCredit?.image_source_url ? (
+                  <a
+                    href={photoCredit.image_source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline-offset-2 hover:text-white/70 hover:underline"
+                  >
+                    {photoCredit.image_credit}
+                  </a>
+                ) : (
+                  photoCredit?.image_credit
+                )}
+                {photoCredit?.image_license ? `, ${photoCredit.image_license}` : null}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-6">
