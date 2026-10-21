@@ -31,7 +31,8 @@ les deux repos ensemble.
   d'un `DateTime` UTC, sans `toLocal()`). Ce n'est donc pas un instant : convertir l'heure de Paris
   en vrai UTC (`toUtc()`, `zonedTimeToUtc`) décale l'affichage de 1 à 2 h. Une date que l'app envoie
   sans fuseau (`DateTime.toIso8601String()` d'une heure choisie, `2026-10-24T20:30:00.000`) est
-  cette heure murale.
+  cette heure murale. L'analyse d'affiche rend ses dates de la même façon, sans fuseau
+  (`2026-10-24T20:30:00`).
 
 ## Vue d'ensemble
 
@@ -150,8 +151,8 @@ snake_case, clés inconnues conservées) :
 `convert_event_request_to_event` (back-office, ancienne route de conversion) les lit en
 `::timestamptz` dans la session PostgREST, en UTC (les dates en sortent en `+00:00`), et le
 formulaire du back-office les reprend par `toDatetimeLocal` (heures et minutes gardées, fuseau
-ignoré). Une date sans fuseau à 20:30 donne un événement à 20:30. Exception : une date issue de
-l'analyse d'affiche peut arriver en vrai UTC (incohérence 4).
+ignoré). Une date sans fuseau à 20:30 donne un événement à 20:30, y compris celle que l'analyse
+d'affiche a préremplie (avant le 2026-10-21, elle pouvait arriver en vrai UTC : incohérence 4).
 
 `event_from_url` ajoute :
 
@@ -180,8 +181,15 @@ aux autres appelants).
     `door_opening_time`, `external_url`, `external_url_label`, `image_url`, `location`, `address`,
     `organizer`, `tags` ; d'autres clés peuvent suivre (`is_full`, `presale_price`…).
     L'app (`ImportedEventPayload.fromJson`) convertit chaque valeur en texte.
-    `date` et `end_date` : une date ISO lue par l'IA est renvoyée telle quelle ; une date écrite
-    en toutes lettres (« samedi 24 octobre 20h30 ») est convertie en vrai UTC (incohérence 4).
+    `date` et `end_date` : heure de Paris sans fuseau (`2026-10-24T20:30:00`), comme les dates que
+    l'app envoie. L'assistant la lit telle quelle (`DateTime.tryParse`, 20:30) et la renvoie dans
+    `eventData.date` (`…T20:30:00.000`) : l'événement est créé à 20:30. Une date écrite en toutes
+    lettres (« samedi 24 octobre 20h30 ») est lue comme au scraping (`toParisWallClock`,
+    `lib/scraping/dates.ts`) ; le fuseau qu'ajoute l'IA à une date ISO (`Z`, `+02:00`, `+01:00` à
+    tort en été) est ignoré, l'heure écrite gardée : une affiche n'en porte pas. Date sans heure :
+    `…T00:00:00`, avec `time_known: false` (heure à vérifier ; le back-office avertit). Texte qui
+    ne se lit pas comme une date : renvoyé tel quel. Même règle pour le back-office
+    (`/api/events/extract-from-image`) et l'API v1, qui partagent `extractEventFromImage`.
   - `metadata` : `ai_processed`, `source` (`image`), `source_image_url`, `auth_mode` (`jwt`),
     `requester_id`.
   - `warnings` : `[{ field, message, value? }]`, champs que l'IA n'a pas su lire.
@@ -1009,20 +1017,20 @@ l'onglet Favoris (« Mes suivis »).
    `new Date("2026-10-24T20:30:00.000")` y donnait `20:30Z`, la bonne valeur. Seul défaut côté
    serveur : ce résultat dépendait du fuseau du serveur (un `next dev` à Paris enregistrait 18:30).
    Corrigé : l'édition rapide lit une date sans fuseau en UTC (`parseEventDateInput`,
-   `lib/date-utils.ts`). Restent, non corrigés :
-   - **app, à ne pas faire : envoyer `toUtc()`.** 20:30 choisi partirait `18:30Z` et serait
-     enregistré 18:30. Garder l'envoi sans fuseau, ou envoyer l'heure murale étiquetée UTC :
-     `DateTime.utc(d.year, d.month, d.day, d.hour, d.minute).toIso8601String()`.
-   - app : la feuille d'actions rapides (`_formatDateTime`) et les écrans admin affichent la date
-     avec `toLocal()` : une date inchangée y apparaît 1 à 2 h trop tard (22:30 pour 20:30). Le
-     sélecteur, lui, part de l'heure UTC et propose bien 20:30. Afficher sans `toLocal()`, comme
-     le reste de l'app.
-   - analyse d'affiche : une date écrite en toutes lettres est convertie par `zonedTimeToUtc` en
-     vrai UTC (`…T18:30:00.000Z` pour 20:30 en été), et une date ISO avec décalage passe telle
-     quelle. L'app la lit en `DateTime` UTC, l'assistant l'affiche 18:30 et, si le contributeur ne
-     la corrige pas, `eventData.date` part `…T18:30:00.000Z` : l'événement sera créé à 18:30.
-     À corriger côté serveur en renvoyant l'heure murale sans fuseau (comme `toParisWallClock`,
-     `lib/scraping/dates.ts`).
+   `lib/date-utils.ts`). Corrigés le 2026-10-21 :
+   - analyse d'affiche : une date écrite en toutes lettres était convertie par `zonedTimeToUtc` en
+     vrai UTC (`…T18:30:00.000Z` pour 20:30 en été, `…T19:30:00.000Z` en hiver ; une date sans
+     heure, la veille à 22:00), et une date ISO avec décalage passait telle quelle. L'assistant
+     l'affichait 18:30 et, si le contributeur ne la corrigeait pas, l'événement était créé à
+     18:30 ; le back-office, qui garde les heures écrites (`toDatetimeLocal`), aussi. Les dates
+     sortent maintenant en heure murale sans fuseau (voir « Analyse d'affiche » plus haut).
+   - app : la feuille d'actions rapides (`_formatDateTime`) affichait la date avec `toLocal()` :
+     une date inchangée y apparaissait 1 à 2 h trop tard (22:30 pour 20:30), alors que la fiche et
+     le sélecteur disaient 20:30. Elle lit maintenant les champs de la date, comme la fiche
+     (lazbutton/live-app#123) ; l'app n'a plus de `toLocal()`.
+   Reste, **à ne pas faire côté app : envoyer `toUtc()`.** 20:30 choisi partirait `18:30Z` et
+   serait enregistré 18:30. Garder l'envoi sans fuseau, ou envoyer l'heure murale étiquetée UTC :
+   `DateTime.utc(d.year, d.month, d.day, d.hour, d.minute).toIso8601String()`.
 5. Analyse d'affiche avec `imageUrl` : si l'image ne se charge pas, la route renvoie le statut de
    l'hôte de l'image (404, 403…). L'app n'envoie jamais `imageUrl`.
 6. Pas de double notification des demandes. Le trigger `notify_admins_new_request_trigger`, comme
