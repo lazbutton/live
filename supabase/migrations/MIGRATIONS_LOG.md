@@ -557,3 +557,25 @@
   335 affiches distinctes, toutes dans Storage.
 - Rattrapage en prod (`scripts/backfill-image-cards.mjs --write`) : en attente de l'accord de l'utilisateur, après
   le déploiement. Il réécrit les 457 lignes (`updated_at` compris, comme le rattrapage de C7a).
+
+## 2026-10-21 — « Gratuit » et « En famille » (U5) : `free` et `family`
+
+- `20261021160000_add_free_family_filters` : `app_events_in_range()` et `app_event_counts()` prennent deux
+  paramètres de plus, `free` et `family` (faux par défaut). Gratuit : `price_kind = 'free'` ; en famille :
+  `is_young_audience`, ou le tag « Jeune Public » reconnu par son nom (décision du 2026-10-21, aucune donnée
+  écrite). Nouvelle signature : les deux fonctions sont supprimées puis recréées dans le même fichier (deux
+  versions feraient hésiter PostgREST), droits remis à anon et authenticated ; les fonctions SQL qui les
+  appellent avec cinq arguments au plus (`app_category_counts`, `app_tag_counts`, `app_organizer_counts`,
+  `app_search`, `app_see_also`, suivis) ne changent pas. Contrat : `docs/API_APP.md`, « Gratuit » et « En
+  famille ».
+- Testée sur un Postgres 17 Homebrew local en ICU (bouchons Supabase, toutes les migrations, baseline d'abord) :
+  `supabase/tests/app_free_family.test.sql` (14 cas : prix gratuit, « 0 à 5 € », prix libre, inconnu ; case,
+  tag, les deux, un tag nul ; périmètre, catégorie, `hide_from_home` sur Tout, plusieurs plages, appels à cinq
+  arguments, un `null` qui vaut faux, événements masqués par un compte), et verts avec les fonctions
+  recréées : `app_calendar`, `app_search_counts`, `app_see_also`, `app_organizer_counts`, `app_search`,
+  `user_follows`, `follows_digest`, `price_kind`, `anon_privacy`. `lib/supabase/database.types.ts` : les
+  deux paramètres, à la main (pas de Docker ce jour-là).
+- Prod, lecture seule, le 2026-10-21 (toutes villes, à venir) : 364 événements, 29 gratuits, 43 en famille (les
+  24 qui ont le tag ont aussi la case) ; aucun n'est retiré de l'accueil.
+- **À appliquer en prod avant de merger la PR de l'app (U5)**, avec l'accord de l'utilisateur, après une
+  répétition dans une transaction annulée.

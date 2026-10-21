@@ -2341,6 +2341,8 @@ export type Database = {
           at_time?: string
           category?: string
           city_ids?: string[]
+          family?: boolean
+          free?: boolean
           ranges: Json
         }
         Returns: {
@@ -2427,6 +2429,8 @@ export type Database = {
           at_time?: string
           category?: string
           city_ids?: string[]
+          family?: boolean
+          free?: boolean
           range_end?: string
           range_start: string
         }
