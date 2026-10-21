@@ -792,4 +792,11 @@
   `saran` 5 km 298 → 98 (sa mairie est à 5,6 km du centre d'Orléans ; la moyenne de ses lieux en était plus
   près). `supabase/tests/app_zone.test.sql` : un cas de plus (centre gardé, ou pris aux lieux s'il manque), qui
   échoue sans la migration ; les 22 fichiers verts avec les deux migrations.
-- **À appliquer** d'un bloc, après une répétition dans une transaction annulée.
+- Répétée en prod le 21/10/2026 dans une transaction annulée, avec l'accord de l'utilisateur : avant, 19 villes dont
+  2 sans centre ; rattachés à « place sainte beuve orleans » : 0 lieu, 1 événement (non public), 0 grand événement ;
+  1 événement (non public) à Saint-Denis-en-Val. Après : 18 villes, toutes avec un centre ; en anon,
+  `app_zone_counts('orleans')` 5 km = 340 (inchangé), `saran` 5 km = 98, `app_cities()` 9 villes.
+- **Appliquée en prod le 21/10/2026 à 23:09 (21:09 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s), sans erreur. Vérifiée en anon par l'API
+  publique : `rpc/app_zone_counts` de Saran 5 km = 98, 10 km = 352 ; `cities` : Orléans à 47,9028,
+  « Saint-Denis-en-Val », plus de « place sainte beuve orleans ».
