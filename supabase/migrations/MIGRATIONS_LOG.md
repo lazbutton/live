@@ -463,7 +463,8 @@
 - `20261021140000_add_events_published_at` : `events.published_at`, l'instant où un événement est apparu dans
   l'app pour la première fois (conditions d'`app_events()`), tenu par le trigger `trg_events_set_published_at`
   (jamais effacé ni déplacé, valeurs des clients ignorées) ; les événements déjà visibles prennent leur
-  `created_at`. Index partiel `idx_events_published_at`.
+  `created_at`, sans toucher à `updated_at` (trigger `update_events_updated_at` désactivé le temps du remplissage :
+  l'API v1 expose `updatedAt`). Index partiel `idx_events_published_at`.
 - `20261021141000_create_user_follows` : table `user_follows (user_id, target_type, target_id, created_at)`
   (lieu, organisateur, artiste ; invités compris), RLS « chacun ses lignes » en lecture comme en écriture,
   droits réduits (authenticated : lire, suivre, ne plus suivre ; anon : rien) ; trigger de cible (23503 si

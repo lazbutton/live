@@ -26,14 +26,34 @@ ALTER TABLE public.events
 COMMENT ON COLUMN public.events.published_at IS
   'Instant de la première publication dans l''app (conditions d''app_events() remplies pour la première fois), tenu par le trigger trg_events_set_published_at ; null : jamais visible. Sert aux suivis (U8).';
 
--- Avant le trigger, qui ignorerait ces valeurs.
-UPDATE public.events
-SET published_at = coalesce(created_at, now())
-WHERE published_at IS NULL
-  AND status = 'approved'
-  AND archived = false
-  AND show_on_app = true
-  AND is_safety_hidden = false;
+-- Avant le trigger, qui ignorerait ces valeurs. Sans toucher à updated_at (trigger
+-- update_events_updated_at, BEFORE UPDATE) : ce n'est pas une modification des événements, et l'API
+-- v1 expose updatedAt (lib/api/v1/events).
+DO $$
+DECLARE
+  avec_updated_at boolean := EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = 'public.events'::regclass
+      AND tgname = 'update_events_updated_at'
+      AND NOT tgisinternal
+  );
+BEGIN
+  IF avec_updated_at THEN
+    ALTER TABLE public.events DISABLE TRIGGER update_events_updated_at;
+  END IF;
+
+  UPDATE public.events
+  SET published_at = coalesce(created_at, now())
+  WHERE published_at IS NULL
+    AND status = 'approved'
+    AND archived = false
+    AND show_on_app = true
+    AND is_safety_hidden = false;
+
+  IF avec_updated_at THEN
+    ALTER TABLE public.events ENABLE TRIGGER update_events_updated_at;
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.set_event_published_at()
 RETURNS trigger
