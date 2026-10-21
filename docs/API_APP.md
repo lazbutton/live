@@ -264,6 +264,23 @@ Prix connus : `price_min` et `price_max`, à défaut `price` ; une valeur négat
 `free` 33, `pay_what_you_want` 22. La colonne ne s'écrit pas (PostgREST répond 400, code `428C9`) :
 l'app continue d'envoyer `price` (et l'admin `price`, `price_min`, `price_max`, `is_pay_what_you_want`).
 
+## Photos d'artistes : `artists.image_credit`, `image_license`, `image_source_url`
+
+Depuis la migration `20261021160000_add_artist_image_credit.sql`, une photo d'artiste peut venir de
+Wikimedia Commons, sous licence libre. Ses trois colonnes de crédit sont à ajouter au select de l'app :
+
+| Colonne | Type | |
+| --- | --- | --- |
+| `image_credit` | texte ou `null` | auteur de `image_url` |
+| `image_license` | texte ou `null` | « CC BY-SA 4.0 », « CC BY 2.0 », « CC0 », « Domaine public »… |
+| `image_source_url` | texte ou `null` | page du fichier sur Commons |
+
+Quand `image_credit` est rempli, l'afficher avec la photo, partout où elle paraît : « Photo : <auteur>,
+<licence> », l'auteur ouvrant `image_source_url`. Les licences CC BY et CC BY-SA l'exigent. `null` : rien à
+afficher. Le crédit suit toujours la photo de sa ligne (remis à `null` par la base quand `image_url` change).
+L'app actuelle ne sélectionne pas ces colonnes : tant qu'elle ne les affiche pas, seules des photos CC0 ou du
+domaine public sont posées. Règles et script : `ARTIST_PHOTOS.md`.
+
 ## Fonctions SQL de la refonte : calendrier, vacances scolaires, recherche
 
 Pour le calendrier « Quand ? » et la recherche des maquettes (`../live/docs/MAQUETTES_REFONTE.md`),
