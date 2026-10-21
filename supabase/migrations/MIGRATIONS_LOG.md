@@ -696,3 +696,52 @@
   `SET ROLE postgres`, `lock_timeout` 5 s, les deux fichiers de la branche `claude/proposer-affiche`), sans erreur.
   Vérifiée par l'API publique en anon : `rpc/app_possible_duplicates` 200 ; `poster_analysis_usage` et
   `rpc/take_poster_analysis` 401.
+
+## 2026-10-21 — RLS d'`events` : vérifications une fois par requête
+
+- `20261021190000_speed_up_events_rls` : reprend la RLS coûteuse relevée par les séries (plus haut). Mêmes
+  politiques (noms, commandes, rôles), réécrites par `ALTER POLICY` sur `events` (lecture, modification,
+  suppression ; l'insertion ne bouge pas) et `user_organizers` :
+  - `is_user_admin()`, `auth.uid()`, `is_real_authenticated_user()`, `can_use_ugc_features()` en `(SELECT …)` :
+    une InitPlan par requête au lieu d'un appel par ligne ;
+  - l'`EXISTS` corrélé des organisateurs devient `events.id IN (SELECT eo.event_id …)` (sous-plan haché, construit
+    une fois), précédé de `(SELECT auth.uid()) IS NOT NULL` (sans session, il ne tourne pas). Même jointure, mêmes
+    tables lues avec leur RLS, mêmes rôles (`owner`/`editor` pour modifier, `owner` pour supprimer), y compris la
+    règle d'origine qui accepte n'importe quel lien de l'utilisateur pour un lieu-organisateur.
+- Testée sur un Postgres 17 Homebrew local en ICU (bouchons Supabase, toutes les migrations ; Docker arrêté) :
+  `supabase/tests/events_rls.test.sql`, 47 cas : qui voit, modifie, supprime quoi pour anon, un invité (lié à un
+  organisateur, auteur d'un événement), un compte sans organisateur, un propriétaire, un éditeur et un lecteur
+  d'organisateur, un propriétaire de lieu-organisateur (et d'un lieu qui n'organise plus), un lecteur de lieu qui
+  est propriétaire ailleurs, un auteur, un auteur suspendu, un admin ; changements de statut refusés ou permis ; les
+  liens `user_organizers` visibles. Les 44 cas de droits sont **verts sans la migration** (base neuve, migrations
+  d'avant) : elle ne change les droits de personne. Les 3 cas de forme (aucun appel par ligne dans les politiques,
+  aucun sous-plan rejoué) ne passent qu'avec. 14 règles faussées à tour de rôle : 13 font échouer un cas ; la
+  quatorzième (retirer `uo.user_id = auth.uid()` de la lecture) ne change rien, la RLS de `user_organizers` ne
+  laissant déjà voir que ses propres liens. Les 20 autres fichiers de `supabase/tests` restent verts (base neuve,
+  toutes les migrations, Proposer compris).
+- En local, jeu de mesure de 400 événements et 21 liens `user_organizers` (EXPLAIN ANALYZE, médiane de 9) :
+  anon 2,7–9 ms → 0,1–3,4 ms, invité et compte sans organisateur 5–18 ms → 0,1–3,7 ms, organisateur 2–9 ms →
+  0,6–4,6 ms ; mêmes ids visibles pour les cinq sessions.
+- Prod, le 2026-10-21 : les 21 liens `user_organizers` appartiennent à 2 comptes admin (tous `owner`) : aucun
+  organisateur non admin. En lecture seule, l'ancienne et la nouvelle jointure retiennent les mêmes événements
+  pour ces 2 comptes (111 et 123, pour voir, modifier et supprimer).
+- Répétée en prod dans une transaction annulée, avec l'accord de l'utilisateur (psql, `SET ROLE postgres`,
+  `lock_timeout` 5 s ; comptes témoins choisis en SQL sans être affichés) : EXPLAIN ANALYZE, médiane, avant →
+  après, et les lignes rendues identiques partout (md5) :
+
+  | session | `app_events_in_range` (362) | `app_event_series` (141) | `app_see_also` (Dîner de Condé) | `events` |
+  | --- | --- | --- | --- | --- |
+  | anon | 200 → 2 ms | 207 → 9 ms | 233 → 13 ms | 7 → 0,5 ms (392) |
+  | invité | 278 → 3 ms | 286 → 10 ms | 322 → 14 ms | 12 → 0,6 ms (392) |
+  | sans organisateur | 270 → 3 ms | 278 → 10 ms | 313 → 13 ms | 15 → 0,6 ms (392) |
+  | admin | 12 → 3 ms | 18 → 10 ms | 24 → 13 ms | 13 → 0,5 ms (466) |
+
+  `events` est restée verrouillée 1,8 s pendant les mesures d'après de la répétition.
+- **Appliquée en prod le 21/10/2026 à 19:10 (17:10 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier commité), sans erreur. Vérifiée en
+  anon par l'API publique (`x-envoy-upstream-service-time`, 10 appels, avant → après) : `rpc/app_event_series`
+  289–813 ms (médiane ~350) → 23–28 ms (les 6 premiers appels juste après, sur des connexions qui gardaient
+  l'ancien plan, entre 233 et 335 ms) ; `rpc/app_events_in_range` sur un an 237–306 ms → 14–26 ms ;
+  `rpc/app_see_also` du Dîner de Condé avec 6 événements embarqués ~440 ms (relevé des séries) → 48–107 ms
+  (médiane 53) ; `rpc/app_events` avec `limit=30` 5–16 ms, inchangé (il s'arrête aux 30 premières lignes). Mêmes
+  nombres de lignes qu'avant : 141 séries, 362 à venir, 392 visibles en anon.
