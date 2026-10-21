@@ -530,6 +530,14 @@
 - Testées : `npm run db:test` (copie privée du script) : `supabase/tests/user_follows.test.sql` (24 cas),
   `supabase/tests/follows_digest.test.sql` (13 cas) et `copy_guest_data.test.sql` inchangé, vert avec la
   fonction recréée. `lib/supabase/database.types.ts` régénéré.
-- **Pas encore appliquées en prod.** Ordre : les trois fichiers dans l'ordre des noms, avant le déploiement du
-  cron (sans elles, il répond 500 sans rien envoyer) et avant la version de l'app qui suit. Avec l'accord de
-  l'utilisateur, après une répétition dans une transaction annulée.
+- Répétées en prod dans une transaction annulée (psql, `SET ROLE postgres`, `lock_timeout` 5 s, les trois fichiers
+  par `\i`) : avant, 392 événements visibles sur 466, triggers de `events` sans surprise
+  (`events_request_image_card`, `events_reset_image_card`, `sync_event_city_before_write`,
+  `update_events_updated_at`) ; après, 392 `published_at` égaux à `created_at`, dernier `updated_at` inchangé,
+  `app_events()` toujours 392, triggers tous actifs, 3 policies pour authenticated, anon sans droit, 80 préférences
+  à `follows_enabled`, `follows_digest()` vide.
+- **Appliquées en prod le 21/10/2026 à 11:41 (09:41 UTC)**, avec l'accord de l'utilisateur (psql, une transaction
+  pour les trois fichiers, `SET ROLE postgres`, `lock_timeout` 5 s), sans erreur. Vérifié après, en lecture seule :
+  les mêmes nombres qu'à la répétition, `copy_guest_data` rend sa colonne `follows` ; par l'API publique en anon,
+  `user_follows`, `app_follows`, `follows_digest` et `copy_guest_data` refusés (401, 42501). Le cron des suivis part
+  au déploiement de cette PR.
