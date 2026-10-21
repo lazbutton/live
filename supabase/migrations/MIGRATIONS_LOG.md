@@ -577,5 +577,12 @@
   deux paramètres, à la main (pas de Docker ce jour-là).
 - Prod, lecture seule, le 2026-10-21 (toutes villes, à venir) : 364 événements, 29 gratuits, 43 en famille (les
   24 qui ont le tag ont aussi la case) ; aucun n'est retiré de l'accueil.
-- **À appliquer en prod avant de merger la PR de l'app (U5)**, avec l'accord de l'utilisateur, après une
-  répétition dans une transaction annulée.
+- **En prod depuis le 21/10/2026, entre 17:08 et 17:13** (après le merge de lazbutton/live#41) : appliquée hors de
+  la session qui l'a écrite, qui ne l'a appris qu'à sa répétition, faite ensuite avec l'accord de l'utilisateur (psql,
+  transaction annulée, `SET ROLE postgres`, `lock_timeout` 5 s). Avant la répétition, la prod avait déjà les deux
+  nouvelles signatures, et plus les anciennes (le `DROP` de la migration : « does not exist, skipping »). Vérifié en
+  lecture seule : définitions identiques au fichier (md5 de `pg_get_functiondef`, comparé à une base locale qui a
+  toutes les migrations) ; commentaires de la migration ; droits d'exécution pour anon et authenticated. En anon, à
+  venir, toutes villes : 363 événements, 29 gratuits, 42 en famille, 7 les deux ; comptes de Tout (sans
+  `hide_from_home`) : 361, 29, 42 ; appelants à cinq arguments intacts (`app_category_counts` : 9 catégories,
+  363 événements ; `app_tag_counts` : 20 ; `app_search('concert')` : 30). Rien d'autre à appliquer.
