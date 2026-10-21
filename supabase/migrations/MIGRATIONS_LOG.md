@@ -555,8 +555,15 @@
   Les vignettes de 800 px restent affichées jusqu'à être refaites par le rattrapage ; le cron ne les refait pas.
 - Simulation en prod (lecture seule) : 0 événement sans vignette, 457 avec une vignette de 800 px,
   335 affiches distinctes, toutes dans Storage.
-- Rattrapage en prod (`scripts/backfill-image-cards.mjs --write`) : en attente de l'accord de l'utilisateur, après
-  le déploiement. Il réécrit les 457 lignes (`updated_at` compris, comme le rattrapage de C7a).
+- Déployée (PR #40) le 21/10/2026 à 13:08 UTC. **Rattrapage fait en prod le 21/10/2026 vers 15:18 UTC**
+  (`scripts/backfill-image-cards.mjs --write`, session de la PR #42) : 457 événements réécrits (`updated_at`
+  compris, comme le rattrapage de C7a), deux passages, aucun échec durable (11 échecs passagers au premier,
+  refaits au second). Un second lancement, à 16:41 UTC par la session vignettes avec l'accord de l'utilisateur,
+  n'a rien trouvé à refaire et n'a rien écrit.
+- Vérifié ensuite, en lecture seule : simulation du rattrapage, 0 vignette manquante ni d'un ancien rendu ; en anon,
+  les 392 événements visibles avec vignette sont tous dans `cards/v2/`. Trois vignettes dépassent 140 Ko
+  (212 à 250 Ko) ; la PR #46 borne le poids des suivantes. Les 326 fichiers de 800 px, orphelins, partiront avec
+  `scripts/audit-storage.mjs` (délai de 30 jours).
 
 ## 2026-10-21 — « Gratuit » et « En famille » (U5) : `free` et `family`
 
