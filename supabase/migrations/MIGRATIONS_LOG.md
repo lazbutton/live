@@ -652,3 +652,40 @@
   - `app_see_also` du Dîner de Condé (29 octobre) : 200, sans ses autres dates.
   Temps serveur (`x-envoy-upstream-service-time`) : `app_event_series` 226 à 259 ms (médiane 245, 10 appels) ;
   `app_see_also` avec 6 événements embarqués 287 à 340 ms. Presque tout ce temps est la RLS ci-dessus.
+
+## 2026-10-21 — Proposer un événement : analyse d'affiche ouverte à tous, « Cet événement existe peut-être déjà »
+
+- Décisions du 2026-10-21 (`../live/docs/AMELIORATIONS.md`, § 5 et partie E, point 6) : « Proposer » s'ouvre sans
+  compte, l'analyse d'affiche aussi, avec un plafond par jour ; le compte et les conditions ne sont demandés qu'à
+  l'envoi.
+- `20261021200000_create_poster_analysis_quota` : table `poster_analysis_usage (day, user_id, is_guest,
+  analyses_count)` (RLS sans politique, aucun droit pour anon ni authenticated ; rien au-delà de la veille) et
+  `take_poster_analysis(user_id, is_guest, per_user_limit, guest_total_limit)` (`security definer`, service role
+  seulement) : réserve une analyse du jour, rend `ok`, `user_limit` ou `guest_limit`. Appelée par
+  `/api/mobile/events/extract-from-image` (10 par session, 200 pour l'ensemble des invités,
+  `lib/events/poster-analysis-quota.ts`). Sans elle, la route garde l'ancien comportement pour les invités (403)
+  et lit l'affiche d'un compte sans plafond : la route peut être déployée avant la migration.
+- `20261021201000_create_app_possible_duplicates` : `app_possible_duplicates(title, starts_at, location_id, link,
+  at_time, max_results)` (lignes de la table toujours vide `app_possible_duplicate_results`, clé étrangère vers
+  `events`), `app_link_keys(text)` et `app_similar_titles(text, text)` (`immutable`), exécutables par anon et
+  authenticated. Les événements à venir qui ressemblent à une proposition : même lien, même lieu à deux heures
+  près, titre équivalent le même jour. Contrat : `docs/API_APP.md`, « Proposer : app_possible_duplicates ».
+- Testées sur un Postgres 17 local (Homebrew, ICU, bouchons Supabase ; Docker arrêté) avec toutes les migrations :
+  `supabase/tests/app_possible_duplicates.test.sql` (26 cas ; 14 changements des règles, chacun repéré par un
+  test) et `supabase/tests/poster_analysis_quota.test.sql` (12 cas). `lib/supabase/database.types.ts` complété à la
+  main (les deux tables et les quatre fonctions, à la place et dans la forme du générateur) : `npm run db:types`
+  demande Docker. Après la fusion de main (U5 : `app_events_in_range` à sept arguments, les deux nouveaux faux par
+  défaut), les 19 fichiers de `supabase/tests` passent sur les 88 migrations.
+- Prod, lecture seule, le 21/10/2026 à 18:15 : `app_events()`, `app_events_in_range()` (U5) et
+  `app_search_normalize()` identiques à la base de test (md5 de `pg_get_functiondef`), colonnes d'`events` lues
+  présentes, rien de ce que créent ces migrations. Le même jour, l'utilisateur a remis leur application à plus tard.
+- Répétée en prod le 21/10/2026 dans une transaction annulée (psql, `SET LOCAL ROLE postgres`, `lock_timeout` 5 s,
+  les deux fichiers ensemble) : avant, ni la table ni les fonctions ; après, `poster_analysis_usage` illisible pour
+  anon et authenticated, `take_poster_analysis` exécutable par service_role seulement, `app_possible_duplicates`
+  par anon, `app_possible_duplicate_results` illisible ; une réservation pour une session invitée inventée : `ok` ;
+  en anon, le prochain événement à venir se retrouve lui-même (`place`, rang 1) en ~195 ms (EXPLAIN ANALYZE ;
+  presque tout pour la RLS d'`events`, voir « Séries ») ; rien n'est resté après l'annulation.
+- **Appliquée en prod le 21/10/2026 vers 18:32 (16:32 UTC)** par l'utilisateur (psql, `--single-transaction`,
+  `SET ROLE postgres`, `lock_timeout` 5 s, les deux fichiers de la branche `claude/proposer-affiche`), sans erreur.
+  Vérifiée par l'API publique en anon : `rpc/app_possible_duplicates` 200 ; `poster_analysis_usage` et
+  `rpc/take_poster_analysis` 401.
