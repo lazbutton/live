@@ -1,6 +1,6 @@
 /*
  * Vignette d'une affiche pour les listes de l'app (étapes C7a et C7b de ../live/docs/PLAN_REFONTE.md) :
- * 1 200 px de large au plus, WebP, 140 Ko au plus. Donne aussi les dimensions de l'original
+ * 1 200 px de large au plus, WebP, 140 Ko au plus (une affiche très chargée est rétrécie). Donne aussi les dimensions de l'original
  * (orientation EXIF appliquée) et sa couleur dominante : l'app réserve la place de l'image, au
  * bon ratio et dans sa couleur, avant son arrivée.
  *
@@ -16,7 +16,12 @@ import type { OutputInfo } from "sharp";
 export const CARD_WIDTH = 1200;
 /** Une affiche très haute (programme, infographie) est bornée en hauteur. */
 export const CARD_MAX_HEIGHT = 2400;
-/** Poids visé ; la qualité baisse par paliers jusqu'à le tenir. */
+/**
+ * Poids maximal : la qualité baisse par paliers, puis, si la plus basse ne suffit pas, les dimensions
+ * baissent jusqu'à le tenir. Affiches très chargées (photo granuleuse, texte fin) : 3 sur 286 en prod
+ * le 2026-10-21, jusqu'à 249,8 Ko à 1 200 px et qualité 40 (172 Ko encore à qualité 20) ; ~820 à
+ * 900 px de large avec cette borne.
+ */
 export const CARD_MAX_BYTES = 140 * 1024;
 const QUALITIES = [80, 70, 60, 50, 40];
 /** ~40 Mpx : au-delà, le décodage risque de saturer la mémoire d'une fonction Vercel. */
@@ -60,10 +65,10 @@ export async function renderImageCard(input: Buffer): Promise<RenderedImageCard>
     const { width, height } = metadata.autoOrient;
     if (!width || !height) throw new ImageCardError("Dimensions de l'image illisibles");
 
-    const encode = async (quality: number) => {
+    const encode = async (quality: number, box = { width: CARD_WIDTH, height: CARD_MAX_HEIGHT }) => {
       const { data, info }: { data: Buffer; info: OutputInfo } = await open()
         .rotate()
-        .resize({ width: CARD_WIDTH, height: CARD_MAX_HEIGHT, fit: "inside", withoutEnlargement: true })
+        .resize({ ...box, fit: "inside", withoutEnlargement: true })
         .webp({ quality, smartSubsample: true })
         .toBuffer({ resolveWithObject: true });
       return { data, info, quality };
@@ -73,6 +78,15 @@ export async function renderImageCard(input: Buffer): Promise<RenderedImageCard>
     for (const quality of QUALITIES.slice(1)) {
       if (card.data.byteLength <= CARD_MAX_BYTES) break;
       card = await encode(quality);
+    }
+    // Le poids baisse moins vite que le nombre de pixels (mesuré sur les affiches trop lourdes de la
+    // prod : ~ pixels^0,8) : côtés réduits d'après l'écart, de 5 % au moins à chaque essai.
+    while (card.data.byteLength > CARD_MAX_BYTES) {
+      const scale = Math.min(0.95, 0.97 * (CARD_MAX_BYTES / card.data.byteLength) ** 0.6);
+      card = await encode(card.quality, {
+        width: Math.max(1, Math.floor(card.info.width * scale)),
+        height: Math.max(1, Math.floor(card.info.height * scale)),
+      });
     }
 
     const { dominant } = await sharp(card.data).stats();
