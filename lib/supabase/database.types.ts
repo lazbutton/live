@@ -138,6 +138,9 @@ export type Database = {
           created_by: string | null
           deezer_url: string | null
           id: string
+          image_credit: string | null
+          image_license: string | null
+          image_source_url: string | null
           image_url: string | null
           instagram_url: string | null
           name: string
@@ -155,6 +158,9 @@ export type Database = {
           created_by?: string | null
           deezer_url?: string | null
           id?: string
+          image_credit?: string | null
+          image_license?: string | null
+          image_source_url?: string | null
           image_url?: string | null
           instagram_url?: string | null
           name: string
@@ -172,6 +178,9 @@ export type Database = {
           created_by?: string | null
           deezer_url?: string | null
           id?: string
+          image_credit?: string | null
+          image_license?: string | null
+          image_source_url?: string | null
           image_url?: string | null
           instagram_url?: string | null
           name?: string
