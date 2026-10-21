@@ -468,5 +468,8 @@
   `docs/AUDIENCE_ET_PLANTAGES.md` de l'app. Lue par la page « Audience de l'app » (`/admin/audience`).
 - Testée : `supabase/tests/app_audience.test.sql` (13 cas) et toute la suite sur une base Supabase locale jetable ;
   types régénérés (la table et la fonction seulement).
-- **Pas encore appliquée en prod** : en attente de l'accord de l'utilisateur. Sans elle, une version de l'app qui
-  compte garde ses totaux et les jette après 7 jours.
+- Répétée en prod dans une transaction annulée (`BEGIN … ROLLBACK`) : table et RLS, `execute` pour anon, lecture
+  directe refusée à anon ; un appel en anon ajoute un compteur d'hier et ignore le compteur inconnu et un jour de 2020.
+- **Appliquée en prod le 21/10/2026**, avec l'accord de l'utilisateur (psql, `--single-transaction`,
+  `SET ROLE postgres`), sans erreur. Vérifié après, par HTTP avec la clé publique, sans rien écrire : l'appel avec un
+  jour hors fenêtre rend 0 (HTTP 200) ; la lecture de la table est refusée (401, 42501).
