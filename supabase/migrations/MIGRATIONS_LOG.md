@@ -577,8 +577,24 @@
   deux paramètres, à la main (pas de Docker ce jour-là).
 - Prod, lecture seule, le 2026-10-21 (toutes villes, à venir) : 364 événements, 29 gratuits, 43 en famille (les
   24 qui ont le tag ont aussi la case) ; aucun n'est retiré de l'accueil.
-- **À appliquer en prod avant de merger la PR de l'app (U5)**, avec l'accord de l'utilisateur, après une
-  répétition dans une transaction annulée.
+- Répétée en prod dans une transaction annulée (avec `20261021160000_add_artist_image_credit`, psql,
+  `SET ROLE postgres`, `lock_timeout` 5 s) : avant, les deux fonctions à cinq arguments, 362 événements à venir ;
+  après, une seule signature chacune (sept et six arguments), anon garde EXECUTE, en anon l'appel à cinq
+  arguments de l'app actuelle rend toujours 362, gratuits 29, en famille 42, les deux 7.
+- **Appliquée en prod le 21/10/2026 à 17:11 (15:11 UTC)**, à la demande de l'utilisateur (psql,
+  `--single-transaction` avec `20261021160000_add_artist_image_credit`, `SET ROLE postgres`, `lock_timeout` 5 s),
+  sans erreur. Vérifiée par l'API publique en anon : `app_events_in_range` à cinq arguments 362 (200), `free`
+  29, `family` 42, `app_event_counts` avec `free` 29. `supabase gen types` de la prod identique à
+  `lib/supabase/database.types.ts` (hors mise en forme).
+
+## 2026-10-21 — Crédit des photos d'artistes (U33)
+
+- `20261021160000_add_artist_image_credit` (PR #39) : `artists.image_credit`, `image_license`,
+  `image_source_url` (photos libres de Wikimedia Commons, `docs/ARTIST_PHOTOS.md`), contrainte
+  `artists_image_credit_check` (pas de crédit sans photo) et trigger `artists_reset_image_credit` (le crédit
+  repart à null quand la photo change seule).
+- Répétée puis **appliquée en prod le 21/10/2026 à 17:11 (15:11 UTC)** avec `20261021160000_add_free_family_filters`
+  (voir plus haut), sans erreur : 4 artistes avec photo, 0 crédit ; trigger actif. Les colonnes se lisent en anon.
 
 ## 2026-10-21 — Séries (U14) : `app_event_series`, et « À voir aussi » par série
 

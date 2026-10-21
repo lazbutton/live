@@ -10,6 +10,10 @@
  *       → fabrique les vignettes (Storage event-images/cards/v<version>/) et remplit les colonnes de events
  *
  * Options : --retry-errors (reprend aussi les échecs notés dans image_card_error), --limit=N.
+ *
+ * Échecs passagers (réseau, Storage, HTTP 429…) : rien n'est noté. Le cron quotidien reprend ceux des
+ * événements sans vignette, pas ceux des vignettes d'un ancien rendu (exprès, docs/EVENT_IMAGE_CARDS.md,
+ * « Changer le rendu ») : relancer ce script, qui ne reprend que ce qui reste à faire.
  */
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -68,12 +72,19 @@ if (!writeMode) {
 
 // Par lots : l'avancement s'affiche et un arrêt en cours de route garde ce qui est fait.
 const totals = { created: 0, reused: 0, failed: 0, retryLater: 0, stale: 0, cards: 0 };
+// Le cron ne reprend que les vignettes manquantes : un échec passager sur une vignette d'un ancien
+// rendu la laisse telle quelle, jusqu'au prochain passage de ce script.
+const outdatedIds = new Set(outdated.map((row) => row.id));
+let outdatedRetryLater = 0;
 let totalBytes = 0;
 let maxBytes = 0;
 const BATCH = 30;
 for (let index = 0; index < pending.length; index += BATCH) {
-  const { report } = await applyImageCards(supabase, pending.slice(index, index + BATCH));
+  const { results, report } = await applyImageCards(supabase, pending.slice(index, index + BATCH));
   for (const key of Object.keys(totals)) totals[key] += report[key];
+  outdatedRetryLater += results.filter(
+    (result) => result.status === "failed" && result.retry && outdatedIds.has(result.eventId),
+  ).length;
   totalBytes += (report.averageBytes ?? 0) * report.cards;
   maxBytes = Math.max(maxBytes, report.maxBytes ?? 0);
   for (const { eventId, imageUrl, error } of report.errors) console.log(`  ✗ ${eventId} ${imageUrl} : ${error}`);
@@ -81,10 +92,16 @@ for (let index = 0; index < pending.length; index += BATCH) {
 }
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} Ko`;
+const missingRetryLater = totals.retryLater - outdatedRetryLater;
+const retryLaterDetail = [
+  missingRetryLater && `${missingRetryLater} sans vignette, repris par le cron`,
+  outdatedRetryLater && `${outdatedRetryLater} d'un ancien rendu, qui la gardent : relancer ce script`,
+].filter(Boolean);
 console.log(
   `Terminé : ${totals.cards} vignettes fabriquées (${totals.created} événements), ${totals.reused} événements ` +
-    `servis par une vignette existante, ${totals.failed} échecs notés, ${totals.retryLater} échecs passagers ` +
-    `(repris par le cron), ${totals.stale} affiches changées entre-temps.`,
+    `servis par une vignette existante, ${totals.failed} échecs notés, ${totals.retryLater} échecs passagers` +
+    `${retryLaterDetail.length ? ` (${retryLaterDetail.join(" ; ")})` : ""}, ${totals.stale} affiches changées ` +
+    `entre-temps.`,
 );
 if (totals.cards) {
   console.log(`Poids des vignettes : ${kb(totalBytes / totals.cards)} en moyenne, ${kb(maxBytes)} au plus.`);
