@@ -958,9 +958,10 @@ importé peut attendre la modération plusieurs jours.
 
 ### La notification : `/api/cron/notifications/follows-digest`
 
-Chaque jour à 08:00 UTC (`vercel.json`, à l'heure près sur Hobby), comme le résumé du matin : à chaque
-personne dont un suivi a publié, un message (`lib/notifications/follows-digest.ts`), au plus un par
-jour (`notification_logs.delivery_key` `follows_digest:<jour>:<utilisateur>`). Ce qu'il contient vient
+Chaque jour à 16:00 UTC (`vercel.json`, à l'heure près sur Hobby), soit 18 h l'été et 17 h l'hiver à Paris, à
+part du résumé du matin (08:00 UTC) pour ne pas tomber à la même minute : à chaque personne dont un suivi a
+publié, un message (`lib/notifications/follows-digest.ts`), au plus un par jour (`notification_logs.delivery_key`
+`follows_digest:<jour>:<utilisateur>`). Ce qu'il contient vient
 de `follows_digest(at_time)` (service role seulement) : les événements visibles, pas complets, pas
 terminés, publiés depuis le dernier message des suivis envoyé (`notification_logs.covered_until`, l'instant
 du calcul ; un envoi qui échoue ne compte pas), depuis le début du suivi et depuis au plus 7 jours, sans
