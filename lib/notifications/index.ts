@@ -18,6 +18,11 @@ export interface NotificationDispatchClaimInput {
   deliveryDate: string;
   deliveryKey: string;
   flowType: string;
+  /**
+   * Message des suivis : publications couvertes jusqu'à cet instant (ISO), gardé dans le log
+   * (`notification_logs.covered_until`) ; le message suivant reprend de là (`follows_digest()`).
+   */
+  coveredUntil?: string;
 }
 
 export interface NotificationDispatchClaimResult {
@@ -909,7 +914,7 @@ async function logNotification(
 export async function claimNotificationDelivery(
   input: NotificationDispatchClaimInput,
 ): Promise<NotificationDispatchClaimResult> {
-  const { deliveryDate, deliveryKey, flowType, payload, userId } = input;
+  const { coveredUntil, deliveryDate, deliveryKey, flowType, payload, userId } = input;
   const supabase = createServiceClient();
   const staleThresholdMs = NOTIFICATION_CLAIM_STALE_MINUTES * 60 * 1000;
 
@@ -970,6 +975,8 @@ export async function claimNotificationDelivery(
       delivery_date: deliveryDate,
       delivery_key: deliveryKey,
       flow_type: flowType,
+      // Seulement pour les suivis : les autres flux n'écrivent pas la colonne (migration 20261021142000).
+      ...(coveredUntil ? { covered_until: coveredUntil } : {}),
     })
     .select("id")
     .single();

@@ -43,7 +43,7 @@ const EVENING_HOUR = 18;
 const NIGHT_END_HOUR = 6;
 
 /** Au plus autant d'ids dans les données : APNs et FCM limitent un message à 4 Ko. */
-const MAX_EVENT_IDS = 10;
+export const MAX_EVENT_IDS = 10;
 
 /** Au-delà, un titre est coupé au dernier mot entier. */
 const MAX_TITLE_LENGTH = 40;
