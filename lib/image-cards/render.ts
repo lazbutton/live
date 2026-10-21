@@ -1,17 +1,23 @@
 /*
- * Vignette d'une affiche pour les listes de l'app (étape C7a de ../live/docs/PLAN_REFONTE.md) :
- * environ 800 px de large, WebP, 40 à 70 Ko. Donne aussi les dimensions de l'original
+ * Vignette d'une affiche pour les listes de l'app (étapes C7a et C7b de ../live/docs/PLAN_REFONTE.md) :
+ * 1 200 px de large au plus, WebP, 140 Ko au plus. Donne aussi les dimensions de l'original
  * (orientation EXIF appliquée) et sa couleur dominante : l'app réserve la place de l'image, au
  * bon ratio et dans sa couleur, avant son arrivée.
+ *
+ * Changer le rendu demande de changer CARD_VERSION (service.ts) : docs/EVENT_IMAGE_CARDS.md.
  */
 import type { OutputInfo } from "sharp";
 
-/** Une carte pleine largeur sur téléphone : ~400 pt × 2. */
-export const CARD_WIDTH = 800;
+/**
+ * Une carte pleine largeur sur un iPhone à ×3 : 362 à 400 pt, soit 1 086 à 1 200 px. À 800 px
+ * (C7a), une affiche y était agrandie de 1,36 à 1,65 fois, ce qui se voyait (mesure C7b du
+ * 2026-10-21 : 40 cartes de l'accueil en 2,3 Mo, contre 8,2 Mo pour les originaux).
+ */
+export const CARD_WIDTH = 1200;
 /** Une affiche très haute (programme, infographie) est bornée en hauteur. */
-export const CARD_MAX_HEIGHT = 1600;
+export const CARD_MAX_HEIGHT = 2400;
 /** Poids visé ; la qualité baisse par paliers jusqu'à le tenir. */
-export const CARD_MAX_BYTES = 70 * 1024;
+export const CARD_MAX_BYTES = 140 * 1024;
 const QUALITIES = [80, 70, 60, 50, 40];
 /** ~40 Mpx : au-delà, le décodage risque de saturer la mémoire d'une fonction Vercel. */
 const MAX_INPUT_PIXELS = 40_000_000;

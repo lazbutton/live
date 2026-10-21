@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /*
- * Vignettes des affiches : rattrapage des événements qui n'en ont pas (docs/EVENT_IMAGE_CARDS.md).
- * Même traitement que le webhook de la base et que le cron quotidien /api/cron/image-cards.
+ * Vignettes des affiches : rattrapage des événements qui n'en ont pas, puis de ceux dont la vignette
+ * vient d'un ancien rendu (CARD_VERSION, docs/EVENT_IMAGE_CARDS.md). Même traitement que le webhook
+ * de la base et que le cron quotidien /api/cron/image-cards.
  *
  *   node --env-file=.env.local scripts/backfill-image-cards.mjs
- *       → simulation : compte les affiches sans vignette, rien n'est écrit
+ *       → simulation : compte les vignettes à faire, rien n'est écrit
  *   node --env-file=.env.local scripts/backfill-image-cards.mjs --write --confirm=<ref du projet>
- *       → fabrique les vignettes (Storage event-images/cards/) et remplit les colonnes de events
+ *       → fabrique les vignettes (Storage event-images/cards/v<version>/) et remplit les colonnes de events
  *
  * Options : --retry-errors (reprend aussi les échecs notés dans image_card_error), --limit=N.
  */
@@ -45,13 +46,20 @@ const { applyImageCards, listMissingImageCards } = await jiti.import(path.join(r
 const { createServiceClient } = await jiti.import(path.join(root, "lib/supabase/service.ts"));
 
 const supabase = createServiceClient();
-const pending = await listMissingImageCards(supabase, { limit, retryErrors });
+const missing = await listMissingImageCards(supabase, { limit, retryErrors });
+// Vignettes d'un ancien rendu : affichées jusqu'à ce que la nouvelle les remplace.
+const outdated =
+  missing.length < limit
+    ? await listMissingImageCards(supabase, { limit: limit - missing.length, retryErrors, need: "outdated" })
+    : [];
+const pending = [...missing, ...outdated];
 const images = [...new Set(pending.map((row) => row.image_url))];
 const inStorage = images.filter((url) => url.includes("/storage/v1/object/public/")).length;
 
 console.log(
-  `${projectRef} : ${pending.length} événements sans vignette${retryErrors ? " (échecs notés compris)" : ""}, ` +
-    `${images.length} affiches distinctes (${inStorage} dans Storage, ${images.length - inStorage} ailleurs).`,
+  `${projectRef} : ${missing.length} événements sans vignette, ${outdated.length} avec une vignette d'un ancien ` +
+    `rendu${retryErrors ? " (échecs notés compris)" : ""} ; ${images.length} affiches distinctes ` +
+    `(${inStorage} dans Storage, ${images.length - inStorage} ailleurs).`,
 );
 if (!writeMode) {
   console.log(`Simulation : rien n'est écrit. Pour fabriquer les vignettes : --write --confirm=${projectRef}`);
