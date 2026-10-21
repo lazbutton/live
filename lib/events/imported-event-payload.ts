@@ -3,6 +3,8 @@ export type ImportedEventPayload = {
   description?: string;
   date?: string;
   end_date?: string;
+  /** `false` : seule la date est connue (`…T00:00:00`), heure à vérifier. */
+  time_known?: boolean;
   category?: string;
   is_pay_what_you_want?: boolean;
   price?: string | number;

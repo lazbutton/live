@@ -292,9 +292,14 @@ export const importedEventWarningSchema = z.object({
 export const importedEventDataSchema = z.looseObject({
   title: optionalString,
   description: optionalString,
-  /** ISO 8601. */
+  /**
+   * Heure de Paris sans fuseau (`2026-10-24T20:30:00`), comme `events.date` et les dates que l'app
+   * envoie ; texte lu tel quel s'il ne se lit pas comme une date.
+   */
   date: optionalString,
   end_date: optionalString,
+  /** `false` : seule la date est écrite sur l'affiche (`…T00:00:00`), heure à vérifier. */
+  time_known: z.boolean().optional(),
   category: optionalString,
   price: z.union([z.string(), z.number()]).nullish(),
   capacity: z.union([z.string(), z.number()]).nullish(),
