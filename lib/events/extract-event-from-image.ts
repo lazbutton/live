@@ -1,108 +1,31 @@
-import { isValid, parse } from "date-fns";
-import { fr } from "date-fns/locale";
 import OpenAI from "openai";
 
 import { AI_MODEL_FULL, generationParams } from "@/lib/ai/openai-models";
 
-import { getZonedDateParts, zonedTimeToUtc } from "@/lib/cron-timezone";
+import { getZonedDateParts } from "@/lib/cron-timezone";
 import type {
   ImportedEventPayload,
   ImportedEventWarning,
 } from "@/lib/events/imported-event-payload";
+import { toParisWallClock } from "@/lib/scraping/dates";
 
-const DATE_PATTERNS_WITH_YEAR = [
-  "d/M/yyyy HH:mm",
-  "d/M/yyyy H:mm",
-  "d-M-yyyy HH:mm",
-  "d-M-yyyy H:mm",
-  "d.M.yyyy HH:mm",
-  "d.M.yyyy H:mm",
-  "d/M/yyyy",
-  "d-M-yyyy",
-  "d.M.yyyy",
-  "d MMMM yyyy HH:mm",
-  "d MMMM yyyy H:mm",
-  "d MMM yyyy HH:mm",
-  "d MMM yyyy H:mm",
-  "d MMMM yyyy",
-  "d MMM yyyy",
-  "EEEE d MMMM yyyy HH:mm",
-  "EEEE d MMMM yyyy H:mm",
-  "EEEE d MMM yyyy HH:mm",
-  "EEEE d MMM yyyy H:mm",
-  "EEEE d MMMM yyyy",
-  "EEEE d MMM yyyy",
-  "EEE d MMMM yyyy HH:mm",
-  "EEE d MMMM yyyy H:mm",
-  "EEE d MMM yyyy HH:mm",
-  "EEE d MMM yyyy H:mm",
-  "EEE d MMMM yyyy",
-  "EEE d MMM yyyy",
-];
+/** Date ISO suivie d'un fuseau (`Z`, `+02:00`, `+0200`, `+02`) : la date sans le fuseau. */
+const ISO_DATE_WITH_TIMEZONE =
+  /^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)\s*(?:Z|[+-]\d{2}(?::?\d{2})?)$/i;
 
-const DATE_PATTERNS_WITHOUT_YEAR = [
-  "d/M HH:mm",
-  "d/M H:mm",
-  "d-M HH:mm",
-  "d-M H:mm",
-  "d.M HH:mm",
-  "d.M H:mm",
-  "d/M",
-  "d-M",
-  "d.M",
-  "d MMMM HH:mm",
-  "d MMMM H:mm",
-  "d MMM HH:mm",
-  "d MMM H:mm",
-  "d MMMM",
-  "d MMM",
-  "EEEE d MMMM HH:mm",
-  "EEEE d MMMM H:mm",
-  "EEEE d MMM HH:mm",
-  "EEEE d MMM H:mm",
-  "EEEE d MMMM",
-  "EEEE d MMM",
-  "EEE d MMMM HH:mm",
-  "EEE d MMMM H:mm",
-  "EEE d MMM HH:mm",
-  "EEE d MMM H:mm",
-  "EEE d MMMM",
-  "EEE d MMM",
-];
-
-function sanitizeScrapedDateValue(value: string) {
-  return value
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/\s*,\s*/g, " ")
-    .replace(/\s+[•–-]\s+/g, " ")
-    .replace(/\s+à\s+/gi, " ")
-    .replace(/\b([a-zàâçéèêëîïôûùüÿœæ]{3,})\./giu, "$1")
-    .replace(/(\d{1,2})\s*h\s*(\d{2})/gi, "$1:$2")
-    .replace(/(\d{1,2})\s*h\b/gi, "$1:00");
-}
-
-function hasExplicitYear(value: string) {
-  return /\b(19|20)\d{2}\b/.test(value);
-}
-
-function parseScrapedDateValue(value: string, referenceDate: Date) {
-  const patterns = hasExplicitYear(value)
-    ? DATE_PATTERNS_WITH_YEAR
-    : DATE_PATTERNS_WITHOUT_YEAR;
-
-  for (const pattern of patterns) {
-    const parsed = parse(value, pattern, referenceDate, { locale: fr });
-    if (isValid(parsed)) {
-      return parsed;
-    }
-  }
-
-  return null;
-}
-
-function normalizeScrapedDate(value: string | undefined, scrapedAt: Date) {
-  if (!value) {
+/**
+ * Date lue sur l'affiche, rendue en heure murale de Paris sans fuseau (`2026-10-24T20:30:00`) :
+ * le format de `events.date` et des dates que l'app envoie (docs/API_APP.md, conventions).
+ * Une affiche ne porte pas de fuseau : celui que l'IA ajoute à une date ISO (`Z`, `+02:00`, ou
+ * `+01:00` à tort en été) est ignoré, l'heure écrite est gardée. Texte en toutes lettres
+ * (« samedi 24 octobre 20h30 ») : lu par `toParisWallClock`, comme au scraping. Texte illisible :
+ * renvoyé tel quel.
+ */
+function normalizePosterDate(
+  value: unknown,
+  referenceDate: Date,
+): { value: string; timeKnown?: boolean } | undefined {
+  if (typeof value !== "string") {
     return undefined;
   }
 
@@ -111,38 +34,11 @@ function normalizeScrapedDate(value: string | undefined, scrapedAt: Date) {
     return undefined;
   }
 
-  if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
-    return trimmed;
-  }
-
-  const cleaned = sanitizeScrapedDateValue(trimmed);
-  const scrapedParts = getZonedDateParts(scrapedAt);
-  const referenceDate = new Date(
-    Date.UTC(
-      scrapedParts.year,
-      scrapedParts.month - 1,
-      scrapedParts.day,
-      0,
-      0,
-      0,
-    ),
+  const wallClock = toParisWallClock(
+    trimmed.replace(ISO_DATE_WITH_TIMEZONE, "$1"),
+    referenceDate,
   );
-  const parsed = parseScrapedDateValue(cleaned, referenceDate);
-
-  if (!parsed) {
-    return trimmed;
-  }
-
-  const utcDate = zonedTimeToUtc({
-    year: parsed.getFullYear(),
-    month: parsed.getMonth() + 1,
-    day: parsed.getDate(),
-    hour: parsed.getHours(),
-    minute: parsed.getMinutes(),
-    second: parsed.getSeconds(),
-  });
-
-  return utcDate.toISOString();
+  return wallClock ?? { value: trimmed };
 }
 
 function normalizeExtractedPayload(
@@ -189,14 +85,21 @@ function normalizeExtractedPayload(
     normalized.door_opening_time = normalized.door_opening_time.trim();
   }
 
-  normalized.date = normalizeScrapedDate(
-    typeof normalized.date === "string" ? normalized.date : undefined,
-    scrapedAt,
+  // Année manquante : celle du jour à Paris.
+  const scrapedParts = getZonedDateParts(scrapedAt);
+  const referenceDate = new Date(
+    Date.UTC(scrapedParts.year, scrapedParts.month - 1, scrapedParts.day),
   );
-  normalized.end_date = normalizeScrapedDate(
-    typeof normalized.end_date === "string" ? normalized.end_date : undefined,
-    scrapedAt,
-  );
+  const start = normalizePosterDate(normalized.date, referenceDate);
+  normalized.date = start?.value;
+  normalized.end_date = normalizePosterDate(
+    normalized.end_date,
+    referenceDate,
+  )?.value;
+  // Seule la date est écrite : l'heure (00:00) est à vérifier.
+  if (start?.timeKnown === false) {
+    normalized.time_known = false;
+  }
 
   return normalized;
 }
@@ -372,7 +275,7 @@ Retourne un JSON avec seulement les champs utiles parmi:
 Contraintes:
 - title: nom principal de l'evenement.
 - description: resume utile et structure a partir du texte visible, sans halluciner.
-- date et end_date: format ISO 8601 complet si possible.
+- date et end_date: date et heure ecrites sur l'affiche (heure de Paris), format YYYY-MM-DDTHH:mm, sans fuseau (ni Z ni decalage) ; YYYY-MM-DD seul si l'heure n'est pas indiquee.
 - si une date n'affiche pas l'annee, utilise ${scrapedYear}.
 - category: une seule categorie parmi musique, theatre, danse, sport, conference, exposition, festival, concert, spectacle, atelier, autre.
 - price, presale_price, subscriber_price: valeurs numeriques seulement.
