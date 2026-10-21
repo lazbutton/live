@@ -262,11 +262,12 @@ Pour le calendrier « Quand ? » et la recherche des maquettes (`../live/docs/MA
 l'app lit ces comptes dans Supabase au lieu de les calculer en Dart. Migrations :
 `20261019210000_create_app_events_in_range_and_counts.sql` (règle complète en tête),
 `20261019211000_create_school_holidays.sql`, `20261019212000_create_app_search_counts.sql`, pour la
-fiche `20261020140000_create_app_organizer_counts.sql`, et pour la recherche plein texte
-`20261020170000_create_app_search.sql` puis `20261020210000_speed_up_app_search.sql`. Tests :
+fiche `20261020140000_create_app_organizer_counts.sql` et `20261021110000_create_app_see_also.sql`
+(« À voir aussi »), et pour la recherche plein texte `20261020170000_create_app_search.sql` puis
+`20261020210000_speed_up_app_search.sql`. Tests :
 `supabase/tests/*.test.sql` (`npm run db:test`) et `lib/school-holidays/official-calendar.test.mjs`. Toutes
-sont en prod depuis le 2026-10-20, et `school_holidays` est chargée (64 périodes) ; détail :
-`supabase/migrations/MIGRATIONS_LOG.md`.
+sont en prod depuis le 2026-10-20 (sauf `app_see_also`, voir sa section), et `school_holidays` est
+chargée (64 périodes) ; détail : `supabase/migrations/MIGRATIONS_LOG.md`.
 
 | Objet | Appel Dart | Rend |
 | --- | --- | --- |
@@ -276,6 +277,7 @@ sont en prod depuis le 2026-10-20, et `school_holidays` est chargée (64 périod
 | `app_category_counts(city_ids, at_time)` | `rpc('app_category_counts', params: …)` | catégories actives et leur nombre d'événements à venir |
 | `app_tag_counts(city_ids, max_tags, at_time)` | `rpc('app_tag_counts', params: …)` | tags populaires et leur nombre d'événements à venir |
 | `app_organizer_counts(organizer_ids, city_ids, at_time)` | `rpc('app_organizer_counts', params: …)` | nombre d'événements à venir de chaque organisateur (fiche, « Organisé par ») |
+| `app_see_also(event_id, city_ids, at_time, max_results)` | `rpc('app_see_also', params: …)` + `select('section, rank, …, event:events(…)')`, `order('rank')` | « À voir aussi » en bas de la fiche : les rangées « Aussi à <lieu> » et « Dans le même genre » |
 | `app_search(query, city_ids, at_time, max_results)` | `rpc('app_search', params: …)` + `select('rank, event:events(…)')`, `order('rank')` | événements à venir qui correspondent à la requête, par pertinence puis date |
 | `app_search_names(query, city_ids, at_time, max_results)` | `rpc('app_search_names', params: …)` + `order('rank')` | catégories, tags, lieux et organisateurs dont le nom correspond, avec leur nombre d'événements à venir |
 | `app_event_in_range(…)` | aucun | la règle d'appartenance à une plage, partagée par les fonctions ci-dessus |
@@ -539,6 +541,76 @@ final countById = {
 Instantané prod du 2026-10-20 : Théâtre d'orléans 84, Théâtre de la Tête Noire 48, La Passerelle 35,
 Artéphé 35, L'astrolabe 22. Les maquettes affichaient 40 pour le Théâtre d'orléans : l'app comptait
 alors les seuls événements chargés (`SearchPlace.index`), une partie des 84.
+
+### Fiche : `app_see_also`, « À voir aussi »
+
+```sql
+app_see_also(event_id uuid, city_ids uuid[] = null, at_time timestamp = null, max_results integer = 3)
+  returns setof public.app_see_also_results
+  -- (section text, rank integer, event_id uuid,
+  --  source_kind text, source_id uuid, source_name text, source_events_count integer)
+```
+
+La fiche ne finit plus sur « Organisé par » (audit du 2026-10-20, `../live/docs/AMELIORATIONS.md`, U11 ;
+maquettes, lot 1 : « Fiche, À voir aussi ») : deux rangées au plus, chacune masquée si elle est vide, lues
+en un appel une fois la fiche affichée.
+
+- `section = 'place'`, « Aussi à <lieu> » : les prochains événements du lieu de l'événement, ceux de sa
+  page (qui s'y tiennent ou qu'il organise, toutes villes), par date (une exposition en cours d'abord). Si
+  le lieu n'a pas d'autre spectacle, ou si l'événement n'a pas de lieu : ceux de l'organisateur de
+  l'événement qui en a le plus (un organisateur, ou un autre lieu qui organise ; à égalité, par nom).
+  Chaque ligne porte cette source : `source_kind` (`location` : la page d'un lieu ; `organizer` : celle
+  d'un organisateur), `source_id`, `source_name` et `source_events_count`, son nombre d'événements à
+  venir, l'événement de la fiche compris : le nombre de sa page et d'`app_organizer_counts` (« Les 83
+  événements du lieu »).
+- `section = 'genre'`, « Dans le même genre » : les événements de la même catégorie (par id ou par nom)
+  ou avec un tag en commun, à 7 jours au plus du jour de l'événement, avant ou après (du jour à
+  aujourd'hui pour un événement passé ou en cours), dans le périmètre `city_ids` (`null` ou `[]` :
+  toutes les villes), sans ceux de la première rangée. Les plus proches sont retenus (le plus de tags en
+  communs, plus 1 pour la même catégorie, puis le plus près dans le temps), puis rendus par date. Les
+  champs `source_*` sont `null`.
+- Une ligne par spectacle : des événements de même titre (sans accents, casse ni ponctuation, comme la
+  recherche) sont les dates d'un même spectacle, la moitié des événements à venir au 2026-10-21. Une
+  rangée n'en montre que la première date (« Dans le même genre » : la plus proche), jamais celles du
+  spectacle de la fiche : ses autres dates sont l'affaire d'U14. Les comptes comptent chaque date.
+- « À venir » et filtres par utilisateur : ceux des comptes de la recherche (`app_events_in_range` à
+  partir d'aujourd'hui 0 h, expositions en cours comprises, avec `hide_from_home`, sans les événements
+  masqués par l'utilisateur ni les auteurs qu'il a bloqués). L'événement de la fiche est lu sous la RLS
+  de l'appelant : publié, ou le sien en attente ; inconnu ou invisible, `[]`.
+- `max_results` : par rangée, 1 à 20 (3 par défaut, les trois lignes des maquettes). `rank` part de 1,
+  la rangée `place` d'abord : trier dessus (`order=rank`). Même raison que pour `app_search` : des lignes
+  de la table `app_see_also_results` (toujours vide, illisible : 401) dont la clé étrangère vers `events`
+  permet d'embarquer l'événement avec le select de l'app.
+
+```dart
+final rows = await supabase
+    .rpc('app_see_also', params: {
+      'event_id': event.id,
+      'city_ids': cityPreferences.effectiveCityIds, // pour « Dans le même genre »
+    })
+    .select('section, rank, source_kind, source_id, source_name, source_events_count, '
+        'event:events($eventSelect)') // le select de la liste, jointures comprises
+    .order('rank', ascending: true) as List<dynamic>;
+// [{"section":"place","rank":1,"source_kind":"location","source_id":"78d1fda4-…",
+//   "source_name":"Théâtre d'Orléans","source_events_count":83,"event":{"id":"…","title":"Plonger | …",…}},
+//  …,
+//  {"section":"genre","rank":4,"source_kind":null,"source_id":null,"source_name":null,
+//   "source_events_count":null,"event":{"id":"…","title":"Max De Bernardi & Veronica Sbergia",…}}, …]
+```
+
+Sur l'instantané prod du 2026-10-21 (363 événements à venir), fiche de « Youn Sun Nah + 1re partie Nit
+And Dogs » (Théâtre d'Orléans, mardi 17 novembre, Concert, #Jazz), le 21 octobre : « Aussi au Théâtre
+d'Orléans » Plonger (ce soir), Fora (22 octobre ; sa date du 23 n'est pas reprise), Atelier souplesse
+et exploration du mouvement (24 octobre), 83 événements ; « Dans le même genre » Max De Bernardi &
+Veronica Sbergia (15 novembre, Concert, #Blues #Jazz), Scène Ouverte Orléans (17 novembre, Concert),
+Live Atelier : Afro Cubain et Jazzy (20 novembre, Concert, #Jazz). Le 23 octobre, jour du scénario des
+maquettes, « Aussi au Théâtre d'Orléans » donne Fora, Atelier souplesse et Finale du concours de piano :
+la rangée de la maquette A ; dans « Dans le même genre », la maquette avait Robert Finley (Concert, sans
+tag commun) à la place de Scène Ouverte Orléans (Concert, le même soir), plus proche.
+
+Temps : en local (Postgres 17.6 et PostgREST v13.0.5 sur l'instantané), la fonction s'exécute en 5 à
+12 ms (lecture des 363 événements à venir : 2,5 ms) ; l'appel de l'app, 6 événements embarqués, comme
+`app_search` avec 2 à 8 résultats mesurée au même moment. En prod : voir `MIGRATIONS_LOG.md`.
 
 ### Recherche : `app_search`, `app_search_names`
 

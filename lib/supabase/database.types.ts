@@ -75,6 +75,44 @@ export type Database = {
           },
         ]
       }
+      app_see_also_results: {
+        Row: {
+          event_id: string
+          rank: number
+          section: string
+          source_events_count: number | null
+          source_id: string | null
+          source_kind: string | null
+          source_name: string | null
+        }
+        Insert: {
+          event_id: string
+          rank: number
+          section: string
+          source_events_count?: number | null
+          source_id?: string | null
+          source_kind?: string | null
+          source_name?: string | null
+        }
+        Update: {
+          event_id?: string
+          rank?: number
+          section?: string
+          source_events_count?: number | null
+          source_id?: string | null
+          source_kind?: string | null
+          source_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_see_also_results_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       artists: {
         Row: {
           artist_type_label: string | null
@@ -2467,6 +2505,29 @@ export type Database = {
           word_query: unknown
         }
         Returns: number
+      }
+      app_see_also: {
+        Args: {
+          at_time?: string
+          city_ids?: string[]
+          event_id: string
+          max_results?: number
+        }
+        Returns: {
+          event_id: string
+          rank: number
+          section: string
+          source_events_count: number | null
+          source_id: string | null
+          source_kind: string | null
+          source_name: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "app_see_also_results"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       app_tag_counts: {
         Args: { at_time?: string; city_ids?: string[]; max_tags?: number }

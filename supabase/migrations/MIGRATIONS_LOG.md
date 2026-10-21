@@ -457,3 +457,33 @@
   cron `notion-sync` (02:00 UTC) et la carte Notion des réglages échouent, sans autre effet.
 - Vercel : les 9 variables `NOTION_*` (Production, Preview, Development) seront retirées une fois ce code déployé,
   avec l'accord de l'utilisateur. Côté Notion (à faire par l'utilisateur) : l'intégration et son abonnement webhook.
+
+## 2026-10-21 — `app_see_also()` : « À voir aussi » en bas de la fiche (U11)
+
+- `20261021110000_create_app_see_also` : les deux rangées qui terminent la fiche de l'app (audit UI/UX du
+  2026-10-20, U11 ; maquettes, lot 1), en un appel. `app_see_also(event_id, city_ids, at_time, max_results)` rend
+  des lignes `(section, rank, event_id, source_kind, source_id, source_name, source_events_count)` de la table
+  `app_see_also_results`, toujours vide (RLS sans politique, aucun droit), dont la clé étrangère vers `events`
+  permet à l'app `select=section,rank,…,event:events(…)&order=rank`, comme `app_search`.
+  - `place`, « Aussi à <lieu> » : les prochains événements du lieu de l'événement (ceux de sa page et
+    d'`app_organizer_counts`, toutes villes), à défaut de l'organisateur qui en a le plus ; par date, avec la
+    source et son nombre d'événements à venir (« Les 83 événements du lieu »).
+  - `genre`, « Dans le même genre » : même catégorie ou un tag commun, à 7 jours au plus du jour de l'événement,
+    dans le périmètre `city_ids`, sans ceux de la première rangée ; les plus proches retenus, rendus par date.
+  - Une ligne par spectacle (même titre, normalisé par `app_search_normalize`) : jamais les autres dates du
+    spectacle de la fiche (U14), une seule date des autres. La moitié des 363 événements à venir sont d'autres
+    dates d'un même spectacle au même lieu (« Les Croquis du TTN » : 7 en 3 jours).
+- `language sql`, `stable`, `security invoker`, `execute` à anon et authenticated ; aucune table existante modifiée,
+  aucun index.
+- Testée : `npm run db:test` (copie privée du script) : `supabase/tests/app_see_also.test.sql` (28 cas : lieu,
+  ce qu'il organise ailleurs, hors périmètre, hors accueil, événement passé, expo en cours, repli sur
+  l'organisateur ou le lieu qui organise, lieu avant organisateur, sans lieu, aucune source, égalité par nom,
+  plage de 7 jours et ses bords, à partir d'aujourd'hui 0 h, catégorie par id, par nom ou hors de `categories`,
+  tags, périmètre, rangée « Aussi à » exclue, dates d'un même spectacle, rangs, bornes de `max_results`, en
+  attente, inconnu, masqué, auteur bloqué, droits) ; chaque règle faussée à tour de rôle fait échouer au moins
+  un cas (27 mutations). Sur l'instantané prod du 2026-10-21 lu en anon (391
+  événements, 363 à venir) : rangées vérifiées sur des fiches du Théâtre d'Orléans, du TTN, de L'Astrolabe et une
+  expo ; par PostgREST v13.0.5, ordre et embarquement corrects, id inconnu `[]`, id invalide 400, table 401 ;
+  la fonction s'exécute en 5 à 12 ms. `lib/supabase/database.types.ts` régénéré : la table et la fonction.
+- **À appliquer en prod, avec l'accord de l'utilisateur**, après une répétition dans une transaction annulée ;
+  puis mesurer l'appel de l'app en anon (`x-envoy-upstream-service-time`, < 100 ms visés).
