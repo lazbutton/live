@@ -18,7 +18,7 @@ que la vignette n'est pas faite :
 
 | Colonne | Contenu |
 | --- | --- |
-| `image_card_url` | vignette WebP de `image_url`, 1 200 px de large au plus (2 400 px de haut au plus), 140 Ko au plus visés |
+| `image_card_url` | vignette WebP de `image_url`, 1 200 px de large au plus (2 400 px de haut au plus), 140 Ko au plus |
 | `image_width`, `image_height` | dimensions de l'original en pixels, orientation EXIF appliquée |
 | `image_color` | couleur dominante, `#rrggbb` |
 | `image_card_error` | dernier échec définitif (image introuvable, illisible…), pour l'admin |
@@ -44,7 +44,8 @@ avec le ratio et la couleur. `app_events()` rend `setof events` : les colonnes s
    l'app) passent tous par là, sans changement de leur code.
 2. **La route** (`app/api/events/[id]/image-card/route.ts`) relit l'événement, télécharge l'affiche
    (15 Mo au plus, ni hôte local ni adresse IP, redirections vérifiées), fabrique la vignette avec
-   `sharp` (qualité WebP 80, puis 70… 40 jusqu'à tenir sous 140 Ko), la dépose dans
+   `sharp` (qualité WebP 80, puis 70… 40 jusqu'à tenir sous 140 Ko ; si la qualité 40 dépasse encore,
+   affiche très chargée, les dimensions baissent, ratio gardé), la dépose dans
    `event-images/cards/v<version>/<empreinte de l'adresse>.webp` et remplit les colonnes, seulement si
    `image_url` n'a pas changé entre-temps. Une affiche déjà traitée par le rendu actuel (séances,
    doublon) est reprise sans téléchargement : un fichier par affiche.
@@ -135,7 +136,8 @@ de l'envoi.
 
 ## Coûts (offres gratuites)
 
-- Storage : environ 20 à 140 Ko par affiche distincte (66 Ko en moyenne sur l'accueil du 2026-10-21).
+- Storage : environ 20 à 140 Ko par affiche distincte (66 Ko en moyenne sur l'accueil du 2026-10-21,
+  50 Ko sur les 286 vignettes v2 publiques le même jour).
   Une vignette remplacée devient orpheline : `scripts/audit-storage.mjs` compte `image_card_url` parmi
   les références et retire les orphelins (après 30 jours par défaut).
 - Vercel : un appel de fonction par nouvelle affiche, ~0,1 à 0,7 s de CPU chacun ; un cron par jour.
@@ -150,10 +152,19 @@ quand son adresse n'est pas dans le dossier de la version courante. Seul le ratt
 après les manquantes (simulation, puis `--write --confirm=<ref du projet>`, voir plus haut) : une
 écriture sur tous les événements à affiche, lancée à la main avec l'accord de l'utilisateur, après
 le déploiement (sinon l'ancien webhook refait des vignettes de l'ancien rendu entre-temps). Une
-affiche qui ne se télécharge plus garde son ancienne vignette, l'échec noté.
+affiche qui ne se télécharge plus garde son ancienne vignette, l'échec noté. Après un échec passager
+(HTTP 429 de Storage, trop de connexions…), rien n'est noté et l'ancienne vignette reste aussi : le cron
+ne la reprend pas, relancer le rattrapage (il ne refait que ce qui reste).
 
 Chaque vignette posée réécrit sa ligne de `events`, donc son `updated_at` (trigger
 `update_events_updated_at`), comme au premier rattrapage.
 
 Versions : 1 (C7a, 2026-10-19) 800 px et 70 Ko, fichiers à la racine de `cards/` ; 2 (C7b,
 2026-10-21) 1 200 px et 140 Ko, dans `cards/v2/`.
+
+Retouche sans changer de version (2026-10-21) : les 140 Ko n'étaient qu'un objectif, la qualité
+s'arrêtant à 40 ; 3 des 286 vignettes v2 lisibles sans compte le dépassaient (212 à 250 Ko,
+affiches très chargées, pas très hautes). Les dimensions baissent désormais jusqu'à tenir la borne.
+Le rendu des autres affiches ne change pas, d'où la même version ; les vignettes déjà faites restent
+telles quelles (même adresse, cache d'un an : les refaire au même endroit n'atteindrait pas les
+caches, et elles seraient moins nettes, ~820 à 900 px).
