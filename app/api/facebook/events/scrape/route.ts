@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userRole = user.user_metadata?.role;
+    const userRole = user.app_metadata?.role;
     if (userRole !== "admin") {
       return NextResponse.json(
         { error: "Accès refusé. Administrateur requis." },

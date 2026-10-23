@@ -838,7 +838,7 @@ export default function TestNotificationsPage() {
               <strong>Note :</strong> Pour que les notifications fonctionnent, les admins doivent :
             </p>
             <ul className="list-disc list-inside space-y-1 ml-4">
-              <li>Avoir le rôle <code className="bg-muted px-1 rounded">"admin"</code> dans leurs user_metadata</li>
+              <li>Avoir le rôle <code className="bg-muted px-1 rounded">"admin"</code> dans leur app_metadata (défini par un admin ; modifiable par le service seulement)</li>
               <li>Avoir enregistré un token push via l'app mobile</li>
               <li>Être connectés à l'app mobile pour recevoir la notification</li>
             </ul>

@@ -21,8 +21,9 @@ export async function checkIsAdmin(supabaseClient?: any): Promise<boolean> {
 
   if (!user) return false;
 
-  // Vérifier le rôle admin dans les métadonnées utilisateur
-  const role = user.user_metadata?.role;
+  // Rôle admin dans app_metadata (écrit par le service uniquement ; raw_user_meta_data est
+  // modifiable par l'utilisateur, cf. migration 20261023150000).
+  const role = user.app_metadata?.role;
   return role === "admin";
 }
 
