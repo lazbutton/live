@@ -238,15 +238,16 @@ INSERT INTO public.event_organizers (event_id, organizer_id) VALUES
   ('e8000000-0000-4000-8000-000000000012', '0e000000-0000-4000-8000-000000000001');
 
 -- Micro : au Dropkick, l'autre soirée seulement (ni le festival, ni Gamma) ; le compte reste celui de la page du
--- lieu (4) ; dans le même genre, le club du 108, pas Gamma.
+-- lieu : 3, Micro, Gamma et l'autre soirée, sans la fiche du festival, dans la section « Festivals » de la page
+-- depuis 20261023190000 ; dans le même genre, le club du 108, pas Gamma.
 SELECT pg_temp.verifie('voir aussi : un événement du festival, sans le festival ni les siens',
-  pg_temp.aussi('01'), 'place : a1 (Zz Dropkick=4) / genre : c1');
+  pg_temp.aussi('01'), 'place : a1 (Zz Dropkick=3) / genre : c1');
 -- Le festival : sans son programme.
 SELECT pg_temp.verifie('voir aussi : le festival, sans son programme',
-  pg_temp.aussi('f1'), 'place : a1 (Zz Dropkick=4) / genre : -');
+  pg_temp.aussi('f1'), 'place : a1 (Zz Dropkick=3) / genre : -');
 -- Hors festival, rien ne change : le festival et ses événements sont proposés.
 SELECT pg_temp.verifie('voir aussi : hors festival, rien ne change',
-  pg_temp.aussi('a1'), 'place : 01 f1 09 (Zz Dropkick=4) / genre : c1');
+  pg_temp.aussi('a1'), 'place : 01 f1 09 (Zz Dropkick=3) / genre : c1');
 -- Ultra : L'Astrolabe n'a que des événements du festival ; la source suivante, le collectif, est retenue.
 SELECT pg_temp.verifie('voir aussi : une source qui n''a que le festival est passée',
   pg_temp.aussi('11'), 'place : 12 (Zz Collectif=2) / genre : -');

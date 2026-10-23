@@ -1059,3 +1059,46 @@
   comme l'app (`festival_opened`, `event_opened` et une clé inconnue) ajoute 2 compteurs ; par l'API publique, en anon,
   `rpc/app_audience_add` répond 200 (un jour hors fenêtre : 0, rien d'écrit). Totaux inchangés (49, 2, 1). La Radio
   (`20261023142000`) n'est toujours pas en prod : appliquée plus tard, elle garde la même liste.
+
+## 2026-10-23 — Festivals : les nombres des pages de lieu, d'organisateur et d'artiste
+
+- `20261023190000_count_festival_frames_on_pages` : demandé par la session de coordination pour l'étape 5 de l'app
+  (PR lazbutton/live-app#171). Ces pages montrent leurs festivals dans une section « Festivals » et en retirent les
+  fiches de leur liste (`PlaceFestivals.withoutFrames`, `FestivalsRepository.festivalsOfPage`) ; les nombres lus en
+  SQL pour elles comptaient encore la fiche (U3). Contrat : `docs/API_APP.md`, « Festivals ».
+  - La règle, celle de l'app : une page ne compte pas la fiche d'un festival qui a un programme
+    (`app_festival_events` pour l'utilisateur) ni, sur la page d'un lieu, celle d'un festival dont ce lieu est un des
+    lieux (`festival_locations`), même sans programme. Ses autres événements comptent.
+  - `app_organizer_counts`, `app_search_names` (lieux et organisateurs ; un nom qui n'a plus rien n'est pas
+    proposé, comme avant ; catégories et tags inchangés : leurs listes gardent la fiche), `source_events_count`
+    d'`app_see_also` (les rangées ne changent pas), `upcoming_count` et `new_count` d'`app_follows` (lieu,
+    organisateur, artiste). Reprises de leurs dernières définitions (`20261021220000`, `20261023160000`,
+    `20261021141000`), mêmes signatures.
+- Testée par `npm run db:test` (Docker) : `supabase/tests/festival_page_counts.test.sql`, 8 cas (l'index ; les
+  pages de cinq lieux et d'un organisateur ; la recherche, tag compris ; « À voir aussi » ; « Mes suivis » ; un
+  utilisateur qui a masqué tout le programme : pages, recherche, suivis) ; 11 règles faussées à tour de rôle, toutes
+  repérées. `festival_follows_see_also.test.sql` : le nombre du Dropkick passe de 4 à 3 (la fiche de son festival,
+  voulu). Les 29 fichiers de `supabase/tests` passent (498 cas). `lib/supabase/database.types.ts` inchangé.
+- Répétée en prod le 23/10/2026 dans une transaction annulée (psql `--single-transaction`, `SET ROLE postgres`,
+  `lock_timeout` 5 s, le fichier de la branche ; aucune table verrouillée, la migration ne remplace que des
+  fonctions) :
+  - avant : les quatre fonctions identiques à leurs dernières migrations (md5 de `prosrc`) ; une seule fiche a des
+    lieux ou un programme, Fulgurances Électroniques #2 (lieux Dropkick, Le 108, L'Astrolabe ; organisée par le
+    Dropkick et Clair Obscure) ;
+  - migration sans erreur (13 instructions, 24 à 109 ms chacune, latence réseau comprise) ; les corps sont ceux du
+    fichier ; anon appelle les trois premières, `app_follows` reste réservée aux comptes ;
+  - en anon, avant → après : sur les 137 lieux et organisateurs, seuls le Dropkick (3 → 2) et Clair Obscure (4 → 3)
+    changent ; dans 8 recherches (20 noms), seul le Dropkick (3 → 2) ; « À voir aussi » de 43 fiches, seule la
+    source Dropkick de la fiche du festival et de Micro (3 → 2) ; Le 108 et L'Astrolabe inchangés (la fiche n'est
+    pas sur leur page) ;
+  - coût (EXPLAIN ANALYZE) : exécution +0 à 2,5 ms (`app_organizer_counts` 3,1 → 4,2 ms, `app_search_names` 10,8 →
+    13,3, `app_see_also` 13,9 → 13,8, `app_follows` 0,5 → 1,6) ; planification +17 à 20 ms tant que le plan n'est
+    pas en cache (la sous-requête d'`app_festival_events`, comme `20261023170000`), effacée par les requêtes
+    préparées de PostgREST ;
+  - rien n'est resté (les quatre corps comme avant l'essai).
+- **Appliquée en prod le 23/10/2026 à 16:45 (14:45 UTC)**, avec l'accord de l'utilisateur, par la session de
+  coordination (psql `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche,
+  sha256 `cab5a8f2…`), sans erreur. Après : les quatre corps identiques au fichier ; en anon, `app_organizer_counts`
+  Dropkick 3 → 2 et Clair Obscure 4 → 3, Le 108 (12) et L'Astrolabe (21) inchangés ; `app_search_names`
+  « dropkick » 3 → 2, « clair obscure » 4 → 3 ; `app_see_also` de Micro, source Dropkick 3 → 2 : comme la
+  répétition.
