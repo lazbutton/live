@@ -105,7 +105,9 @@ export async function requireMobileUserAuth(
     );
   }
 
-  if (isTruthy(user.user_metadata?.ugc_suspended)) {
+  // La suspension vit dans app_metadata (écrit par le service seul) : un compte suspendu ne peut
+  // pas la lever lui-même via updateUser (migration 20261023160000).
+  if (isTruthy(user.app_metadata?.ugc_suspended)) {
     return suspendedResponse();
   }
 
@@ -142,7 +144,7 @@ export async function requireMobileSession(
   const auth = await verifyMobileToken(request);
   if (auth instanceof NextResponse) return auth;
 
-  if (isTruthy(auth.user.user_metadata?.ugc_suspended)) {
+  if (isTruthy(auth.user.app_metadata?.ugc_suspended)) {
     return suspendedResponse();
   }
   return { ...auth, isGuest: isAnonymousUser(auth.user) };

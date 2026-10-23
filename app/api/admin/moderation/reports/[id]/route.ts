@@ -129,8 +129,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         );
       }
 
-      const currentMetadata = reportedUser.user.user_metadata || {};
-      const updatedMetadata = { ...currentMetadata };
+      // La suspension UGC vit dans app_metadata (écrit par le service seul), pas dans user_metadata
+      // que l'utilisateur peut modifier lui-même (migration 20261023160000).
+      const currentMetadata = reportedUser.user.app_metadata || {};
+      const updatedMetadata: Record<string, unknown> = { ...currentMetadata };
 
       updatedMetadata.ugc_suspended = userUgcSuspended;
 
@@ -150,7 +152,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       const { error: suspendError } = await supabaseAdmin.auth.admin.updateUserById(
         report.reported_user_id,
         {
-          user_metadata: updatedMetadata,
+          app_metadata: updatedMetadata,
         },
       );
 

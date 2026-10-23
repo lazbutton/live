@@ -43,6 +43,11 @@ export async function PATCH(
     const currentMetadata = currentUser.user.user_metadata || {};
     const updatedMetadata = { ...currentMetadata };
 
+    // La suspension UGC vit dans app_metadata (écrit par le service seul), pas dans user_metadata
+    // que l'utilisateur peut modifier lui-même (migration 20261023160000).
+    const currentAppMetadata = currentUser.user.app_metadata || {};
+    const updatedAppMetadata: Record<string, unknown> = { ...currentAppMetadata };
+
     if (body.role !== undefined) {
       if (body.role === "" || body.role === null) {
         delete updatedMetadata.role;
@@ -53,7 +58,7 @@ export async function PATCH(
 
     if (body.ugcSuspended !== undefined) {
       const nextSuspended = Boolean(body.ugcSuspended);
-      updatedMetadata.ugc_suspended = nextSuspended;
+      updatedAppMetadata.ugc_suspended = nextSuspended;
 
       const normalizedSuspensionReason =
         typeof body.ugcSuspensionReason === "string"
@@ -61,14 +66,14 @@ export async function PATCH(
           : "";
 
       if (nextSuspended) {
-        updatedMetadata.ugc_suspension_reason =
+        updatedAppMetadata.ugc_suspension_reason =
           normalizedSuspensionReason || "Suspendu par l'équipe de modération";
-        updatedMetadata.ugc_suspended_at = new Date().toISOString();
-        updatedMetadata.ugc_suspended_by = user.id;
+        updatedAppMetadata.ugc_suspended_at = new Date().toISOString();
+        updatedAppMetadata.ugc_suspended_by = user.id;
       } else {
-        delete updatedMetadata.ugc_suspension_reason;
-        delete updatedMetadata.ugc_suspended_at;
-        delete updatedMetadata.ugc_suspended_by;
+        delete updatedAppMetadata.ugc_suspension_reason;
+        delete updatedAppMetadata.ugc_suspended_at;
+        delete updatedAppMetadata.ugc_suspended_by;
       }
     }
 
@@ -77,6 +82,7 @@ export async function PATCH(
       id,
       {
         user_metadata: updatedMetadata,
+        app_metadata: updatedAppMetadata,
       }
     );
 

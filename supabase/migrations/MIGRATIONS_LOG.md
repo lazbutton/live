@@ -879,3 +879,31 @@
   Dropkick, `events!festival_id(…)` Micro puis Infra, `festival_locations(…)` dans l'ordre ; le festival dans
   `rpc/app_events_in_zone('orleans', 25)`. Temps serveur (`x-envoy-upstream-service-time`, 7 appels) :
   `rpc/app_festival_events` 3 à 23 ms, les 391 cartes de l'accueil 39 à 69 ms.
+
+## 2026-10-23 — Suspension UGC dans `raw_app_meta_data` (escalade corrigée)
+
+- `20261023160000_ugc_suspension_in_app_metadata` : même faille que le rôle admin (voir la PR du rôle),
+  mais sur `ugc_suspended`. La suspension d'un compte pour le contenu communautaire était lue dans
+  `raw_user_meta_data->>'ugc_suspended'` (`is_user_safety_suspended()`, qui alimente `can_use_ugc_features()`
+  et les policies RLS d'`events` ; `lib/mobile-user-auth.ts`). Or l'utilisateur écrit lui-même
+  `raw_user_meta_data` via `updateUser` (PUT /auth/v1/user) : un compte suspendu pouvait lever sa propre
+  suspension.
+- Correctif : les clés `ugc_suspended` / `ugc_suspension_reason` / `ugc_suspended_at` / `ugc_suspended_by`
+  passent dans `raw_app_meta_data` (écrit par le service seul ; GoTrue refuse `app_metadata` en self-service).
+  `is_user_safety_suspended()` lit app_meta. Garde-fou : trigger `strip_ugc_suspension_from_user_metadata`
+  (BEFORE INSERT/UPDATE OF raw_user_meta_data sur `auth.users`) qui efface ces clés de user_metadata à chaque
+  écriture. `ugc_terms_accepted_version` et le reste de user_metadata (nom, etc.) sont intacts.
+- Indépendant de la migration du rôle admin (`20261023150000`) : fonction et trigger distincts, aucune
+  dépendance ; les deux garde-fous pourront être fusionnés plus tard.
+- Côté TypeScript (même PR) : lecture (`lib/mobile-user-auth.ts`, `/api/admin/users/list`) et écriture
+  (`/api/admin/users/[id]`, `/api/admin/moderation/reports/[id]`) passées à `app_metadata`.
+- Côté app Flutter (`../live`) : `AuthRepository.isSuspended` / `suspensionReason` lisent `userMetadata`
+  (pour déconnecter le compte suspendu). À faire passer sur `appMetadata` dans une PR de l'app, à déployer
+  avec cette migration ; sinon la détection côté client cesse jusqu'au rafraîchissement, mais le serveur
+  (RLS + `requireMobileUserAuth`) refuse toujours. Les autres lectures (`ugc_terms_accepted_version`,
+  `isAdmin`) restent sur `userMetadata`.
+- Tests : `supabase/tests/ugc_suspension.test.sql` (le trigger retire la clé à l'inscription et à la mise à
+  jour ; `is_user_safety_suspended` / `can_use_ugc_features` lisent app_meta ; l'auto-réhabilitation échoue) ;
+  fixture de `events_rls.test.sql` (u09 suspendu via app_meta) et de `lib/api/app/routes.test.mjs`
+  (`jwt-suspended`) mises à jour. `npm run db:test`, `node --test`, `npx tsc --noEmit` au vert.
+- **Pas encore appliquée en prod** (attendre l'accord ; prévoir la PR de l'app en même temps).

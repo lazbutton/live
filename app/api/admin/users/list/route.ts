@@ -40,8 +40,8 @@ export async function GET() {
       first_name: u.user_metadata?.first_name || u.user_metadata?.firstName || null,
       last_name: u.user_metadata?.last_name || u.user_metadata?.lastName || null,
       full_name: u.user_metadata?.full_name || u.user_metadata?.fullName || null,
-      ugc_suspended: u.user_metadata?.ugc_suspended === true,
-      ugc_suspension_reason: u.user_metadata?.ugc_suspension_reason || null,
+      ugc_suspended: u.app_metadata?.ugc_suspended === true,
+      ugc_suspension_reason: u.app_metadata?.ugc_suspension_reason || null,
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at || null,
     }));
