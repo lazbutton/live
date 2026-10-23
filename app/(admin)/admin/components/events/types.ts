@@ -141,4 +141,6 @@ export type EventFormPrefill = Partial<{
    * billetterie de la séance quand la page en donne un par séance.
    */
   additionalDates: Array<{ date: string; end_date?: string; external_url?: string }>;
+  /** Un festival importé : ses lieux, reconnus dans son texte ; le premier est celui de la fiche. */
+  festivalLocationIds: string[];
 }>;

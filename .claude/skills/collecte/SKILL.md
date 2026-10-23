@@ -45,6 +45,13 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
   spectacle, jamais l'ouverture des portes (« portes 20h, début 20h30 » : `start` 20:30, `door_opening_time` 20:00).
 - **Prix** : `price_min` est le tarif le plus bas ouvert à tous (réduit, prévente, sur place), jamais un tarif
   abonné, adhérent, carte du lieu, groupe, scolaire ou réservé aux élèves d'une école.
+- **Festivals** : un concert, une séance, un spectacle d'un festival garde sa catégorie ; passe le nom du festival
+  dans `festival` quand le texte dit que l'événement en fait partie (« dans le cadre du festival À toutes vapeurs »,
+  « Fulgurances Électroniques – Micro »), jamais pour un festival seulement cité. L'outil le rattache au festival de
+  ce nom s'il est dans l'app à ces dates (réponse `festival`) ; sinon `festival_unknown` : note-le pour le
+  récapitulatif. La catégorie Festival ne va qu'au festival entier (plusieurs jours, son programme à venir) : crée-le
+  seulement si l'utilisateur le demande, avec `create_event`, ses dates, son affiche et `festival_venues` (les lieux
+  qu'il nomme, créés d'abord s'ils manquent). `import_urls` relève le festival de lui-même.
 - **Titres** : courts, en casse normale (pas tout en capitales), sans date ni lieu ; l'outil retire de toute façon la
   date et le lieu collés au titre, remet les capitales en casse normale (noms propres en majuscule initiale, sigles
   gardés), pose les guillemets français et recolle les lignes coupées des descriptions (lib/collecte/event-text.ts).
@@ -175,6 +182,10 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
    - artistes écartés à vérifier : les `artists_skipped` notés au fil des imports dont la raison commence par
      « Titre de l'événement », « Prénom seul » ou « Catégorie inconnue », avec leur événement, pour que
      l'utilisateur crée la fiche à la main si c'est un vrai musicien ;
+   - événements rattachés à un festival (`festival_events` : titre, festival) ; pour chaque festival nommé qui n'est
+     pas dans l'app (`festivals_unknown`) : « Fait partie d'un festival qui n'est pas dans l'app : À toutes vapeurs »,
+     ses événements, et la proposition de le créer (catégorie Festival, ses dates et ses lieux) ; une fois créé, ses
+     événements déjà là se rattachent depuis la section « Programme » de sa fiche dans l'admin (suggestions) ;
    - dates corrigées par l'outil (`date_note`) et dates à vérifier (`to_check`) que tu n'as pas pu trancher ;
    - sources à corriger : `agenda_url` proposés, liens morts, comptes disparus ;
    - sites lus à la main parce que `scan_agenda` les disait illisibles (`unreadable.reason`) et ce qui en est sorti :

@@ -918,3 +918,108 @@
   import à la main (page des crons de l'admin, ou `/admin/radio`, « Importer maintenant »), puis
   `select count(*), count(*) filter (where last_episode_at > now() - interval '45 days') from public.radio_shows;`
   (91 et 47 le 2026-10-23). `enabled` reste à faux jusqu'à l'accord écrit de la radio.
+
+## 2026-10-23 — Festivals, étape 4 : le programme dans le message des suivis, « À voir aussi » sans le même festival
+
+- `20261023160000_add_festival_follows_and_see_also` : étape 4 du § 6 de `../live/docs/FESTIVALS.md` (§ 3,
+  « Favoris et notifications », et § 5). Contrat : `docs/API_APP.md`, « Festivals », « Suivis » et « À voir aussi ».
+  Prérequis : `20261023120000_create_festivals` (en prod). Mêmes signatures : rien ne change pour les appelants.
+  - `events.festival_added_at` : l'instant où l'événement est entré au programme de son festival (rattaché, ou
+    passé à un autre festival), null hors festival ; tenue par `set_event_festival_added_at()` (déclencheur
+    `BEFORE INSERT OR UPDATE OF festival_id, festival_added_at`, comme `published_at` : une valeur envoyée est
+    ignorée). Pas de reprise : Micro et Infra, rattachés le 23/10, la gardent nulle (leur entrée compte à leur
+    publication, aucun message ne les annonce après coup).
+  - `follows_digest(at_time)` : en plus des lieux, organisateurs et artistes suivis, les festivals en favori
+    (`event_likes` sur la fiche d'un festival visible) ; lignes `target_type` `festival`, `target_id` le festival,
+    `target_name` son titre. Un événement entre au programme quand il est rattaché et publié
+    (`greatest(festival_added_at, published_at)`), dans la fenêtre des suivis (depuis le cœur, le dernier message,
+    au plus 7 jours), avec leurs règles (visible, pas complet, pas terminé, ni masqué ni d'un auteur bloqué).
+    Toujours réservée au service role. Titre (`lib/notifications/follows-digest.ts`) : « Fulgurances
+    Électroniques #2 : 2 événements ajoutés au programme ».
+  - `app_see_also(…)` : rien du même festival (`coalesce(festival_id, id)` égal) dans les deux rangées, ni dans le
+    choix de la source (un lieu qui n'a que des événements du festival passe la main à l'organisateur) ;
+    `source_events_count` reste celui de la page. Reprise de la définition de `20261021220000` (la zone).
+- Testée par `npm run db:test` (Docker) : `supabase/tests/festival_follows_see_also.test.sql`, 13 cas
+  (`festival_added_at` à l'insertion, valeur envoyée ignorée, même festival, changement, détachement et festival
+  supprimé ; message : fenêtre, cœur, dernier message, 7 jours, complet, fini, masqué, bloqué, festival en
+  attente, cœur sur un événement qui n'est pas un festival, un événement au programme et dans un lieu suivi (deux
+  lignes, que le message compte une fois), festival retiré (le lieu suivi reste) ; « À voir aussi » : un
+  événement du festival, le festival, hors festival, une source qui n'a que le festival) ; 19 règles faussées à
+  tour de rôle, 18 repérées (la 19e, le filtre des 7 jours d'`ajouts`, double celui du cœur et ne sert qu'à lire
+  moins de lignes). Les 25 fichiers de `supabase/tests` passent (421 cas).
+  `lib/supabase/database.types.ts` régénéré (`npm run db:types`).
+- Essayée sur une pile Supabase locale (base, auth, PostgREST) avec toutes les migrations et Fulgurances :
+  `create_event` de l'agent (rattaché par le nom, par le titre, festival absent, hors dates, un festival et ses
+  lieux, un événement du festival créé juste avant, doublons de Micro et du festival), l'import par lot de l'admin
+  connecté en admin (rattachement, lieux du festival sous la RLS), le message des suivis d'un festival en favori
+  (« Fulgurances Électroniques #2 : 2 événements ajoutés au programme ») et `rpc/app_see_also` en anon.
+- Répétée en prod le 23/10/2026 dans une transaction annulée (psql `--single-transaction`, `SET ROLE postgres`,
+  `lock_timeout` 5 s, accès par `supabase db dump --linked --dry-run`, le fichier de la branche) :
+  - avant : ni la colonne ni la fonction du déclencheur ; `follows_digest` et `app_see_also` identiques à
+    `20261021142000` et `20261021220000` (md5 de `prosrc`) ; Micro et Infra rattachés, publiés le 18/10 ; aucun
+    cœur sur le festival ; `follows_digest()` vide à cet instant ;
+  - migration sans erreur, ~50 ms par instruction (latence réseau), ~0,7 s en tout ; après : la colonne, aucune
+    date posée, le déclencheur actif ; `follows_digest` exécutable par le service role seulement, `app_see_also`
+    par anon ; les deux corps sont ceux du fichier ;
+  - « À voir aussi » en anon sur 33 fiches (les 30 prochaines de la zone d'Orléans, le festival, Micro, Infra) :
+    les 31 hors festival à l'identique ; le festival perd Micro (4 → 3 lignes), Micro perd le festival (2 → 1) ;
+    Infra inchangée (rien du festival au 108). `follows_digest()` : mêmes lignes (aucune), aucune de festival ;
+  - EXPLAIN ANALYZE : `app_see_also` (Micro, anon) 12,2 ms avant, 12,3 ms après ; `follows_digest()` (service
+    role) 7,6 ms avant, 8,7 ms après ;
+  - `events` verrouillée ~2,2 s, de la migration à l'annulation (vérifications comprises) ; rien n'est resté.
+- **Appliquée en prod le 23/10/2026 à 16:01 (14:01 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche au commit `e5256ae`),
+  sans erreur. Vérifiée ensuite : la colonne (aucune date posée), le déclencheur actif, les corps de
+  `follows_digest` et `app_see_also` sont ceux du fichier, `follows_digest` réservée au service role (vide à cet
+  instant ; aucun cœur sur Fulgurances). En anon par l'API publique, avant puis après les deux migrations du jour :
+  les appels de l'app gardent leurs statuts et leurs nombres (391, 389, 389, 70, 389 cartes, 354, 136 séries,
+  `app_festival_events` 2) ; « À voir aussi » de Micro ne propose plus le festival ni Infra, celui du festival ni
+  Micro ni Infra ; `events?select=id,festival_added_at` répond 200 (le cache de schéma s'est rechargé seul).
+
+## 2026-10-23 — Festivals : sur « Tout », un festival qui a un programme compte par ses événements
+
+- `20261023170000_count_festival_programmes` : demandé par la session de coordination pour l'accueil de l'app
+  (étape 3, PR lazbutton/live-app#168). Un festival y est une carte, ses événements dedans, et les nombres de la
+  page comptent ses événements, pas sa fiche en plus (`EventsListPageData.build`) ; les nombres lus en SQL
+  comptaient la fiche, un de trop chaque jour du festival (U3). Contrat : `docs/API_APP.md`, « Festivals ».
+  - La règle, celle de l'app : une fiche ne compte pas quand `app_festival_events(at_time)` a au moins une ligne
+    pour elle (un événement à venir rattaché, visible pour l'utilisateur, retiré de l'accueil compris) ; une fiche
+    sans programme compte comme avant ; seulement sur « Tout », pas sur une page de catégorie (la page « Festival »
+    montre les festivals). La catégorie de la fiche n'est pas regardée, comme dans l'app.
+  - `app_event_counts` (sur « Tout » : category vide), `app_zone_counts`, `app_cities` (`upcoming_events_count`
+    seulement : une ville qui n'a que des fiches à venir reste dans la liste, la prochaine date et les récents ne
+    changent pas). Reprises de `20261021220000`, mêmes signatures ; les listes et les autres comptes ne changent
+    pas.
+- Testée par `npm run db:test` (Docker) : `supabase/tests/festival_counts.test.sql`, 7 cas (l'index ; « Tout »
+  jour par jour, events_count et starting_count ; la page « Festival » ; une autre catégorie ; un programme tout
+  masqué par l'utilisateur ; `app_zone_counts` ; `app_cities`) ; 8 règles faussées à tour de rôle (la fiche
+  comptée, retirée aussi par catégorie, tout rattachement pris pour un programme, programme sans les événements
+  retirés de l'accueil, la zone, les villes : compte, liste, `a_venir`), toutes repérées. Les 26 fichiers de
+  `supabase/tests` passent (428 cas). `lib/supabase/database.types.ts` inchangé (`npm run db:types`).
+- Répétée en prod le 23/10/2026 dans une transaction annulée (psql `--single-transaction`, `SET ROLE postgres`,
+  `lock_timeout` 5 s, le fichier de la branche ; aucune table verrouillée, la migration ne remplace que des
+  fonctions) :
+  - avant : les trois fonctions identiques à `20261021220000` (md5 de `prosrc`) ; un seul festival a un
+    programme, Fulgurances Électroniques #2 (Micro et Infra) ;
+  - migration sans erreur (9 instructions, 20 à 110 ms chacune, latence réseau comprise) ; les corps sont ceux du
+    fichier, anon les appelle ;
+  - en anon, zone d'Orléans · 25 km, 46 jours à partir d'aujourd'hui et « toutes les dates » : seules 5 plages
+    changent, chacune d'un (la fiche de Fulgurances) : 19/11 6/6 → 5/5, 20/11 10/9 → 9/9, 21/11 12/11 → 11/11,
+    22/11 3/2 → 2/2, toutes les dates 354 → 353 ; pages « Festival » et « Concert » identiques ; la liste
+    (`app_events_in_zone`) 391 comme avant ; `app_zone_counts` 335/354/354/354 → 334/353/353/353 ;
+    `app_cities` : Orléans 207 → 206, les autres villes identiques ;
+  - coût (EXPLAIN ANALYZE, anon) : exécution d'`app_event_counts` (47 plages) 9,8 → 10,9 ms, `app_zone_counts`
+    16,4 → 17,0 ms, `app_cities` 7,2 → 8,5 ms ; planification +16 à 18 ms (25 → 42 ms pour `app_event_counts` :
+    la sous-requête d'`app_festival_events` est planifiée avec la RLS d'`events`), payée seulement tant que le
+    plan n'est pas en cache : en requête préparée (comme PostgREST), plan générique dès la 7e exécution,
+    planification 0,1 ms, exécution 10,0 → 10,5 ms. Une variante sans `app_festival_events`
+    (`app_events_in_range` directement) ne gagnait que 2 ms de planification : écartée ;
+  - rien n'est resté (les trois corps comme avant l'essai).
+- **Appliquée en prod le 23/10/2026 à 16:02 (14:02 UTC)**, après `20261023160000`, avec l'accord de
+  l'utilisateur (psql, `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche
+  au commit `e5256ae`), sans erreur ; les trois corps sont ceux du fichier, anon les appelle. En anon par l'API
+  publique (Orléans · 25 km), avant → après : « Tout » 19/11 6 → 5, 20/11 9 → 8 (starting 8), 21/11 14 → 13,
+  22/11 3 → 2, toutes les dates 352 → 351 ; page « Festival » identique (19/11 à 22/11 : 1, toutes les dates 4) ;
+  `app_zone_counts` 333/352/352/352 → 332/351/351/351 ; `app_cities` : Orléans 206 → 205, les autres villes
+  identiques. Juste après, la première requête de chaque connexion replanifie (`events` a changé) : jusqu'à
+  0,6 s une fois, puis les temps d'avant (`app_event_series` ~100 ms).

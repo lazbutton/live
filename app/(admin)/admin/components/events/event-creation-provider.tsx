@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
+import { fetchFestivalCandidates, type FestivalCandidate } from "@/lib/events/festivals";
 import type { ImportedEventPayload, ImportedEventWarning } from "@/lib/events/imported-event-payload";
 
 import type {
@@ -91,6 +92,8 @@ type ReferenceData = {
   artists: ArtistOption[];
   tags: TagOption[];
   categories: CategoryOption[];
+  /** Festivals que l'import peut retenir (`fetchFestivalCandidates`). */
+  festivals: FestivalCandidate[];
 };
 
 const EMPTY_REFERENCES: ReferenceData = {
@@ -99,6 +102,7 @@ const EMPTY_REFERENCES: ReferenceData = {
   artists: [],
   tags: [],
   categories: [],
+  festivals: [],
 };
 
 async function fetchTags() {
@@ -144,12 +148,20 @@ async function fetchReferenceData(): Promise<ReferenceData> {
     })),
   ];
 
+  const categories = (categoriesRes.data || []) as CategoryOption[];
+  // Sans les festivals (migration pas encore appliquée, erreur passagère), l'import marche sans rattachement.
+  const festivals = await fetchFestivalCandidates(supabase, categories).catch((error) => {
+    console.warn("Festivals indisponibles pour l'import:", error);
+    return [] as FestivalCandidate[];
+  });
+
   return {
     locations,
     organizers,
     artists: (artistsRes.data || []) as ArtistOption[],
     tags,
-    categories: (categoriesRes.data || []) as CategoryOption[],
+    categories,
+    festivals,
   };
 }
 
@@ -298,6 +310,7 @@ export function EventCreationProvider({ children }: { children: React.ReactNode 
         locations: refs.locations,
         organizers: refs.organizers,
         artists: refs.artists,
+        festivals: refs.festivals,
         // Seuls les tags existants sont repris : les suggestions de l'IA ne créent rien.
         findOrCreateTagIds: (rawTagNames: string[]) => resolveTagIdsForImport({ rawTagNames, tags: refs.tags }),
         defaultStatus: "pending",

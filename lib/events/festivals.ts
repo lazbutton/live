@@ -7,6 +7,7 @@
  * Les dates sont celles de la base : l'heure de Paris étiquetée UTC (`parseDateWithoutTimezone`), comparées en
  * heure murale.
  */
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { addDays, format, isSameDay, isSameMonth, isSameYear } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -108,6 +109,26 @@ export function festivalDays(festival: Dated): { first: Date; last: Date } | nul
   return { first, last };
 }
 
+/** Sur plus d'un jour (`festivalDays`) ? `null` sans fin connue. */
+function spansSeveralDays(event: Dated): boolean | null {
+  if (!event.end_date) return null;
+  const days = festivalDays(event);
+  return days ? days.last.getTime() > days.first.getTime() : null;
+}
+
+/**
+ * La fiche d'un festival, pour l'import : la catégorie Festival sur plus d'un jour. Une séance rangée en Festival
+ * (un film d'un festival de cinéma, une nuit de cabaret) n'en est pas une : `false`, comme tout autre événement.
+ * `null` : la catégorie Festival sans fin connue, on ne sait pas.
+ */
+export function festivalFiche(
+  event: Dated & { category?: string | null },
+  categories: ReadonlyArray<{ id: string; name: string }>,
+): boolean | null {
+  if (!isFestivalCategory(event.category, categories)) return false;
+  return spansSeveralDays(event);
+}
+
 /** « 19 – 21 nov. », « 30 oct. – 2 nov. », « 19 nov. » ; l'année si elle n'est pas celle de `now`. */
 export function formatFestivalDates(festival: Dated, now: Date = new Date()): string {
   const days = festivalDays(festival);
@@ -176,6 +197,78 @@ export function suggestProgramme<
         textNamesFestival(candidate.title, key) || textNamesFestival(candidate.description ?? null, key),
     )
     .sort((left, right) => left.date.localeCompare(right.date) || left.id.localeCompare(right.id));
+}
+
+/** Un festival de l'app, tel que l'import le rapproche d'un événement. */
+export type FestivalCandidate = { id: string; title: string; date: string; end_date: string | null };
+
+/** Deux noms de festival (`festivalNameKey`) désignent-ils le même : égaux, ou l'un commence par l'autre (deux mots au moins). */
+function sameFestivalName(left: string, right: string) {
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const [shorter, longer] = left.length <= right.length ? [left, right] : [right, left];
+  return shorter.split(" ").length >= 2 && `${longer} `.startsWith(`${shorter} `);
+}
+
+/**
+ * Le festival dont fait partie un événement importé (../live/docs/FESTIVALS.md, § 4, « À l'import ») : parmi ceux
+ * dont les dates couvrent la sienne, celui qui porte le nom relevé (`festivalName` : lu par l'IA, donné à
+ * `create_event`), sinon celui que son titre nomme (« Fulgurances Électroniques – Micro »). Les noms se comparent
+ * sans « festival », numéro d'édition, accents ni casse (`festivalNameKey`). Le plus court l'emporte (le plus
+ * précis). `outOfDates` : un festival du nom relevé existe, mais ses dates ne couvrent pas l'événement.
+ */
+export function findFestivalForImport(
+  festivals: ReadonlyArray<FestivalCandidate>,
+  event: { festivalName?: string | null; title?: string | null; date: string },
+): { festival: FestivalCandidate | null; outOfDates: FestivalCandidate | null } {
+  const nameKey = festivalNameKey(event.festivalName);
+  const keyed = festivals.map((festival) => ({ festival, key: festivalNameKey(festival.title) }));
+  const covering = keyed.filter(({ festival }) => festivalCovers(festival, event.date));
+  const shortest = (entries: typeof keyed) => {
+    const sorted = [...entries].sort((left, right) => {
+      const leftSpan = festivalSpan(left.festival);
+      const rightSpan = festivalSpan(right.festival);
+      const length = (span: ReturnType<typeof festivalSpan>) => (span ? span.end.getTime() - span.start.getTime() : Infinity);
+      return length(leftSpan) - length(rightSpan) || left.festival.id.localeCompare(right.festival.id);
+    });
+    return sorted[0]?.festival ?? null;
+  };
+
+  const byName = shortest(covering.filter(({ key }) => sameFestivalName(key, nameKey)));
+  if (byName) return { festival: byName, outOfDates: null };
+  const byTitle = shortest(covering.filter(({ key }) => textNamesFestival(event.title, key)));
+  if (byTitle) return { festival: byTitle, outOfDates: null };
+  return {
+    festival: null,
+    outOfDates: nameKey ? (keyed.find(({ key }) => sameFestivalName(key, nameKey))?.festival ?? null) : null,
+  };
+}
+
+/**
+ * Les festivals que l'import peut retenir : les fiches de la catégorie Festival (son id, ou son nom) qui ne sont
+ * pas elles-mêmes dans un festival, ni archivées, ni refusées, commencées depuis 120 jours au plus (une
+ * exposition-festival peut durer des semaines). Pas une séance rangée en Festival (`festivalFiche`) : elle n'a
+ * pas de programme à recevoir ; sans fin connue, gardée.
+ */
+export async function fetchFestivalCandidates(
+  supabase: SupabaseClient,
+  categories: ReadonlyArray<{ id: string; name: string }>,
+): Promise<FestivalCandidate[]> {
+  const categoryId = festivalCategoryId(categories);
+  const since = new Date();
+  since.setDate(since.getDate() - 120);
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, title, date, end_date")
+    .or(categoryId ? `category.eq.${categoryId},category.ilike.festival` : "category.ilike.festival")
+    .is("festival_id", null)
+    .eq("archived", false)
+    .neq("status", "rejected")
+    .gte("date", toDatabaseWallClock(since))
+    .order("date", { ascending: true })
+    .limit(200);
+  if (error) throw error;
+  return ((data || []) as FestivalCandidate[]).filter((festival) => spansSeveralDays(festival) !== false);
 }
 
 /**

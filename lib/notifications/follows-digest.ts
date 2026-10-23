@@ -1,10 +1,13 @@
 /**
  * Notification des suivis (U8), poussée par le cron `follows-digest` : chaque jour, à chacun, les
- * événements que ses lieux, organisateurs et artistes suivis ont publiés depuis son dernier message.
+ * événements que ses lieux, organisateurs et artistes suivis ont publiés depuis son dernier message, et
+ * ceux entrés au programme des festivals qu'il a en favori (un cœur sur un festival vaut suivi).
  * Fonctions pures, sans base (`follows-digest.test.mjs`) ; les lignes viennent de `follows_digest()`
- * (SQL, migration 20261021142000), qui porte la règle : quels événements, depuis quand, pour qui.
+ * (SQL, migrations 20261021142000 et 20261023160000), qui porte la règle : quels événements, depuis
+ * quand, pour qui.
  *
  * - Un seul suivi a publié : « 2 nouveaux événements chez L’Astrolabe » (« avec » pour un artiste) ;
+ *   un seul festival : « Fulgurances Électroniques #2 : 2 événements ajoutés au programme » ;
  * - plusieurs : « 3 nouveaux événements chez tes suivis ».
  * Corps : les deux premiers titres, puis « et 1 autre », comme les résumés (`digestBody`). Rien de
  * nouveau, pas de message. Toucher : la page du suivi s'il n'y en a qu'un, sinon l'onglet Favoris de
@@ -13,7 +16,8 @@
 
 import { digestBody, MAX_EVENT_IDS, shortTitle } from "./digest";
 
-export type FollowTargetType = "location" | "organizer" | "artist";
+/** `festival` : un festival en favori (`event_likes`), sa fiche pour id. */
+export type FollowTargetType = "location" | "organizer" | "artist" | "festival";
 
 /** Une ligne de `follows_digest()` : un nouvel événement d'une cible que l'utilisateur suit. */
 export interface FollowsDigestRow {
@@ -73,11 +77,18 @@ export function planFollowsDigests(rows: FollowsDigestRow[]): Map<string, Follow
   return plans;
 }
 
-/** « 2 nouveaux événements chez L’Astrolabe », « 1 nouvel événement avec Youn Sun Nah », « … chez tes suivis ». */
+/**
+ * « 2 nouveaux événements chez L’Astrolabe », « 1 nouvel événement avec Youn Sun Nah », « Fulgurances
+ * Électroniques #2 : 2 événements ajoutés au programme », « … chez tes suivis ».
+ */
 export function followsDigestTitle(plan: FollowsDigestPlan): string {
   const count = plan.events.length;
-  const events = count === 1 ? "1 nouvel événement" : `${count} nouveaux événements`;
   const [target] = plan.targets;
+  if (plan.targets.length === 1 && target.name && target.type === "festival") {
+    const added = count === 1 ? "1 événement ajouté" : `${count} événements ajoutés`;
+    return `${shortTitle(target.name)} : ${added} au programme`;
+  }
+  const events = count === 1 ? "1 nouvel événement" : `${count} nouveaux événements`;
   if (plan.targets.length === 1 && target.name) {
     return `${events} ${target.type === "artist" ? "avec" : "chez"} ${shortTitle(target.name)}`;
   }
@@ -91,8 +102,10 @@ export function followsDigestBody(plan: FollowsDigestPlan): string {
 
 /**
  * Données de la notification, lues par l'app au toucher : la page du suivi (`target_type`,
- * `target_id`) quand une seule cible a publié, sinon l'onglet Favoris. FCM les envoie en texte (une
- * liste y devient « a,b »), APNs les garde en JSON. Contrat : `docs/API_APP.md`, « Suivis ».
+ * `target_id`) quand une seule cible a publié, sinon l'onglet Favoris ; pour un festival
+ * (`target_type` `festival`), sa fiche, et l'onglet Favoris dans les versions qui ne le connaissent pas.
+ * FCM les envoie en texte (une liste y devient « a,b »), APNs les garde en JSON. Contrat :
+ * `docs/API_APP.md`, « Suivis ».
  */
 export function followsDigestData(input: { date: string; plan: FollowsDigestPlan }): Record<string, unknown> {
   const { plan } = input;

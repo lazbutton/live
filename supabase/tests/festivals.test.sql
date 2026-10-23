@@ -124,10 +124,13 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA pg_temp TO anon, authenticated;
 -- u01 admin ; u02 compte ordinaire ; u03 masque l'événement 05 et le festival F3, bloque u04 ; u04 auteur
 -- du festival F4.
 INSERT INTO auth.users (id, email, is_anonymous, raw_user_meta_data) VALUES
-  ('e9a00000-0000-4000-8000-000000000001', 'u01@test.local', false, '{"role":"admin"}'),
+  ('e9a00000-0000-4000-8000-000000000001', 'u01@test.local', false, '{}'),
   ('e9a00000-0000-4000-8000-000000000002', 'u02@test.local', false, '{}'),
   ('e9a00000-0000-4000-8000-000000000003', 'u03@test.local', false, '{}'),
   ('e9a00000-0000-4000-8000-000000000004', 'u04@test.local', false, '{}');
+-- u01 est admin : depuis 20261023150000 le rôle vit dans app_metadata, plus dans raw_user_meta_data.
+UPDATE auth.users SET raw_app_meta_data = '{"role":"admin"}'::jsonb
+WHERE id = 'e9a00000-0000-4000-8000-000000000001';
 
 -- L1 au centre de Centreville ; L2 et L3 à Lointaine, à 30 km.
 INSERT INTO public.cities (id, label, label_normalized, slug, is_active) VALUES

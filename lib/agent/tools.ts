@@ -226,7 +226,10 @@ const createEvent = defineTool({
     "catégorie et tags sont rapprochés des fiches existantes ; les artistes musicaux absents sont créés (concerts " +
     "et DJ sets seulement). Lieu ou organisateur sans fiche : crée-le d'abord (upsert_location, upsert_organizer) " +
     "et passe son identifiant. Doublons écartés. Post Instagram : sans `image_url`, l'affiche du post est reprise " +
-    "automatiquement. Exposition déjà ouverte : `start` = ouverture, `end` = dernier jour.",
+    "automatiquement. Exposition déjà ouverte : `start` = ouverture, `end` = dernier jour. Festival : un événement " +
+    "d'un festival garde sa catégorie (concert, cinéma…) et passe `festival` ; il est rattaché au festival de ce nom " +
+    "s'il est dans l'app à ces dates (`festival`), sinon `festival_unknown` : propose à l'utilisateur de créer le " +
+    "festival. La catégorie Festival ne va qu'au festival entier (plus d'un jour), avec ses lieux (`festival_venues`).",
   input: z.object({
     source_id: z.string().optional().describe("Source suivie d'où vient l'événement (list_sources)."),
     source_url: z.string().url().optional().describe("Lien du post ou de la page lue."),
@@ -291,6 +294,21 @@ const createEvent = defineTool({
           "boum). Repéré aussi d'après le titre et la description.",
       ),
     door_opening_time: z.string().regex(/^\d{2}:\d{2}$/).optional().describe("Ouverture des portes (HH:mm)."),
+    festival: z
+      .string()
+      .optional()
+      .describe(
+        "Festival dont l'événement fait partie, quand le texte le dit (« dans le cadre du festival À toutes vapeurs », " +
+          "« Fulgurances Électroniques – Micro ») : son nom, sans numéro d'édition. Jamais un festival seulement cité " +
+          "(un prix reçu à Cannes).",
+      ),
+    festival_venues: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Festival entier seulement (catégorie Festival) : les lieux où il se tient, dans l'ordre du texte, reconnus " +
+          "parmi les lieux de l'app ; le premier devient le lieu de la fiche. Crée d'abord ceux qui manquent.",
+      ),
     create_missing_artists: z.boolean().default(true),
   }),
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -430,8 +448,9 @@ const recentActivity = defineTool({
   title: "Activité récente de l'agent",
   description:
     "Ce que l'agent a créé récemment (événements publiés ou en attente, artistes, lieux, salles, organisateurs, " +
-    "avec l'état de leur source de collecte) et le nombre total d'événements en attente de validation. Utile pour le " +
-    "récapitulatif de fin de collecte.",
+    "avec l'état de leur source de collecte ; événements rattachés à un festival, et festivals nommés qui ne sont " +
+    "pas dans l'app) et le nombre total d'événements en attente de validation. Utile pour le récapitulatif de fin de " +
+    "collecte.",
   input: z.object({ hours: z.number().min(1).max(168).default(24).describe("Fenêtre en heures (24 par défaut).") }),
   annotations: { readOnlyHint: true, openWorldHint: false },
   run: async (ctx, args) => {
@@ -463,6 +482,17 @@ const recentActivity = defineTool({
       pending: events
         .filter((row) => row.metadata?.status !== "approved")
         .map((row) => ({ id: row.entity_id, title: row.entity_label, missing: row.metadata?.missing ?? [], at: row.created_at })),
+      // Rattachés à un festival de l'app ; ou d'un festival qui n'y est pas encore (à proposer de créer), par festival.
+      festival_events: events
+        .filter((row) => typeof row.metadata?.festival === "string")
+        .map((row) => ({ id: row.entity_id, title: row.entity_label, festival: row.metadata?.festival })),
+      festivals_unknown: Object.entries(
+        events.reduce<Record<string, string[]>>((byFestival, row) => {
+          const name = row.metadata?.festival_unknown;
+          if (typeof name === "string") (byFestival[name] ||= []).push(row.entity_label || "");
+          return byFestival;
+        }, {}),
+      ).map(([festival, titles]) => ({ festival, events: titles })),
       artists_created: rows
         .filter((row) => row.action === "artist.create")
         .map((row) => ({ id: row.entity_id, name: row.entity_label })),

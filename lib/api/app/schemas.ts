@@ -311,6 +311,10 @@ export const importedEventDataSchema = z.looseObject({
   address: optionalString,
   organizer: optionalString,
   tags: z.array(z.string()).nullish(),
+  /** Festival dont l'événement fait partie, quand l'affiche le dit. */
+  festival_name: optionalString,
+  /** Affiche d'un festival entier : les lieux qu'elle nomme. */
+  festival_venues: z.array(z.string()).nullish(),
 });
 
 export const extractFromImageResponseSchema = z.object({

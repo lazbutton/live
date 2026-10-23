@@ -7,6 +7,7 @@ import type {
   OrganizerOption,
   TagOption,
 } from "@/app/(admin)/admin/components/events/types";
+import { fetchFestivalCandidates, type FestivalCandidate } from "@/lib/events/festivals";
 import { createServiceClient } from "@/lib/supabase/service";
 
 /*
@@ -32,6 +33,8 @@ export type AgentReferences = {
   artists: ArtistOption[];
   tags: TagOption[];
   categories: CategoryOption[];
+  /** Festivals de l'app : un événement importé est rattaché à celui qu'il nomme. */
+  festivals: FestivalCandidate[];
 };
 
 export type AgentContext = {
@@ -76,6 +79,8 @@ async function fetchReferences(supabase: SupabaseClient): Promise<AgentReference
   for (const result of [locationsRes, organizersRes, organizerLocationsRes, roomsRes, artistsRes, tagsRes, categoriesRes]) {
     if (result.error) throw result.error;
   }
+  const categories = (categoriesRes.data || []) as CategoryOption[];
+  const festivals = await fetchFestivalCandidates(supabase, categories);
 
   return {
     locations: ((locationsRes.data || []) as any[]).map((location) => ({
@@ -89,7 +94,8 @@ async function fetchReferences(supabase: SupabaseClient): Promise<AgentReference
     rooms: (roomsRes.data || []) as AgentRoom[],
     artists: (artistsRes.data || []) as ArtistOption[],
     tags: (tagsRes.data || []) as TagOption[],
-    categories: (categoriesRes.data || []) as CategoryOption[],
+    categories,
+    festivals,
   };
 }
 

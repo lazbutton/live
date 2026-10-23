@@ -6,6 +6,7 @@ export type PotentialDuplicateEvent = {
   date: string;
   end_date: string | null;
   status: string | null;
+  category: string | null;
   matchKind: "exact" | "overlap";
 };
 
@@ -23,6 +24,7 @@ type CandidateEventRow = {
   date: string;
   end_date: string | null;
   status: string | null;
+  category: string | null;
 };
 
 function parseDateValue(value: string | null | undefined) {
@@ -87,7 +89,7 @@ export async function fetchPotentialDuplicateEvents({
 
   let query = supabase
     .from("events")
-    .select("id, title, date, end_date, status")
+    .select("id, title, date, end_date, status, category")
     .eq("location_id", normalizedLocationId)
     .eq("archived", false)
     .lte("date", targetWindow.end.toISOString())

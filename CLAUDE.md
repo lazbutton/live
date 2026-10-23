@@ -46,8 +46,10 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   par `events.festival_id` (pas de festival dans un festival : déclencheur `check_event_festival`), ses lieux dans
   `festival_locations` (le premier est le `location_id` de la fiche ; clé `id`, jamais `(festival_id,
   location_id)`, qui rendrait ambigus les `locations(…)` embarqués depuis `events`). `app_festival_events()` pour
-  l'accueil de l'app ; dans l'admin, le formulaire d'un événement (`event-festival-sections.tsx`, règles dans
-  `lib/events/festivals.ts`). Les Multi-événements (`major_events`) sont abandonnés.
+  l'accueil de l'app ; sur « Tout », la fiche d'un festival qui y a un programme ne compte pas dans les nombres
+  (`app_event_counts`, `app_zone_counts`, `app_cities`), ses événements si. Dans l'admin, le formulaire d'un
+  événement (`event-festival-sections.tsx`, règles dans `lib/events/festivals.ts`) ; à l'import, le festival
+  nommé est rattaché (`findFestivalForImport`). Les Multi-événements (`major_events`) sont abandonnés.
 - Analyse d'affiche de l'app (`/api/mobile/events/extract-from-image`) : ouverte aux sessions invitées, plafonnée
   par jour par `take_poster_analysis()` (service role ; `lib/events/poster-analysis-quota.ts`).
 - Mesure d'audience de l'app (U41) : `app_audience_add(day, counts)` additionne des compteurs quotidiens envoyés
