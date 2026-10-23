@@ -920,6 +920,32 @@
   `select count(*), count(*) filter (where last_episode_at > now() - interval '45 days') from public.radio_shows;`
   (91 et 47 le 2026-10-23). `enabled` reste à faux jusqu'à l'accord écrit de la radio.
 
+## 2026-10-23 — Le rôle admin dans `raw_app_meta_data` (escalade corrigée)
+
+- `20261023150000_admin_role_in_app_metadata` (PR #54) : le rôle admin quitte `raw_user_meta_data`, que
+  l'utilisateur écrit lui-même (`updateUser`, inscription), pour `raw_app_meta_data`, écrit par le service seul.
+  `is_user_admin()` et `make_user_admin()` y lisent et y écrivent ; un trigger sur `auth.users` efface toute clé
+  `role` de `raw_user_meta_data` ; la policy du journal d'`organizer_audit_log` passe par `is_user_admin()`. Le code
+  TypeScript (#54) et l'app (live#170) lisent `app_metadata` seulement.
+- Fusionnée sans être appliquée : jusqu'à l'application, plus personne n'était admin pour le back-office déployé et
+  l'app (rôle encore dans `user_metadata` seulement), et l'escalade restait ouverte en SQL. Quelques minutes avant,
+  avec l'accord de l'utilisateur, `lazbutton@gmail.com` avait reçu le rôle dans `raw_app_meta_data` à la main (une
+  ligne, répétée annulée d'abord) ; l'étape 1 du fichier, une fusion, n'y change rien.
+- Répétée en prod le 23/10/2026 dans une transaction annulée (psql, `SET LOCAL ROLE postgres`, le fichier de
+  `origin/main` au commit `4c9ee30`) :
+  - avant : 3 comptes avec `role = admin` dans `raw_user_meta_data` (`lazbutton@gmail.com`, `test@admin.com`, un
+    compte Apple en relais privé), aucun ailleurs ; seuls lecteurs du rôle en clair : `is_user_admin()` et la policy
+    d'`organizer_audit_log` ; pas de trigger ;
+  - migration sans erreur (`UPDATE 3`, `UPDATE 3`) ; après : les 3 comptes admin dans `raw_app_meta_data`, plus
+    aucun `role` dans `raw_user_meta_data`, les deux fonctions lisent `raw_app_meta_data`, le trigger posé, plus
+    aucun lecteur du rôle en clair ; un `role` écrit dans le `raw_user_meta_data` de `test@admin.com` est effacé
+    par le trigger ; en `authenticated`, `is_user_admin()` vrai pour un admin, faux pour un compte ordinaire.
+- **Appliquée en prod le 23/10/2026 à 16:44 (14:44 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`), sans erreur. Vérifiée en lecture seule : mêmes résultats que la
+  répétition (3 admins dans `raw_app_meta_data`, aucun `role` dans `raw_user_meta_data`, trigger et fonctions en
+  place, `is_user_admin()` vrai pour `lazbutton@gmail.com`). Une session ouverte avant garde l'ancien `app_metadata`
+  dans son jeton jusqu'au rafraîchissement : l'app ne revoit l'admin qu'après (ou après une reconnexion).
+
 ## 2026-10-23 — Festivals, étape 4 : le programme dans le message des suivis, « À voir aussi » sans le même festival
 
 - `20261023160000_add_festival_follows_and_see_also` : étape 4 du § 6 de `../live/docs/FESTIVALS.md` (§ 3,
