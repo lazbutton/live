@@ -125,7 +125,8 @@ export function AgentActivityCard() {
   } else if (!lastPass && published.length === 0) {
     body = (
       <p className="px-5 py-6 text-sm text-muted-foreground">
-        L’agent n’a encore rien créé. Ses événements et artistes apparaîtront ici après sa prochaine collecte.
+        L’agent n’a encore rien créé. Ses événements, artistes, lieux et organisateurs apparaîtront ici après sa
+        prochaine collecte.
       </p>
     );
   } else {
@@ -142,6 +143,10 @@ export function AgentActivityCard() {
               <PassStat label="Publiés" value={lastPass.published} dot="bg-success" />
               <PassStat label="En attente" value={lastPass.pending} dot="bg-warning" />
               <PassStat label="Artistes créés" value={lastPass.artistsCreated} />
+              {lastPass.locationsCreated ? <PassStat label="Lieux créés" value={lastPass.locationsCreated} /> : null}
+              {lastPass.organizersCreated ? (
+                <PassStat label="Organisateurs créés" value={lastPass.organizersCreated} />
+              ) : null}
             </dl>
           ) : null}
         </section>

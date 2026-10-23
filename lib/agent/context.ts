@@ -17,9 +17,18 @@ import { createServiceClient } from "@/lib/supabase/service";
 
 export { AGENT_ACTOR } from "./actor";
 
+/** Liens publics d'un lieu ou d'un organisateur : ils écartent les doublons à la création. */
+type PublicLinks = { website_url?: string | null; instagram_url?: string | null; facebook_url?: string | null };
+
+export type AgentLocation = LocationData & PublicLinks & { is_organizer?: boolean | null };
+export type AgentOrganizer = OrganizerOption & PublicLinks;
+/** Salle d'un lieu : une séance peut y être rattachée (events.room_id). */
+export type AgentRoom = { id: string; name: string; location_id: string };
+
 export type AgentReferences = {
-  locations: LocationData[];
-  organizers: OrganizerOption[];
+  locations: AgentLocation[];
+  organizers: AgentOrganizer[];
+  rooms: AgentRoom[];
   artists: ArtistOption[];
   tags: TagOption[];
   categories: CategoryOption[];
@@ -47,17 +56,24 @@ export function hasTimeLeft(ctx: AgentContext, marginMs = 0) {
 }
 
 async function fetchReferences(supabase: SupabaseClient): Promise<AgentReferences> {
-  const [locationsRes, organizersRes, organizerLocationsRes, artistsRes, tagsRes, categoriesRes] = await Promise.all([
+  const [locationsRes, organizersRes, organizerLocationsRes, roomsRes, artistsRes, tagsRes, categoriesRes] = await Promise.all([
     supabase
       .from("locations")
-      .select("id, name, address, capacity, latitude, longitude, city_id, city:cities(id, label)"),
-    supabase.from("organizers").select("id, name, instagram_url, facebook_url").order("name"),
-    supabase.from("locations").select("id, name, instagram_url, facebook_url").eq("is_organizer", true).order("name"),
+      .select(
+        "id, name, address, capacity, latitude, longitude, city_id, city:cities(id, label), website_url, instagram_url, facebook_url, is_organizer",
+      ),
+    supabase.from("organizers").select("id, name, instagram_url, facebook_url, website_url").order("name"),
+    supabase
+      .from("locations")
+      .select("id, name, instagram_url, facebook_url, website_url")
+      .eq("is_organizer", true)
+      .order("name"),
+    supabase.from("rooms").select("id, name, location_id").order("name"),
     supabase.from("artists").select("id, name, slug, image_url, origin_city, instagram_url").order("name"),
     supabase.from("tags").select("id, name").order("name"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("name"),
   ]);
-  for (const result of [locationsRes, organizersRes, organizerLocationsRes, artistsRes, tagsRes, categoriesRes]) {
+  for (const result of [locationsRes, organizersRes, organizerLocationsRes, roomsRes, artistsRes, tagsRes, categoriesRes]) {
     if (result.error) throw result.error;
   }
 
@@ -65,18 +81,19 @@ async function fetchReferences(supabase: SupabaseClient): Promise<AgentReference
     locations: ((locationsRes.data || []) as any[]).map((location) => ({
       ...location,
       city: Array.isArray(location.city) ? (location.city[0] ?? null) : (location.city ?? null),
-    })) as LocationData[],
+    })) as AgentLocation[],
     organizers: [
       ...((organizersRes.data || []) as any[]).map((row) => ({ ...row, type: "organizer" as const })),
       ...((organizerLocationsRes.data || []) as any[]).map((row) => ({ ...row, type: "location" as const })),
     ],
+    rooms: (roomsRes.data || []) as AgentRoom[],
     artists: (artistsRes.data || []) as ArtistOption[],
     tags: (tagsRes.data || []) as TagOption[],
     categories: (categoriesRes.data || []) as CategoryOption[],
   };
 }
 
-/** Référentiels chargés une fois par appel d'outil (et rechargés après création d'artistes). */
+/** Référentiels chargés une fois par appel d'outil (rechargés après une création : artiste, lieu, organisateur, salle). */
 export function loadAgentReferences(ctx: AgentContext) {
   if (!ctx.references) {
     ctx.references = fetchReferences(ctx.supabase).catch((error) => {

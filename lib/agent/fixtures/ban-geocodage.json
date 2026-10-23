@@ -1,0 +1,541 @@
+{
+  "119 rue de Bourgogne, 45000 Orléans": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.913223,
+            47.900413
+          ]
+        },
+        "properties": {
+          "label": "119 Rue de Bourgogne 45000 Orléans",
+          "score": 0.9842079403520048,
+          "housenumber": "119",
+          "name": "119 Rue de Bourgogne",
+          "postcode": "45000",
+          "citycode": "45234",
+          "city": "Orléans",
+          "type": "housenumber",
+          "street": "Rue de Bourgogne"
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.927727,
+            47.914504
+          ]
+        },
+        "properties": {
+          "label": "119 Rue de l'Argonne 45000 Orléans",
+          "score": 0.6670601250680807,
+          "housenumber": "119",
+          "name": "119 Rue de l'Argonne",
+          "postcode": "45000",
+          "citycode": "45234",
+          "city": "Orléans",
+          "type": "housenumber",
+          "street": "Rue de l'Argonne"
+        }
+      }
+    ]
+  },
+  "place Sainte-Beuve, 45100 Orléans": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.936918,
+            47.837612
+          ]
+        },
+        "properties": {
+          "label": "Place Sainte-Beuve 45100 Orléans",
+          "score": 0.9669247201127229,
+          "name": "Place Sainte-Beuve",
+          "postcode": "45100",
+          "citycode": "45234",
+          "city": "Orléans",
+          "type": "street",
+          "street": "Place Sainte-Beuve"
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.910135,
+            47.893235
+          ]
+        },
+        "properties": {
+          "label": "Place Hubert Beuve Mery 45100 Orléans",
+          "score": 0.5526294134845837,
+          "name": "Place Hubert Beuve Mery",
+          "postcode": "45100",
+          "citycode": "45234",
+          "city": "Orléans",
+          "type": "street",
+          "street": "Place Hubert Beuve Mery"
+        }
+      }
+    ]
+  },
+  "rue Jean Hupeau, 45000 Orléans": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.904766,
+            47.898333
+          ]
+        },
+        "properties": {
+          "label": "Rue Jean Hupeau 45000 Orléans",
+          "score": 0.9687867788146242,
+          "name": "Rue Jean Hupeau",
+          "postcode": "45000",
+          "citycode": "45234",
+          "city": "Orléans",
+          "type": "street",
+          "street": "Rue Jean Hupeau"
+        }
+      }
+    ]
+  },
+  "14 rue du Grenier à Sel, 45000 Orléans": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.901276,
+            47.90332
+          ]
+        },
+        "properties": {
+          "label": "14 Rue du Grenier à Sel 45000 Orléans",
+          "score": 0.9735580176041003,
+          "housenumber": "14",
+          "name": "14 Rue du Grenier à Sel",
+          "postcode": "45000",
+          "citycode": "45234",
+          "city": "Orléans",
+          "type": "housenumber",
+          "street": "Rue du Grenier à Sel"
+        }
+      }
+    ]
+  },
+  "1 rue Fernand Rabier": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.909805,
+            47.902586
+          ]
+        },
+        "properties": {
+          "label": "1 Rue Fernand Rabier 45000 Orléans",
+          "score": 0.97356991223702,
+          "housenumber": "1",
+          "name": "1 Rue Fernand Rabier",
+          "postcode": "45000",
+          "citycode": "45234",
+          "city": "Orléans",
+          "type": "housenumber",
+          "street": "Rue Fernand Rabier"
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.909392,
+            47.927316
+          ]
+        },
+        "properties": {
+          "label": "Rue Fernand Rabier 45400 Fleury-les-Aubrais",
+          "score": 0.8064534369134343,
+          "name": "Rue Fernand Rabier",
+          "postcode": "45400",
+          "citycode": "45147",
+          "city": "Fleury-les-Aubrais",
+          "type": "street",
+          "street": "Rue Fernand Rabier"
+        }
+      }
+    ]
+  },
+  "108 rue de Bourgogne, 45000 Orléans": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.913759,
+            47.900536
+          ]
+        },
+        "properties": {
+          "label": "108 Rue de Bourgogne 45000 Orléans",
+          "score": 0.9842073548361282,
+          "housenumber": "108",
+          "name": "108 Rue de Bourgogne",
+          "postcode": "45000",
+          "citycode": "45234",
+          "city": "Orléans",
+          "type": "housenumber",
+          "street": "Rue de Bourgogne"
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.930741,
+            47.90299
+          ]
+        },
+        "properties": {
+          "label": "108 Rue du Faubourg de Bourgogne 45000 Orléans",
+          "score": 0.6973908288626467,
+          "housenumber": "108",
+          "name": "108 Rue du Faubourg de Bourgogne",
+          "postcode": "45000",
+          "citycode": "45234",
+          "city": "Orléans",
+          "type": "housenumber",
+          "street": "Rue du Faubourg de Bourgogne"
+        }
+      }
+    ]
+  },
+  "Orléans": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.911358,
+            47.873569
+          ]
+        },
+        "properties": {
+          "label": "Orléans",
+          "score": 0.9603366787941519,
+          "type": "municipality",
+          "name": "Orléans",
+          "postcode": "45000",
+          "citycode": "45234",
+          "city": "Orléans"
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.714198,
+            43.731455
+          ]
+        },
+        "properties": {
+          "label": "Orléans 81500 Lugan",
+          "score": 0.8568316666666667,
+          "type": "locality",
+          "name": "Orléans",
+          "postcode": "81500",
+          "citycode": "81150",
+          "city": "Lugan"
+        }
+      }
+    ]
+  },
+  "144 Ancienne Route de Chartres, 45770 Saran": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.894397,
+            47.933364
+          ]
+        },
+        "properties": {
+          "label": "144 Ancienne Route de Chartres 45770 Saran",
+          "score": 0.9749171639651443,
+          "housenumber": "144",
+          "name": "144 Ancienne Route de Chartres",
+          "postcode": "45770",
+          "citycode": "45302",
+          "city": "Saran",
+          "type": "housenumber",
+          "street": "Ancienne Route de Chartres"
+        }
+      }
+    ]
+  },
+  "Saran": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.875773,
+            47.946923
+          ]
+        },
+        "properties": {
+          "label": "Saran",
+          "score": 0.9517546995258149,
+          "type": "municipality",
+          "name": "Saran",
+          "postcode": "45770",
+          "citycode": "45302",
+          "city": "Saran"
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -1.898751,
+            47.623635
+          ]
+        },
+        "properties": {
+          "label": "Saran 44290 Guémené-Penfao",
+          "score": 0.8690216666666667,
+          "name": "Saran",
+          "postcode": "44290",
+          "citycode": "44067",
+          "city": "Guémené-Penfao",
+          "type": "street",
+          "street": "Saran"
+        }
+      }
+    ]
+  },
+  "1 rue Alexandre Avisse, 45000 ORLEANS": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.893332,
+            47.902855
+          ]
+        },
+        "properties": {
+          "label": "1 Rue Alexandre Avisse 45000 Orléans",
+          "score": 0.9693078433210928,
+          "housenumber": "1",
+          "name": "1 Rue Alexandre Avisse",
+          "postcode": "45000",
+          "citycode": "45234",
+          "city": "Orléans",
+          "type": "housenumber",
+          "street": "Rue Alexandre Avisse"
+        }
+      }
+    ]
+  },
+  "Boulevard Pierre Ségelle, 45000 Orléans": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.914453,
+            47.904523
+          ]
+        },
+        "properties": {
+          "label": "Boulevard Pierre Ségelle 45000 Orléans",
+          "score": 0.9724898372118292,
+          "name": "Boulevard Pierre Ségelle",
+          "postcode": "45000",
+          "citycode": "45234",
+          "city": "Orléans",
+          "type": "street",
+          "street": "Boulevard Pierre Ségelle"
+        }
+      }
+    ]
+  },
+  "Place de la Liberté, 45770 Saran": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.874645,
+            47.951255
+          ]
+        },
+        "properties": {
+          "label": "Place de la Liberté 45770 Saran",
+          "score": 0.954465612802228,
+          "type": "locality",
+          "name": "Place de la Liberté",
+          "postcode": "45770",
+          "citycode": "45302",
+          "city": "Saran"
+        }
+      }
+    ]
+  },
+  "Place du Martroi, 45000 Orléans": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.904469,
+            47.902476
+          ]
+        },
+        "properties": {
+          "label": "Place du Martroi 45000 Orléans",
+          "score": 0.9733722752588994,
+          "name": "Place du Martroi",
+          "postcode": "45000",
+          "citycode": "45234",
+          "city": "Orléans",
+          "type": "street",
+          "street": "Place du Martroi"
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.904101,
+            47.9026
+          ]
+        },
+        "properties": {
+          "label": "Parking Place du Martroi 45000 Orléans",
+          "score": 0.7135741294367138,
+          "type": "locality",
+          "name": "Parking Place du Martroi",
+          "postcode": "45000",
+          "citycode": "45234",
+          "city": "Orléans"
+        }
+      }
+    ]
+  },
+  "1 rue Fernand Rabier, 45000 Orléans": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.909805,
+            47.902586
+          ]
+        },
+        "properties": {
+          "label": "1 Rue Fernand Rabier 45000 Orléans",
+          "score": 0.97356991223702,
+          "housenumber": "1",
+          "name": "1 Rue Fernand Rabier",
+          "postcode": "45000",
+          "citycode": "45234",
+          "city": "Orléans",
+          "type": "housenumber",
+          "street": "Rue Fernand Rabier"
+        }
+      }
+    ]
+  },
+  "Allée Pierre Chevallier, 45160 Olivet": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.90005,
+            47.872453
+          ]
+        },
+        "properties": {
+          "label": "Allée Pierre de Ronsard 45160 Olivet",
+          "score": 0.525177037035393,
+          "name": "Allée Pierre de Ronsard",
+          "postcode": "45160",
+          "citycode": "45232",
+          "city": "Olivet",
+          "type": "street",
+          "street": "Allée Pierre de Ronsard"
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1.909123,
+            47.868122
+          ]
+        },
+        "properties": {
+          "label": "Allée des Pépinières 45160 Olivet",
+          "score": 0.4995494459279845,
+          "name": "Allée des Pépinières",
+          "postcode": "45160",
+          "citycode": "45232",
+          "city": "Olivet",
+          "type": "street",
+          "street": "Allée des Pépinières"
+        }
+      }
+    ]
+  }
+}

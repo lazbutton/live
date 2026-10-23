@@ -26,7 +26,12 @@ export type AgentPass = {
   published: number;
   pending: number;
   artistsCreated: number;
+  locationsCreated: number;
+  organizersCreated: number;
 };
+
+/** Fiches créées par l'agent au fil d'une collecte, en plus des événements. */
+const CREATIONS = ["artist.create", "location.create", "organizer.create"];
 
 export type AgentPublishedEvent = {
   id: string;
@@ -62,6 +67,8 @@ function getLastPass(rows: AgentLogRow[]): AgentPass | null {
     published: pass.filter((row) => eventStatusOf(row) === "approved").length,
     pending: pass.filter((row) => eventStatusOf(row) === "pending").length,
     artistsCreated: pass.filter((row) => row.action === "artist.create").length,
+    locationsCreated: pass.filter((row) => row.action === "location.create").length,
+    organizersCreated: pass.filter((row) => row.action === "organizer.create").length,
   };
 }
 
@@ -71,7 +78,7 @@ export async function fetchAgentActivity(): Promise<AgentActivity> {
       .from("admin_audit_log")
       .select("action, metadata, created_at")
       .eq("actor_email", AGENT_ACTOR)
-      .in("action", ["event.create", "artist.create"])
+      .in("action", ["event.create", ...CREATIONS])
       .order("created_at", { ascending: false })
       .limit(200),
     supabase
@@ -88,7 +95,7 @@ export async function fetchAgentActivity(): Promise<AgentActivity> {
   if (publishedRes.error) throw publishedRes.error;
 
   const rows = ((recentRes.data || []) as AgentLogRow[]).filter((row) => {
-    if (row.action === "artist.create") return true;
+    if (CREATIONS.includes(row.action)) return true;
     const status = eventStatusOf(row);
     return status === "approved" || status === "pending";
   });
