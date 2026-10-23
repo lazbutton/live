@@ -193,8 +193,10 @@ faire lire l'affiche. », comme avant), un compte est lu sans plafond.
   - `data` : champs lus par l'IA, tous facultatifs et éventuellement `null` : `title`,
     `description`, `date`, `end_date`, `category`, `price` et `capacity` (texte ou nombre),
     `door_opening_time`, `external_url`, `external_url_label`, `image_url`, `location`, `address`,
-    `organizer`, `tags` ; d'autres clés peuvent suivre (`is_full`, `presale_price`…).
-    L'app (`ImportedEventPayload.fromJson`) convertit chaque valeur en texte.
+    `organizer`, `tags` ; d'autres clés peuvent suivre (`is_full`, `presale_price`, et depuis les festivals
+    `festival_name`, le festival dont l'événement fait partie, et `festival_venues`, une liste : les lieux
+    que nomme le texte d'un festival). L'app (`ImportedEventPayload.fromJson`) lit les clés qu'elle
+    connaît et convertit chaque valeur en texte ; les autres sont ignorées.
     `date` et `end_date` : heure de Paris sans fuseau (`2026-10-24T20:30:00`), comme les dates que
     l'app envoie. L'assistant la lit telle quelle (`DateTime.tryParse`, 20:30) et la renvoie dans
     `eventData.date` (`…T20:30:00.000`) : l'événement est créé à 20:30. Une date écrite en toutes
@@ -359,6 +361,28 @@ lieux).
   et ses événements chacun par le leur. La liste de l'accueil (`app_events_in_zone`) et les comptes
   (`app_events_in_range`) disent ainsi la même chose ; un événement du festival situé dans la zone y entre de
   toute façon.
+
+Étape 4 (§ 6), migration `20261023160000_add_festival_follows_and_see_also.sql`, tests
+`supabase/tests/festival_follows_see_also.test.sql` ; **pas encore en prod**. Mêmes signatures, rien à changer
+dans l'app pour la lire :
+
+- **`events.festival_added_at`** (instant ou null) : l'instant où l'événement est entré au programme de son
+  festival (rattaché, ou passé à un autre festival) ; null hors festival. Tenue par la base seule (déclencheur,
+  comme `published_at` : une valeur envoyée est ignorée). Sert au message des suivis ; l'app n'a pas à la lire
+  (une colonne de plus pour `select=*`). Micro et Infra, rattachés avant la migration, l'ont nulle.
+- **« À voir aussi »** (`app_see_also`) ne propose plus rien du même festival : sur la fiche d'un événement du
+  festival, ni les autres événements du festival, ni le festival ; sur la fiche du festival, aucun de ses
+  événements (« Au même festival » et le programme les montrent). Deux événements sont du même festival quand
+  leur festival, à défaut eux-mêmes, est le même. `source_events_count` reste le nombre de la page du lieu ou de
+  l'organisateur. Rien ne change pour un événement hors festival.
+- **Un cœur sur un festival** (`event_likes`, sur sa fiche) vaut suivi de son programme : le message des suivis
+  annonce ce qui y entre (« Suivis », plus bas).
+- **La collecte** (admin et agent) lit le nom du festival sur l'affiche ou la page : l'événement est rattaché
+  au festival de ce nom (à défaut, à celui que nomme son titre) quand il est dans l'app et que ses dates couvrent
+  celle de l'événement ; sinon l'équipe est prévenue (« Fait partie d'un festival qui n'est pas dans l'app : … »). Pour un festival, les lieux que nomme
+  son texte deviennent ses lieux. La catégorie Festival (`onSortCategory`, On sort !) ne va qu'à ce qui dure
+  plus d'un jour ; une séance d'un jour rangée en Festival n'est pas un festival pour l'import (rien ne s'y
+  rattache, ses doublons sont repérés comme ceux de tout événement).
 
 ```dart
 final rows = await supabase
@@ -740,6 +764,10 @@ en un appel une fois la fiche affichée.
   série de la fiche : elles sont dans ses puces (« Autres dates »). Un même titre au même lieu à plus de
   7 jours d'écart est une autre série : « La Scène est à toi » de novembre est proposée sur la fiche de
   celle d'avril. Les comptes comptent chaque date.
+- Rien du même festival (migration `20261023160000`, **pas encore en prod**) : ni les autres événements du
+  festival de la fiche, ni le festival lui-même, ni, sur la fiche d'un festival, ses événements ; ils sont
+  dans « Au même festival » et le programme. Un lieu qui n'a d'autres spectacles que ceux du festival passe
+  la main à l'organisateur, comme un lieu sans autre spectacle. Les comptes ne changent pas.
 - « À venir » et filtres par utilisateur : ceux des comptes de la recherche (`app_events_in_range` à
   partir d'aujourd'hui 0 h, expositions en cours comprises, avec `hide_from_home`, sans les événements
   masqués par l'utilisateur ni les auteurs qu'il a bloqués). L'événement de la fiche est lu sous la RLS
@@ -1158,7 +1186,9 @@ Migrations `20261021140000_add_events_published_at.sql`, `20261021141000_create_
 `20261021142000_create_follows_digest.sql` ; tests `supabase/tests/user_follows.test.sql`,
 `supabase/tests/follows_digest.test.sql`, `lib/notifications/follows-digest.test.mjs` et
 `lib/notifications/digest-routes.test.mjs`. U8 de `../live/docs/AMELIORATIONS.md` : suivre un lieu, un
-organisateur ou un artiste, « Mes suivis », la notification qui va avec.
+organisateur ou un artiste, « Mes suivis », la notification qui va avec. Les festivals en favori s'y ajoutent
+avec `20261023160000_add_festival_follows_and_see_also.sql` (tests `supabase/tests/festival_follows_see_also.test.sql`,
+**pas encore en prod**) : un cœur sur un festival vaut suivi de son programme, sans ligne dans `user_follows`.
 
 ### Table `user_follows`
 
@@ -1228,15 +1258,19 @@ publié, un message (`lib/notifications/follows-digest.ts`), au plus un par jour
 de `follows_digest(at_time)` (service role seulement) : les événements visibles, pas complets, pas
 terminés, publiés depuis le dernier message des suivis envoyé (`notification_logs.covered_until`, l'instant
 du calcul ; un envoi qui échoue ne compte pas), depuis le début du suivi et depuis au plus 7 jours, sans
-les masqués de la personne ni ses auteurs bloqués.
+les masqués de la personne ni ses auteurs bloqués. Pour un festival en favori (un cœur, `event_likes`, sur la
+fiche d'un festival visible), les événements entrés à son programme : un événement y entre quand il est à la
+fois rattaché et publié (le plus tard de `events.festival_added_at` et `published_at`), depuis le cœur, le
+dernier message et au plus 7 jours, avec les mêmes règles. Un événement entré au programme avant le cœur n'est pas
+annoncé ; un événement à la fois au programme et chez un suivi compte une fois.
 
 Envoyé si `user_notification_preferences.is_enabled` (l'interrupteur général) et `follows_enabled`
 (« Mes suivis », vrai par défaut) ; sans préférences en base, rien. Ni e-mail ni donnée personnelle : les
-noms sont ceux des lieux, organisateurs et artistes.
+noms sont ceux des lieux, organisateurs, artistes et festivals.
 
 | Cas | Titre | Corps |
 | --- | --- | --- |
-| une seule cible a publié | « 2 nouveaux événements chez L’Astrolabe » ; artiste : « 1 nouvel événement avec Youn Sun Nah » | les deux premiers titres, puis « et 1 autre » |
+| une seule cible a publié | « 2 nouveaux événements chez L’Astrolabe » ; artiste : « 1 nouvel événement avec Youn Sun Nah » ; festival : « Fulgurances Électroniques #2 : 2 événements ajoutés au programme » (« 1 événement ajouté ») | les deux premiers titres, puis « et 1 autre » |
 | plusieurs | « 3 nouveaux événements chez tes suivis » | idem |
 
 Données (FCM : en texte, une liste y devient `"a,b"` ; APNs : en JSON, à côté de `aps`) :
@@ -1248,10 +1282,12 @@ Données (FCM : en texte, une liste y devient `"a,b"` ; APNs : en JSON, à côt�
 | `event_ids` | les 10 premiers, par date |
 | `events_count` | le nombre d'événements du message |
 | `follows_count` | le nombre de cibles suivies qui ont publié |
-| `target_type`, `target_id` | la cible, quand elle est seule (sinon absents) |
+| `target_type`, `target_id` | la cible, quand elle est seule (sinon absents) ; `festival` : l'id de la fiche du festival (un événement) |
 
 Toucher, dans l'app : la page de la cible quand elle est seule (`target_type`, `target_id`), sinon
-l'onglet Favoris (« Mes suivis »).
+l'onglet Favoris (« Mes suivis »). `target_type` `festival` : la fiche du festival
+(`com.lazbutton.live://event/<id>`) ; les versions qui ne connaissent pas ce type (`FollowTargetType.fromValue`
+rend `null`) ouvrent l'onglet Favoris.
 
 ## Incohérences relevées, non corrigées
 

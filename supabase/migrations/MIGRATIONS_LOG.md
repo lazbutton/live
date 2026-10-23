@@ -879,3 +879,53 @@
   Dropkick, `events!festival_id(…)` Micro puis Infra, `festival_locations(…)` dans l'ordre ; le festival dans
   `rpc/app_events_in_zone('orleans', 25)`. Temps serveur (`x-envoy-upstream-service-time`, 7 appels) :
   `rpc/app_festival_events` 3 à 23 ms, les 391 cartes de l'accueil 39 à 69 ms.
+
+## 2026-10-23 — Festivals, étape 4 : le programme dans le message des suivis, « À voir aussi » sans le même festival
+
+- `20261023160000_add_festival_follows_and_see_also` : étape 4 du § 6 de `../live/docs/FESTIVALS.md` (§ 3,
+  « Favoris et notifications », et § 5). Contrat : `docs/API_APP.md`, « Festivals », « Suivis » et « À voir aussi ».
+  Prérequis : `20261023120000_create_festivals` (en prod). Mêmes signatures : rien ne change pour les appelants.
+  - `events.festival_added_at` : l'instant où l'événement est entré au programme de son festival (rattaché, ou
+    passé à un autre festival), null hors festival ; tenue par `set_event_festival_added_at()` (déclencheur
+    `BEFORE INSERT OR UPDATE OF festival_id, festival_added_at`, comme `published_at` : une valeur envoyée est
+    ignorée). Pas de reprise : Micro et Infra, rattachés le 23/10, la gardent nulle (leur entrée compte à leur
+    publication, aucun message ne les annonce après coup).
+  - `follows_digest(at_time)` : en plus des lieux, organisateurs et artistes suivis, les festivals en favori
+    (`event_likes` sur la fiche d'un festival visible) ; lignes `target_type` `festival`, `target_id` le festival,
+    `target_name` son titre. Un événement entre au programme quand il est rattaché et publié
+    (`greatest(festival_added_at, published_at)`), dans la fenêtre des suivis (depuis le cœur, le dernier message,
+    au plus 7 jours), avec leurs règles (visible, pas complet, pas terminé, ni masqué ni d'un auteur bloqué).
+    Toujours réservée au service role. Titre (`lib/notifications/follows-digest.ts`) : « Fulgurances
+    Électroniques #2 : 2 événements ajoutés au programme ».
+  - `app_see_also(…)` : rien du même festival (`coalesce(festival_id, id)` égal) dans les deux rangées, ni dans le
+    choix de la source (un lieu qui n'a que des événements du festival passe la main à l'organisateur) ;
+    `source_events_count` reste celui de la page. Reprise de la définition de `20261021220000` (la zone).
+- Testée par `npm run db:test` (Docker) : `supabase/tests/festival_follows_see_also.test.sql`, 13 cas
+  (`festival_added_at` à l'insertion, valeur envoyée ignorée, même festival, changement, détachement et festival
+  supprimé ; message : fenêtre, cœur, dernier message, 7 jours, complet, fini, masqué, bloqué, festival en
+  attente, cœur sur un événement qui n'est pas un festival, un événement au programme et dans un lieu suivi (deux
+  lignes, que le message compte une fois), festival retiré (le lieu suivi reste) ; « À voir aussi » : un
+  événement du festival, le festival, hors festival, une source qui n'a que le festival) ; 19 règles faussées à
+  tour de rôle, 18 repérées (la 19e, le filtre des 7 jours d'`ajouts`, double celui du cœur et ne sert qu'à lire
+  moins de lignes). Les 25 fichiers de `supabase/tests` passent (421 cas).
+  `lib/supabase/database.types.ts` régénéré (`npm run db:types`).
+- Essayée sur une pile Supabase locale (base, auth, PostgREST) avec toutes les migrations et Fulgurances :
+  `create_event` de l'agent (rattaché par le nom, par le titre, festival absent, hors dates, un festival et ses
+  lieux, un événement du festival créé juste avant, doublons de Micro et du festival), l'import par lot de l'admin
+  connecté en admin (rattachement, lieux du festival sous la RLS), le message des suivis d'un festival en favori
+  (« Fulgurances Électroniques #2 : 2 événements ajoutés au programme ») et `rpc/app_see_also` en anon.
+- Répétée en prod le 23/10/2026 dans une transaction annulée (psql `--single-transaction`, `SET ROLE postgres`,
+  `lock_timeout` 5 s, accès par `supabase db dump --linked --dry-run`, le fichier de la branche) :
+  - avant : ni la colonne ni la fonction du déclencheur ; `follows_digest` et `app_see_also` identiques à
+    `20261021142000` et `20261021220000` (md5 de `prosrc`) ; Micro et Infra rattachés, publiés le 18/10 ; aucun
+    cœur sur le festival ; `follows_digest()` vide à cet instant ;
+  - migration sans erreur, ~50 ms par instruction (latence réseau), ~0,7 s en tout ; après : la colonne, aucune
+    date posée, le déclencheur actif ; `follows_digest` exécutable par le service role seulement, `app_see_also`
+    par anon ; les deux corps sont ceux du fichier ;
+  - « À voir aussi » en anon sur 33 fiches (les 30 prochaines de la zone d'Orléans, le festival, Micro, Infra) :
+    les 31 hors festival à l'identique ; le festival perd Micro (4 → 3 lignes), Micro perd le festival (2 → 1) ;
+    Infra inchangée (rien du festival au 108). `follows_digest()` : mêmes lignes (aucune), aucune de festival ;
+  - EXPLAIN ANALYZE : `app_see_also` (Micro, anon) 12,2 ms avant, 12,3 ms après ; `follows_digest()` (service
+    role) 7,6 ms avant, 8,7 ms après ;
+  - `events` verrouillée ~2,2 s, de la migration à l'annulation (vérifications comprises) ; rien n'est resté.
+- **Pas encore appliquée en prod** : attend l'accord de l'utilisateur.
