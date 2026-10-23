@@ -388,11 +388,11 @@ lieux).
   « Festival » comprise), rien n'est retiré. Les listes (`app_events_in_range`, `app_events_in_zone`) gardent la
   fiche. Mêmes signatures.
 - **Les nombres des pages de lieu, d'organisateur et d'artiste** (migration
-  `20261023190000_count_festival_frames_on_pages.sql`, tests `supabase/tests/festival_page_counts.test.sql`, **pas
-  encore en prod**) : comme ces pages dans l'app (étape 5, `PlaceFestivals.withoutFrames`), qui montrent leurs
-  festivals dans une section « Festivals » et les retirent de leur liste, une page ne compte pas la fiche d'un
-  festival qui a un programme, ni, sur la page d'un lieu, celle d'un festival dont ce lieu est un des lieux
-  (`festival_locations`), même sans programme. `app_organizer_counts`, les lieux et organisateurs
+  `20261023190000_count_festival_frames_on_pages.sql`, tests `supabase/tests/festival_page_counts.test.sql`, en
+  prod depuis le 2026-10-23 à 16:45) : comme ces pages dans l'app (étape 5, `PlaceFestivals.withoutFrames`), qui
+  montrent leurs festivals dans une section « Festivals » et les retirent de leur liste, une page ne compte pas la
+  fiche d'un festival qui a un programme, ni, sur la page d'un lieu, celle d'un festival dont ce lieu est un des
+  lieux (`festival_locations`), même sans programme. `app_organizer_counts`, les lieux et organisateurs
   d'`app_search_names`, `source_events_count` d'`app_see_also` et les nombres d'`app_follows` (lieu, organisateur,
   artiste). Les tags et les catégories ne changent pas : leurs listes, ouvertes depuis la recherche, gardent la
   fiche ; `app_search` non plus (l'app met le festival en tête de ses résultats). Mêmes signatures.

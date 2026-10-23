@@ -1102,3 +1102,8 @@
   Dropkick 3 → 2 et Clair Obscure 4 → 3, Le 108 (12) et L'Astrolabe (21) inchangés ; `app_search_names`
   « dropkick » 3 → 2, « clair obscure » 4 → 3 ; `app_see_also` de Micro, source Dropkick 3 → 2 : comme la
   répétition.
+- Réappliquée à l'identique à 16:47 (14:47 UTC) par la session de live-admin, qui avait reçu le même accord sans
+  savoir l'application de 16:45 faite (le même fichier, au commit `51be8c8`) : sans effet, les quatre corps sont
+  restés ceux du fichier, avec les mêmes droits (anon appelle les trois premières, `app_follows` réservée aux
+  comptes). En anon après : Dropkick 2, Clair Obscure 3, Le 108 12, L'Astrolabe 21, dans les pages, la recherche et
+  « À voir aussi », comme à 16:46.
