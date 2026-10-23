@@ -920,6 +920,32 @@
   `select count(*), count(*) filter (where last_episode_at > now() - interval '45 days') from public.radio_shows;`
   (91 et 47 le 2026-10-23). `enabled` reste à faux jusqu'à l'accord écrit de la radio.
 
+## 2026-10-23 — Le rôle admin dans `raw_app_meta_data` (escalade corrigée)
+
+- `20261023150000_admin_role_in_app_metadata` (PR #54) : le rôle admin quitte `raw_user_meta_data`, que
+  l'utilisateur écrit lui-même (`updateUser`, inscription), pour `raw_app_meta_data`, écrit par le service seul.
+  `is_user_admin()` et `make_user_admin()` y lisent et y écrivent ; un trigger sur `auth.users` efface toute clé
+  `role` de `raw_user_meta_data` ; la policy du journal d'`organizer_audit_log` passe par `is_user_admin()`. Le code
+  TypeScript (#54) et l'app (live#170) lisent `app_metadata` seulement.
+- Fusionnée sans être appliquée : jusqu'à l'application, plus personne n'était admin pour le back-office déployé et
+  l'app (rôle encore dans `user_metadata` seulement), et l'escalade restait ouverte en SQL. Quelques minutes avant,
+  avec l'accord de l'utilisateur, `lazbutton@gmail.com` avait reçu le rôle dans `raw_app_meta_data` à la main (une
+  ligne, répétée annulée d'abord) ; l'étape 1 du fichier, une fusion, n'y change rien.
+- Répétée en prod le 23/10/2026 dans une transaction annulée (psql, `SET LOCAL ROLE postgres`, le fichier de
+  `origin/main` au commit `4c9ee30`) :
+  - avant : 3 comptes avec `role = admin` dans `raw_user_meta_data` (`lazbutton@gmail.com`, `test@admin.com`, un
+    compte Apple en relais privé), aucun ailleurs ; seuls lecteurs du rôle en clair : `is_user_admin()` et la policy
+    d'`organizer_audit_log` ; pas de trigger ;
+  - migration sans erreur (`UPDATE 3`, `UPDATE 3`) ; après : les 3 comptes admin dans `raw_app_meta_data`, plus
+    aucun `role` dans `raw_user_meta_data`, les deux fonctions lisent `raw_app_meta_data`, le trigger posé, plus
+    aucun lecteur du rôle en clair ; un `role` écrit dans le `raw_user_meta_data` de `test@admin.com` est effacé
+    par le trigger ; en `authenticated`, `is_user_admin()` vrai pour un admin, faux pour un compte ordinaire.
+- **Appliquée en prod le 23/10/2026 à 16:44 (14:44 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`), sans erreur. Vérifiée en lecture seule : mêmes résultats que la
+  répétition (3 admins dans `raw_app_meta_data`, aucun `role` dans `raw_user_meta_data`, trigger et fonctions en
+  place, `is_user_admin()` vrai pour `lazbutton@gmail.com`). Une session ouverte avant garde l'ancien `app_metadata`
+  dans son jeton jusqu'au rafraîchissement : l'app ne revoit l'admin qu'après (ou après une reconnexion).
+
 ## 2026-10-23 — Festivals, étape 4 : le programme dans le message des suivis, « À voir aussi » sans le même festival
 
 - `20261023160000_add_festival_follows_and_see_also` : étape 4 du § 6 de `../live/docs/FESTIVALS.md` (§ 3,
@@ -1060,9 +1086,52 @@
   `rpc/app_audience_add` répond 200 (un jour hors fenêtre : 0, rien d'écrit). Totaux inchangés (49, 2, 1). La Radio
   (`20261023142000`) n'est toujours pas en prod : appliquée plus tard, elle garde la même liste.
 
+## 2026-10-23 — Festivals : les nombres des pages de lieu, d'organisateur et d'artiste
+
+- `20261023190000_count_festival_frames_on_pages` : demandé par la session de coordination pour l'étape 5 de l'app
+  (PR lazbutton/live-app#171). Ces pages montrent leurs festivals dans une section « Festivals » et en retirent les
+  fiches de leur liste (`PlaceFestivals.withoutFrames`, `FestivalsRepository.festivalsOfPage`) ; les nombres lus en
+  SQL pour elles comptaient encore la fiche (U3). Contrat : `docs/API_APP.md`, « Festivals ».
+  - La règle, celle de l'app : une page ne compte pas la fiche d'un festival qui a un programme
+    (`app_festival_events` pour l'utilisateur) ni, sur la page d'un lieu, celle d'un festival dont ce lieu est un des
+    lieux (`festival_locations`), même sans programme. Ses autres événements comptent.
+  - `app_organizer_counts`, `app_search_names` (lieux et organisateurs ; un nom qui n'a plus rien n'est pas
+    proposé, comme avant ; catégories et tags inchangés : leurs listes gardent la fiche), `source_events_count`
+    d'`app_see_also` (les rangées ne changent pas), `upcoming_count` et `new_count` d'`app_follows` (lieu,
+    organisateur, artiste). Reprises de leurs dernières définitions (`20261021220000`, `20261023160000`,
+    `20261021141000`), mêmes signatures.
+- Testée par `npm run db:test` (Docker) : `supabase/tests/festival_page_counts.test.sql`, 8 cas (l'index ; les
+  pages de cinq lieux et d'un organisateur ; la recherche, tag compris ; « À voir aussi » ; « Mes suivis » ; un
+  utilisateur qui a masqué tout le programme : pages, recherche, suivis) ; 11 règles faussées à tour de rôle, toutes
+  repérées. `festival_follows_see_also.test.sql` : le nombre du Dropkick passe de 4 à 3 (la fiche de son festival,
+  voulu). Les 29 fichiers de `supabase/tests` passent (498 cas). `lib/supabase/database.types.ts` inchangé.
+- Répétée en prod le 23/10/2026 dans une transaction annulée (psql `--single-transaction`, `SET ROLE postgres`,
+  `lock_timeout` 5 s, le fichier de la branche ; aucune table verrouillée, la migration ne remplace que des
+  fonctions) :
+  - avant : les quatre fonctions identiques à leurs dernières migrations (md5 de `prosrc`) ; une seule fiche a des
+    lieux ou un programme, Fulgurances Électroniques #2 (lieux Dropkick, Le 108, L'Astrolabe ; organisée par le
+    Dropkick et Clair Obscure) ;
+  - migration sans erreur (13 instructions, 24 à 109 ms chacune, latence réseau comprise) ; les corps sont ceux du
+    fichier ; anon appelle les trois premières, `app_follows` reste réservée aux comptes ;
+  - en anon, avant → après : sur les 137 lieux et organisateurs, seuls le Dropkick (3 → 2) et Clair Obscure (4 → 3)
+    changent ; dans 8 recherches (20 noms), seul le Dropkick (3 → 2) ; « À voir aussi » de 43 fiches, seule la
+    source Dropkick de la fiche du festival et de Micro (3 → 2) ; Le 108 et L'Astrolabe inchangés (la fiche n'est
+    pas sur leur page) ;
+  - coût (EXPLAIN ANALYZE) : exécution +0 à 2,5 ms (`app_organizer_counts` 3,1 → 4,2 ms, `app_search_names` 10,8 →
+    13,3, `app_see_also` 13,9 → 13,8, `app_follows` 0,5 → 1,6) ; planification +17 à 20 ms tant que le plan n'est
+    pas en cache (la sous-requête d'`app_festival_events`, comme `20261023170000`), effacée par les requêtes
+    préparées de PostgREST ;
+  - rien n'est resté (les quatre corps comme avant l'essai).
+- **Appliquée en prod le 23/10/2026 à 16:45 (14:45 UTC)**, avec l'accord de l'utilisateur, par la session de
+  coordination (psql `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche,
+  sha256 `cab5a8f2…`), sans erreur. Après : les quatre corps identiques au fichier ; en anon, `app_organizer_counts`
+  Dropkick 3 → 2 et Clair Obscure 4 → 3, Le 108 (12) et L'Astrolabe (21) inchangés ; `app_search_names`
+  « dropkick » 3 → 2, « clair obscure » 4 → 3 ; `app_see_also` de Micro, source Dropkick 3 → 2 : comme la
+  répétition.
+
 ## 2026-10-23 — Suspension UGC dans `raw_app_meta_data` (escalade corrigée)
 
-- `20261023190000_ugc_suspension_in_app_metadata` : même faille que le rôle admin (migration
+- `20261023230000_ugc_suspension_in_app_metadata` : même faille que le rôle admin (migration
   `20261023150000`, en prod), mais sur `ugc_suspended`. La suspension d'un compte pour le contenu
   communautaire était lue dans `raw_user_meta_data->>'ugc_suspended'` (`is_user_safety_suspended()`, qui
   alimente `can_use_ugc_features()` et les policies RLS d'`events` ; `lib/mobile-user-auth.ts`). Or
@@ -1075,7 +1144,8 @@
   (BEFORE INSERT/UPDATE OF raw_user_meta_data sur `auth.users`) qui efface ces clés de user_metadata à chaque
   écriture. `ugc_terms_accepted_version` et le reste de user_metadata (nom, etc.) sont intacts.
 - Trigger et fonction distincts de ceux du rôle admin (`strip_role_from_user_metadata`) : indépendants ;
-  les deux garde-fous pourront être fusionnés plus tard.
+  les deux garde-fous pourront être fusionnés plus tard. Numéro `20261023230000` : 160000/180000/190000
+  étaient pris par des migrations festivals déjà en prod.
 - Côté TypeScript (même PR, par-dessus la PR du rôle) : lecture (`lib/mobile-user-auth.ts`,
   `/api/admin/users/list`) et écriture (`/api/admin/users/[id]`, `/api/admin/moderation/reports/[id]` :
   rôle ET suspension dans app_metadata) passées à `app_metadata`.

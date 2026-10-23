@@ -130,7 +130,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       }
 
       // La suspension UGC vit dans app_metadata (écrit par le service seul), pas dans user_metadata
-      // que l'utilisateur peut modifier lui-même (migration 20261023190000).
+      // que l'utilisateur peut modifier lui-même (migration 20261023230000).
       const currentMetadata = reportedUser.user.app_metadata || {};
       const updatedMetadata: Record<string, unknown> = { ...currentMetadata };
 

@@ -40,7 +40,7 @@ export async function PATCH(
     }
 
     // Le rôle et la suspension UGC vivent dans app_metadata (modifiable par le service seulement,
-    // cf. migrations 20261023150000 et 20261023190000) ; le reste (nom, conditions) dans user_metadata.
+    // cf. migrations 20261023150000 et 20261023230000) ; le reste (nom, conditions) dans user_metadata.
     const updatedUserMetadata = { ...(currentUser.user.user_metadata || {}) };
     const updatedAppMetadata: Record<string, unknown> = {
       ...(currentUser.user.app_metadata || {}),

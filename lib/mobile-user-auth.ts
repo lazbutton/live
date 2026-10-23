@@ -106,7 +106,7 @@ export async function requireMobileUserAuth(
   }
 
   // La suspension vit dans app_metadata (écrit par le service seul) : un compte suspendu ne peut
-  // pas la lever lui-même via updateUser (migration 20261023190000).
+  // pas la lever lui-même via updateUser (migration 20261023230000).
   if (isTruthy(user.app_metadata?.ugc_suspended)) {
     return suspendedResponse();
   }

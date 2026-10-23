@@ -135,7 +135,7 @@ INSERT INTO auth.users (id, email, is_anonymous, raw_user_meta_data) VALUES
 UPDATE auth.users SET raw_app_meta_data = '{"role":"admin"}'::jsonb
 WHERE id = 'e7a00000-0000-4000-8000-000000000001';
 
--- La suspension UGC vit dans app_metadata (migration 20261023190000), pas dans user_metadata (que
+-- La suspension UGC vit dans app_metadata (migration 20261023230000), pas dans user_metadata (que
 -- l'utilisateur modifie ; le trigger y retire ugc_suspended). u09 est donc suspendu via app_meta.
 UPDATE auth.users SET raw_app_meta_data = '{"ugc_suspended":"true"}'::jsonb
 WHERE id = 'e7a00000-0000-4000-8000-000000000009';

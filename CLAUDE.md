@@ -47,7 +47,9 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   `festival_locations` (le premier est le `location_id` de la fiche ; clé `id`, jamais `(festival_id,
   location_id)`, qui rendrait ambigus les `locations(…)` embarqués depuis `events`). `app_festival_events()` pour
   l'accueil de l'app ; sur « Tout », la fiche d'un festival qui y a un programme ne compte pas dans les nombres
-  (`app_event_counts`, `app_zone_counts`, `app_cities`), ses événements si. Dans l'admin, le formulaire d'un
+  (`app_event_counts`, `app_zone_counts`, `app_cities`), ses événements si ; pas plus que sur les pages de lieu,
+  d'organisateur et d'artiste (`app_organizer_counts`, `app_search_names`, `app_see_also`, `app_follows` ; un lieu
+  ne compte pas non plus la fiche d'un festival dont il est un des lieux). Dans l'admin, le formulaire d'un
   événement (`event-festival-sections.tsx`, règles dans `lib/events/festivals.ts`) ; à l'import, le festival
   nommé est rattaché (`findFestivalForImport`). Les Multi-événements (`major_events`) sont abandonnés.
 - Analyse d'affiche de l'app (`/api/mobile/events/extract-from-image`) : ouverte aux sessions invitées, plafonnée
