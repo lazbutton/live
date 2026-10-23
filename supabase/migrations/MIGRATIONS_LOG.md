@@ -1096,4 +1096,9 @@
     pas en cache (la sous-requête d'`app_festival_events`, comme `20261023170000`), effacée par les requêtes
     préparées de PostgREST ;
   - rien n'est resté (les quatre corps comme avant l'essai).
-- **Pas encore appliquée en prod** : attend l'accord de l'utilisateur.
+- **Appliquée en prod le 23/10/2026 à 16:45 (14:45 UTC)**, avec l'accord de l'utilisateur, par la session de
+  coordination (psql `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche,
+  sha256 `cab5a8f2…`), sans erreur. Après : les quatre corps identiques au fichier ; en anon, `app_organizer_counts`
+  Dropkick 3 → 2 et Clair Obscure 4 → 3, Le 108 (12) et L'Astrolabe (21) inchangés ; `app_search_names`
+  « dropkick » 3 → 2, « clair obscure » 4 → 3 ; `app_see_also` de Micro, source Dropkick 3 → 2 : comme la
+  répétition.
