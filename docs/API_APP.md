@@ -318,7 +318,7 @@ seule règle en SQL pour la liste, les comptes, la recherche, la carte et « À 
 | --- | --- | --- |
 | `app_events_in_zone(zone_city, zone_km)` | `rpc('app_events_in_zone', params: …, get: true)` + filtres, `select`, tri | lignes de `events` dans la zone, toutes dates (`setof events`, comme `app_events()`) |
 | `app_major_events_in_zone(zone_city, zone_km)` | `rpc('app_major_events_in_zone', params: …, get: true)` + `eq('status', 'approved')`, `select`, tri | grands événements de la zone : leur ville ou leur centre sur la carte, l'un de leurs lieux ou de leurs événements |
-| `app_zone_counts(zone_city, radii, at_time)` | `rpc('app_zone_counts', params: {'zone_city': …, 'radii': [5, 10, 25, 50]}, get: true)` | une ligne par rayon, dans l'ordre : `radius_km`, `events_count` (à venir comme l'accueil sur « Tout » : à partir d'aujourd'hui, sans `hide_from_home`) |
+| `app_zone_counts(zone_city, radii, at_time)` | `rpc('app_zone_counts', params: {'zone_city': …, 'radii': [5, 10, 25, 50]}, get: true)` | une ligne par rayon, dans l'ordre : `radius_km`, `events_count` (à venir comme l'accueil sur « Tout » : à partir d'aujourd'hui, sans `hide_from_home`, sans la fiche d'un festival qui a un programme, migration `20261023170000`) |
 | `app_cities(at_time)` | `rpc('app_cities', get: true)` + `select(…)` | les villes qui ont un centre et des événements : `id`, `slug`, `label`, centre, alias, `source_ids`, `upcoming_events_count` (comme `app_zone_counts`), `recent_events_count` (commencés dans les 120 derniers jours), `next_event_date`, `last_event_date` |
 | `app_zone(zone_city, zone_km)`, `app_in_zone(…)`, `app_city_groups()`, `app_distance_km(…)` | aucun | la règle, partagée par les fonctions ci-dessus |
 
@@ -377,6 +377,17 @@ dans l'app pour la lire :
   l'organisateur. Rien ne change pour un événement hors festival.
 - **Un cœur sur un festival** (`event_likes`, sur sa fiche) vaut suivi de son programme : le message des suivis
   annonce ce qui y entre (« Suivis », plus bas).
+- **Les nombres sur « Tout »** (migration `20261023170000_count_festival_programmes.sql`, tests
+  `supabase/tests/festival_counts.test.sql`, **pas encore en prod**) : comme l'accueil de l'app
+  (`EventsListPageData.build` : un festival y est une carte, ses événements dedans), la fiche d'un festival qui a
+  un programme, c'est-à-dire au moins une ligne dans `app_festival_events` pour l'utilisateur, ne compte pas ; ses
+  événements comptent, chacun à sa date. Une fiche sans programme compte comme avant. `app_event_counts` sur
+  « Tout » (category vide : calendrier « Quand ? », points de densité, raccourcis, suite d'une liste courte,
+  « Élargir »), `app_zone_counts` et `upcoming_events_count` d'`app_cities` ; sur une page de catégorie (la page
+  « Festival » comprise), rien n'est retiré. Les listes (`app_events_in_range`, `app_events_in_zone`) gardent la
+  fiche. Pas encore touchés : les comptes d'un lieu, d'un organisateur, d'un tag, de la recherche
+  (`app_organizer_counts`, `app_tag_counts`, `app_search_names`), où l'app ne regroupe pas encore les
+  festivals. Mêmes signatures.
 - **La collecte** (admin et agent) lit le nom du festival sur l'affiche ou la page : l'événement est rattaché
   au festival de ce nom (à défaut, à celui que nomme son titre) quand il est dans l'app et que ses dates couvrent
   celle de l'événement ; sinon l'équipe est prévenue (« Fait partie d'un festival qui n'est pas dans l'app : … »). Pour un festival, les lieux que nomme
@@ -496,7 +507,8 @@ sont ignorées. Une ligne par plage, dans l'ordre reçu, même vide (0) ; `range
 - `events_count` : les événements de la plage selon la règle ci-dessus, chacun une fois (un
   week-end compte une fois l'exposition qui le couvre), sans `hide_from_home` sur Tout. C'est le
   nombre de lignes que rend `app_events_in_range` pour la même plage (avec `hide_from_home=is.false`
-  sur Tout) : le « Voir les N événements » d'une liste qui montre aussi les expositions en cours.
+  sur Tout) : le « Voir les N événements » d'une liste qui montre aussi les expositions en cours. Sur
+  Tout, la fiche d'un festival qui a un programme ne compte pas (migration `20261023170000`, « Festivals »).
 - `starting_count` : ceux qui commencent dans la plage (règle 1 seule). Ce sont les comptes des
   maquettes ; la liste correspondante ajoute le filtre `date >= début`.
 

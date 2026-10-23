@@ -929,3 +929,45 @@
     role) 7,6 ms avant, 8,7 ms après ;
   - `events` verrouillée ~2,2 s, de la migration à l'annulation (vérifications comprises) ; rien n'est resté.
 - **Pas encore appliquée en prod** : attend l'accord de l'utilisateur.
+
+## 2026-10-23 — Festivals : sur « Tout », un festival qui a un programme compte par ses événements
+
+- `20261023170000_count_festival_programmes` : demandé par la session de coordination pour l'accueil de l'app
+  (étape 3, PR lazbutton/live-app#168). Un festival y est une carte, ses événements dedans, et les nombres de la
+  page comptent ses événements, pas sa fiche en plus (`EventsListPageData.build`) ; les nombres lus en SQL
+  comptaient la fiche, un de trop chaque jour du festival (U3). Contrat : `docs/API_APP.md`, « Festivals ».
+  - La règle, celle de l'app : une fiche ne compte pas quand `app_festival_events(at_time)` a au moins une ligne
+    pour elle (un événement à venir rattaché, visible pour l'utilisateur, retiré de l'accueil compris) ; une fiche
+    sans programme compte comme avant ; seulement sur « Tout », pas sur une page de catégorie (la page « Festival »
+    montre les festivals). La catégorie de la fiche n'est pas regardée, comme dans l'app.
+  - `app_event_counts` (sur « Tout » : category vide), `app_zone_counts`, `app_cities` (`upcoming_events_count`
+    seulement : une ville qui n'a que des fiches à venir reste dans la liste, la prochaine date et les récents ne
+    changent pas). Reprises de `20261021220000`, mêmes signatures ; les listes et les autres comptes ne changent
+    pas.
+- Testée par `npm run db:test` (Docker) : `supabase/tests/festival_counts.test.sql`, 7 cas (l'index ; « Tout »
+  jour par jour, events_count et starting_count ; la page « Festival » ; une autre catégorie ; un programme tout
+  masqué par l'utilisateur ; `app_zone_counts` ; `app_cities`) ; 8 règles faussées à tour de rôle (la fiche
+  comptée, retirée aussi par catégorie, tout rattachement pris pour un programme, programme sans les événements
+  retirés de l'accueil, la zone, les villes : compte, liste, `a_venir`), toutes repérées. Les 26 fichiers de
+  `supabase/tests` passent (428 cas). `lib/supabase/database.types.ts` inchangé (`npm run db:types`).
+- Répétée en prod le 23/10/2026 dans une transaction annulée (psql `--single-transaction`, `SET ROLE postgres`,
+  `lock_timeout` 5 s, le fichier de la branche ; aucune table verrouillée, la migration ne remplace que des
+  fonctions) :
+  - avant : les trois fonctions identiques à `20261021220000` (md5 de `prosrc`) ; un seul festival a un
+    programme, Fulgurances Électroniques #2 (Micro et Infra) ;
+  - migration sans erreur (9 instructions, 20 à 110 ms chacune, latence réseau comprise) ; les corps sont ceux du
+    fichier, anon les appelle ;
+  - en anon, zone d'Orléans · 25 km, 46 jours à partir d'aujourd'hui et « toutes les dates » : seules 5 plages
+    changent, chacune d'un (la fiche de Fulgurances) : 19/11 6/6 → 5/5, 20/11 10/9 → 9/9, 21/11 12/11 → 11/11,
+    22/11 3/2 → 2/2, toutes les dates 354 → 353 ; pages « Festival » et « Concert » identiques ; la liste
+    (`app_events_in_zone`) 391 comme avant ; `app_zone_counts` 335/354/354/354 → 334/353/353/353 ;
+    `app_cities` : Orléans 207 → 206, les autres villes identiques ;
+  - coût (EXPLAIN ANALYZE, anon) : exécution d'`app_event_counts` (47 plages) 9,8 → 10,9 ms, `app_zone_counts`
+    16,4 → 17,0 ms, `app_cities` 7,2 → 8,5 ms ; planification +16 à 18 ms (25 → 42 ms pour `app_event_counts` :
+    la sous-requête d'`app_festival_events` est planifiée avec la RLS d'`events`), payée seulement tant que le
+    plan n'est pas en cache : en requête préparée (comme PostgREST), plan générique dès la 7e exécution,
+    planification 0,1 ms, exécution 10,0 → 10,5 ms. Une variante sans `app_festival_events`
+    (`app_events_in_range` directement) ne gagnait que 2 ms de planification : écartée ;
+  - rien n'est resté (les trois corps comme avant l'essai).
+- **Pas encore appliquée en prod** : attend l'accord de l'utilisateur (après `20261023160000`, ou avant : elles
+  sont indépendantes).
