@@ -44,12 +44,13 @@ function verifyCronRequest(request: NextRequest): boolean {
  * GET /api/cron/notifications/follows-digest
  *
  * La notification des suivis (U8, `lib/notifications/follows-digest.ts`) : à chaque personne dont un
- * lieu, un organisateur ou un artiste suivi a publié, « 3 nouveaux événements chez tes suivis » (ou
- * « chez L’Astrolabe » quand une seule cible a publié). Au plus un message par personne et par jour
- * (`follows_digest:<jour>:<utilisateur>`), avec l'interrupteur général et « Mes suivis »
- * (`follows_enabled`). Le log garde l'instant du calcul (`covered_until`) : le message suivant
- * reprend de là (`follows_digest()`, migration 20261021142000). Toucher : la page du suivi, sinon
- * l'onglet Favoris (données : `docs/API_APP.md`, « Suivis »).
+ * lieu, un organisateur ou un artiste suivi a publié, ou dont un festival en favori a étoffé son
+ * programme, « 3 nouveaux événements chez tes suivis » (ou « chez L’Astrolabe », « Fulgurances
+ * Électroniques #2 : 2 événements ajoutés au programme » quand une seule cible a publié). Au plus un
+ * message par personne et par jour (`follows_digest:<jour>:<utilisateur>`), avec l'interrupteur
+ * général et « Mes suivis » (`follows_enabled`). Le log garde l'instant du calcul (`covered_until`) :
+ * le message suivant reprend de là (`follows_digest()`, migrations 20261021142000 et 20261023160000).
+ * Toucher : la page du suivi, sinon l'onglet Favoris (données : `docs/API_APP.md`, « Suivis »).
  * Sur Vercel Hobby, l'horaire est piloté par vercel.json avec une précision à l'heure.
  */
 export async function GET(request: NextRequest) {

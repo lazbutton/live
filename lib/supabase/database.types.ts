@@ -866,6 +866,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_added_at: string | null
           festival_id: string | null
           hide_from_home: boolean
           id: string
@@ -919,6 +920,7 @@ export type Database = {
           external_url?: string | null
           external_url_label?: string | null
           facebook_url?: string | null
+          festival_added_at?: string | null
           festival_id?: string | null
           hide_from_home?: boolean
           id?: string
@@ -972,6 +974,7 @@ export type Database = {
           external_url?: string | null
           external_url_label?: string | null
           facebook_url?: string | null
+          festival_added_at?: string | null
           festival_id?: string | null
           hide_from_home?: boolean
           id?: string
@@ -2537,6 +2540,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_added_at: string | null
           festival_id: string | null
           hide_from_home: boolean
           id: string
@@ -2609,6 +2613,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_added_at: string | null
           festival_id: string | null
           hide_from_home: boolean
           id: string
@@ -2671,6 +2676,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_added_at: string | null
           festival_id: string | null
           hide_from_home: boolean
           id: string
