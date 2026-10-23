@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isAdminUser } from "@/lib/auth";
 import { loadAdminRadio } from "@/lib/radio/admin";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -22,7 +23,7 @@ export async function GET() {
   if (authError || !user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
-  if (user.user_metadata?.role !== "admin") {
+  if (!isAdminUser(user)) {
     return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 });
   }
 

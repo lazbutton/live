@@ -118,7 +118,7 @@ Pour recevoir les notifications, les admins doivent enregistrer leur token push 
 2. L'app enregistre automatiquement le token push via `/api/notifications/register-token`
 3. Le token est associé à l'utilisateur admin dans la table `user_push_tokens`
 
-**Important** : Les admins doivent avoir le rôle `"admin"` dans leurs `user_metadata` dans Supabase Auth.
+**Important** : Les admins doivent avoir le rôle `"admin"` dans leur `app_metadata` dans Supabase Auth (écrit par le service seulement ; `user_metadata`, que l'utilisateur modifie lui-même, ne compte plus depuis la migration `20261023150000`).
 
 ## Format de la Notification
 
@@ -150,10 +150,10 @@ Pour tester le système :
 
 1. **Vérifier que les tokens sont enregistrés** :
    ```sql
-   SELECT u.id, u.email, u.raw_user_meta_data->>'role' as role, t.token, t.platform
+   SELECT u.id, u.email, u.raw_app_meta_data->>'role' as role, t.token, t.platform
    FROM auth.users u
    LEFT JOIN user_push_tokens t ON t.user_id = u.id
-   WHERE u.raw_user_meta_data->>'role' = 'admin';
+   WHERE u.raw_app_meta_data->>'role' = 'admin';
    ```
 
 2. **Vérifier que le webhook est configuré** :
@@ -178,7 +178,7 @@ Pour tester le système :
 ### Erreurs courantes
 
 - **"Aucun token trouvé"** : Les admins n'ont pas enregistré de token push. Ils doivent ouvrir l'app mobile et se connecter.
-- **"Aucun utilisateur admin trouvé"** : Vérifiez que les utilisateurs ont bien le rôle `"admin"` dans leurs `user_metadata`.
+- **"Aucun utilisateur admin trouvé"** : Vérifiez que les utilisateurs ont bien le rôle `"admin"` dans leur `app_metadata`.
 - **"Token invalide"** : Le token push est invalide ou expiré. Il sera automatiquement supprimé de la base de données.
 
 ## Sécurité

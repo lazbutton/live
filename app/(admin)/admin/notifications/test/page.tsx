@@ -848,13 +848,13 @@ export default function TestNotificationsPage() {
             <pre className="bg-muted p-3 rounded text-xs overflow-auto">
 {`SELECT 
   u.email,
-  u.raw_user_meta_data->>'role' as role,
+  u.raw_app_meta_data->>'role' as role,
   COUNT(t.id) as token_count,
   STRING_AGG(t.platform, ', ') as platforms
 FROM auth.users u
 LEFT JOIN user_push_tokens t ON t.user_id = u.id
-WHERE u.raw_user_meta_data->>'role' = 'admin'
-GROUP BY u.id, u.email, u.raw_user_meta_data->>'role';`}
+WHERE u.raw_app_meta_data->>'role' = 'admin'
+GROUP BY u.id, u.email, u.raw_app_meta_data->>'role';`}
             </pre>
           </CardContent>
         </Card>
