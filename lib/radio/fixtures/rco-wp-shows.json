@@ -1,0 +1,34 @@
+[
+ {
+  "id": 36,
+  "slug": "nation-groove",
+  "link": "https://orleans.radiocampus.org/emission/nation-groove/",
+  "title": {
+   "rendered": "Nation Groove"
+  }
+ },
+ {
+  "id": 41896,
+  "slug": "la-mag-culturel",
+  "link": "https://orleans.radiocampus.org/emission/la-mag-culturel/",
+  "title": {
+   "rendered": "Le Mag Culturel"
+  }
+ },
+ {
+  "id": 51557,
+  "slug": "kawai-campus-club",
+  "link": "https://orleans.radiocampus.org/emission/kawai-campus-club/",
+  "title": {
+   "rendered": "Kawaï Campus Club"
+  }
+ },
+ {
+  "id": 63765,
+  "slug": "dominicalite",
+  "link": "https://orleans.radiocampus.org/emission/dominicalite/",
+  "title": {
+   "rendered": "L&rsquo;Enfer du Dimanche"
+  }
+ }
+]

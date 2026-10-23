@@ -89,6 +89,7 @@ function getCronName(path: string): string {
     "/api/cron/notifications/daily-events": "Notifications quotidiennes",
     "/api/cron/notifications/weekly-summary": "Résumé hebdomadaire",
     "/api/cron/image-cards": "Vignettes des affiches",
+    "/api/cron/radio-import": "Import de la radio",
   };
   return names[path] || path;
 }
@@ -99,6 +100,8 @@ function getCronDescription(path: string): string {
     "/api/cron/notifications/daily-events": "Envoie la passe quotidienne des notifications par catégories suivies",
     "/api/cron/notifications/weekly-summary": "Envoie la passe hebdomadaire des notifications par catégories suivies",
     "/api/cron/image-cards": "Fabrique les vignettes d'affiches manquantes (filet du webhook de la base)",
+    "/api/cron/radio-import":
+      "Émissions et épisodes de Radio Campus Orléans, lus sur son site (chaque heure par pg_cron, une fois par jour par Vercel)",
   };
   return descriptions[path] || "";
 }

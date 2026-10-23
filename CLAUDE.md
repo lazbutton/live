@@ -55,6 +55,11 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   conditions de la CNIL : `docs/AUDIENCE_ET_PLANTAGES.md` de l'app, contrat dans `docs/API_APP.md`.
 - Une nouvelle colonne sur `events` que l'app doit lire : migration ici, puis ajout dans
   `_eventColumns` côté app (`lib/services/event_service.dart`).
+- Radio (« Radio Campus dans OutLive », `../live/docs/RADIO_CAMPUS.md`) : `radio_stations` (interrupteur `enabled`,
+  faux tant que la radio n'a pas donné son accord écrit : la RLS cache alors tout), `radio_shows`, `radio_episodes`,
+  `app_radio_day()` et `app_radio_shows()` pour l'app ; import horaire en lecture seule chez la radio
+  (`/api/cron/radio-import`, lancé chaque heure par pg_cron : Vercel Hobby n'accepte qu'un cron par jour) ; « ce qui
+  passe » : `GET /api/v1/radio/[stationId]/live` ; contrat dans `docs/API_APP.md`, « Radio ».
 
 ## Structure
 
@@ -64,7 +69,8 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
 - `lib/` logique serveur : `supabase/` (clients ; `service.ts` = service role, serveur uniquement),
   `api/` (`v1/` API publique, `app/` contrat de l'app), `events/`, `scraping/`, `agent/`, `collecte/`,
   `notifications/`, `image-cards/` (vignettes des affiches, `docs/EVENT_IMAGE_CARDS.md`),
-  `school-holidays/` (vacances scolaires du calendrier de l'app, cron hebdomadaire).
+  `school-holidays/` (vacances scolaires du calendrier de l'app, cron hebdomadaire), `radio/` (import des
+  émissions de Radio Campus, « ce qui passe », fixtures du site de la radio).
 - `.claude/skills/collecte/` : la routine de collecte d'événements.
 - Textes importés : `lib/collecte/event-text.ts` (titre sans date ni lieu répété, capitales, guillemets ;
   description recollée), appliqué par `buildEventFormPrefillFromImport` et aux demandes ; titres restants dans
