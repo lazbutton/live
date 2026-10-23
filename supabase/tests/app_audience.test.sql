@@ -1,5 +1,6 @@
 -- Tests de la mesure d'audience de l'app (U41) : app_audience_counts et app_audience_add()
--- (migration 20261021013000_create_app_audience_counts.sql).
+-- (migration 20261021013000_create_app_audience_counts.sql ; compteurs de la radio, 20261023142000, et des
+-- festivals, 20261023180000).
 --
 -- Sur une base jetable avec toutes les migrations et aucun événement : scripts/db-test.sh.
 -- Jamais en prod : tout se passe dans une transaction annulée, mais le script s'arrête de lui-même
@@ -177,5 +178,30 @@ SELECT pg_temp.verifie('radio : les deux compteurs du jour',
   (SELECT string_agg(c.metric || '=' || c.count, ' ' ORDER BY c.metric)
    FROM public.app_audience_counts AS c WHERE c.day = pg_temp.jour(-2)),
   'radio_episode_play=2 radio_live_play=3');
+
+-- Festivals (20261023180000_add_festival_audience_metric.sql) : la page d'un festival ouverte -----------------
+
+SET LOCAL ROLE anon;
+SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
+SELECT pg_temp.verifie('festivals : festival_opened compté avec le reste de l''envoi, une clé inconnue ignorée',
+  pg_temp.ajoute(pg_temp.jour(-3), '{"festival_opened": 2, "event_opened": 2, "festival_inconnu": 1}'),
+  '2');
+RESET ROLE;
+SELECT pg_temp.verifie('festivals : les compteurs du jour',
+  (SELECT string_agg(c.metric || '=' || c.count, ' ' ORDER BY c.metric)
+   FROM public.app_audience_counts AS c WHERE c.day = pg_temp.jour(-3)),
+  'event_opened=2 festival_opened=2');
+-- La contrainte de la table dit comme app_audience_add : festival_opened accepté, une clé inconnue refusée.
+CREATE FUNCTION pg_temp.insere(compteur text) RETURNS text
+LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.app_audience_counts (day, metric, count) VALUES (pg_temp.jour(-4), compteur, 1);
+  RETURN 'ok';
+EXCEPTION WHEN OTHERS THEN
+  RETURN SQLSTATE;
+END $$;
+SELECT pg_temp.verifie('festivals : la table accepte festival_opened, refuse une clé inconnue',
+  pg_temp.insere('festival_opened') || ' ' || pg_temp.insere('festival_inconnu'),
+  'ok 23514');
 
 ROLLBACK;

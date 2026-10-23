@@ -1126,15 +1126,18 @@ l'ignore ; une version qui le lit doit accepter son absence (base pas encore mig
 app_audience_add(day date, counts jsonb) returns integer
 ```
 
-Migration `20261021013000_create_app_audience_counts.sql`, tests `supabase/tests/app_audience.test.sql` ;
-lecture dans l'admin : « Audience de l'app » (`/admin/audience`, `lib/audience/app-audience.ts`). Conditions
+Migration `20261021013000_create_app_audience_counts.sql` (compteurs ajoutés par `20261023142000` et
+`20261023180000`), tests `supabase/tests/app_audience.test.sql` ; lecture dans l'admin : « Audience de l'app »
+(`/admin/audience`, `lib/audience/app-audience.ts`). Conditions
 de la CNIL pour se passer de consentement, et ce qui y répond : `docs/AUDIENCE_ET_PLANTAGES.md` de l'app (U41).
 
 L'app compte ses gestes par jour, sur le téléphone, et envoie au plus une fois par jour les totaux des
 journées finies : `event_opened` (fiche ouverte), `ticket_tapped` (billetterie touchée), `search_no_result`
 (recherche sans résultat), `when_sheet_used` (feuille « Quand ? » utilisée), `event_liked` (cœur), et depuis
 la migration `20261023142000_add_radio_audience_metrics.sql` `radio_live_play` (le direct de la radio lancé)
-et `radio_episode_play` (un épisode lancé). Un appel par journée :
+et `radio_episode_play` (un épisode lancé), depuis `20261023180000_add_festival_audience_metric.sql`
+`festival_opened` (la page d'un festival s'ouvre : la fiche d'un festival qui a un programme ; elle compte aussi
+dans `event_opened`). Un appel par journée :
 `{"day": "2026-10-20", "counts": {"event_opened": 3, "event_liked": 1}}`.
 
 - **Sans identité** : l'app appelle avec la clé publique seule (`apikey` et `Authorization: Bearer <clé anon>`),
@@ -1143,7 +1146,9 @@ et `radio_episode_play` (un épisode lancé). Un appel par journée :
 - Gardes : compteurs connus seulement, nombres arrondis à l'entier inférieur et plafonnés à 200 par compteur et
   par appel, jour des 7 derniers jours (heure de Paris), `counts` objet JSON. Le reste est ignoré **sans
   erreur** : la fonction rend le nombre de compteurs ajoutés (0 si rien). L'app jette la journée envoyée dès la
-  réponse 2xx, qu'elle ait compté ou non.
+  réponse 2xx, qu'elle ait compté ou non : un compteur que la base ne connaît pas encore (une version de l'app
+  sortie avant sa migration) est perdu, seul, et le reste de l'envoi compté. Un nouveau compteur se déclare donc
+  ici avant la sortie de l'app qui l'envoie.
 - Conservation : chaque appel efface les jours de plus de 25 mois.
 - Table `app_audience_counts (day, metric, count)`, une ligne par jour et par compteur : RLS, lecture par un admin
   seulement ; ni anon ni un compte ordinaire ne la lisent ni ne l'écrivent directement.

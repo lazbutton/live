@@ -900,7 +900,8 @@
   semaine à l'heure de Paris, épisode rattaché au créneau où il commence (jusqu'à 15 minutes avant), état
   `past`/`live`/`next`. `security invoker` : une station désactivée ne rend rien en anon.
 - `20261023142000_add_radio_audience_metrics` : `radio_live_play` et `radio_episode_play` dans les deux listes
-  d'`app_audience_add` (contrainte de la table et fonction).
+  d'`app_audience_add` (contrainte de la table et fonction). Ses listes comptent aussi `festival_opened` depuis
+  `20261023180000` (le compteur des festivals, en prod avant la Radio) : appliquée après, elle ne le retire pas.
 - `20261023143000_schedule_radio_import` : pg_cron (tâche `radio-import`, chaque heure à :07) appelle
   `/api/cron/radio-import` par pg_net avec le secret `radio_import_cron_secret` de Vault ; sans secret, rien. Raison :
   Vercel Hobby refuse un cron plus fréquent que quotidien (`vercel.json` garde un passage à 5:30 UTC).
@@ -1023,3 +1024,33 @@
   `app_zone_counts` 333/352/352/352 → 332/351/351/351 ; `app_cities` : Orléans 206 → 205, les autres villes
   identiques. Juste après, la première requête de chaque connexion replanifie (`events` a changé) : jusqu'à
   0,6 s une fois, puis les temps d'avant (`app_event_series` ~100 ms).
+
+## 2026-10-23 — Festivals : le compteur d'audience `festival_opened`
+
+- `20261023180000_add_festival_audience_metric` : demandé par la session de coordination pour l'étape 5 de l'app,
+  à déclarer avant sa sortie. `festival_opened` : la page d'un festival s'ouvre (la fiche d'un festival qui a un
+  programme) ; elle compte aussi dans `event_opened`. Les deux listes d'`app_audience_add` (contrainte de la table et
+  fonction) gagnent la clé ; rien d'autre ne change. Contrat : `docs/API_APP.md`, « Mesure d'audience ».
+  - En prod, les listes sont encore celles de `20261021013000` (5 compteurs) : la Radio (`20261023142000`) n'y est
+    pas. Celle-ci reprend la liste de la Radio, la clé en plus (8 compteurs), et `20261023142000` gagne la clé
+    elle aussi (elle n'est appliquée nulle part) : les deux rendent la même liste, à l'octet près pour la fonction,
+    dans n'importe quel ordre d'application. Sinon, la Radio appliquée après aurait retiré `festival_opened`, en
+    silence, ou en échouant sur les lignes déjà comptées.
+  - Un compteur inconnu d'`app_audience_add` est ignoré sans erreur, le reste de l'envoi compté (déjà testé) : une
+    app qui envoie `festival_opened` avant cette migration le perd (elle jette la journée dès la réponse), sans rien
+    perdre d'autre.
+- Testée : `supabase/tests/app_audience.test.sql` (3 cas de plus : compté avec le reste de l'envoi et une clé
+  inconnue ignorée, les lignes du jour, la contrainte de la table accepte la clé et refuse une clé inconnue) ;
+  `lib/audience/app-audience.test.mjs` : la page « Audience de l'app » (colonne « Festivals ouverts ») et une garde
+  qui compare la liste de la page aux deux listes de chaque migration (trois oublis simulés, tous repérés).
+- Répétée en prod le 23/10/2026 dans une transaction annulée (psql `--single-transaction`, `SET ROLE postgres`,
+  `lock_timeout` 5 s, le fichier de la branche) :
+  - avant : la contrainte et `app_audience_add` sont celles de `20261021013000` (5 compteurs, md5 de `prosrc`) ;
+    comptés jusque-là : `event_opened` 49, `ticket_tapped` 2, `when_sheet_used` 1. Un envoi comme l'app, en anon,
+    `{"festival_opened": 1, "event_opened": 1}` : 1 compteur ajouté (`festival_opened` ignoré, le reste compté) ;
+  - migration sans erreur (4 instructions, 26 à 67 ms chacune ; `app_audience_counts` seule verrouillée, le temps de
+    la transaction) ; après : la contrainte à 8 compteurs, le corps de la fonction celui du fichier, anon et
+    authenticated l'appellent ; le même envoi avec une clé inconnue en plus : 2 compteurs ajoutés ;
+  - rien n'est resté (5 compteurs, la fonction d'avant, les mêmes totaux).
+- **Pas encore appliquée en prod** : attend l'accord de l'utilisateur, avant la sortie de l'app qui envoie
+  `festival_opened`.

@@ -6,13 +6,17 @@
 -- identité ; `../live/docs/RADIO_CAMPUS.md`, § 3 et § 4). Les deux listes de
 -- 20261021013000_create_app_audience_counts.sql (contrainte de la table, compteurs acceptés par
 -- app_audience_add) gagnent ces deux clés ; rien d'autre ne change.
+--
+-- Elles comptent aussi festival_opened (20261023180000_add_festival_audience_metric.sql, les festivals) : ce
+-- compteur est passé en prod avant la Radio, et les deux migrations rendent la même liste dans n'importe quel
+-- ordre d'application (celle-ci appliquée après ne le retire pas).
 -- ============================================
 
 ALTER TABLE public.app_audience_counts DROP CONSTRAINT IF EXISTS app_audience_counts_metric_check;
 ALTER TABLE public.app_audience_counts ADD CONSTRAINT app_audience_counts_metric_check CHECK (metric IN (
-  -- Même liste que dans app_audience_add : les changer ensemble.
+  -- Même liste que dans app_audience_add (et dans 20261023180000) : les changer ensemble.
   'event_opened', 'ticket_tapped', 'search_no_result', 'when_sheet_used', 'event_liked',
-  'radio_live_play', 'radio_episode_play'
+  'radio_live_play', 'radio_episode_play', 'festival_opened'
 ));
 
 CREATE OR REPLACE FUNCTION public.app_audience_add(day date, counts jsonb)
@@ -43,7 +47,7 @@ AS $$
       -- Même liste que la contrainte de la table : les changer ensemble.
       AND e.key IN (
         'event_opened', 'ticket_tapped', 'search_no_result', 'when_sheet_used', 'event_liked',
-        'radio_live_play', 'radio_episode_play'
+        'radio_live_play', 'radio_episode_play', 'festival_opened'
       )
       AND jsonb_typeof(e.value) = 'number'
   ),
