@@ -325,6 +325,61 @@ adresse prise pour une ville…) ; ses comptes à venir suivent `app_events_in_r
 `hide_from_home`) au lieu de leur ancienne fenêtre (minuit UTC, 365 jours). Les versions installées de l'app
 la lisent comme avant (une colonne de plus).
 
+## Festivals : `events.festival_id`, `festival_locations`, `app_festival_events`
+
+Décision du 2026-10-23 (`../live/docs/FESTIVALS.md`, § 4 et 5) : un festival est un événement de la catégorie
+Festival qui contient les autres ; sa page dans l'app est sa fiche en mode festival. Migration
+`20261023120000_create_festivals.sql` (règle complète en tête), tests `supabase/tests/festivals.test.sql`. En prod
+depuis le 2026-10-23 à 14:27, avec le premier festival : Fulgurances Électroniques #2 (Micro et Infra, ses trois
+lieux).
+
+- **`events.festival_id`** (uuid ou null) : le festival dont l'événement fait partie. `rpc/app_events`,
+  `app_events_in_range` et `app_events_in_zone` le rendent avec les autres colonnes (`setof events`) : à ajouter
+  à `_eventColumns`. Jamais l'événement lui-même ; un festival n'est pas dans un festival (un événement rattaché
+  ne contient rien) ; le festival supprimé, ses événements restent, détachés.
+- **`festival_locations`** : `id`, `festival_id`, `location_id`, `sort_index` (0 d'abord), un lieu une fois par
+  festival. Lisible quand le festival l'est (la RLS d'`events` : le public, les festivals approuvés), écrite par
+  l'admin. La fiche du festival garde le premier dans `location_id`, pour ce qui n'en lit qu'un (la zone
+  comprise). Clé `id`, pas `(festival_id, location_id)` : PostgREST y verrait une relation plusieurs-à-plusieurs
+  `events` ↔ `locations`, et tout `locations(…)` embarqué depuis `events` répondrait 400 (PGRST201).
+- **Embarquer** (essayé sur PostgREST v13.0.5, la version de la prod, et v14.1) : le festival d'un événement,
+  `festival:festival_id(id, title, …)` (un objet, ou null) ; son programme, `events!festival_id(…)` (une liste ;
+  `events!events_festival_id_fkey` ne marche pas, PGRST200) ; ses lieux, `festival_locations(sort_index,
+  locations(…))`.
+- **`app_festival_events(at_time)`** → `(event_id, festival_id, date, events_count)` : une ligne par événement
+  à venir rattaché à un festival visible, sur le modèle d'`app_event_series`. À venir comme
+  `app_events_in_range` à partir d'aujourd'hui 0 h (heure de Paris), toutes villes, avec `hide_from_home`, sans
+  les événements masqués par l'utilisateur ni ceux des auteurs qu'il a bloqués. Le festival doit être visible lui
+  aussi (dans `app_events()`, ni masqué par l'utilisateur, ni d'un auteur bloqué ; ses dates ne comptent pas) :
+  sinon l'événement n'a pas de ligne et reste seul. `events_count` : ses événements à venir (les lignes de son
+  festival), l'événement compris ; le festival lui-même n'a pas de ligne. Rendues par festival (sa première date
+  à venir), puis par date. L'accueil groupe ses cartes par `festival_id` et compte avec ; lue une fois, toutes
+  villes, comme les séries.
+- **La zone** ne change pas : un festival y entre par son `location_id` (son premier lieu), comme tout événement,
+  et ses événements chacun par le leur. La liste de l'accueil (`app_events_in_zone`) et les comptes
+  (`app_events_in_range`) disent ainsi la même chose ; un événement du festival situé dans la zone y entre de
+  toute façon.
+
+```dart
+final rows = await supabase
+    .rpc('app_festival_events', get: true)
+    .select('event_id, festival_id, date, events_count') as List<dynamic>;
+// [{"event_id":"84f9…","festival_id":"5ea7…","date":"2026-11-19T21:00:00+00:00","events_count":2}, …]
+
+final festival = await supabase
+    .from('events')
+    .select('id, title, festival_locations(sort_index, locations(id, name, latitude, longitude))')
+    .eq('id', festivalId)
+    .single();
+```
+
+Sur PostgREST v13.0.5 (la version de la prod), la migration appliquée : les `select` de l'app (`EventSelects`
+`detail`, `card`, `list`, les favoris, la page d'artiste, « Mes suggestions ») sur `events`, `rpc/app_events`,
+`rpc/app_events_in_range` et `rpc/app_events_in_zone` répondent comme avant ; aucun embarquement depuis ou vers
+`events` et `locations` ne devient ambigu. En prod, en anon par l'API publique, le 2026-10-23 :
+`rpc/app_festival_events` rend Micro et Infra (`events_count` 2) en 3 à 23 ms ; les cartes de l'accueil et les
+comptes sont les mêmes qu'avant la migration (la zone d'Orléans · 25 km : 391 événements).
+
 ## Fonctions SQL de la refonte : calendrier, vacances scolaires, recherche
 
 Pour le calendrier « Quand ? » et la recherche des maquettes (`../live/docs/MAQUETTES_REFONTE.md`),
@@ -353,6 +408,7 @@ prod depuis le 2026-10-21 vers 18:32.
 | `app_organizer_counts(organizer_ids, city_ids, at_time, zone_city, zone_km)` | `rpc('app_organizer_counts', params: …)` | nombre d'événements à venir de chaque organisateur (fiche, « Organisé par ») |
 | `app_see_also(event_id, city_ids, at_time, max_results, zone_city, zone_km)` | `rpc('app_see_also', params: …)` + `select('section, rank, …, event:events(…)')`, `order('rank')` | « À voir aussi » en bas de la fiche : les rangées « Aussi à <lieu> » et « Dans le même genre » |
 | `app_event_series(at_time)` | `rpc('app_event_series', get: true)` + `select('event_id, series_id, date, dates_count')` | les séries à venir (dates d'un même spectacle) : une carte par série sur l'accueil, « Autres dates » sur la fiche |
+| `app_festival_events(at_time)` | `rpc('app_festival_events', get: true)` + `select('event_id, festival_id, date, events_count')` | les événements à venir rattachés à un festival visible : une carte par festival sur l'accueil (« Festivals », plus haut) |
 | `app_search(query, city_ids, at_time, max_results, zone_city, zone_km)` | `rpc('app_search', params: …)` + `select('rank, event:events(…)')`, `order('rank')` | événements à venir qui correspondent à la requête, par pertinence puis date |
 | `app_possible_duplicates(title, starts_at, location_id, link, at_time, max_results)` | `rpc('app_possible_duplicates', params: …)` + `select('rank, reason, event:events(…)')`, `order('rank')` | « Cet événement existe peut-être déjà » avant l'envoi d'une proposition : les événements à venir qui lui ressemblent |
 | `app_search_names(query, city_ids, at_time, max_results, zone_city, zone_km)` | `rpc('app_search_names', params: …)` + `order('rank')` | catégories, tags, lieux et organisateurs dont le nom correspond, avec leur nombre d'événements à venir |

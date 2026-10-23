@@ -60,8 +60,19 @@ import {
 } from "@/lib/events/potential-duplicates";
 import { logAdminAction } from "@/lib/admin-audit-log";
 import { AGENDA_TYPES, parseAgendaTypes } from "@/lib/events/agenda-types";
+import { describeFestivalError, festivalCategoryId, isFestivalCategory } from "@/lib/events/festivals";
 
 import { EntitySwitchRow } from "../directory/entity-sheet";
+import {
+  FestivalLocationsField,
+  FestivalPicker,
+  FestivalProgrammeSection,
+  PROGRAMME_EVENT_SELECT,
+  toProgrammeEvent,
+  type FestivalOption,
+  type FestivalProgrammeEvent,
+  type ProgrammeEventRow,
+} from "./event-festival-sections";
 import { EventImageUpload } from "./event-image-upload";
 import {
   AsideSection,
@@ -111,7 +122,12 @@ type AdditionalTimeSlot = {
   externalUrl?: string;
 };
 
-type QuickCreateState = { kind: "location" | "organizer" | "artist"; name: string } | null;
+/** Création rapide ; un lieu créé depuis « Lieux du festival » rejoint ses lieux (`forFestival`). */
+type QuickCreateState = { kind: "location" | "organizer" | "artist"; name: string; forFestival?: boolean } | null;
+
+function sameIds(left: string[], right: string[]) {
+  return left.length === right.length && left.every((id, index) => id === right[index]);
+}
 
 export type EventFormSheetProps = {
   event: AdminEvent | null;
@@ -199,6 +215,7 @@ function emptyForm(): EventFormData {
     is_young_audience: false,
     agenda_types: [],
     major_event_id: "",
+    festival_id: "",
   };
 }
 
@@ -317,6 +334,16 @@ export function EventFormSheet({
   const [majorEvents, setMajorEvents] = React.useState<MajorEventOption[]>([]);
   const [loadingMajorEvents, setLoadingMajorEvents] = React.useState(false);
 
+  // Festivals : ceux qu'un événement peut rejoindre ; pour un festival, ses lieux (vide : son seul lieu, celui
+  // de la fiche) et son programme, avec ce qui est en base pour n'écrire que les changements.
+  const [festivalOptions, setFestivalOptions] = React.useState<FestivalOption[]>([]);
+  const [loadingFestivalOptions, setLoadingFestivalOptions] = React.useState(false);
+  const [festivalLocationIds, setFestivalLocationIds] = React.useState<string[]>([]);
+  const [savedFestivalLocationIds, setSavedFestivalLocationIds] = React.useState<string[]>([]);
+  const [programme, setProgramme] = React.useState<FestivalProgrammeEvent[]>([]);
+  const [savedProgrammeIds, setSavedProgrammeIds] = React.useState<string[]>([]);
+  const [loadingFestivalData, setLoadingFestivalData] = React.useState(false);
+
   const [showEndDate, setShowEndDate] = React.useState(false);
   const [additionalTimeSlots, setAdditionalTimeSlots] = React.useState<AdditionalTimeSlot[]>([]);
   const [priceMode, setPriceMode] = React.useState<PriceMode>("unknown");
@@ -339,6 +366,11 @@ export function EventFormSheet({
   const isEdit = Boolean(event && event.id);
   const busy = saving || deleting;
   const showPastEventWarning = !isEdit && isBeforeToday(formData.date);
+
+  // Un festival : une fiche de la catégorie Festival. Ses lieux, ou à défaut le lieu de sa fiche.
+  const isFestival = isFestivalCategory(formData.category, categories);
+  const festivalLocations =
+    festivalLocationIds.length > 0 ? festivalLocationIds : formData.location_id ? [formData.location_id] : [];
 
   /** Mise à jour déclenchée par l'utilisateur (marque la fiche comme modifiée). */
   const patchForm = React.useCallback(
@@ -381,6 +413,10 @@ export function EventFormSheet({
     setImageFile(null);
     setImageWasCleared(false);
     setAdditionalTimeSlots([]);
+    setFestivalLocationIds([]);
+    setSavedFestivalLocationIds([]);
+    setProgramme([]);
+    setSavedProgrammeIds([]);
 
     if (event) {
       const nextForm: EventFormData = {
@@ -408,6 +444,7 @@ export function EventFormSheet({
         is_young_audience: Boolean(event.is_young_audience),
         agenda_types: parseAgendaTypes(event.agenda_types),
         major_event_id: event.major_event_events?.major_event_id || "",
+        festival_id: event.festival_id || "",
       };
       setFormData(nextForm);
       setPriceMode(derivePriceMode(nextForm));
@@ -462,7 +499,8 @@ export function EventFormSheet({
     setShowEndDate(Boolean(merged.end_date));
   }, [defaultDate, event, open, prefill]);
 
-  // Doublons potentiels : même lieu, créneaux qui se chevauchent.
+  // Doublons potentiels : même lieu, créneaux qui se chevauchent. Pas pour un festival : il recouvre son
+  // programme.
   React.useEffect(() => {
     if (!open) return;
 
@@ -470,7 +508,7 @@ export function EventFormSheet({
     const startValue = formData.date;
     const endValue = formData.end_date;
 
-    if (!locationId || locationId === "none" || !startValue) {
+    if (!locationId || locationId === "none" || !startValue || isFestival) {
       setDuplicateCandidates([]);
       return;
     }
@@ -497,7 +535,7 @@ export function EventFormSheet({
     return () => {
       cancelled = true;
     };
-  }, [event?.id, formData.date, formData.end_date, formData.location_id, open]);
+  }, [event?.id, formData.date, formData.end_date, formData.location_id, isFestival, open]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -562,6 +600,86 @@ export function EventFormSheet({
     };
   }, [open, event?.id]);
 
+  // Les festivals (fiches de la catégorie Festival), pour « Fait partie du festival » et le programme.
+  const festivalCategory = React.useMemo(() => festivalCategoryId(categories), [categories]);
+  React.useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+
+    async function loadFestivalOptions() {
+      setLoadingFestivalOptions(true);
+      try {
+        const { data, error } = await supabase
+          .from("events")
+          .select("id, title, date, end_date, status, festival_id")
+          .or(festivalCategory ? `category.eq.${festivalCategory},category.ilike.festival` : "category.ilike.festival")
+          .eq("archived", false)
+          .order("date", { ascending: false })
+          .limit(300);
+        if (error) throw error;
+        if (!cancelled) setFestivalOptions((data || []) as FestivalOption[]);
+      } catch (e) {
+        console.error("Erreur festivals:", e);
+        if (!cancelled) setFestivalOptions([]);
+      } finally {
+        if (!cancelled) setLoadingFestivalOptions(false);
+      }
+    }
+
+    void loadFestivalOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [festivalCategory, open]);
+
+  // Un événement enregistré : ses lieux de festival et son programme.
+  React.useEffect(() => {
+    if (!open || !event?.id) return;
+    const currentEventId = event.id;
+
+    let cancelled = false;
+
+    async function loadFestivalData() {
+      setLoadingFestivalData(true);
+      try {
+        const [locationsResult, programmeResult] = await Promise.all([
+          supabase
+            .from("festival_locations")
+            .select("location_id")
+            .eq("festival_id", currentEventId)
+            .order("sort_index", { ascending: true }),
+          supabase
+            .from("events")
+            .select(PROGRAMME_EVENT_SELECT)
+            .eq("festival_id", currentEventId)
+            .order("date", { ascending: true }),
+        ]);
+        if (locationsResult.error) throw locationsResult.error;
+        if (programmeResult.error) throw programmeResult.error;
+        if (cancelled) return;
+        const locationIds = (locationsResult.data || []).map((row) => row.location_id);
+        const programmeEvents = ((programmeResult.data || []) as unknown as ProgrammeEventRow[]).map(toProgrammeEvent);
+        setFestivalLocationIds(locationIds);
+        setSavedFestivalLocationIds(locationIds);
+        setProgramme(programmeEvents);
+        setSavedProgrammeIds(programmeEvents.map((programmeEvent) => programmeEvent.id));
+      } catch (e) {
+        console.error("Erreur lieux et programme du festival:", e);
+      } finally {
+        if (!cancelled) setLoadingFestivalData(false);
+      }
+    }
+
+    void loadFestivalData();
+
+    return () => {
+      cancelled = true;
+    };
+    // `event` plutôt que son id : l'initialisation plus haut repart de zéro à chaque nouvel objet.
+  }, [open, event]);
+
   // Salles du lieu sélectionné.
   React.useEffect(() => {
     const locationId = formData.location_id;
@@ -597,11 +715,12 @@ export function EventFormSheet({
     };
   }, [formData.location_id, open]);
 
-  // Capacité reprise du lieu (seulement si vide).
+  // Capacité reprise du lieu (seulement si vide ; pas pour un festival, qui en a plusieurs).
   React.useEffect(() => {
     if (!open) return;
     if (!formData.location_id) return;
     if (formData.capacity) return;
+    if (isFestival) return;
     const loc = [...createdLocations, ...locations].find((l) => l.id === formData.location_id);
     if (loc?.capacity != null) {
       setFormData((prev) => ({
@@ -609,7 +728,7 @@ export function EventFormSheet({
         capacity: String(loc.capacity ?? ""),
       }));
     }
-  }, [createdLocations, formData.location_id, locations, formData.capacity, open]);
+  }, [createdLocations, formData.location_id, locations, formData.capacity, isFestival, open]);
 
   // Le titre s'agrandit avec son contenu et suit la largeur disponible. L'observateur
   // est attaché à l'élément lui-même : le panneau monte son contenu après coup.
@@ -676,6 +795,21 @@ export function EventFormSheet({
     }
 
     setFormData((prev) => ({ ...prev, location_id: locationId, room_id: "" }));
+  }
+
+  /** Lieux du festival : le premier devient le lieu de la fiche (sa salle tombe s'il change). */
+  function changeFestivalLocations(next: string[]) {
+    setFestivalLocationIds(next);
+    patchForm((previous) => ({
+      ...previous,
+      location_id: next[0] ?? "",
+      room_id: next[0] === previous.location_id ? previous.room_id : "",
+    }));
+  }
+
+  function changeProgramme(next: FestivalProgrammeEvent[]) {
+    setDirty(true);
+    setProgramme(next);
   }
 
   function handleOrganizerChange(newIds: string[]) {
@@ -867,8 +1001,13 @@ export function EventFormSheet({
       show_on_app: previous.show_on_app,
       agenda_types: previous.agenda_types,
       major_event_id: previous.major_event_id,
+      festival_id: previous.festival_id,
       hide_from_home: previous.hide_from_home,
     }));
+    setFestivalLocationIds([]);
+    setSavedFestivalLocationIds([]);
+    setProgramme([]);
+    setSavedProgrammeIds([]);
     setPriceMode("unknown");
     setSelectedArtistIds([]);
     setImageFile(null);
@@ -917,6 +1056,10 @@ export function EventFormSheet({
         : null,
     price: priceFieldsError(formData, priceMode),
     slots: invalidSlotIndexes.length > 0 ? "Une des dates supplémentaires finit avant de commencer." : null,
+    festival:
+      formData.festival_id && programme.length > 0
+        ? "Un festival qui a un programme ne peut pas faire partie d’un festival."
+        : null,
   };
 
   const blockingIssues = [
@@ -929,6 +1072,7 @@ export function EventFormSheet({
     formData.show_on_app && !formData.category.trim() ? { label: "catégorie", target: "event-category" } : null,
     errors.price ? { label: "prix", target: "event-price-min" } : null,
     errors.slots ? { label: "dates supplémentaires", target: "event-when" } : null,
+    errors.festival ? { label: "festival", target: "event-festival" } : null,
   ].filter((issue): issue is { label: string; target: string } => Boolean(issue));
 
   function jumpTo(targetId: string) {
@@ -979,9 +1123,10 @@ export function EventFormSheet({
         return;
       }
 
+      const locationIdToSave = isFestival ? festivalLocations[0] || "" : formData.location_id;
       const selectedLocation =
-        formData.location_id && formData.location_id !== "none"
-          ? availableLocations.find((l) => l.id === formData.location_id) || null
+        locationIdToSave && locationIdToSave !== "none"
+          ? availableLocations.find((l) => l.id === locationIdToSave) || null
           : null;
 
       const statusToSave: EventStatus = forceApproved ? "approved" : formData.status;
@@ -994,8 +1139,8 @@ export function EventFormSheet({
         ...priceColumnsFromFields(formData),
         capacity: formData.capacity ? parseInt(formData.capacity) : null,
         is_full: Boolean(formData.is_full),
-        location_id: normalizeUuid(formData.location_id),
-        room_id: normalizeUuid(formData.room_id),
+        location_id: normalizeUuid(locationIdToSave),
+        room_id: isFestival ? null : normalizeUuid(formData.room_id),
         door_opening_time: normalizeNullable(formData.door_opening_time),
         external_url: normalizeNullable(formData.external_url),
         external_url_label: normalizeNullable(formData.external_url_label),
@@ -1009,6 +1154,9 @@ export function EventFormSheet({
         is_young_audience: Boolean(formData.is_young_audience),
         agenda_types: parseAgendaTypes(formData.agenda_types),
         tag_ids: selectedTagIds.length > 0 ? selectedTagIds : [],
+        // Envoyé seulement s'il y a un festival, choisi ou à retirer : une fiche sans festival s'enregistre aussi
+        // sans la colonne (avant sa migration).
+        ...(formData.festival_id || event?.festival_id ? { festival_id: normalizeUuid(formData.festival_id) } : {}),
         // Lieu annoncé par la collecte (événement sans fiche lieu) : gardé tant qu'aucun lieu n'est choisi.
         address: selectedLocation?.address || (!selectedLocation && event && !event.location_id ? event.address : null) || null,
         latitude: selectedLocation?.latitude || null,
@@ -1060,6 +1208,44 @@ export function EventFormSheet({
         await syncMajorEventLink(savedEventId, formData.major_event_id);
       }
 
+      // Festival : ses lieux (le premier est celui de la fiche) et son programme. Une fiche qui n'est plus un
+      // festival perd ses lieux ; son programme reste tant qu'il n'est pas retiré.
+      async function syncFestival(savedEventId: string) {
+        const nextLocationIds = isFestival ? festivalLocations : [];
+        if (!sameIds(nextLocationIds, savedFestivalLocationIds)) {
+          if (nextLocationIds.length > 0) {
+            const { error: upsertError } = await supabase.from("festival_locations").upsert(
+              nextLocationIds.map((location_id, sort_index) => ({ festival_id: savedEventId, location_id, sort_index })),
+              { onConflict: "festival_id,location_id" },
+            );
+            if (upsertError) throw upsertError;
+          }
+          let staleLocations = supabase.from("festival_locations").delete().eq("festival_id", savedEventId);
+          if (nextLocationIds.length > 0) {
+            staleLocations = staleLocations.not("location_id", "in", `(${nextLocationIds.join(",")})`);
+          }
+          const { error: deleteError } = await staleLocations;
+          if (deleteError) throw deleteError;
+        }
+
+        const programmeIds = programme.map((programmeEvent) => programmeEvent.id);
+        const removed = savedProgrammeIds.filter((id) => !programmeIds.includes(id));
+        const added = programmeIds.filter((id) => !savedProgrammeIds.includes(id));
+        if (removed.length > 0) {
+          const { error: removeError } = await supabase
+            .from("events")
+            .update({ festival_id: null })
+            .in("id", removed)
+            .eq("festival_id", savedEventId);
+          if (removeError) throw removeError;
+        }
+        if (added.length > 0) {
+          const { error: addError } = await supabase.from("events").update({ festival_id: savedEventId }).in("id", added);
+          if (addError) throw addError;
+        }
+        return { added: added.length, removed: removed.length };
+      }
+
       let savedEventId: string;
 
       if (isEdit && event) {
@@ -1077,6 +1263,7 @@ export function EventFormSheet({
       }
 
       await syncEventRelations(savedEventId);
+      const programmeChanges = await syncFestival(savedEventId);
 
       const additionalUniqueSlots = allSlots.slice(1).filter((slot) => {
         return !(slot.start === formData.date && (slot.end || "") === (formData.end_date || ""));
@@ -1120,6 +1307,9 @@ export function EventFormSheet({
           force_approved: forceApproved,
           previous_status: event?.status ?? null,
           additional_slots: additionalUniqueSlots.length,
+          ...(programmeChanges.added || programmeChanges.removed
+            ? { programme_added: programmeChanges.added, programme_removed: programmeChanges.removed }
+            : {}),
         },
       });
 
@@ -1150,7 +1340,7 @@ export function EventFormSheet({
       console.error("Erreur save event:", e);
       toast({
         title: "Enregistrement impossible",
-        description: e?.message || "Une erreur est survenue.",
+        description: describeFestivalError(e) || e?.message || "Une erreur est survenue.",
         variant: "destructive",
       });
     } finally {
@@ -1645,67 +1835,89 @@ export function EventFormSheet({
                       </Button>
                     </FormBlock>
 
-                    {/* Lieu */}
-                    <FormBlock id="event-where" title="Lieu">
-                      <div
-                        className={cn(
-                          "grid gap-4",
-                          rooms.length > 0 || loadingRooms ? "@lg:grid-cols-[minmax(0,1fr)_minmax(0,13rem)]" : "",
-                        )}
+                    {/* Lieu, ou les lieux d'un festival */}
+                    {isFestival ? (
+                      <FormBlock
+                        id="event-where"
+                        title="Lieux du festival"
+                        description="Tous ses lieux, dès l’annonce. Le premier est le lieu de la fiche : la zone de l’app, les versions qui n’en lisent qu’un et la page publique s’en servent."
                       >
-                        <Field
-                          label="Lieu"
-                          hint={
-                            selectedLocation ? (
-                              <span className="inline-flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {[selectedLocation.address, selectedLocation.city?.label].filter(Boolean).join(" · ") ||
-                                  "Adresse non renseignée"}
-                              </span>
-                            ) : event?.address && !event.location_id ? (
-                              `Lieu annoncé : ${event.address}. Introuvable ? Crée-le depuis la liste.`
-                            ) : (
-                              "Introuvable ? Crée-le depuis la liste."
-                            )
-                          }
+                        <div id="event-location">
+                          <FestivalLocationsField
+                            locations={availableLocations}
+                            value={festivalLocations}
+                            onChange={changeFestivalLocations}
+                            onCreateLocation={(query) =>
+                              setQuickCreate({ kind: "location", name: query, forFestival: true })
+                            }
+                            disabled={busy}
+                          />
+                        </div>
+                      </FormBlock>
+                    ) : (
+                      <FormBlock id="event-where" title="Lieu">
+                        <div
+                          className={cn(
+                            "grid gap-4",
+                            rooms.length > 0 || loadingRooms ? "@lg:grid-cols-[minmax(0,1fr)_minmax(0,13rem)]" : "",
+                          )}
                         >
-                          <div id="event-location">
-                            <SelectSearchable
-                              options={locationOptions}
-                              value={formData.location_id}
-                              onValueChange={handleLocationSelection}
-                              placeholder="Choisir un lieu"
-                              searchPlaceholder="Rechercher un lieu…"
-                              emptyActionLabel="Créer un lieu"
-                              onEmptyAction={(query) => setQuickCreate({ kind: "location", name: query })}
-                              disabled={busy}
-                            />
-                          </div>
-                        </Field>
-                        {rooms.length > 0 || loadingRooms ? (
-                          <Field label="Salle">
-                            <Select
-                              value={formData.room_id || "none"}
-                              onValueChange={(value) => patchForm({ room_id: value === "none" ? "" : value })}
-                              disabled={busy || loadingRooms}
-                            >
-                              <SelectTrigger aria-label="Salle">
-                                <SelectValue placeholder={loadingRooms ? "Chargement…" : "Aucune"} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">Aucune</SelectItem>
-                                {rooms.map((room) => (
-                                  <SelectItem key={room.id} value={room.id}>
-                                    {room.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          <Field
+                            label="Lieu"
+                            hint={
+                              selectedLocation ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {[selectedLocation.address, selectedLocation.city?.label].filter(Boolean).join(" · ") ||
+                                    "Adresse non renseignée"}
+                                </span>
+                              ) : event?.address && !event.location_id ? (
+                                `Lieu annoncé : ${event.address}. Introuvable ? Crée-le depuis la liste.`
+                              ) : (
+                                "Introuvable ? Crée-le depuis la liste."
+                              )
+                            }
+                          >
+                            <div id="event-location">
+                              <SelectSearchable
+                                options={locationOptions}
+                                value={formData.location_id}
+                                onValueChange={handleLocationSelection}
+                                placeholder="Choisir un lieu"
+                                searchPlaceholder="Rechercher un lieu…"
+                                emptyActionLabel="Créer un lieu"
+                                onEmptyAction={(query) => setQuickCreate({ kind: "location", name: query })}
+                                disabled={busy}
+                              />
+                            </div>
                           </Field>
-                        ) : null}
-                      </div>
-                      <DuplicateNotice duplicates={duplicateCandidates} />
-                    </FormBlock>
+                          {rooms.length > 0 || loadingRooms ? (
+                            <Field label="Salle">
+                              <Select
+                                value={formData.room_id || "none"}
+                                onValueChange={(value) => patchForm({ room_id: value === "none" ? "" : value })}
+                                disabled={busy || loadingRooms}
+                              >
+                                <SelectTrigger aria-label="Salle">
+                                  <SelectValue placeholder={loadingRooms ? "Chargement…" : "Aucune"} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">Aucune</SelectItem>
+                                  {rooms.map((room) => (
+                                    <SelectItem key={room.id} value={room.id}>
+                                      {room.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </Field>
+                          ) : null}
+                        </div>
+                        <DuplicateNotice
+                          duplicates={duplicateCandidates.filter((duplicate) => duplicate.id !== formData.festival_id)}
+                        />
+                      </FormBlock>
+                    )}
 
                     {/* Catégorie et tags */}
                     <FormBlock
@@ -1748,6 +1960,40 @@ export function EventFormSheet({
                         </Field>
                       </div>
                     </FormBlock>
+
+                    {/* Programme d'un festival */}
+                    {isFestival || programme.length > 0 ? (
+                      <FormBlock
+                        id="event-programme"
+                        title="Programme"
+                        description={
+                          isFestival
+                            ? "Les événements du festival : l’app les montre dans sa carte et sur sa page."
+                            : "Cette fiche n’est plus en catégorie Festival : ses événements y restent rattachés tant que tu ne les retires pas."
+                        }
+                        action={
+                          programme.length > 0 ? (
+                            <span className="rounded-md bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
+                              {programme.length} événement{programme.length > 1 ? "s" : ""}
+                            </span>
+                          ) : null
+                        }
+                      >
+                        <FestivalProgrammeSection
+                          festival={{
+                            id: event?.id ?? null,
+                            title: formData.title,
+                            date: formData.date,
+                            end_date: formData.end_date,
+                          }}
+                          festivals={festivalOptions}
+                          value={programme}
+                          onChange={changeProgramme}
+                          loading={loadingFestivalData}
+                          disabled={busy}
+                        />
+                      </FormBlock>
+                    ) : null}
 
                     {/* Organisateurs et artistes */}
                     <FormBlock id="event-people" title="Organisateurs et artistes">
@@ -2087,16 +2333,39 @@ export function EventFormSheet({
                   </p>
                 </AsideSection>
 
+                {!isFestival || formData.festival_id ? (
+                  <AsideSection title="Fait partie du festival">
+                    <div id="event-festival" className="scroll-mt-6">
+                      <FestivalPicker
+                        festivals={festivalOptions}
+                        eventId={event?.id ?? null}
+                        eventDate={formData.date}
+                        value={formData.festival_id}
+                        onChange={(value) => patchForm({ festival_id: value })}
+                        loading={loadingFestivalOptions}
+                        disabled={busy}
+                      />
+                    </div>
+                    {errors.festival ? (
+                      <p className="text-xs font-medium text-destructive" role="alert">
+                        {errors.festival}
+                      </p>
+                    ) : null}
+                  </AsideSection>
+                ) : null}
+
                 <AsideSection title="Multi-événement">
                   <SelectSearchable
                     options={majorEventOptions}
                     value={formData.major_event_id}
                     onValueChange={(value) => patchForm({ major_event_id: value })}
-                    placeholder={loadingMajorEvents ? "Chargement…" : "Rattacher à un festival…"}
+                    placeholder={loadingMajorEvents ? "Chargement…" : "Rattacher à un Multi-événements…"}
                     searchPlaceholder="Rechercher…"
                     disabled={busy}
                   />
-                  <p className="text-xs text-muted-foreground">Festival ou programmation commune.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Ancienne page de festival, remplacée par « Fait partie du festival ».
+                  </p>
                 </AsideSection>
 
                 {isEdit && event?.created_at ? (
@@ -2211,6 +2480,10 @@ export function EventFormSheet({
               ...previous,
               { id: location.id, name: location.name, instagram_url: null, facebook_url: null, type: "location" },
             ]);
+          }
+          if (quickCreate?.forFestival) {
+            changeFestivalLocations([...festivalLocations, location.id]);
+            return;
           }
           setDirty(true);
           setFormData((previous) => ({

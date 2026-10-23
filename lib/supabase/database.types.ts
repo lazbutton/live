@@ -866,6 +866,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_id: string | null
           hide_from_home: boolean
           id: string
           image_card_error: string | null
@@ -918,6 +919,7 @@ export type Database = {
           external_url?: string | null
           external_url_label?: string | null
           facebook_url?: string | null
+          festival_id?: string | null
           hide_from_home?: boolean
           id?: string
           image_card_error?: string | null
@@ -970,6 +972,7 @@ export type Database = {
           external_url?: string | null
           external_url_label?: string | null
           facebook_url?: string | null
+          festival_id?: string | null
           hide_from_home?: boolean
           id?: string
           image_card_error?: string | null
@@ -1008,6 +1011,13 @@ export type Database = {
             columns: ["city_id"]
             isOneToOne: false
             referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_festival_id_fkey"
+            columns: ["festival_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
           {
@@ -1093,6 +1103,42 @@ export type Database = {
             columns: ["feedback_object_id"]
             isOneToOne: false
             referencedRelation: "feedback_objects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      festival_locations: {
+        Row: {
+          festival_id: string
+          id: string
+          location_id: string
+          sort_index: number
+        }
+        Insert: {
+          festival_id: string
+          id?: string
+          location_id: string
+          sort_index?: number
+        }
+        Update: {
+          festival_id?: string
+          id?: string
+          location_id?: string
+          sort_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "festival_locations_festival_id_fkey"
+            columns: ["festival_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "festival_locations_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
             referencedColumns: ["id"]
           },
         ]
@@ -2369,7 +2415,12 @@ export type Database = {
       }
       app_audience_add: { Args: { counts: Json; day: string }; Returns: number }
       app_category_counts: {
-        Args: { at_time?: string; city_ids?: string[] }
+        Args: {
+          at_time?: string
+          city_ids?: string[]
+          zone_city?: string
+          zone_km?: number
+        }
         Returns: {
           category_id: string
           display_order: number
@@ -2378,7 +2429,7 @@ export type Database = {
         }[]
       }
       app_cities: {
-        Args: never
+        Args: { at_time?: string }
         Returns: {
           center_lat: number
           center_lng: number
@@ -2388,9 +2439,27 @@ export type Database = {
           next_event_date: string
           recent_events_count: number
           search_aliases: string[]
+          slug: string
           source_ids: string[]
           upcoming_events_count: number
         }[]
+      }
+      app_city_groups: {
+        Args: never
+        Returns: {
+          center_lat: number
+          center_lng: number
+          group_key: string
+          id: string
+          label: string
+          search_aliases: string[]
+          slug: string
+          source_ids: string[]
+        }[]
+      }
+      app_distance_km: {
+        Args: { lat1: number; lat2: number; lng1: number; lng2: number }
+        Returns: number
       }
       app_event_counts: {
         Args: {
@@ -2400,6 +2469,8 @@ export type Database = {
           family?: boolean
           free?: boolean
           ranges: Json
+          zone_city?: string
+          zone_km?: number
         }
         Returns: {
           events_count: number
@@ -2443,10 +2514,7 @@ export type Database = {
         }[]
       }
       app_event_series_title: { Args: { title: string }; Returns: string }
-      app_event_title_without_date: {
-        Args: { title: string }
-        Returns: string
-      }
+      app_event_title_without_date: { Args: { title: string }; Returns: string }
       app_events: {
         Args: never
         Returns: {
@@ -2469,6 +2537,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_id: string | null
           hide_from_home: boolean
           id: string
           image_card_error: string | null
@@ -2517,6 +2586,8 @@ export type Database = {
           free?: boolean
           range_end?: string
           range_start: string
+          zone_city?: string
+          zone_km?: number
         }
         Returns: {
           address: string | null
@@ -2538,6 +2609,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_id: string | null
           hide_from_home: boolean
           id: string
           image_card_error: string | null
@@ -2577,6 +2649,77 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      app_events_in_zone: {
+        Args: { zone_city?: string; zone_km?: number }
+        Returns: {
+          address: string | null
+          agenda_types: string[]
+          archived: boolean
+          capacity: number | null
+          category: string
+          city_id: string | null
+          community_attribution_opt_in: boolean
+          community_contributor_label: string | null
+          community_submission: boolean
+          created_at: string | null
+          created_by: string | null
+          date: string
+          description: string | null
+          door_opening_time: string | null
+          end_date: string | null
+          end_time: string | null
+          external_url: string | null
+          external_url_label: string | null
+          facebook_url: string | null
+          festival_id: string | null
+          hide_from_home: boolean
+          id: string
+          image_card_error: string | null
+          image_card_url: string | null
+          image_color: string | null
+          image_height: number | null
+          image_url: string | null
+          image_width: number | null
+          instagram_url: string | null
+          is_featured: boolean
+          is_full: boolean | null
+          is_pay_what_you_want: boolean
+          is_safety_hidden: boolean
+          is_young_audience: boolean
+          latitude: number | null
+          location_id: string | null
+          longitude: number | null
+          presale_price: number | null
+          price: number | null
+          price_kind: string | null
+          price_max: number | null
+          price_min: number | null
+          published_at: string | null
+          room_id: string | null
+          scraping_url: string | null
+          show_on_app: boolean
+          status: string | null
+          subscriber_price: number | null
+          tag_ids: string[] | null
+          title: string
+          updated_at: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      app_festival_events: {
+        Args: { at_time?: string }
+        Returns: {
+          date: string
+          event_id: string
+          events_count: number
+          festival_id: string
+        }[]
+      }
       app_follows: {
         Args: { at_time?: string }
         Returns: {
@@ -2589,9 +2732,62 @@ export type Database = {
           upcoming_count: number
         }[]
       }
+      app_in_zone: {
+        Args: {
+          city_id: string
+          latitude: number
+          longitude: number
+          zone_city_ids: string[]
+          zone_km: number
+          zone_lat: number
+          zone_lng: number
+        }
+        Returns: boolean
+      }
       app_link_keys: { Args: { link: string }; Returns: string[] }
+      app_major_events_in_zone: {
+        Args: { zone_city?: string; zone_km?: number }
+        Returns: {
+          city_id: string | null
+          city_name: string | null
+          created_at: string
+          created_by: string | null
+          default_map_zoom: number | null
+          end_at: string
+          hero_image_url: string | null
+          id: string
+          is_featured: boolean
+          logo_url: string | null
+          long_description: string | null
+          map_center_latitude: number | null
+          map_center_longitude: number | null
+          official_url: string | null
+          primary_category: string | null
+          short_description: string | null
+          slug: string
+          start_at: string
+          status: string
+          tag_ids: string[]
+          ticketing_url: string | null
+          timezone: string
+          title: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "major_events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       app_organizer_counts: {
-        Args: { at_time?: string; city_ids?: string[]; organizer_ids: string[] }
+        Args: {
+          at_time?: string
+          city_ids?: string[]
+          organizer_ids: string[]
+          zone_city?: string
+          zone_km?: number
+        }
         Returns: {
           events_count: number
           kind: string
@@ -2625,6 +2821,8 @@ export type Database = {
           city_ids?: string[]
           max_results?: number
           query: string
+          zone_city?: string
+          zone_km?: number
         }
         Returns: {
           event_id: string
@@ -2643,6 +2841,8 @@ export type Database = {
           city_ids?: string[]
           max_results?: number
           query: string
+          zone_city?: string
+          zone_km?: number
         }
         Returns: {
           city: string
@@ -2685,6 +2885,8 @@ export type Database = {
           city_ids?: string[]
           event_id: string
           max_results?: number
+          zone_city?: string
+          zone_km?: number
         }
         Returns: {
           event_id: string
@@ -2707,11 +2909,33 @@ export type Database = {
         Returns: boolean
       }
       app_tag_counts: {
-        Args: { at_time?: string; city_ids?: string[]; max_tags?: number }
+        Args: {
+          at_time?: string
+          city_ids?: string[]
+          max_tags?: number
+          zone_city?: string
+          zone_km?: number
+        }
         Returns: {
           events_count: number
           name: string
           tag_id: string
+        }[]
+      }
+      app_zone: {
+        Args: { zone_city: string; zone_km?: number }
+        Returns: {
+          center_lat: number
+          center_lng: number
+          city_ids: string[]
+          radius_km: number
+        }[]
+      }
+      app_zone_counts: {
+        Args: { at_time?: string; radii?: number[]; zone_city: string }
+        Returns: {
+          events_count: number
+          radius_km: number
         }[]
       }
       can_use_ugc_features: { Args: never; Returns: boolean }
