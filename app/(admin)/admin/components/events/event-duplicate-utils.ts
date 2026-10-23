@@ -49,6 +49,7 @@ export function buildEventFormPrefillFromEvent(event: AdminEvent): EventFormPref
       show_on_app: event.show_on_app !== false,
       agenda_types: parseAgendaTypes(event.agenda_types),
       major_event_id: event.major_event_events?.major_event_id || "",
+      festival_id: event.festival_id || "",
     },
     organizerIds,
     artistIds,

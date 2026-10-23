@@ -44,6 +44,8 @@ export type AdminEvent = AdminEventColumns & {
   tag_ids?: string[];
   archived?: boolean;
   created_at?: string;
+  /** Le festival dont l'événement fait partie (`events.festival_id`). */
+  festival_id?: string | null;
 
   location?: { id: string; name: string } | null;
   event_organizers?: Array<{
@@ -125,6 +127,8 @@ export type EventFormData = {
   is_young_audience: boolean;
   agenda_types: string[];
   major_event_id: string;
+  /** « Fait partie du festival » : l'id du festival, ou "". */
+  festival_id: string;
 };
 
 export type EventFormPrefill = Partial<{
