@@ -1,3 +1,5 @@
+import type { User } from "@supabase/supabase-js";
+
 import { supabase } from "./supabase/client";
 
 export interface OrganizerInfo {
@@ -11,20 +13,24 @@ export interface OrganizerInfo {
   };
 }
 
+/**
+ * Rôle admin dans app_metadata (écrit par le service uniquement ; raw_user_meta_data est
+ * modifiable par l'utilisateur, cf. migration 20261023150000). Pour une route API qui a déjà
+ * l'utilisateur de `getUser()` ; sinon `checkIsAdmin()`.
+ */
+export function isAdminUser(user: User | null | undefined): boolean {
+  return user?.app_metadata?.role === "admin";
+}
+
 export async function checkIsAdmin(supabaseClient?: any): Promise<boolean> {
   // Utiliser le client passé en paramètre ou le client browser par défaut
   const client = supabaseClient || supabase;
-  
+
   const {
     data: { user },
   } = await client.auth.getUser();
 
-  if (!user) return false;
-
-  // Rôle admin dans app_metadata (écrit par le service uniquement ; raw_user_meta_data est
-  // modifiable par l'utilisateur, cf. migration 20261023150000).
-  const role = user.app_metadata?.role;
-  return role === "admin";
+  return isAdminUser(user);
 }
 
 export async function requireAdmin() {
