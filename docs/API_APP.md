@@ -1361,7 +1361,9 @@ par station), `name`, `style` (texte libre, première lettre en capitale ; null 
 ligne vide), `page_url`, `feed_url`, `slots` (jsonb, `[{"weekday": 4, "start": "22:00", "end": "24:00"}]`,
 jour ISO : 1 = lundi ; heures de Paris ; une fin plus tôt que le début finit le lendemain, minuit s'écrit
 « 24:00 » ; la forme est vérifiée par la base), `organizer_id` (null : le collectif qui fait l'émission),
-`last_episode_at` (le plus récent `aired_at` de ses épisodes, tenu par la base), `updated_at`.
+`last_episode_at` (le plus récent `aired_at` de ses épisodes, tenu par la base), `image_url` (son visuel
+gardé, carré, dans le stockage d'OutLive ; null : l'app dessine sa pochette dans la charte de la radio ;
+migration `20261023235000_add_radio_show_images.sql`), `updated_at`.
 
 `radio_episodes` : `id`, `show_id`, `guid` (unique), `title` (« Nation Groove du 22/10/2026 »), `aired_at`,
 `duration_s` (null si le flux ne la donne pas), `audio_url`, `page_url`.
@@ -1381,11 +1383,11 @@ actives sortent des fonctions et de la route (47 le 2026-10-23, sur 91 au site).
 app_radio_day(p_station uuid, p_day date, p_at timestamp = null)
   returns table (show_id uuid, slug text, name text, style text, family text,
                  starts_at timestamptz, ends_at timestamptz,
-                 episode_id uuid, audio_url text, duration_s integer, state text)
+                 episode_id uuid, audio_url text, duration_s integer, state text, image_url text)
 app_radio_shows(p_station uuid, p_at timestamp = null)
   returns table (id uuid, slug text, name text, style text, family text, slots jsonb,
                  last_episode_at timestamptz, organizer_id uuid, description text, page_url text,
-                 letter text)
+                 letter text, image_url text)
 ```
 
 - `app_radio_day` : les émissions actives d'un jour, par `starts_at` (puis par nom). Un jour passé : celles
@@ -1405,6 +1407,9 @@ app_radio_shows(p_station uuid, p_at timestamp = null)
   « l' » au début, des accents, de la casse ni de la ponctuation (`radio_show_sort_key`). **`letter`**, en plus
   du contrat : la lettre sous laquelle ranger l'émission (« Le Mag Culturel » → `M`, « L'Enfer du Dimanche »
   → `E`, « À Bâtons Rompus » → `A`, `#` pour un chiffre), pour que la règle des articles reste en SQL.
+- `image_url` (les deux fonctions, en dernier depuis `20261023235000`) : le visuel gardé de l'émission, null
+  sinon. Avant cette migration, la colonne n'existe pas : l'app ne la demande (`select`) qu'une fois la
+  migration en prod.
 - `p_at` (heure de Paris, sans fuseau) remplace « maintenant » pour les tests ; l'app ne l'envoie pas.
 - Les épisodes d'une émission : la table directement.
 
@@ -1434,10 +1439,11 @@ stale-while-revalidate=10`), CORS comme les autres routes v1. Lue par l'app via 
   "station": {"id": "…", "name": "Radio Campus Orléans", "frequency": "88.3",
               "streamUrl": "https://streams.labomedia.org:8443/stream_rco", "streamUrlLight": null},
   "show": {"id": "…", "name": "Kawaï Campus Club", "style": "Mangas, animes et pop culture japonaise",
-           "family": "parole", "startsAt": "2026-10-23T19:00:00+00:00", "endsAt": "2026-10-23T20:00:00+00:00"},
+           "family": "parole", "startsAt": "2026-10-23T19:00:00+00:00", "endsAt": "2026-10-23T20:00:00+00:00",
+           "imageUrl": "https://…/storage/v1/object/public/organizers-images/radio-shows/kawai-campus-club-….webp"},
   "track": null,
   "next": {"id": "…", "name": "Blockchain", "style": "Hip-hop", "family": "musique",
-           "startsAt": "2026-10-23T20:00:00+00:00"},
+           "startsAt": "2026-10-23T20:00:00+00:00", "imageUrl": null},
   "recentTracks": [],
   "updatedAt": "2026-10-23T19:12:04+00:00"
 }
@@ -1445,6 +1451,8 @@ stale-while-revalidate=10`), CORS comme les autres routes v1. Lue par l'app via 
 
 - La grille se lit en SQL (`radio_live_grid`, réservée à la route) : `show` est l'émission active en cours,
   `next` la prochaine émission active à commencer (dans les 7 jours ; null sinon). `style` peut être null.
+  `imageUrl` (depuis `20261023235000`) : le visuel gardé de l'émission, null sinon ; une app plus ancienne
+  l'ignore.
 - Pendant une émission, la radio n'envoie que son nom : `track` à null. Si la grille annonce une émission
   mais que le serveur envoie un morceau (l'émission n'a pas lieu), c'est la playlist : `show` à null.
 - Entre deux émissions : `show` à null, `track` = `{"title": "To Ki Me Ki", "artist": "Akiko Yano"}` (artiste
@@ -1471,7 +1479,8 @@ stale-while-revalidate=10`), CORS comme les autres routes v1. Lue par l'app via 
   User-Agent « OutLive/1.0 … ») : l'API WordPress (`/wp-json/wp/v2/show?per_page=100`), la page d'une émission
   quand elle est nouvelle, modifiée sur le site ou lue il y a plus de 24 h (le style dans `.rco-show-style`,
   les créneaux dans `.rco-show-infos-dates-time li`, le lien du flux, la présentation), puis son flux RSS
-  (ses 30 derniers épisodes) en lecture conditionnelle, pas plus d'une fois en 50 minutes. Pas de visuels.
+  (ses 30 derniers épisodes) en lecture conditionnelle, pas plus d'une fois en 50 minutes. Pas de visuels :
+  `image_url` ne se pose qu'à la main (plus bas).
   N'écrit que ce qui change ; un épisode sorti du flux est retiré. **Chaque heure par pg_cron** (tâche
   `radio-import`, à :07, migration `20261023143000`, une fois le secret posé dans Vault) et une fois par jour
   par `vercel.json` (5:30 UTC) : Vercel Hobby refuse un cron plus fréquent.
@@ -1481,6 +1490,13 @@ stale-while-revalidate=10`), CORS comme les autres routes v1. Lue par l'app via 
   `les-clitoriciennes`, `univox`, `redac-pop`, `la-diagonale`, `kawai-campus-club`, `double-saut`,
   `pause-poesie`, `le-moulin-a-paroles`, `h1000`. Ensuite, famille et collectif (`organizer_id`) se modifient
   dans le back-office (`/admin/radio`) ; l'import n'y touche plus.
+- **Visuels gardés** (`lib/radio/show-images.ts`) : onze émissions gardent leur visuel à la place de leur
+  pochette (choisies le 2026-10-23, ../live/docs/RADIO_CAMPUS.md, « Les pochettes ») : recadré en carré (au
+  plus 1 200 px, jamais agrandi), en WebP, dans `organizers-images/radio-shows/<slug>-<empreinte>.webp`.
+  Posés par `scripts/radio-show-images.mjs` (simulation par défaut, `--write --confirm=<ref>`), puis
+  ajoutés, remplacés ou retirés dans le back-office : `POST /api/admin/radio/shows/[id]/image` (multipart,
+  `file`, 4 Mo au plus ; un logo détouré est posé entier sur le noir, le reste recadré au centre) et
+  `DELETE` (l'émission reprend sa pochette), admin seulement.
 - **Mesure d'audience** (U41) : `radio_live_play` (le direct lancé) et `radio_episode_play` (un épisode
   lancé), acceptés par `app_audience_add` (voir « Mesure d'audience » plus haut).
 - **Suivre une émission** (plus tard) : `user_follows` (U8) gagnera le type `radio_show`.

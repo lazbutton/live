@@ -46,6 +46,8 @@ export type RadioGridRow = {
   family: string;
   starts_at: string;
   ends_at: string;
+  /** Le visuel gardé de l'émission (radio_shows.image_url) ; null : l'app dessine sa pochette. */
+  image_url?: string | null;
 };
 
 const RECENT_TRACKS = 4;
@@ -150,6 +152,7 @@ export function buildRadioLive(input: RadioLiveInput): RadioLiveResponse {
           family: asFamily(show.family),
           startsAt: formatParisLabelled(show.starts_at),
           endsAt: formatParisLabelled(show.ends_at),
+          imageUrl: show.image_url ?? null,
         }
       : null,
     track,
@@ -160,6 +163,7 @@ export function buildRadioLive(input: RadioLiveInput): RadioLiveResponse {
           style: next.style,
           family: asFamily(next.family),
           startsAt: formatParisLabelled(next.starts_at),
+          imageUrl: next.image_url ?? null,
         }
       : null,
     recentTracks,
