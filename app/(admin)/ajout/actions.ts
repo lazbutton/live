@@ -82,7 +82,7 @@ async function adminSession(): Promise<{ supabase: SupabaseClient; user: User } 
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Session expirée : reconnecte-toi." };
-  const role = user.user_metadata?.role ?? user.app_metadata?.role;
+  const role = user.app_metadata?.role;
   if (role !== "admin") return { ok: false, error: "Accès réservé aux administrateurs." };
   return { supabase, user };
 }

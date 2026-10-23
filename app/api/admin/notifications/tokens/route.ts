@@ -14,6 +14,7 @@ type AuthAdminClient = {
             id: string;
             email?: string;
             user_metadata?: Record<string, any>;
+            app_metadata?: Record<string, any>;
           }>;
         } | null;
         error: { message: string } | null;
@@ -27,6 +28,7 @@ async function listAllAuthUsers(adminClient: AuthAdminClient) {
     id: string;
     email?: string;
     user_metadata?: Record<string, any>;
+    app_metadata?: Record<string, any>;
   }> = [];
   let page = 1;
   const perPage = 200;
@@ -102,7 +104,7 @@ export async function GET() {
     const adminUsers: Array<{ id: string; email: string; role: string }> = [];
     
     for (const user of allUsers) {
-      const role = user.user_metadata?.role;
+      const role = user.app_metadata?.role;
       if (role === "admin") {
         adminUserIds.add(user.id);
         adminUsers.push({

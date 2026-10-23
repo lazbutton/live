@@ -16,13 +16,13 @@
      - **Send Invite Email** : décochez si vous voulez juste créer l'utilisateur
    - Cliquez sur **Create user**
 
-3. **Ajoutez le rôle admin via SQL (si User Metadata n'est pas visible)**
+3. **Ajoutez le rôle admin via SQL (si App Metadata n'est pas visible)**
    - Notez l'**email** de l'utilisateur créé
    - Allez dans **SQL Editor** dans le Dashboard
    - Exécutez cette requête (remplacez l'email) :
    ```sql
    UPDATE auth.users
-   SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || '{"role": "admin"}'::jsonb
+   SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || '{"role": "admin"}'::jsonb
    WHERE email = 'votre-email@example.com';
    ```
    
@@ -31,11 +31,11 @@
    SELECT make_user_admin('votre-email@example.com');
    ```
 
-### Alternative : User Metadata dans le Dashboard
+### Alternative : App Metadata dans le Dashboard
 
 Si vous voyez les métadonnées dans l'interface :
 - Cliquez sur l'utilisateur
-- Cherchez l'onglet **Metadata**, **User Metadata**, ou **raw_user_meta_data**
+- Cherchez l'onglet **Metadata**, **App Metadata**, ou **raw_app_meta_data**
 - Cliquez sur **Edit** ou le crayon
 - Ajoutez la clé `role` avec la valeur `admin`
 
@@ -71,7 +71,7 @@ const { data, error } = await adminClient.auth.admin.createUser({
   email: 'admin@example.com',
   password: 'MotDePasseSecurise123!',
   email_confirm: true, // Confirmer l'email automatiquement
-  user_metadata: {
+  app_metadata: {
     role: 'admin'
   }
 })
@@ -107,7 +107,7 @@ if (user) {
   const { data, error } = await adminClient.auth.admin.updateUserById(
     user.id,
     {
-      user_metadata: { role: 'admin' }
+      app_metadata: { role: 'admin' }
     }
   )
   
@@ -134,7 +134,7 @@ response = admin_client.auth.admin.create_user({
     "email": "admin@example.com",
     "password": "MotDePasseSecurise123!",
     "email_confirm": True,  # Confirmer l'email automatiquement
-    "user_metadata": {
+    "app_metadata": {
         "role": "admin"
     }
 })
@@ -163,7 +163,7 @@ if user:
     # Promouvoir en admin
     response = admin_client.auth.admin.update_user_by_id(
         user.id,
-        {"user_metadata": {"role": "admin"}}
+        {"app_metadata": {"role": "admin"}}
     )
     print(f"Utilisateur {user.email} promu admin")
 ```
@@ -176,7 +176,7 @@ Pour vérifier qu'un utilisateur est admin :
 SELECT 
   id,
   email,
-  raw_user_meta_data->>'role' as role
+  raw_app_meta_data->>'role' as role
 FROM auth.users
 WHERE email = 'votre-email@example.com';
 ```

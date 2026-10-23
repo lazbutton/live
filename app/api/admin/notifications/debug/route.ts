@@ -20,7 +20,6 @@ export async function POST(request: NextRequest) {
     }
 
     const isAdmin =
-      user.user_metadata?.role === "admin" ||
       user.app_metadata?.role === "admin";
 
     if (!isAdmin) {

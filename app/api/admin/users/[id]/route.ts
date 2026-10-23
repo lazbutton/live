@@ -21,7 +21,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    const role = user.user_metadata?.role;
+    const role = user.app_metadata?.role;
     if (role !== "admin") {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
@@ -39,21 +39,24 @@ export async function PATCH(
       );
     }
 
-    // Mettre à jour les métadonnées
-    const currentMetadata = currentUser.user.user_metadata || {};
-    const updatedMetadata = { ...currentMetadata };
+    // Le rôle vit dans app_metadata (modifiable par le service seulement, cf. migration
+    // 20261023150000) ; les champs UGC restent dans user_metadata.
+    const updatedUserMetadata = { ...(currentUser.user.user_metadata || {}) };
+    const updatedAppMetadata = { ...(currentUser.user.app_metadata || {}) };
+    // raw_user_meta_data ne doit plus porter de rôle (un trigger l'y efface de toute façon).
+    delete (updatedUserMetadata as Record<string, unknown>).role;
 
     if (body.role !== undefined) {
       if (body.role === "" || body.role === null) {
-        delete updatedMetadata.role;
+        delete (updatedAppMetadata as Record<string, unknown>).role;
       } else {
-        updatedMetadata.role = body.role;
+        (updatedAppMetadata as Record<string, unknown>).role = body.role;
       }
     }
 
     if (body.ugcSuspended !== undefined) {
       const nextSuspended = Boolean(body.ugcSuspended);
-      updatedMetadata.ugc_suspended = nextSuspended;
+      updatedUserMetadata.ugc_suspended = nextSuspended;
 
       const normalizedSuspensionReason =
         typeof body.ugcSuspensionReason === "string"
@@ -61,14 +64,14 @@ export async function PATCH(
           : "";
 
       if (nextSuspended) {
-        updatedMetadata.ugc_suspension_reason =
+        updatedUserMetadata.ugc_suspension_reason =
           normalizedSuspensionReason || "Suspendu par l'équipe de modération";
-        updatedMetadata.ugc_suspended_at = new Date().toISOString();
-        updatedMetadata.ugc_suspended_by = user.id;
+        updatedUserMetadata.ugc_suspended_at = new Date().toISOString();
+        updatedUserMetadata.ugc_suspended_by = user.id;
       } else {
-        delete updatedMetadata.ugc_suspension_reason;
-        delete updatedMetadata.ugc_suspended_at;
-        delete updatedMetadata.ugc_suspended_by;
+        delete updatedUserMetadata.ugc_suspension_reason;
+        delete updatedUserMetadata.ugc_suspended_at;
+        delete updatedUserMetadata.ugc_suspended_by;
       }
     }
 
@@ -76,7 +79,8 @@ export async function PATCH(
     const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
       id,
       {
-        user_metadata: updatedMetadata,
+        user_metadata: updatedUserMetadata,
+        app_metadata: updatedAppMetadata,
       }
     );
 
@@ -121,7 +125,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    const role = user.user_metadata?.role;
+    const role = user.app_metadata?.role;
     if (role !== "admin") {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }

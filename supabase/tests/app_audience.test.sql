@@ -57,7 +57,11 @@ END $$;
 
 INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
   ('3d000000-0000-4000-8000-000000000001', 'quidam@test.local', '{}'::jsonb),
-  ('3d000000-0000-4000-8000-000000000009', 'admin@test.local',  '{"role":"admin"}'::jsonb);
+  ('3d000000-0000-4000-8000-000000000009', 'admin@test.local',  '{}'::jsonb);
+
+-- Le rôle admin vit dans app_metadata (20261023150000) ; raw_user_meta_data ne peut plus le porter.
+UPDATE auth.users SET raw_app_meta_data = '{"role":"admin"}'::jsonb
+WHERE id = '3d000000-0000-4000-8000-000000000009';
 
 SELECT pg_temp.verifie('app_audience_add : exécutable par anon et authenticated, pas par public',
   has_function_privilege('anon', 'public.app_audience_add(date, jsonb)', 'execute')::text || ' '

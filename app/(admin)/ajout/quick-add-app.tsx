@@ -20,7 +20,7 @@ const ICON = "/ajout/app-icon/192?v=3";
 
 function authStateOf(user: User | null): AuthState {
   if (!user) return { status: "signed-out" };
-  const role = user.user_metadata?.role ?? user.app_metadata?.role;
+  const role = user.app_metadata?.role;
   return role === "admin" ? { status: "ready", email: user.email ?? "" } : { status: "forbidden", email: user.email ?? "" };
 }
 

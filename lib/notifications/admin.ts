@@ -108,7 +108,7 @@ export async function sendNotificationToAdmins(
   // Filtrer les admins
   const adminUserIds = new Set<string>();
   for (const user of allUsers) {
-    if (user.user_metadata?.role === "admin") {
+    if (user.app_metadata?.role === "admin") {
       adminUserIds.add(user.id);
     }
   }

@@ -30,7 +30,7 @@ export default function AdminLayout({
       }
 
       // Vérifier que l'utilisateur est admin
-      const role = user.user_metadata?.role;
+      const role = user.app_metadata?.role;
 
       if (role !== "admin") {
         hasValidatedAccessRef.current = false;
@@ -87,7 +87,7 @@ export default function AdminLayout({
         return;
       }
 
-      if (pathname === "/admin/login" && session?.user?.user_metadata?.role === "admin") {
+      if (pathname === "/admin/login" && session?.user?.app_metadata?.role === "admin") {
         hasValidatedAccessRef.current = true;
         setHasAccess(true);
         setIsChecking(false);

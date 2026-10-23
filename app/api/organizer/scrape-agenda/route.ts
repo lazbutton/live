@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "organizer_id ou location_id requis" }, { status: 400 });
     }
 
-    const userRole = user.user_metadata?.role || user.app_metadata?.role;
+    const userRole = user.app_metadata?.role;
     if (userRole !== "admin") {
       const { data: userOrg, error: accessError } = await supabase
         .from("user_organizers")

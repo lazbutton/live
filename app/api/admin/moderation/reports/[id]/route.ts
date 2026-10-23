@@ -28,7 +28,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    if (user.user_metadata?.role !== "admin") {
+    if (user.app_metadata?.role !== "admin") {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
 

@@ -88,7 +88,6 @@ export async function POST(request: NextRequest) {
 
       user = jwtUser;
       isAdmin =
-        user.user_metadata?.role === "admin" ||
         user.app_metadata?.role === "admin";
     } else if (isApiKeyMode) {
       isAdmin = true;
@@ -114,7 +113,6 @@ export async function POST(request: NextRequest) {
 
       user = cookieUser;
       isAdmin =
-        user.user_metadata?.role === "admin" ||
         user.app_metadata?.role === "admin";
     }
 

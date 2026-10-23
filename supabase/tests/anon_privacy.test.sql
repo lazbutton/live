@@ -30,7 +30,11 @@ INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
   ('3d000000-0000-4000-8000-000000000001', 'proprio@test.local', '{}'::jsonb),      -- propriétaire d'organisateur
   ('3d000000-0000-4000-8000-000000000002', 'invite@test.local',  '{}'::jsonb),      -- utilisateur invité
   ('3d000000-0000-4000-8000-000000000003', 'quidam@test.local',  '{}'::jsonb),      -- utilisateur sans lien
-  ('3d000000-0000-4000-8000-000000000009', 'admin@test.local',   '{"role":"admin"}'::jsonb);
+  ('3d000000-0000-4000-8000-000000000009', 'admin@test.local',   '{}'::jsonb);
+
+-- Le rôle admin vit dans app_metadata (20261023150000) ; raw_user_meta_data ne peut plus le porter.
+UPDATE auth.users SET raw_app_meta_data = '{"role":"admin"}'::jsonb
+WHERE id = '3d000000-0000-4000-8000-000000000009';
 
 INSERT INTO public.organizers (id, name) VALUES
   ('02000000-0000-4000-8000-000000000001', 'Organisateur test');
