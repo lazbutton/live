@@ -25,9 +25,10 @@ import {
 
 /*
  * Radio (Radio Campus dans OutLive) : les émissions importées chaque heure du site de la radio
- * (lib/radio/import.ts). Ici, leur famille (musique ou parole) et le collectif qui les fait ; l'import
- * ne les touche plus. L'interrupteur de la station s'affiche, il ne se change pas ici : il reste à faux
- * jusqu'à l'accord écrit de la radio (../live/docs/RADIO_CAMPUS.md, § 5).
+ * (lib/radio/import.ts). Ici, leur famille (musique ou parole), le collectif qui les fait et leur visuel
+ * gardé (à la place de leur pochette dans l'app, lib/radio/show-images.ts) ; l'import ne les touche plus.
+ * L'interrupteur de la station s'affiche, il ne se change pas ici : il reste à faux jusqu'à l'accord écrit
+ * de la radio (../live/docs/RADIO_CAMPUS.md, § 5).
  */
 
 const WEEKDAYS = ["", "Lun.", "Mar.", "Mer.", "Jeu.", "Ven.", "Sam.", "Dim."];
@@ -142,6 +143,53 @@ export function RadioShowsManagement() {
     }
   };
 
+  const setImage = (show: AdminRadioShow, imageUrl: string | null) =>
+    setData((current) =>
+      current
+        ? { ...current, shows: current.shows.map((candidate) => (candidate.id === show.id ? { ...candidate, imageUrl } : candidate)) }
+        : current,
+    );
+
+  const uploadImage = async (show: AdminRadioShow, file: File) => {
+    setSaving(show.id);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch(`/api/admin/radio/shows/${show.id}/image`, { method: "POST", body: form });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Envoi impossible");
+      setImage(show, body.imageUrl);
+      toast({ title: `${show.name} : visuel posé`, description: "Il remplace sa pochette dans l'app." });
+    } catch (error) {
+      toast({
+        title: `${show.name} : visuel non posé`,
+        description: error instanceof Error ? error.message : "Réessaie.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const removeImage = async (show: AdminRadioShow) => {
+    setSaving(show.id);
+    try {
+      const response = await fetch(`/api/admin/radio/shows/${show.id}/image`, { method: "DELETE" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Retrait impossible");
+      setImage(show, null);
+      toast({ title: `${show.name} : visuel retiré`, description: "Elle reprend sa pochette dans l'app." });
+    } catch (error) {
+      toast({
+        title: `${show.name} : visuel non retiré`,
+        description: error instanceof Error ? error.message : "Réessaie.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const organizerOptions = React.useMemo(
     () => [{ value: "", label: "Aucun collectif" }, ...(data?.organizers ?? []).map((o) => ({ value: o.id, label: o.name }))],
     [data?.organizers],
@@ -159,7 +207,7 @@ export function RadioShowsManagement() {
     <div className="space-y-6">
       <ManagementHero
         title="Radio"
-        description="Les émissions de la radio, importées chaque heure de son site (grille, styles, podcasts). Choisis ici leur famille et le collectif qui les fait : l'import ne les change plus. Une émission active a un épisode depuis 45 jours ; seules les actives paraissent dans l'app."
+        description="Les émissions de la radio, importées chaque heure de son site (grille, styles, podcasts). Choisis ici leur famille, le collectif qui les fait et leur visuel : l'import ne les change plus. Sans visuel, l'app dessine leur pochette dans la charte de la radio. Une émission active a un épisode depuis 45 jours ; seules les actives paraissent dans l'app."
         actions={
           <div className="flex gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => void runImport()} disabled={importing}>
@@ -241,6 +289,7 @@ export function RadioShowsManagement() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[170px]">Visuel</TableHead>
                   <TableHead>Émission</TableHead>
                   <TableHead>Créneaux</TableHead>
                   <TableHead>Dernier épisode</TableHead>
@@ -251,6 +300,14 @@ export function RadioShowsManagement() {
               <TableBody>
                 {visible.map((show) => (
                   <TableRow key={show.id} className={cn(!show.active && "text-muted-foreground")}>
+                    <TableCell>
+                      <ShowImageCell
+                        show={show}
+                        busy={saving === show.id}
+                        onUpload={(file) => void uploadImage(show, file)}
+                        onRemove={() => void removeImage(show)}
+                      />
+                    </TableCell>
                     <TableCell className="max-w-[280px]">
                       <a href={show.pageUrl} target="_blank" rel="noreferrer" className="font-medium hover:underline">
                         {show.name}
@@ -297,6 +354,63 @@ export function RadioShowsManagement() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Le visuel d'une émission : sa vignette, ou « Pochette » (l'app la dessine) ; « Ajouter » ou « Remplacer »
+ * (une image de 4 Mo au plus, recadrée en carré, un logo détouré posé entier sur le noir), « Retirer ».
+ */
+function ShowImageCell({
+  show,
+  busy,
+  onUpload,
+  onRemove,
+}: {
+  show: AdminRadioShow;
+  busy: boolean;
+  onUpload: (file: File) => void;
+  onRemove: () => void;
+}) {
+  const input = React.useRef<HTMLInputElement>(null);
+  return (
+    <div className="flex items-center gap-2.5">
+      {show.imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={show.imageUrl} alt="" className="size-11 shrink-0 rounded-md bg-black object-cover" />
+      ) : (
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-black text-[9px] font-semibold uppercase tracking-wide text-white/80">
+          Pochette
+        </span>
+      )}
+      <div className="flex flex-col items-start gap-0.5 text-xs">
+        <button
+          type="button"
+          className="font-medium hover:underline disabled:opacity-50"
+          onClick={() => input.current?.click()}
+          disabled={busy}
+        >
+          {show.imageUrl ? "Remplacer" : "Ajouter"}
+        </button>
+        {show.imageUrl ? (
+          <button type="button" className="text-muted-foreground hover:underline disabled:opacity-50" onClick={onRemove} disabled={busy}>
+            Retirer
+          </button>
+        ) : null}
+      </div>
+      <input
+        ref={input}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        aria-label={`Visuel de ${show.name}`}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (file) onUpload(file);
+        }}
+      />
     </div>
   );
 }

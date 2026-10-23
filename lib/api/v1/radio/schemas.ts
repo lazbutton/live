@@ -20,6 +20,12 @@ const parisDateTime = (example: string) =>
 
 const familySchema = z.enum(["musique", "parole"]);
 
+const showImageSchema = z.string().nullable().openapi({
+  description:
+    "Le visuel gardé de l'émission, carré, dans le stockage d'OutLive ; null : l'app dessine sa pochette (la charte de la radio).",
+  example: null,
+});
+
 export const radioLiveStationSchema = z
   .object({
     id: uuidSchema,
@@ -40,6 +46,7 @@ export const radioLiveShowSchema = z
     family: familySchema,
     startsAt: parisDateTime("2026-10-23T19:00:00+00:00"),
     endsAt: parisDateTime("2026-10-23T20:00:00+00:00"),
+    imageUrl: showImageSchema,
   })
   .openapi("RadioLiveShow");
 
@@ -50,6 +57,7 @@ export const radioLiveNextSchema = z
     style: z.string().nullable(),
     family: familySchema,
     startsAt: parisDateTime("2026-10-23T20:00:00+00:00"),
+    imageUrl: showImageSchema,
   })
   .openapi("RadioLiveNext");
 

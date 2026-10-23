@@ -33,6 +33,8 @@ export type AdminRadioShow = {
   active: boolean;
   pageUrl: string;
   episodesCount: number;
+  /** Le visuel gardé, à la place de la pochette dans l'app ; null : la pochette (lib/radio/show-images.ts). */
+  imageUrl: string | null;
 };
 
 export type AdminRadioPayload = {
@@ -74,7 +76,9 @@ export async function loadAdminRadio(supabase: Client): Promise<AdminRadioPayloa
     supabase.from("radio_stations").select("id, name, frequency, enabled, site_url, organizer_id").order("name"),
     supabase
       .from("radio_shows")
-      .select("id, station_id, slug, name, style, family, organizer_id, slots, last_episode_at, page_url, radio_episodes(count)")
+      .select(
+        "id, station_id, slug, name, style, family, organizer_id, slots, last_episode_at, page_url, image_url, radio_episodes(count)",
+      )
       .order("name"),
     loadOrganizers(supabase),
     supabase.from("radio_show_sync").select("feed_checked_at").order("feed_checked_at", { ascending: false, nullsFirst: false }).limit(1),
@@ -114,6 +118,7 @@ export async function loadAdminRadio(supabase: Client): Promise<AdminRadioPayloa
       active: activeIds.has(show.id),
       pageUrl: show.page_url,
       episodesCount: show.radio_episodes?.[0]?.count ?? 0,
+      imageUrl: show.image_url,
     })),
     organizers,
     lastImportAt: syncResult.data?.[0]?.feed_checked_at ?? null,

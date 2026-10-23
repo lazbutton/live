@@ -1163,3 +1163,23 @@
   vérifiée aussi de bout en bout via GoTrue réel) ; fixtures de `events_rls.test.sql` (u09 via app_meta) et
   `lib/api/app/routes.test.mjs` (`jwt-suspended`). `npm run db:test`, `node --test`, `npx tsc --noEmit` au vert.
 - **Pas encore appliquée en prod** (attendre l'accord ; prévoir les PR de l'app en même temps).
+
+## 2026-10-23 — Radio : les visuels gardés des émissions (`radio_shows.image_url`)
+
+- `20261023235000_add_radio_show_images` (PR #62) : `radio_shows.image_url` (https seulement ; null : la pochette
+  que l'app dessine dans la charte de Radio Campus, `../live/docs/RADIO_CAMPUS.md`, « Les pochettes »).
+  `app_radio_day`, `app_radio_shows` et `radio_live_grid` la rendent en dernière colonne : leur type de retour
+  change, elles sont supprimées puis recréées à l'identique, droits compris. L'import horaire n'y touche pas.
+- Testée sur la base jetable de `npm run db:test` (`supabase/tests/app_radio.test.sql` : les trois fonctions
+  rendent `image_url`, null sans visuel ; une adresse http est refusée).
+- **Appliquée en prod le 2026-10-23 vers 20:30 (heure de Paris)**, par l'éditeur SQL de Supabase, en une transaction
+  (`supabase db dump --linked --dry-run` restait bloqué ce soir-là, chez Claude comme dans le terminal, sans message :
+  impossible de passer par psql). Vérifié en anonyme : `app_radio_shows` rend `image_url` (47 émissions),
+  `app_radio_day` répond, et la route « ce qui passe » déployée (sans `imageUrl` jusqu'au déploiement de la PR)
+  répond 200.
+- **Onze visuels posés à 20:33** par `node --env-file=.env.local scripts/radio-show-images.mjs --write
+  --confirm=tkyuiltgvqcgebnqdgmb` : À Bâtons Rompus, Écoute ta fac, Kawaï Campus Club, Entrez… c'est du jazz, Le
+  Projet SETI, L'émission du fictionnaire, Nation Groove, Pull it up, Ride On, Rien ne fera venir le jour,
+  Tentaculation, dans `organizers-images/radio-shows/` (WebP carrés, 21 à 284 Ko). Vérifié en anonyme : 11 émissions
+  avec `image_url`, chaque image en 200 `image/webp` ; dans le programme d'hier, Écoute ta fac et Nation Groove ont
+  le leur.

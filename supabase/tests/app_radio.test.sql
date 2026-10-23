@@ -1,6 +1,7 @@
 -- Tests de la radio (Radio Campus dans OutLive) : tables, RLS, app_radio_day(), app_radio_shows(),
--- radio_live_grid(), l'import horaire par pg_cron (migrations 20261023140000_create_radio_tables.sql,
--- 20261023141000_create_app_radio_functions.sql et 20261023143000_schedule_radio_import.sql ; les
+-- radio_live_grid(), l'import horaire par pg_cron, les visuels gardés (migrations
+-- 20261023140000_create_radio_tables.sql, 20261023141000_create_app_radio_functions.sql,
+-- 20261023143000_schedule_radio_import.sql et 20261023235000_add_radio_show_images.sql ; les
 -- compteurs d'audience de 20261023142000 sont dans app_audience.test.sql).
 --
 -- Sur une base jetable avec toutes les migrations et aucun événement : scripts/db-test.sh.
@@ -400,6 +401,33 @@ SELECT pg_temp.verifie('direct : colonnes (dates à l''heure de Paris étiqueté
    FROM public.radio_live_grid('ad000000-0000-4000-8000-0000000000a1', '2026-10-23 19:12:04') AS g WHERE g.kind = 'live'),
   'ad000000-0000-4000-8000-000000000102 Style de Kawaï Campus Club parole 2026-10-23 19:00:00 2026-10-23 20:00:00');
 RESET ROLE;
+
+-- Les visuels gardés (20261023235000_add_radio_show_images.sql) ------------------------------------
+
+UPDATE public.radio_shows SET image_url = 'https://stockage.test/radio-shows/kawai.webp' WHERE slug = 'emission-02';
+SELECT pg_temp.session();
+SELECT pg_temp.verifie('visuels : app_radio_shows, app_radio_day et radio_live_grid rendent image_url, null sans visuel',
+  (SELECT s.image_url FROM public.app_radio_shows('ad000000-0000-4000-8000-0000000000a1', '2026-10-23 19:12:04') AS s
+   WHERE s.name = 'Kawaï Campus Club')
+  || ' ' || coalesce((SELECT s.image_url FROM public.app_radio_shows('ad000000-0000-4000-8000-0000000000a1', '2026-10-23 19:12:04') AS s
+   WHERE s.name = 'Nation Groove'), 'null')
+  || ' ' || (SELECT d.image_url FROM public.app_radio_day('ad000000-0000-4000-8000-0000000000a1', '2026-10-23', '2026-10-23 19:12:04') AS d
+   WHERE d.name = 'Kawaï Campus Club')
+  || ' ' || (SELECT g.image_url FROM public.radio_live_grid('ad000000-0000-4000-8000-0000000000a1', '2026-10-23 19:12:04') AS g
+   WHERE g.kind = 'live')
+  || ' ' || coalesce((SELECT g.image_url FROM public.radio_live_grid('ad000000-0000-4000-8000-0000000000a1', '2026-10-23 19:12:04') AS g
+   WHERE g.kind = 'next'), 'null'),
+  'https://stockage.test/radio-shows/kawai.webp null https://stockage.test/radio-shows/kawai.webp '
+  || 'https://stockage.test/radio-shows/kawai.webp null');
+RESET ROLE;
+DO $$
+BEGIN
+  UPDATE public.radio_shows SET image_url = 'http://stockage.test/radio-shows/kawai.webp' WHERE slug = 'emission-02';
+  RAISE EXCEPTION 'ÉCHEC visuels : une adresse http acceptée';
+EXCEPTION WHEN check_violation THEN
+  RAISE NOTICE 'ok  visuels : https seulement';
+END $$;
+UPDATE public.radio_shows SET image_url = NULL WHERE slug = 'emission-02';
 
 -- Droits sur les fonctions ---------------------------------------------------------------------------
 

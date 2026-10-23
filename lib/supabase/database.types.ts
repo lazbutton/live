@@ -2081,6 +2081,7 @@ export type Database = {
           family: string
           feed_url: string | null
           id: string
+          image_url: string | null
           last_episode_at: string | null
           name: string
           organizer_id: string | null
@@ -2098,6 +2099,7 @@ export type Database = {
           family?: string
           feed_url?: string | null
           id?: string
+          image_url?: string | null
           last_episode_at?: string | null
           name: string
           organizer_id?: string | null
@@ -2115,6 +2117,7 @@ export type Database = {
           family?: string
           feed_url?: string | null
           id?: string
+          image_url?: string | null
           last_episode_at?: string | null
           name?: string
           organizer_id?: string | null
@@ -3030,6 +3033,7 @@ export type Database = {
           ends_at: string
           episode_id: string
           family: string
+          image_url: string
           name: string
           show_id: string
           slug: string
@@ -3044,6 +3048,7 @@ export type Database = {
           description: string
           family: string
           id: string
+          image_url: string
           last_episode_at: string
           letter: string
           name: string
@@ -3311,6 +3316,7 @@ export type Database = {
         Returns: {
           ends_at: string
           family: string
+          image_url: string
           kind: string
           name: string
           show_id: string
