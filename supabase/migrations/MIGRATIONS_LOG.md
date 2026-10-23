@@ -1052,5 +1052,10 @@
     la transaction) ; après : la contrainte à 8 compteurs, le corps de la fonction celui du fichier, anon et
     authenticated l'appellent ; le même envoi avec une clé inconnue en plus : 2 compteurs ajoutés ;
   - rien n'est resté (5 compteurs, la fonction d'avant, les mêmes totaux).
-- **Pas encore appliquée en prod** : attend l'accord de l'utilisateur, avant la sortie de l'app qui envoie
-  `festival_opened`.
+- **Appliquée en prod le 23/10/2026 à 16:24 (14:24 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche au commit `139709d`),
+  sans erreur. Vérifiée : la contrainte compte les 8 compteurs, le corps d'`app_audience_add` est celui du fichier,
+  anon et authenticated l'appellent ; en anon, dans une transaction annulée pour ne pas fausser les chiffres, un envoi
+  comme l'app (`festival_opened`, `event_opened` et une clé inconnue) ajoute 2 compteurs ; par l'API publique, en anon,
+  `rpc/app_audience_add` répond 200 (un jour hors fenêtre : 0, rien d'écrit). Totaux inchangés (49, 2, 1). La Radio
+  (`20261023142000`) n'est toujours pas en prod : appliquée plus tard, elle garde la même liste.
