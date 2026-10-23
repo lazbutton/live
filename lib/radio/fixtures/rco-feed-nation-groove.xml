@@ -1,0 +1,449 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+		xmlns:content="http://purl.org/rss/1.0/modules/content/"
+		xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+		xmlns:dc="http://purl.org/dc/elements/1.1/"
+		xmlns:atom="http://www.w3.org/2005/Atom"
+		xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+		xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+		xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+		>
+		<channel>
+			<title>Nation Groove</title>
+			<atom:link href="https://orleans.radiocampus.org/podcasts/nation-groove/itunes/feed/" rel="self" type="application/rss+xml" />
+			<link>https://orleans.radiocampus.org/emission/nation-groove/</link>
+			<language>fr-FR</language>
+			<copyright>Radio Campus Orléans 88.3 FM</copyright>
+			<description>Nation Groove  est une émission de Radio Campus Orléans 88.3 FM. Retrouvez toutes les informations autour de ce programme à l'adresse suivante : https://orleans.radiocampus.org/emission/nation-groove/</description>
+			<itunes:author>Radio Campus Orléans 88.3 FM</itunes:author>
+			<itunes:owner>
+				<itunes:email>radio@example.org</itunes:email>
+				<itunes:name>adminRCO</itunes:name>
+			</itunes:owner>
+			<itunes:subtitle>Nation Groove  est une émission de Radio Campus Orléans 88.3 FM. Retrouvez toutes les informations autour de ce programme à l'adresse suivante : https://orleans.radiocampus.org/emission/nation-groove/</itunes:subtitle>
+			<itunes:summary>Nation Groove  est une émission de Radio Campus Orléans 88.3 FM. Retrouvez toutes les informations autour de ce programme à l'adresse suivante : https://orleans.radiocampus.org/emission/nation-groove/</itunes:summary>
+			<itunes:type>episodic</itunes:type>
+			<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/>
+			<itunes:category text="Music"/>			<itunes:explicit>no</itunes:explicit>
+							<item>
+					<title>Nation Groove du 22/10/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-12/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 22/10/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-12/</guid>
+					<itunes:title>Nation Groove du 22/10/2026</itunes:title>
+					<itunes:subtitle>Emission du 22/10/2026</itunes:subtitle>
+					<itunes:summary>Emission du 22/10/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/10/podcast_36_261022_220001.mp3" length="172493844" type="audio/mpeg"/>					<pubDate>Thu, 22 Oct 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 15/10/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-11/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 15/10/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-11/</guid>
+					<itunes:title>Nation Groove du 15/10/2026</itunes:title>
+					<itunes:subtitle>Emission du 15/10/2026</itunes:subtitle>
+					<itunes:summary>Emission du 15/10/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/10/podcast_36_261015_220001.mp3" length="172486332" type="audio/mpeg"/>					<pubDate>Thu, 15 Oct 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 08/10/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-43/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 08/10/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-43/</guid>
+					<itunes:title>Nation Groove du 08/10/2026</itunes:title>
+					<itunes:subtitle>Emission du 08/10/2026</itunes:subtitle>
+					<itunes:summary>Emission du 08/10/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/10/podcast_36_261008_220001.mp3" length="172488836" type="audio/mpeg"/>					<pubDate>Thu, 08 Oct 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 01/10/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-49/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 01/10/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-49/</guid>
+					<itunes:title>Nation Groove du 01/10/2026</itunes:title>
+					<itunes:subtitle>Emission du 01/10/2026</itunes:subtitle>
+					<itunes:summary>Emission du 01/10/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/10/podcast_36_261001_220001.mp3" length="172486332" type="audio/mpeg"/>					<pubDate>Thu, 01 Oct 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 24/09/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-5/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 24/09/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-5/</guid>
+					<itunes:title>Nation Groove du 24/09/2026</itunes:title>
+					<itunes:subtitle>Emission du 24/09/2026</itunes:subtitle>
+					<itunes:summary>Emission du 24/09/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/09/podcast_36_260924_220001.mp3" length="172486332" type="audio/mpeg"/>					<pubDate>Thu, 24 Sep 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 17/09/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-48/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 17/09/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-48/</guid>
+					<itunes:title>Nation Groove du 17/09/2026</itunes:title>
+					<itunes:subtitle>Emission du 17/09/2026</itunes:subtitle>
+					<itunes:summary>Emission du 17/09/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/09/podcast_36_260917_220001.mp3" length="172491340" type="audio/mpeg"/>					<pubDate>Thu, 17 Sep 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 10/09/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-47/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 10/09/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-47/</guid>
+					<itunes:title>Nation Groove du 10/09/2026</itunes:title>
+					<itunes:subtitle>Emission du 10/09/2026</itunes:subtitle>
+					<itunes:summary>Emission du 10/09/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/09/podcast_36_260910_220001.mp3" length="172486332" type="audio/mpeg"/>					<pubDate>Thu, 10 Sep 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 03/09/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-51/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 03/09/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-51/</guid>
+					<itunes:title>Nation Groove du 03/09/2026</itunes:title>
+					<itunes:subtitle>Emission du 03/09/2026</itunes:subtitle>
+					<itunes:summary>Emission du 03/09/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/09/podcast_36_260903_220001.mp3" length="172486332" type="audio/mpeg"/>					<pubDate>Thu, 03 Sep 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 27/08/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-50/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 27/08/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-50/</guid>
+					<itunes:title>Nation Groove du 27/08/2026</itunes:title>
+					<itunes:subtitle>Emission du 27/08/2026</itunes:subtitle>
+					<itunes:summary>Emission du 27/08/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/09/podcast_36_260827_220001.mp3" length="172486332" type="audio/mpeg"/>					<pubDate>Thu, 27 Aug 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 20/08/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-46/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 20/08/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-46/</guid>
+					<itunes:title>Nation Groove du 20/08/2026</itunes:title>
+					<itunes:subtitle>Emission du 20/08/2026</itunes:subtitle>
+					<itunes:summary>Emission du 20/08/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/09/podcast_36_260820_220001.mp3" length="172483828" type="audio/mpeg"/>					<pubDate>Thu, 20 Aug 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 13/08/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-45/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 13/08/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-45/</guid>
+					<itunes:title>Nation Groove du 13/08/2026</itunes:title>
+					<itunes:subtitle>Emission du 13/08/2026</itunes:subtitle>
+					<itunes:summary>Emission du 13/08/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/08/podcast_36_260813_220001.mp3" length="172486332" type="audio/mpeg"/>					<pubDate>Thu, 13 Aug 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 06/08/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-44/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 06/08/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-44/</guid>
+					<itunes:title>Nation Groove du 06/08/2026</itunes:title>
+					<itunes:subtitle>Emission du 06/08/2026</itunes:subtitle>
+					<itunes:summary>Emission du 06/08/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/08/podcast_36_260806_220001.mp3" length="172483828" type="audio/mpeg"/>					<pubDate>Thu, 06 Aug 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 30/07/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-42/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 30/07/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-42/</guid>
+					<itunes:title>Nation Groove du 30/07/2026</itunes:title>
+					<itunes:subtitle>Emission du 30/07/2026</itunes:subtitle>
+					<itunes:summary>Emission du 30/07/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/07/podcast_36_260730_220001.mp3" length="172483828" type="audio/mpeg"/>					<pubDate>Thu, 30 Jul 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 23/07/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-41/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 23/07/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-41/</guid>
+					<itunes:title>Nation Groove du 23/07/2026</itunes:title>
+					<itunes:subtitle>Emission du 23/07/2026</itunes:subtitle>
+					<itunes:summary>Emission du 23/07/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/07/podcast_36_260723_220001.mp3" length="172483828" type="audio/mpeg"/>					<pubDate>Thu, 23 Jul 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 16/07/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-40/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 16/07/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-40/</guid>
+					<itunes:title>Nation Groove du 16/07/2026</itunes:title>
+					<itunes:subtitle>Emission du 16/07/2026</itunes:subtitle>
+					<itunes:summary>Emission du 16/07/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/07/podcast_36_260716_220001.mp3" length="172483828" type="audio/mpeg"/>					<pubDate>Thu, 16 Jul 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 09/07/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-39/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 09/07/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-39/</guid>
+					<itunes:title>Nation Groove du 09/07/2026</itunes:title>
+					<itunes:subtitle>Emission du 09/07/2026</itunes:subtitle>
+					<itunes:summary>Emission du 09/07/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/07/podcast_36_260709_220001.mp3" length="172488836" type="audio/mpeg"/>					<pubDate>Thu, 09 Jul 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 02/07/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-38/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 02/07/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-38/</guid>
+					<itunes:title>Nation Groove du 02/07/2026</itunes:title>
+					<itunes:subtitle>Emission du 02/07/2026</itunes:subtitle>
+					<itunes:summary>Emission du 02/07/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/07/podcast_36_260702_220001.mp3" length="172488836" type="audio/mpeg"/>					<pubDate>Thu, 02 Jul 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 25/06/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-37/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 25/06/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-37/</guid>
+					<itunes:title>Nation Groove du 25/06/2026</itunes:title>
+					<itunes:subtitle>Emission du 25/06/2026</itunes:subtitle>
+					<itunes:summary>Emission du 25/06/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/06/podcast_36_260625_220001.mp3" length="172491340" type="audio/mpeg"/>					<pubDate>Thu, 25 Jun 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 18/06/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-36/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 18/06/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-36/</guid>
+					<itunes:title>Nation Groove du 18/06/2026</itunes:title>
+					<itunes:subtitle>Emission du 18/06/2026</itunes:subtitle>
+					<itunes:summary>Emission du 18/06/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/06/podcast_36_260618_220001.mp3" length="172491340" type="audio/mpeg"/>					<pubDate>Thu, 18 Jun 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 11/06/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-35/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 11/06/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-35/</guid>
+					<itunes:title>Nation Groove du 11/06/2026</itunes:title>
+					<itunes:subtitle>Emission du 11/06/2026</itunes:subtitle>
+					<itunes:summary>Emission du 11/06/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/06/podcast_36_260611_220001.mp3" length="172491340" type="audio/mpeg"/>					<pubDate>Thu, 11 Jun 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 04/06/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-34/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 04/06/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-34/</guid>
+					<itunes:title>Nation Groove du 04/06/2026</itunes:title>
+					<itunes:subtitle>Emission du 04/06/2026</itunes:subtitle>
+					<itunes:summary>Emission du 04/06/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/06/podcast_36_260604_220001.mp3" length="172488836" type="audio/mpeg"/>					<pubDate>Thu, 04 Jun 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 28/05/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-33/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 28/05/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-33/</guid>
+					<itunes:title>Nation Groove du 28/05/2026</itunes:title>
+					<itunes:subtitle>Emission du 28/05/2026</itunes:subtitle>
+					<itunes:summary>Emission du 28/05/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/05/podcast_36_260528_220001.mp3" length="172491340" type="audio/mpeg"/>					<pubDate>Thu, 28 May 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 21/05/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-32/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 21/05/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-32/</guid>
+					<itunes:title>Nation Groove du 21/05/2026</itunes:title>
+					<itunes:subtitle>Emission du 21/05/2026</itunes:subtitle>
+					<itunes:summary>Emission du 21/05/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/05/podcast_36_260521_220001.mp3" length="172491340" type="audio/mpeg"/>					<pubDate>Thu, 21 May 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 14/05/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-31/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 14/05/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-31/</guid>
+					<itunes:title>Nation Groove du 14/05/2026</itunes:title>
+					<itunes:subtitle>Emission du 14/05/2026</itunes:subtitle>
+					<itunes:summary>Emission du 14/05/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/05/podcast_36_260514_220001.mp3" length="172491340" type="audio/mpeg"/>					<pubDate>Thu, 14 May 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 07/05/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-30/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 07/05/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-30/</guid>
+					<itunes:title>Nation Groove du 07/05/2026</itunes:title>
+					<itunes:subtitle>Emission du 07/05/2026</itunes:subtitle>
+					<itunes:summary>Emission du 07/05/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/05/podcast_36_260507_220001.mp3" length="172493844" type="audio/mpeg"/>					<pubDate>Thu, 07 May 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 30/04/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-29/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 30/04/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-29/</guid>
+					<itunes:title>Nation Groove du 30/04/2026</itunes:title>
+					<itunes:subtitle>Emission du 30/04/2026</itunes:subtitle>
+					<itunes:summary>Emission du 30/04/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/05/podcast_36_260430_220001.mp3" length="172495722" type="audio/mpeg"/>					<pubDate>Thu, 30 Apr 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 23/04/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-28/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 23/04/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-28/</guid>
+					<itunes:title>Nation Groove du 23/04/2026</itunes:title>
+					<itunes:subtitle>Emission du 23/04/2026</itunes:subtitle>
+					<itunes:summary>Emission du 23/04/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/04/podcast_36_260423_220001.mp3" length="172488836" type="audio/mpeg"/>					<pubDate>Thu, 23 Apr 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 16/04/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-27/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 16/04/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-27/</guid>
+					<itunes:title>Nation Groove du 16/04/2026</itunes:title>
+					<itunes:subtitle>Emission du 16/04/2026</itunes:subtitle>
+					<itunes:summary>Emission du 16/04/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/04/podcast_36_260416_220001.mp3" length="172491340" type="audio/mpeg"/>					<pubDate>Thu, 16 Apr 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 09/04/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-26/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 09/04/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-26/</guid>
+					<itunes:title>Nation Groove du 09/04/2026</itunes:title>
+					<itunes:subtitle>Emission du 09/04/2026</itunes:subtitle>
+					<itunes:summary>Emission du 09/04/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/04/podcast_36_260409_220001.mp3" length="172491340" type="audio/mpeg"/>					<pubDate>Thu, 09 Apr 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+							<item>
+					<title>Nation Groove du 02/04/2026</title>
+					<link>https://orleans.radiocampus.org/podcast/nation-groove-25/</link>
+					<author>radio@example.org (adminRCO)</author>
+					<description>Emission du 02/04/2026</description>
+										<guid isPermaLink="false">https://orleans.radiocampus.org/podcast/nation-groove-25/</guid>
+					<itunes:title>Nation Groove du 02/04/2026</itunes:title>
+					<itunes:subtitle>Emission du 02/04/2026</itunes:subtitle>
+					<itunes:summary>Emission du 02/04/2026</itunes:summary>
+					<itunes:author>adminRCO</itunes:author>
+					<itunes:image href="https://orleans.radiocampus.org/wp-content/themes/rco/images/logo-podcasts.png"/><enclosure url="https://orleans.radiocampus.org/wp-content/uploads/2026/04/podcast_36_260402_220001.mp3" length="172481324" type="audio/mpeg"/>					<pubDate>Thu, 02 Apr 2026 20:00:01 +0000</pubDate>
+										<itunes:duration>1:59:47</itunes:duration>
+										<itunes:explicit>no</itunes:explicit>
+									</item>
+					</channel>
+		</rss>
+	

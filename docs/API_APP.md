@@ -45,6 +45,7 @@ les deux repos ensemble.
 | `POST /api/user-requests` | `UserRequestApiService.createEventCreationRequest`, `createEventFromUrlRequest` | JWT | `createUserRequestBodySchema` | `createUserRequestResponseSchema` |
 | `POST /api/mobile/events/extract-from-image` | `UserRequestApiService.extractEventFromImage` | JWT, session invitée ou compte, plafond par jour | `extractFromImageFormSchema` (multipart) | `extractFromImageResponseSchema` |
 | `PATCH /api/admin/mobile/events/[id]` | `AdminMobileApiService.approveEvent`, `toggleEventFull`, `toggleEventFeatured`, `quickEditEvent` | JWT admin | `adminEventActionBodySchema` | `adminEventActionResponseSchema` |
+| `GET /api/v1/radio/[stationId]/live` | à venir (`lib/features/radio/`) | aucune, et sans `Authorization` (cache CDN) | aucun | `radioLiveResponseSchema` (`lib/api/v1/radio/schemas.ts`) |
 
 Services Dart : `lib/services/notification_api_service.dart`, `lib/services/user_request_api_service.dart`,
 `lib/services/admin_mobile_api_service.dart`.
@@ -1033,10 +1034,12 @@ Migration `20261021013000_create_app_audience_counts.sql`, tests `supabase/tests
 lecture dans l'admin : « Audience de l'app » (`/admin/audience`, `lib/audience/app-audience.ts`). Conditions
 de la CNIL pour se passer de consentement, et ce qui y répond : `docs/AUDIENCE_ET_PLANTAGES.md` de l'app (U41).
 
-L'app compte cinq gestes par jour, sur le téléphone, et envoie au plus une fois par jour les totaux des
+L'app compte ses gestes par jour, sur le téléphone, et envoie au plus une fois par jour les totaux des
 journées finies : `event_opened` (fiche ouverte), `ticket_tapped` (billetterie touchée), `search_no_result`
-(recherche sans résultat), `when_sheet_used` (feuille « Quand ? » utilisée), `event_liked` (cœur). Un appel par
-journée : `{"day": "2026-10-20", "counts": {"event_opened": 3, "event_liked": 1}}`.
+(recherche sans résultat), `when_sheet_used` (feuille « Quand ? » utilisée), `event_liked` (cœur), et depuis
+la migration `20261023122000_add_radio_audience_metrics.sql` `radio_live_play` (le direct de la radio lancé)
+et `radio_episode_play` (un épisode lancé). Un appel par journée :
+`{"day": "2026-10-20", "counts": {"event_opened": 3, "event_liked": 1}}`.
 
 - **Sans identité** : l'app appelle avec la clé publique seule (`apikey` et `Authorization: Bearer <clé anon>`),
   jamais avec le jeton de sa session, pour que rien ne relie l'envoi à un compte, journaux de Supabase compris.
@@ -1196,6 +1199,169 @@ Données (FCM : en texte, une liste y devient `"a,b"` ; APNs : en JSON, à côt�
 
 Toucher, dans l'app : la page de la cible quand elle est seule (`target_type`, `target_id`), sinon
 l'onglet Favoris (« Mes suivis »).
+
+## Radio : `radio_stations`, `app_radio_day`, `app_radio_shows`, `GET /api/v1/radio/{stationId}/live`
+
+« Radio Campus dans OutLive » : écouter le direct de Radio Campus Orléans et réécouter ses émissions dans
+l'app. Le contrat est celui du § 4 de `../live/docs/RADIO_CAMPUS.md` (fixé le 2026-10-23), recopié ici ; un
+changement se fait des deux côtés ensemble. Migrations `20261023120000_create_radio_tables.sql`,
+`20261023121000_create_app_radio_functions.sql`, `20261023122000_add_radio_audience_metrics.sql` et
+`20261023123000_schedule_radio_import.sql` ; tests `supabase/tests/app_radio.test.sql` et
+`lib/radio/*.test.mjs` (fixtures enregistrées le 2026-10-23 dans `lib/radio/fixtures/`).
+
+**Radio Campus Orléans** : station `e2f7ade2-f5d2-4408-90b4-f8bfca383399` (id fixe, le même en local et en
+prod), organisateur `9d6d803d-4a7e-4118-beba-1744a1159b99`. Elle est créée avec `enabled = false` : la RLS
+la cache alors, avec ses émissions et ses épisodes, et l'app ne montre rien de la radio. L'utilisateur la
+passe à `true` en prod après l'accord écrit de la radio (RADIO_CAMPUS.md, § 5).
+
+### Tables
+
+Lecture publique (anon et authenticated) d'une station activée, de ses émissions et de ses épisodes ;
+écriture par la clé service role seulement (l'import, le back-office `/admin/radio`).
+
+`radio_stations`
+
+| Colonne | Type | Note |
+| --- | --- | --- |
+| `id` | uuid | |
+| `organizer_id` | uuid, unique, → `organizers` | la station remplace la page de cet organisateur ; le supprimer est refusé tant que la station existe |
+| `name` | text | « Radio Campus Orléans » |
+| `frequency` | text | « 88.3 » |
+| `stream_url` | text | `https://streams.labomedia.org:8443/stream_rco` |
+| `stream_url_light` | text, null | le flux léger, s'il existe un jour (l'app le prend en données mobiles) |
+| `status_url` | text | `https://streams.labomedia.org:8443/status-json.xsl` |
+| `site_url` | text | `https://orleans.radiocampus.org/` |
+| `enabled` | boolean, défaut `false` | l'interrupteur (plus haut) |
+
+`radio_shows` : `id`, `station_id`, `source_id` (bigint, l'id WordPress, unique par station), `slug` (unique
+par station), `name`, `style` (texte libre, première lettre en capitale ; null si la page n'en a pas),
+`family` (`musique` ou `parole`), `description` (texte, sans HTML : un paragraphe par bloc, séparés par une
+ligne vide), `page_url`, `feed_url`, `slots` (jsonb, `[{"weekday": 4, "start": "22:00", "end": "24:00"}]`,
+jour ISO : 1 = lundi ; heures de Paris ; une fin plus tôt que le début finit le lendemain, minuit s'écrit
+« 24:00 » ; la forme est vérifiée par la base), `organizer_id` (null : le collectif qui fait l'émission),
+`last_episode_at` (le plus récent `aired_at` de ses épisodes, tenu par la base), `updated_at`.
+
+`radio_episodes` : `id`, `show_id`, `guid` (unique), `title` (« Nation Groove du 22/10/2026 »), `aired_at`,
+`duration_s` (null si le flux ne la donne pas), `audio_url`, `page_url`.
+
+`radio_show_sync` : le suivi de l'import (dates de lecture, ETag des flux), illisible sauf par le service.
+
+**Dates** : comme `events.date`, l'heure de Paris étiquetée UTC : `aired_at`, `last_episode_at`, `starts_at`,
+`ends_at`, et dans la route `startsAt`, `endsAt`, `at` et `updatedAt`, se lisent sans conversion. Le flux RSS
+donne de vrais instants UTC (« Thu, 22 Oct 2026 20:00:01 +0000 » = 22:00 à Paris) : l'import les convertit.
+
+**Une émission active** a un épisode depuis 45 jours (`last_episode_at`, heure de Paris). Seules les
+actives sortent des fonctions et de la route (47 le 2026-10-23, sur 91 au site).
+
+### Fonctions (RPC publiques)
+
+```sql
+app_radio_day(p_station uuid, p_day date, p_at timestamp = null)
+  returns table (show_id uuid, slug text, name text, style text, family text,
+                 starts_at timestamptz, ends_at timestamptz,
+                 episode_id uuid, audio_url text, duration_s integer, state text)
+app_radio_shows(p_station uuid, p_at timestamp = null)
+  returns table (id uuid, slug text, name text, style text, family text, slots jsonb,
+                 last_episode_at timestamptz, organizer_id uuid, description text, page_url text,
+                 letter text)
+```
+
+- `app_radio_day` : les émissions actives d'un jour, par `starts_at` (puis par nom). Un jour passé : celles
+  qui ont un épisode ce jour-là. Aujourd'hui : celles passées qui ont un épisode, celle en cours, celles à
+  venir ; une émission finie sans épisode (pas encore publié, ou pas eu lieu) n'y est pas. `p_day` va
+  d'aujourd'hui − 6 à aujourd'hui (heure de Paris) ; un autre jour, aucune ligne.
+  - `state` : `past` (finie), `live` (en cours), `next` (à venir), d'après l'heure de Paris. Une émission
+    commencée la veille et pas finie (samedi 23:00 → dimanche 02:00, à 01:00) est `live` dans la journée où
+    elle a commencé.
+  - L'épisode se rattache au créneau de son émission dans lequel il commence, jusqu'à 15 minutes avant : la
+    ligne a le début et la fin du créneau (« Nation Groove du 22/10/2026 », 22:00:01 → 22:00 – 24:00). Deux
+    épisodes dans le même créneau : le premier. Un épisode hors de tout créneau (émission sans créneau,
+    déplacée, spéciale) a sa propre ligne, à son heure (à la minute), jusqu'à la fin de sa durée (une heure
+    sans durée).
+  - `episode_id`, `audio_url`, `duration_s` : null sans épisode (`live`, `next`).
+- `app_radio_shows` : les émissions actives de A à Z, sans tenir compte des articles « le », « la », « les »,
+  « l' » au début, des accents, de la casse ni de la ponctuation (`radio_show_sort_key`). **`letter`**, en plus
+  du contrat : la lettre sous laquelle ranger l'émission (« Le Mag Culturel » → `M`, « L'Enfer du Dimanche »
+  → `E`, « À Bâtons Rompus » → `A`, `#` pour un chiffre), pour que la règle des articles reste en SQL.
+- `p_at` (heure de Paris, sans fuseau) remplace « maintenant » pour les tests ; l'app ne l'envoie pas.
+- Les épisodes d'une émission : la table directement.
+
+```dart
+const station = 'e2f7ade2-f5d2-4408-90b4-f8bfca383399';
+final day = await supabase.rpc('app_radio_day', params: {
+  'p_station': station,
+  'p_day': '2026-10-22', // AAAA-MM-JJ, heure de Paris
+}).order('starts_at') as List<dynamic>;
+// [{"show_id":"…","slug":"la-mag-culturel","name":"Le Mag Culturel","style":"Danse, théâtre, cinéma, musique",
+//   "family":"parole","starts_at":"2026-10-22T17:00:00+00:00","ends_at":"2026-10-22T18:00:00+00:00",
+//   "episode_id":"…","audio_url":"https://orleans.radiocampus.org/wp-content/uploads/…mp3",
+//   "duration_s":3587,"state":"past"}, …]
+final shows = await supabase.rpc('app_radio_shows', params: {'p_station': station}) as List<dynamic>;
+final episodes = await supabase.from('radio_episodes')
+    .select('id, title, aired_at, duration_s, audio_url, page_url')
+    .eq('show_id', showId).order('aired_at', ascending: false).limit(30);
+```
+
+### « Ce qui passe » : `GET /api/v1/radio/{stationId}/live`
+
+Publique (aucune session), en cache 10 s au CDN (`Cache-Control: public, max-age=10, s-maxage=10,
+stale-while-revalidate=10`), CORS comme les autres routes v1. Lue par l'app via `ApiClient`.
+
+```json
+{
+  "station": {"id": "…", "name": "Radio Campus Orléans", "frequency": "88.3",
+              "streamUrl": "https://streams.labomedia.org:8443/stream_rco", "streamUrlLight": null},
+  "show": {"id": "…", "name": "Kawaï Campus Club", "style": "Mangas, animes et pop culture japonaise",
+           "family": "parole", "startsAt": "2026-10-23T19:00:00+00:00", "endsAt": "2026-10-23T20:00:00+00:00"},
+  "track": null,
+  "next": {"id": "…", "name": "Blockchain", "style": "Hip-hop", "family": "musique",
+           "startsAt": "2026-10-23T20:00:00+00:00"},
+  "recentTracks": [],
+  "updatedAt": "2026-10-23T19:12:04+00:00"
+}
+```
+
+- La grille se lit en SQL (`radio_live_grid`, réservée à la route) : `show` est l'émission active en cours,
+  `next` la prochaine émission active à commencer (dans les 7 jours ; null sinon). `style` peut être null.
+- Pendant une émission, la radio n'envoie que son nom : `track` à null. Si la grille annonce une émission
+  mais que le serveur envoie un morceau (l'émission n'a pas lieu), c'est la playlist : `show` à null.
+- Entre deux émissions : `show` à null, `track` = `{"title": "To Ki Me Ki", "artist": "Akiko Yano"}` (artiste
+  et titre au premier « - » du titre Icecast ; `artist` null sans tiret) et `recentTracks` = les quatre d'avant
+  (`{"at", "title", "artist"}`, du plus récent au plus ancien), lus sur la page « Titres diffusés » de la radio
+  (`admin-ajax.php?action=rco-get-past-titles`, du HTML, gardée 60 s) jusqu'à ce qu'elle donne un JSON. Ils
+  s'arrêtent à un début d'émission et à deux heures : il peut y en avoir moins de quatre.
+- Titres nettoyés : sans les jingles (« Tu ecoutes Radio Campus Orleans – Jingle » : `track` à null), sans
+  numéros de piste (« 01 », « 05 - », « 19_ », « 1. ») ni fins de nom de fichier (« _GBCVZ2200466_44k-16b »,
+  « .mp3 », « [44_16] ») ; tels que la radio les envoie pour le reste. Un nombre qui fait partie du titre
+  reste (« 72-Hour Sweat », « 7 Miles to Jordan »).
+- Station désactivée ou inconnue, id illisible : 404 `{"error": {"code": "not_found", "message": "Station
+  introuvable"}}` (format des erreurs v1). Serveur de la radio muet : 200, `show` d'après la grille, `track`
+  à null, `recentTracks` vide. Base en erreur : 500.
+- Le serveur envoie le nom d'une émission prévue mais pas active (La Méridienne, sans podcast) : `show` et
+  `track` à null (comme un serveur muet entre deux émissions).
+- **Sans `Authorization`** : le CDN de Vercel ne garde pas une réponse à une requête qui porte cet en-tête.
+  Avec le JWT de l'app, chaque appel lancerait la fonction (quotas Vercel Hobby). `ApiClient.get` envoie
+  toujours le JWT et en demande un : l'app appelle cette route sans (`authenticated: false`, comme `post`).
+
+### L'import, le back-office, la mesure d'audience
+
+- **Import** (`GET /api/cron/radio-import`, `lib/radio/import.ts`), en lecture seule chez la radio (des GET,
+  User-Agent « OutLive/1.0 … ») : l'API WordPress (`/wp-json/wp/v2/show?per_page=100`), la page d'une émission
+  quand elle est nouvelle, modifiée sur le site ou lue il y a plus de 24 h (le style dans `.rco-show-style`,
+  les créneaux dans `.rco-show-infos-dates-time li`, le lien du flux, la présentation), puis son flux RSS
+  (ses 30 derniers épisodes) en lecture conditionnelle, pas plus d'une fois en 50 minutes. Pas de visuels.
+  N'écrit que ce qui change ; un épisode sorti du flux est retiré. **Chaque heure par pg_cron** (tâche
+  `radio-import`, à :07, migration `20261023123000`, une fois le secret posé dans Vault) et une fois par jour
+  par `vercel.json` (5:30 UTC) : Vercel Hobby refuse un cron plus fréquent.
+- **Famille par défaut** à la création d'une émission : `parole` pour ces 19, `musique` pour les autres :
+  `quoique-ten-dises`, `champion-des-ondes`, `la-mag-culturel`, `ecoute-ta-fac`, `alors-on-se-fait-un-film`,
+  `cine-qua-non`, `parlons-philo`, `a-batons-rompus`, `lemission-du-fictionnaire`, `la-science-infuse`,
+  `les-clitoriciennes`, `univox`, `redac-pop`, `la-diagonale`, `kawai-campus-club`, `double-saut`,
+  `pause-poesie`, `le-moulin-a-paroles`, `h1000`. Ensuite, famille et collectif (`organizer_id`) se modifient
+  dans le back-office (`/admin/radio`) ; l'import n'y touche plus.
+- **Mesure d'audience** (U41) : `radio_live_play` (le direct lancé) et `radio_episode_play` (un épisode
+  lancé), acceptés par `app_audience_add` (voir « Mesure d'audience » plus haut).
+- **Suivre une émission** (plus tard) : `user_follows` (U8) gagnera le type `radio_show`.
 
 ## Incohérences relevées, non corrigées
 

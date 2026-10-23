@@ -161,4 +161,17 @@ SELECT pg_temp.verifie('plus de 25 mois : effacé au passage ; 25 mois tout just
    WHERE c.day < pg_temp.jour(-700)),
   'event_liked=4');
 
+-- Radio (20261023122000_add_radio_audience_metrics.sql) : direct écouté, épisode écouté --------------
+
+SET LOCAL ROLE anon;
+SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
+SELECT pg_temp.verifie('radio : direct et épisode écoutés comptés, une autre clé radio ignorée',
+  pg_temp.ajoute(pg_temp.jour(-2), '{"radio_live_play": 3, "radio_episode_play": 2, "radio_inconnu": 1}'),
+  '2');
+RESET ROLE;
+SELECT pg_temp.verifie('radio : les deux compteurs du jour',
+  (SELECT string_agg(c.metric || '=' || c.count, ' ' ORDER BY c.metric)
+   FROM public.app_audience_counts AS c WHERE c.day = pg_temp.jour(-2)),
+  'radio_episode_play=2 radio_live_play=3');
+
 ROLLBACK;

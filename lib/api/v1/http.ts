@@ -21,11 +21,18 @@ export function publicGetJson(body: unknown, init?: ResponseInit) {
 export const PARTNER_FEED_CACHE_CONTROL =
   "public, max-age=60, s-maxage=120, stale-while-revalidate=600";
 
-export function publicCachedGetJson(body: unknown, init?: ResponseInit) {
+/** « Ce qui passe » sur une radio : 10 s (contrat de l'app, docs/API_APP.md, « Radio »). */
+export const RADIO_LIVE_CACHE_CONTROL = "public, max-age=10, s-maxage=10, stale-while-revalidate=10";
+
+export function publicCachedGetJson(
+  body: unknown,
+  init?: ResponseInit,
+  cacheControl: string = PARTNER_FEED_CACHE_CONTROL,
+) {
   const response = publicGetJson(body, init);
-  response.headers.set("Cache-Control", PARTNER_FEED_CACHE_CONTROL);
-  response.headers.set("CDN-Cache-Control", PARTNER_FEED_CACHE_CONTROL);
-  response.headers.set("Vercel-CDN-Cache-Control", PARTNER_FEED_CACHE_CONTROL);
+  response.headers.set("Cache-Control", cacheControl);
+  response.headers.set("CDN-Cache-Control", cacheControl);
+  response.headers.set("Vercel-CDN-Cache-Control", cacheControl);
   return response;
 }
 

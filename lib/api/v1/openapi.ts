@@ -21,6 +21,7 @@ import {
   eventSubmissionListResponseSchema,
   submissionsQuerySchema,
 } from "./events/schemas";
+import { radioLiveResponseSchema, radioStationIdParamsSchema } from "./radio/schemas";
 
 const registry = new OpenAPIRegistry();
 
@@ -32,6 +33,7 @@ registry.register("CreateEventFromUrlBody", createEventFromUrlBodySchema);
 registry.register("CreateEventResponse", createEventResponseSchema);
 registry.register("EventSubmissionListResponse", eventSubmissionListResponseSchema);
 registry.register("RadioCampusResponse", radioCampusResponseSchema);
+registry.register("RadioLiveResponse", radioLiveResponseSchema);
 registry.register("ApiError", apiErrorSchema);
 
 registry.registerComponent("securitySchemes", "BearerAuth", {
@@ -67,6 +69,30 @@ registry.registerPath({
         },
       },
     },
+    500: errorResponse("Erreur serveur"),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/radio/{stationId}/live",
+  tags: ["Radio"],
+  summary: "Ce qui passe sur une radio",
+  description:
+    "L'émission en cours d'après la grille de la radio, ou le morceau entre deux émissions (titre nettoyé : sans jingles, numéros de piste ni fins de nom de fichier), l'émission suivante et les quatre morceaux d'avant. Dates à l'heure de Paris étiquetée UTC. Publique, cache CDN 10 s, CORS `*`. Si le serveur de la radio ne répond pas : 200, l'émission d'après la grille, `track` à null.",
+  request: {
+    params: radioStationIdParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "Ce qui passe",
+      content: {
+        "application/json": {
+          schema: radioLiveResponseSchema,
+        },
+      },
+    },
+    404: errorResponse("Station inconnue ou désactivée"),
     500: errorResponse("Erreur serveur"),
   },
 });
@@ -311,6 +337,10 @@ export function buildOpenApiDocument() {
       {
         name: "Partners",
         description: "Feeds dédiés, payload allégé et cache CDN",
+      },
+      {
+        name: "Radio",
+        description: "Le direct des radios partenaires (Radio Campus Orléans)",
       },
     ],
   });
