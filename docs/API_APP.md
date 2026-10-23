@@ -386,9 +386,16 @@ lieux).
   « Tout » (category vide : calendrier « Quand ? », points de densité, raccourcis, suite d'une liste courte,
   « Élargir »), `app_zone_counts` et `upcoming_events_count` d'`app_cities` ; sur une page de catégorie (la page
   « Festival » comprise), rien n'est retiré. Les listes (`app_events_in_range`, `app_events_in_zone`) gardent la
-  fiche. Pas encore touchés : les comptes d'un lieu, d'un organisateur, d'un tag, de la recherche
-  (`app_organizer_counts`, `app_tag_counts`, `app_search_names`), où l'app ne regroupe pas encore les
-  festivals. Mêmes signatures.
+  fiche. Mêmes signatures.
+- **Les nombres des pages de lieu, d'organisateur et d'artiste** (migration
+  `20261023190000_count_festival_frames_on_pages.sql`, tests `supabase/tests/festival_page_counts.test.sql`, **pas
+  encore en prod**) : comme ces pages dans l'app (étape 5, `PlaceFestivals.withoutFrames`), qui montrent leurs
+  festivals dans une section « Festivals » et les retirent de leur liste, une page ne compte pas la fiche d'un
+  festival qui a un programme, ni, sur la page d'un lieu, celle d'un festival dont ce lieu est un des lieux
+  (`festival_locations`), même sans programme. `app_organizer_counts`, les lieux et organisateurs
+  d'`app_search_names`, `source_events_count` d'`app_see_also` et les nombres d'`app_follows` (lieu, organisateur,
+  artiste). Les tags et les catégories ne changent pas : leurs listes, ouvertes depuis la recherche, gardent la
+  fiche ; `app_search` non plus (l'app met le festival en tête de ses résultats). Mêmes signatures.
 - **La collecte** (admin et agent) lit le nom du festival sur l'affiche ou la page : l'événement est rattaché
   au festival de ce nom (à défaut, à celui que nomme son titre) quand il est dans l'app et que ses dates couvrent
   celle de l'événement ; sinon l'équipe est prévenue (« Fait partie d'un festival qui n'est pas dans l'app : … »). Pour un festival, les lieux que nomme
@@ -728,6 +735,9 @@ une ligne ; au plus 200 ids), le plus fourni d'abord.
   comprises, pas terminé, sans les événements masqués par l'utilisateur ni les auteurs bloqués).
 - `city_ids` : null pour la fiche (tous les événements de l'organisateur) ; le périmètre de l'app
   sinon.
+- Festivals (migration `20261023190000`) : le nombre de la page, sans la fiche d'un festival qui a un programme
+  (`app_festival_events`), ni, pour un lieu, celle d'un festival dont il est un des lieux (`festival_locations`) :
+  la page les montre dans sa section « Festivals ».
 
 ```dart
 final rows = await supabase.rpc(
@@ -764,7 +774,7 @@ en un appel une fois la fiche affichée.
   Chaque ligne porte cette source : `source_kind` (`location` : la page d'un lieu ; `organizer` : celle
   d'un organisateur), `source_id`, `source_name` et `source_events_count`, son nombre d'événements à
   venir, l'événement de la fiche compris : le nombre de sa page et d'`app_organizer_counts` (« Les 83
-  événements du lieu »).
+  événements du lieu » ; sans les fiches que la page montre dans « Festivals », depuis `20261023190000`).
 - `section = 'genre'`, « Dans le même genre » : les événements de la même catégorie (par id ou par nom)
   ou avec un tag en commun, à 7 jours au plus du jour de l'événement, avant ou après (du jour à
   aujourd'hui pour un événement passé ou en cours), dans le périmètre `city_ids` (`null` ou `[]` :
@@ -995,7 +1005,8 @@ final events = [
 ```
 
 `app_search_names` : les noms qui correspondent (mêmes règles, sur le nom seul), au plus
-`max_results` de chaque sorte (1 à 50), seulement s'ils ont au moins un événement à venir ; `rank` :
+`max_results` de chaque sorte (1 à 50), seulement s'ils ont au moins un événement à venir (un lieu ou un
+organisateur : sans les fiches que sa page montre dans « Festivals », migration `20261023190000`) ; `rank` :
 catégories, puis tags, lieux, organisateurs, chacun du plus pertinent au moins pertinent (puis le plus
 fourni). L'ordre n'étant pas garanti sans `order`, trier sur `rank`.
 
@@ -1251,7 +1262,8 @@ Une ligne par suivi de l'appelant dont la cible existe : son nom et son image (l
 organisateur : son logo, à défaut son icône ; artiste : sa photo ; `null` sans image), ses événements à
 venir (`upcoming_count`, comme `app_organizer_counts` : `app_events_in_range` à partir d'aujourd'hui,
 sans les masqués de l'appelant ni ses auteurs bloqués ; un lieu compte ceux qui s'y tiennent et ceux
-qu'il organise, chacun une fois) et, parmi eux, ceux publiés depuis 7 jours et depuis le début du suivi
+qu'il organise, chacun une fois ; depuis `20261023190000`, sans les fiches que la page de la cible montre dans
+« Festivals ») et, parmi eux, ceux publiés depuis 7 jours et depuis le début du suivi
 (`new_count`, « 2 nouveaux événements »). Triée : du nouveau d'abord, puis le plus d'événements à venir,
 puis le nom. `at_time` : « maintenant » en heure de Paris (tests) ; null, maintenant. Exécutable par
 authenticated.
