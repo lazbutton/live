@@ -329,7 +329,9 @@ la lisent comme avant (une colonne de plus).
 
 Décision du 2026-10-23 (`../live/docs/FESTIVALS.md`, § 4 et 5) : un festival est un événement de la catégorie
 Festival qui contient les autres ; sa page dans l'app est sa fiche en mode festival. Migration
-`20261023120000_create_festivals.sql` (règle complète en tête), tests `supabase/tests/festivals.test.sql`.
+`20261023120000_create_festivals.sql` (règle complète en tête), tests `supabase/tests/festivals.test.sql`. En prod
+depuis le 2026-10-23 à 14:27, avec le premier festival : Fulgurances Électroniques #2 (Micro et Infra, ses trois
+lieux).
 
 - **`events.festival_id`** (uuid ou null) : le festival dont l'événement fait partie. `rpc/app_events`,
   `app_events_in_range` et `app_events_in_zone` le rendent avec les autres colonnes (`setof events`) : à ajouter
@@ -374,10 +376,9 @@ final festival = await supabase
 Sur PostgREST v13.0.5 (la version de la prod), la migration appliquée : les `select` de l'app (`EventSelects`
 `detail`, `card`, `list`, les favoris, la page d'artiste, « Mes suggestions ») sur `events`, `rpc/app_events`,
 `rpc/app_events_in_range` et `rpc/app_events_in_zone` répondent comme avant ; aucun embarquement depuis ou vers
-`events` et `locations` ne devient ambigu. Répété en prod le 2026-10-23 dans une transaction annulée, avec les
-données prévues pour Fulgurances (Micro et Infra rattachés, ses trois lieux) : `app_festival_events()` en anon
-rend leurs deux lignes, `events_count` 2, en ~1 ms ; la zone d'Orléans · 25 km compte 391 événements, comme
-avant.
+`events` et `locations` ne devient ambigu. En prod, en anon par l'API publique, le 2026-10-23 :
+`rpc/app_festival_events` rend Micro et Infra (`events_count` 2) en 3 à 23 ms ; les cartes de l'accueil et les
+comptes sont les mêmes qu'avant la migration (la zone d'Orléans · 25 km : 391 événements).
 
 ## Fonctions SQL de la refonte : calendrier, vacances scolaires, recherche
 

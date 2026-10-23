@@ -864,6 +864,18 @@
     `events_count` 2 (EXPLAIN ANALYZE : 1,2 ms) ; la zone, 391 ;
   - chaque instruction ~45 ms (latence réseau) : `events` reste verrouillée ~1 s pendant la migration ; rien n'est
     resté après l'annulation.
-- **Pas encore appliquée en prod** : elle attend l'accord de l'utilisateur, comme les données de Fulgurances. Le
-  back-office de la branche marche aussi avant elle, sauf les festivals (une fiche sans festival n'envoie pas la
-  colonne) ; la fusionner après la migration.
+- **Appliquée en prod le 23/10/2026 à 14:27 (12:27 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche, empreinte vérifiée),
+  sans erreur. Vérifiée en anon par l'API publique, avant puis après : `events`, `rpc/app_events` et
+  `rpc/app_events_in_zone` avec `locations(name)`, `locations?select=id,events(id)`, les cartes de l'accueil
+  (`EventSelects.card` sur `rpc/app_events_in_zone`), `rpc/app_events_in_range`, `rpc/app_event_series` : mêmes
+  statuts et mêmes nombres (391, 65, 391, 356, 136), aucune ambiguïté ; `rpc/app_festival_events` et
+  `festival_locations` 200, vides ; le cache de schéma de PostgREST s'est rechargé seul.
+- **Données de Fulgurances appliquées le 23/10/2026 à 14:28**, avec l'accord de l'utilisateur (le fichier
+  `fulgurances-donnees.sql` de la session de coordination, `--single-transaction`) : Micro et Infra rattachés au
+  festival, renommé « Fulgurances Électroniques #2 », ses lieux Dropkick, Le 108, L'Astrolabe, sa fiche au
+  Dropkick (adresse et coordonnées comprises). En anon par l'API publique : `rpc/app_festival_events` rend Micro et
+  Infra, `events_count` 2 ; `festival:festival_id(title)` sur Micro et Infra ; sur la fiche, `locations(name)`
+  Dropkick, `events!festival_id(…)` Micro puis Infra, `festival_locations(…)` dans l'ordre ; le festival dans
+  `rpc/app_events_in_zone('orleans', 25)`. Temps serveur (`x-envoy-upstream-service-time`, 7 appels) :
+  `rpc/app_festival_events` 3 à 23 ms, les 391 cartes de l'accueil 39 à 69 ms.
