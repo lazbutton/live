@@ -1,6 +1,6 @@
 /*
  * Mesure d'audience de l'app (U41) : compteurs quotidiens sans identité, écrits par l'app via
- * `app_audience_add` (migrations 20261021013000, et 20261023122000 pour la radio) et lus ici pour la
+ * `app_audience_add` (migrations 20261021013000, et 20261023142000 pour la radio) et lus ici pour la
  * page « Audience de l'app ».
  * Chaque téléphone envoie les totaux d'un jour au plus tôt le lendemain : les derniers jours se
  * complètent encore quelques jours.

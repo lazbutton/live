@@ -3,7 +3,7 @@
 -- Date : 2026-10-23
 -- Description : les règles de la radio, en SQL comme les autres règles partagées avec l'app
 -- (contrat : `../live/docs/RADIO_CAMPUS.md`, § 4, recopié dans `docs/API_APP.md`, « Radio » ;
--- tests : supabase/tests/app_radio.test.sql). Tables : 20261023120000_create_radio_tables.sql.
+-- tests : supabase/tests/app_radio.test.sql). Tables : 20261023140000_create_radio_tables.sql.
 -- ============================================
 
 -- ============================================

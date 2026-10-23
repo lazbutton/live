@@ -183,7 +183,7 @@ export function RadioShowsManagement() {
         <ManagementEmptyState
           icon={<Radio />}
           title="Aucune station"
-          description="La station Radio Campus Orléans est créée par la migration 20261023120000_create_radio_tables.sql, si son organisateur existe."
+          description="La station Radio Campus Orléans est créée par la migration 20261023140000_create_radio_tables.sql, si son organisateur existe."
         />
       ) : (
         <>

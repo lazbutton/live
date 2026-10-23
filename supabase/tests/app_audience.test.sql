@@ -161,7 +161,7 @@ SELECT pg_temp.verifie('plus de 25 mois : effacé au passage ; 25 mois tout just
    WHERE c.day < pg_temp.jour(-700)),
   'event_liked=4');
 
--- Radio (20261023122000_add_radio_audience_metrics.sql) : direct écouté, épisode écouté --------------
+-- Radio (20261023142000_add_radio_audience_metrics.sql) : direct écouté, épisode écouté --------------
 
 SET LOCAL ROLE anon;
 SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);

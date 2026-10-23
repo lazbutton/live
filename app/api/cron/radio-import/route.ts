@@ -24,7 +24,7 @@ function verifyCronRequest(request: NextRequest) {
  *
  * Importe les émissions et les épisodes des radios (Radio Campus Orléans) depuis leur site, en lecture
  * seule : API WordPress, pages d'émission, flux RSS (lib/radio/import.ts). Chaque heure par pg_cron
- * (migration 20261023123000_schedule_radio_import.sql) ; une fois par jour par vercel.json (Vercel
+ * (migration 20261023143000_schedule_radio_import.sql) ; une fois par jour par vercel.json (Vercel
  * Hobby n'accepte pas plus) ; à la main depuis la page des crons de l'admin.
  */
 export async function GET(request: NextRequest) {

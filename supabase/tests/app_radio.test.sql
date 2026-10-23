@@ -1,7 +1,7 @@
 -- Tests de la radio (Radio Campus dans OutLive) : tables, RLS, app_radio_day(), app_radio_shows(),
--- radio_live_grid(), l'import horaire par pg_cron (migrations 20261023120000_create_radio_tables.sql,
--- 20261023121000_create_app_radio_functions.sql et 20261023123000_schedule_radio_import.sql ; les
--- compteurs d'audience de 20261023122000 sont dans app_audience.test.sql).
+-- radio_live_grid(), l'import horaire par pg_cron (migrations 20261023140000_create_radio_tables.sql,
+-- 20261023141000_create_app_radio_functions.sql et 20261023143000_schedule_radio_import.sql ; les
+-- compteurs d'audience de 20261023142000 sont dans app_audience.test.sql).
 --
 -- Sur une base jetable avec toutes les migrations et aucun événement : scripts/db-test.sh.
 -- Jamais en prod : tout se passe dans une transaction annulée, mais le script s'arrête de lui-même
@@ -427,7 +427,7 @@ BEGIN
   END;
 END $$;
 
--- Import horaire par pg_cron (20261023123000_schedule_radio_import.sql) ------------------------------
+-- Import horaire par pg_cron (20261023143000_schedule_radio_import.sql) ------------------------------
 -- La requête de pg_net reste dans sa file (annulée avec la transaction) : rien ne part.
 
 SELECT pg_temp.verifie('pg_cron : la tâche radio-import chaque heure à :07',

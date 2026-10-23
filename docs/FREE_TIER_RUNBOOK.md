@@ -145,7 +145,7 @@ Les crons sont en UTC et leur précision est d'une heure :
 - `weekly-summary` : le lundi à 08:00 UTC
 - `radio-import` : tous les jours à 05:30 UTC (le filet). L'import de la radio doit tourner chaque heure :
   Hobby refuse un cron plus fréquent que quotidien (le déploiement échoue), c'est donc la base qui le lance,
-  tâche pg_cron `radio-import` à :07 (migration `20261023123000_schedule_radio_import.sql`, secret
+  tâche pg_cron `radio-import` à :07 (migration `20261023143000_schedule_radio_import.sql`, secret
   `radio_import_cron_secret` dans Vault). Coût : 24 appels de fonction par jour, quelques secondes de CPU.
 
 La route « ce qui passe » de la radio (`/api/v1/radio/[stationId]/live`) est gardée 10 s par le CDN : au plus

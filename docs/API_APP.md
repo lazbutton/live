@@ -1093,7 +1093,7 @@ de la CNIL pour se passer de consentement, et ce qui y répond : `docs/AUDIENCE_
 L'app compte ses gestes par jour, sur le téléphone, et envoie au plus une fois par jour les totaux des
 journées finies : `event_opened` (fiche ouverte), `ticket_tapped` (billetterie touchée), `search_no_result`
 (recherche sans résultat), `when_sheet_used` (feuille « Quand ? » utilisée), `event_liked` (cœur), et depuis
-la migration `20261023122000_add_radio_audience_metrics.sql` `radio_live_play` (le direct de la radio lancé)
+la migration `20261023142000_add_radio_audience_metrics.sql` `radio_live_play` (le direct de la radio lancé)
 et `radio_episode_play` (un épisode lancé). Un appel par journée :
 `{"day": "2026-10-20", "counts": {"event_opened": 3, "event_liked": 1}}`.
 
@@ -1260,9 +1260,9 @@ l'onglet Favoris (« Mes suivis »).
 
 « Radio Campus dans OutLive » : écouter le direct de Radio Campus Orléans et réécouter ses émissions dans
 l'app. Le contrat est celui du § 4 de `../live/docs/RADIO_CAMPUS.md` (fixé le 2026-10-23), recopié ici ; un
-changement se fait des deux côtés ensemble. Migrations `20261023120000_create_radio_tables.sql`,
-`20261023121000_create_app_radio_functions.sql`, `20261023122000_add_radio_audience_metrics.sql` et
-`20261023123000_schedule_radio_import.sql` ; tests `supabase/tests/app_radio.test.sql` et
+changement se fait des deux côtés ensemble. Migrations `20261023140000_create_radio_tables.sql`,
+`20261023141000_create_app_radio_functions.sql`, `20261023142000_add_radio_audience_metrics.sql` et
+`20261023143000_schedule_radio_import.sql` ; tests `supabase/tests/app_radio.test.sql` et
 `lib/radio/*.test.mjs` (fixtures enregistrées le 2026-10-23 dans `lib/radio/fixtures/`).
 
 **Radio Campus Orléans** : station `e2f7ade2-f5d2-4408-90b4-f8bfca383399` (id fixe, le même en local et en
@@ -1407,7 +1407,7 @@ stale-while-revalidate=10`), CORS comme les autres routes v1. Lue par l'app via 
   les créneaux dans `.rco-show-infos-dates-time li`, le lien du flux, la présentation), puis son flux RSS
   (ses 30 derniers épisodes) en lecture conditionnelle, pas plus d'une fois en 50 minutes. Pas de visuels.
   N'écrit que ce qui change ; un épisode sorti du flux est retiré. **Chaque heure par pg_cron** (tâche
-  `radio-import`, à :07, migration `20261023123000`, une fois le secret posé dans Vault) et une fois par jour
+  `radio-import`, à :07, migration `20261023143000`, une fois le secret posé dans Vault) et une fois par jour
   par `vercel.json` (5:30 UTC) : Vercel Hobby refuse un cron plus fréquent.
 - **Famille par défaut** à la création d'une émission : `parole` pour ces 19, `musique` pour les autres :
   `quoique-ten-dises`, `champion-des-ondes`, `la-mag-culturel`, `ecoute-ta-fac`, `alors-on-se-fait-un-film`,
