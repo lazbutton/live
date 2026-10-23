@@ -1,7 +1,7 @@
 /*
  * Mesure d'audience de l'app (U41) : compteurs quotidiens sans identité, écrits par l'app via
- * `app_audience_add` (migrations 20261021013000, et 20261023142000 pour la radio) et lus ici pour la
- * page « Audience de l'app ».
+ * `app_audience_add` (migrations 20261021013000, 20261023142000 pour la radio, 20261023180000 pour les
+ * festivals) et lus ici pour la page « Audience de l'app ».
  * Chaque téléphone envoie les totaux d'un jour au plus tôt le lendemain : les derniers jours se
  * complètent encore quelques jours.
  */
@@ -9,6 +9,8 @@
 /** Les compteurs, dans l'ordre des colonnes ; mêmes clés que la table et que l'app. */
 export const APP_AUDIENCE_METRICS = [
   { key: "event_opened", label: "Fiches ouvertes" },
+  // La page d'un festival (la fiche d'un festival qui a un programme) : elle compte aussi dans event_opened.
+  { key: "festival_opened", label: "Festivals ouverts" },
   { key: "ticket_tapped", label: "Billetterie touchée" },
   { key: "search_no_result", label: "Recherches sans résultat" },
   { key: "when_sheet_used", label: "« Quand ? » utilisé" },
