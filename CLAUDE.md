@@ -42,6 +42,12 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   `events.price_kind`, lue par `formatGenericPriceLabel` ; ne pas le recalculer en TS ni en Dart.
 - Données d'un invité (session anonyme) recopiées sur le compte qui se connecte : `copy_guest_data()`
   (`security definer`, l'id de la session invitée sert de preuve ; `docs/API_APP.md`).
+- Festivals (`../live/docs/FESTIVALS.md`) : une fiche de la catégorie Festival ; ses événements y sont rattachés
+  par `events.festival_id` (pas de festival dans un festival : déclencheur `check_event_festival`), ses lieux dans
+  `festival_locations` (le premier est le `location_id` de la fiche ; clé `id`, jamais `(festival_id,
+  location_id)`, qui rendrait ambigus les `locations(…)` embarqués depuis `events`). `app_festival_events()` pour
+  l'accueil de l'app ; dans l'admin, le formulaire d'un événement (`event-festival-sections.tsx`, règles dans
+  `lib/events/festivals.ts`). Les Multi-événements (`major_events`) sont abandonnés.
 - Analyse d'affiche de l'app (`/api/mobile/events/extract-from-image`) : ouverte aux sessions invitées, plafonnée
   par jour par `take_poster_analysis()` (service role ; `lib/events/poster-analysis-quota.ts`).
 - Mesure d'audience de l'app (U41) : `app_audience_add(day, counts)` additionne des compteurs quotidiens envoyés

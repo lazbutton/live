@@ -866,6 +866,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_id: string | null
           hide_from_home: boolean
           id: string
           image_card_error: string | null
@@ -918,6 +919,7 @@ export type Database = {
           external_url?: string | null
           external_url_label?: string | null
           facebook_url?: string | null
+          festival_id?: string | null
           hide_from_home?: boolean
           id?: string
           image_card_error?: string | null
@@ -970,6 +972,7 @@ export type Database = {
           external_url?: string | null
           external_url_label?: string | null
           facebook_url?: string | null
+          festival_id?: string | null
           hide_from_home?: boolean
           id?: string
           image_card_error?: string | null
@@ -1008,6 +1011,13 @@ export type Database = {
             columns: ["city_id"]
             isOneToOne: false
             referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_festival_id_fkey"
+            columns: ["festival_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
           {
@@ -1093,6 +1103,42 @@ export type Database = {
             columns: ["feedback_object_id"]
             isOneToOne: false
             referencedRelation: "feedback_objects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      festival_locations: {
+        Row: {
+          festival_id: string
+          id: string
+          location_id: string
+          sort_index: number
+        }
+        Insert: {
+          festival_id: string
+          id?: string
+          location_id: string
+          sort_index?: number
+        }
+        Update: {
+          festival_id?: string
+          id?: string
+          location_id?: string
+          sort_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "festival_locations_festival_id_fkey"
+            columns: ["festival_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "festival_locations_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
             referencedColumns: ["id"]
           },
         ]
@@ -2692,6 +2738,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_id: string | null
           hide_from_home: boolean
           id: string
           image_card_error: string | null
@@ -2763,6 +2810,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_id: string | null
           hide_from_home: boolean
           id: string
           image_card_error: string | null
@@ -2824,6 +2872,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_id: string | null
           hide_from_home: boolean
           id: string
           image_card_error: string | null
@@ -2862,6 +2911,15 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      app_festival_events: {
+        Args: { at_time?: string }
+        Returns: {
+          date: string
+          event_id: string
+          events_count: number
+          festival_id: string
+        }[]
       }
       app_follows: {
         Args: { at_time?: string }
@@ -3254,6 +3312,7 @@ export type Database = {
           style: string
         }[]
       }
+      radio_request_import: { Args: never; Returns: number }
       radio_show_is_active: {
         Args: { at_time: string; last_episode_at: string }
         Returns: boolean
