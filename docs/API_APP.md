@@ -337,9 +337,9 @@ Festival qui contient les autres ; sa page dans l'app est sa fiche en mode festi
   ne contient rien) ; le festival supprimé, ses événements restent, détachés.
 - **`festival_locations`** : `id`, `festival_id`, `location_id`, `sort_index` (0 d'abord), un lieu une fois par
   festival. Lisible quand le festival l'est (la RLS d'`events` : le public, les festivals approuvés), écrite par
-  l'admin. La fiche du festival garde le premier dans `location_id`, pour ce qui n'en lit qu'un. Clé `id`, pas
-  `(festival_id, location_id)` : PostgREST y verrait une relation plusieurs-à-plusieurs `events` ↔ `locations`,
-  et tout `locations(…)` embarqué depuis `events` répondrait 400 (PGRST201).
+  l'admin. La fiche du festival garde le premier dans `location_id`, pour ce qui n'en lit qu'un (la zone
+  comprise). Clé `id`, pas `(festival_id, location_id)` : PostgREST y verrait une relation plusieurs-à-plusieurs
+  `events` ↔ `locations`, et tout `locations(…)` embarqué depuis `events` répondrait 400 (PGRST201).
 - **Embarquer** (essayé sur PostgREST v13.0.5, la version de la prod, et v14.1) : le festival d'un événement,
   `festival:festival_id(id, title, …)` (un objet, ou null) ; son programme, `events!festival_id(…)` (une liste ;
   `events!events_festival_id_fkey` ne marche pas, PGRST200) ; ses lieux, `festival_locations(sort_index,
@@ -353,9 +353,10 @@ Festival qui contient les autres ; sa page dans l'app est sa fiche en mode festi
   festival), l'événement compris ; le festival lui-même n'a pas de ligne. Rendues par festival (sa première date
   à venir), puis par date. L'accueil groupe ses cartes par `festival_id` et compte avec ; lue une fois, toutes
   villes, comme les séries.
-- **La zone** : `app_events_in_zone` rend aussi un festival dont l'un des lieux (`festival_locations`) est dans
-  la zone, même si celui de sa fiche n'y est pas. `app_events_in_range` (comptes, catégories, recherche) ne
-  regarde que `location_id`, le premier lieu.
+- **La zone** ne change pas : un festival y entre par son `location_id` (son premier lieu), comme tout événement,
+  et ses événements chacun par le leur. La liste de l'accueil (`app_events_in_zone`) et les comptes
+  (`app_events_in_range`) disent ainsi la même chose ; un événement du festival situé dans la zone y entre de
+  toute façon.
 
 ```dart
 final rows = await supabase
@@ -370,9 +371,13 @@ final festival = await supabase
     .single();
 ```
 
-Répété en prod le 2026-10-23 dans une transaction annulée, avec les données prévues pour Fulgurances (Micro et
-Infra rattachés, ses trois lieux) : `app_festival_events()` en anon rend leurs deux lignes, `events_count` 2, en
-~1 ms ; `app_events_in_zone('orleans', 25)` ~6 ms, 391 événements comme avant.
+Sur PostgREST v13.0.5 (la version de la prod), la migration appliquée : les `select` de l'app (`EventSelects`
+`detail`, `card`, `list`, les favoris, la page d'artiste, « Mes suggestions ») sur `events`, `rpc/app_events`,
+`rpc/app_events_in_range` et `rpc/app_events_in_zone` répondent comme avant ; aucun embarquement depuis ou vers
+`events` et `locations` ne devient ambigu. Répété en prod le 2026-10-23 dans une transaction annulée, avec les
+données prévues pour Fulgurances (Micro et Infra rattachés, ses trois lieux) : `app_festival_events()` en anon
+rend leurs deux lignes, `events_count` 2, en ~1 ms ; la zone d'Orléans · 25 km compte 391 événements, comme
+avant.
 
 ## Fonctions SQL de la refonte : calendrier, vacances scolaires, recherche
 

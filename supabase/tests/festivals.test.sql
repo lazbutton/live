@@ -1,6 +1,6 @@
 -- Tests des festivals (migration 20261023120000_create_festivals.sql) : events.festival_id et ses règles
--- (pas lui-même, pas de festival dans un festival), festival_locations (contraintes, RLS, droits), la zone
--- d'app_events_in_zone par les lieux d'un festival, app_festival_events.
+-- (pas lui-même, pas de festival dans un festival), festival_locations (contraintes, RLS, droits), la zone (un
+-- festival y entre par sa fiche, comme tout événement), app_festival_events.
 --
 -- Sur une base jetable avec toutes les migrations et aucun événement : scripts/db-test.sh.
 -- Jamais en prod : tout se passe dans une transaction annulée, mais le script s'arrête de lui-même
@@ -101,11 +101,20 @@ LANGUAGE sql AS $$
   ) AS g
 $$;
 
--- Les événements d'app_events_in_zone, par leur id.
+-- Les événements d'app_events_in_zone (la liste de l'accueil, toutes dates), par leur id.
 CREATE FUNCTION pg_temp.zone(ville text, km numeric) RETURNS text
 LANGUAGE sql AS $$
   SELECT coalesce(string_agg(right(e.id::text, 2), ' ' ORDER BY e.id), '')
   FROM public.app_events_in_zone(ville, km) AS e
+$$;
+
+-- Les événements à venir de la zone selon app_events_in_range (les comptes, les catégories, la recherche).
+CREATE FUNCTION pg_temp.a_venir(ville text, km numeric) RETURNS text
+LANGUAGE sql AS $$
+  SELECT coalesce(string_agg(right(e.id::text, 2), ' ' ORDER BY e.id), '')
+  FROM public.app_events_in_range(
+    '2026-11-19 00:00', NULL, NULL, NULL, '2026-11-19 18:00', zone_city => ville, zone_km => km
+  ) AS e
 $$;
 
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA pg_temp TO anon, authenticated;
@@ -273,14 +282,16 @@ SELECT pg_temp.verifie('admin : ajoute, range, retire',
   'ok ok ok');
 RESET ROLE;
 
--- La zone : app_events_in_zone ---------------------------------------------------------------------
+-- La zone : par la fiche, comme tout événement ----------------------------------------------------------
 
--- Centreville · 5 km : ce qui s'y tient (01, 03 passé, 09, 11, 12 au Dropkick), et F1, dont la fiche est au
--- 108, à 30 km, mais dont le Dropkick est l'un des lieux. Pas F5 (seulement le 108), ni F2 (en attente). Sans
--- zone : tous les événements visibles.
+-- Un festival entre dans la zone par son location_id (le premier de ses lieux, mis par le back-office), ses
+-- événements chacun par le leur. Centreville · 5 km : ce qui se tient au Dropkick (01 Micro, 03 passé, 09, 11,
+-- 12), pas F1, dont la fiche est au 108, à 30 km, même si le Dropkick est l'un de ses lieux ; la liste de
+-- l'accueil (app_events_in_zone) et les comptes (app_events_in_range, à venir : sans 03) disent la même chose.
+-- Lointaine · 5 km : F1 par sa fiche. Sans zone : tous les événements visibles.
 SELECT pg_temp.session();
-SELECT pg_temp.verifie('zone : un festival par l''un de ses lieux',
-  pg_temp.zone('centreville', 5), '01 03 09 11 12 f1');
+SELECT pg_temp.verifie('zone : un festival par sa fiche, pas par ses autres lieux',
+  pg_temp.zone('centreville', 5) || ' / ' || pg_temp.a_venir('centreville', 5), '01 03 09 11 12 / 01 09 11 12');
 SELECT pg_temp.verifie('zone : Lointaine, par la fiche',
   pg_temp.zone('lointaine', 5), '02 05 06 07 08 10 f1 f3 f4 f5 f6');
 SELECT pg_temp.verifie('zone : sans zone, tout',

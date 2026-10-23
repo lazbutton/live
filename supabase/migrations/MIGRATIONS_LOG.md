@@ -805,52 +805,64 @@
 
 - `20261023120000_create_festivals` : étape 1 du § 6 de `../live/docs/FESTIVALS.md` (choix du 2026-10-23 : un
   festival est un événement de la catégorie Festival qui contient les autres ; sa page dans l'app est sa fiche en
-  mode festival). Contrat : `docs/API_APP.md`, « Festivals ».
+  mode festival). Contrat : `docs/API_APP.md`, « Festivals ». Rien n'est remplacé : une colonne, une table, deux
+  fonctions, un déclencheur.
   - `events.festival_id` (vers `events.id`, `on delete set null`, index partiel) ; `events_festival_id_not_self`
     (pas lui-même) ; `check_event_festival()` (`security definer`, déclencheur `BEFORE INSERT OR UPDATE OF
     festival_id`) : un festival n'est pas dans un festival, dans les deux sens, avec `FOR SHARE` sur le festival
     choisi pour que deux rattachements simultanés ne se croisent pas. La base ne regarde pas la catégorie.
   - `festival_locations (id, festival_id, location_id, sort_index)`, unicité de `(festival_id, location_id)`,
-    `on delete cascade` des deux côtés ; RLS : lisible quand le festival l'est (sous-requête sur `events`, sa
-    RLS), écrite par l'admin ; droits : `select` pour anon et authenticated, écriture pour authenticated. **Pas de
-    clé primaire sur `(festival_id, location_id)`** (le contrat de départ) : essayé sur PostgREST v13.0.5 (la
-    version de la prod), une base locale avec toutes les migrations, PostgREST y voit une relation
-    plusieurs-à-plusieurs `events` ↔ `locations`, et `events?select=…,locations(…)` (les cartes, la fiche, les
-    listes de l'app, l'admin) répond 400 PGRST201 « more than one relationship was found » ; avec une clé `id`,
-    tout passe. La session de l'app en a été prévenue.
+    `on delete cascade` des deux côtés, index sur `location_id` ; RLS : lisible quand le festival l'est
+    (sous-requête sur `events`, sa RLS), écrite par l'admin ; droits : `select` pour anon et authenticated,
+    écriture pour authenticated. **Pas de clé primaire sur `(festival_id, location_id)`** (le contrat de départ) :
+    PostgREST (v13.0.5, la version de la prod) prend une table dont les deux clés étrangères forment la clé
+    primaire pour une table de jonction ; `events` ↔ `locations` aurait eu deux relations, et
+    `events?select=…,locations(…)` (les cartes, la fiche, les listes de l'app, versions installées comprises,
+    l'admin) aurait répondu 400 PGRST201. Contrat changé avec la session de coordination.
   - `app_festival_events(at_time)` : une ligne par événement à venir (`app_events_in_range` à partir
     d'aujourd'hui 0 h) rattaché à un festival visible (dans `app_events()`, ni masqué par l'utilisateur, ni d'un
     auteur bloqué), `events_count` par festival, rendues par festival puis par date ; `execute` à anon et
     authenticated.
-  - `app_events_in_zone` recréée (même signature) : aussi un festival dont l'un des lieux est dans la zone (relevés
-    une fois, dans la sous-requête `b`).
+  - La zone ne change pas (décision de la session de coordination, 2026-10-23) : un festival y entre par son
+    `location_id`, son premier lieu, comme tout événement ; la liste de l'accueil et les comptes disent la même
+    chose (U3). Une première version faisait entrer un festival par l'un de ses lieux dans `app_events_in_zone`
+    seulement : retirée avant toute application.
 - Testée par `npm run db:test` (Docker) : `supabase/tests/festivals.test.sql`, 21 cas (rattacher, changer,
   détacher en admin ; pas lui-même ; pas dans un événement rattaché ; un festival qui a un programme n'entre dans
   rien ; festival inconnu ; à l'insertion et dans une même requête ; unicité et clés de `festival_locations` ;
   lecture pour anon, un compte, l'admin ; écriture refusée à anon et à un compte, permise à l'admin ; la zone par
-  l'un des lieux, par la fiche, sans zone ; `app_festival_events` : à venir, une ligne par événement, finis,
-  à partir d'aujourd'hui 0 h, masqués et bloqués, admin ; suppressions d'un festival et d'un lieu) ; 19 règles
-  faussées à tour de rôle, chacune repérée par un cas. Les 24 fichiers de `supabase/tests` passent (408 cas).
-  `lib/supabase/database.types.ts` régénéré (`npm run db:types`) : il rattrape aussi les fonctions de la zone
-  (20261021220000), absentes du fichier jusque-là.
+  la fiche seulement, pour la liste et les comptes ; `app_festival_events` : à venir, une ligne par événement,
+  finis, à partir d'aujourd'hui 0 h, masqués et bloqués, admin ; suppressions d'un festival et d'un lieu) ; 18
+  règles faussées à tour de rôle (dont le retour de la zone par les lieux), chacune repérée par un cas. Les 24
+  fichiers de `supabase/tests` passent (408 cas). `lib/supabase/database.types.ts` régénéré (`npm run db:types`) :
+  il rattrape aussi les fonctions de la zone (20261021220000), absentes du fichier jusque-là.
+- PostgREST v13.0.5 local (la base de `db:test`, le conteneur de la prod), anon, avant puis après la migration et
+  les données de Fulgurances : les 396 embarquements depuis `events`, `locations`, `festival_locations`,
+  `rpc/app_events`, `rpc/app_events_in_zone` et `rpc/app_events_in_range` vers chaque table exposée, et depuis
+  chaque table vers les trois premières : rien de ce qui répondait 200 ne casse ; les 5 ambiguïtés d'avant
+  (`event_opportunities` ↔ `events`, deux clés étrangères) restent les mêmes ; seules des relations nouvelles
+  apparaissent (`events` ↔ `events`, `festival_locations`). Les `select` de l'app (`EventSelects` `detail`,
+  `card`, `list`, `_favoriteEventsSelect`, `_eventsSelect` des artistes, `userEvents`, `app_possible_duplicates`)
+  sur `events` et les trois RPC, et les quatre requêtes de la session de coordination (`events`, `rpc/app_events`
+  et `rpc/app_events_in_zone` avec `locations(name)`, `locations?select=id,events(id)`) : 29 sur 29 en 200,
+  mêmes lignes qu'avant.
 - Essayée de bout en bout sur une pile Supabase locale (base, auth, PostgREST v14.1) avec l'admin de la branche :
   lieux du festival (ajout, ordre, le premier devient le lieu de la fiche), programme (suggestions, recherche,
   alertes, ajout, retrait), « Fait partie du festival » ; en anon par PostgREST : `rpc/app_festival_events`,
-  `festival:festival_id(…)`, `events!festival_id(…)`, `festival_locations(…, locations(…))`,
-  `rpc/app_events_in_zone`.
+  `festival:festival_id(…)`, `events!festival_id(…)`, `festival_locations(…, locations(…))`.
 - Répétée en prod le 23/10/2026 dans une transaction annulée (psql `--single-transaction`, `SET ROLE postgres`,
   `lock_timeout` 5 s, accès par `supabase db dump --linked --dry-run`, le fichier de la branche), puis, dans la
   même transaction, les données prévues pour Fulgurances :
   - avant : ni la colonne, ni la table, ni la fonction ; `app_events_in_zone`, `app_events_in_range` et
     `app_events()` identiques aux migrations (md5 de `prosrc`) ; les fiches du festival, de Micro et d'Infra et
     les trois lieux existent ;
-  - après : aucun événement rattaché, aucun lieu de festival ; anon lit `festival_locations` sans pouvoir y écrire
-    et appelle `app_festival_events` ; en anon, `app_events_in_zone('orleans', 25)` 391 événements, les mêmes
-    qu'avant ;
+  - après : aucun événement rattaché, aucun lieu de festival ; `app_events_in_zone` inchangée ; anon lit
+    `festival_locations` sans pouvoir y écrire et appelle `app_festival_events` ; en anon,
+    `app_events_in_zone('orleans', 25)` 391 événements, comme avant ;
   - avec les données (Micro et Infra rattachés, le festival renommé « Fulgurances Électroniques #2 », ses lieux
     Dropkick, Le 108, L'Astrolabe, sa fiche au Dropkick) : en anon, `app_festival_events()` rend Micro et Infra,
-    `events_count` 2 (EXPLAIN ANALYZE : 1,2 ms) ; `app_events_in_zone('orleans', 25)` 391 (5,6 ms) ;
-  - chaque instruction ~45 ms (latence réseau) : `events` reste verrouillée ~2 s pendant la migration ; rien n'est
+    `events_count` 2 (EXPLAIN ANALYZE : 1,2 ms) ; la zone, 391 ;
+  - chaque instruction ~45 ms (latence réseau) : `events` reste verrouillée ~1 s pendant la migration ; rien n'est
     resté après l'annulation.
 - **Pas encore appliquée en prod** : elle attend l'accord de l'utilisateur, comme les données de Fulgurances. Le
   back-office de la branche marche aussi avant elle, sauf les festivals (une fiche sans festival n'envoie pas la

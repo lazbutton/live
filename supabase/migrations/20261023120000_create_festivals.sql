@@ -11,8 +11,8 @@
 --   événement qui en contient d'autres n'est rattaché à rien. La base ne regarde pas la catégorie : le
 --   back-office ne propose que les fiches de la catégorie Festival. Index partiel : seuls les rattachés.
 -- - festival_locations : les lieux d'un festival, dans l'ordre (sort_index), dès son annonce ; la fiche garde
---   dans location_id le premier, pour ce qui n'en lit qu'un (versions installées de l'app, page publique, carte
---   du soir sans programme) : le back-office l'y met. Une clé `id` et l'unicité de (festival_id, location_id),
+--   dans location_id le premier, pour ce qui n'en lit qu'un (la zone, versions installées de l'app, page publique,
+--   carte du soir sans programme) : le back-office l'y met. Une clé `id` et l'unicité de (festival_id, location_id),
 --   pas une clé primaire sur ces deux colonnes : PostgREST y verrait une relation plusieurs-à-plusieurs entre
 --   events et locations, et tout `locations(…)` embarqué depuis events (l'app, l'admin) répondrait 400
 --   (PGRST201, « more than one relationship was found ») ; essayé le 2026-10-23 sur PostgREST v13.0.5, la
@@ -20,13 +20,16 @@
 --   approuvés ; l'admin, tous), écrite par l'admin.
 -- - app_festival_events(at_time) : pour l'accueil, sur le modèle d'app_event_series (U14), une ligne par
 --   événement à venir rattaché à un festival visible.
--- - app_events_in_zone(zone_city, zone_km) : un festival est dans la zone si l'un de ses lieux y est.
+-- La zone ne change pas (décision du 2026-10-23, session de coordination) : un festival y entre par son
+-- location_id, son premier lieu, comme tout événement, et ses événements chacun par le leur. La liste de
+-- l'accueil (app_events_in_zone) et les comptes (app_events_in_range) disent ainsi la même chose (U3).
 --
 -- `language sql`, `stable`, `security invoker`, sans clause SET, comme app_events() : la RLS de l'appelant
 -- s'applique. Le déclencheur est `security definer` : la règle ne dépend pas de ce que voit celui qui écrit (un
 -- festival en attente, invisible pour un organisateur, compte aussi). Tous les objets sont qualifiés.
--- Prérequis : 20261021220000_create_app_zone.sql (app_events_in_range à neuf arguments, app_zone, app_in_zone,
--- app_events_in_zone). À appliquer d'un bloc (`psql --single-transaction`) ; pas de BEGIN ni de COMMIT ici.
+-- Prérequis : 20261021220000_create_app_zone.sql (app_events_in_range à neuf arguments). Rien n'est remplacé :
+-- une colonne, une table, deux fonctions, un déclencheur. À appliquer d'un bloc (`psql --single-transaction`) ;
+-- pas de BEGIN ni de COMMIT ici.
 
 -- events.festival_id ---------------------------------------------------------------------------------
 
@@ -221,65 +224,6 @@ COMMENT ON FUNCTION public.app_festival_events(timestamp) IS
 
 GRANT EXECUTE ON FUNCTION public.app_festival_events(timestamp) TO anon, authenticated;
 
--- app_events_in_zone --------------------------------------------------------------------------------
---
--- La définition de 20261021220000, et un festival dont l'un des lieux (festival_locations) est dans la zone :
--- ses festivals sont relevés une fois, dans la sous-requête `b` (OFFSET 0), avec la zone. Sans zone, rien à
--- relever : tout y est. La même signature : les versions installées de l'app l'appellent comme avant.
-CREATE OR REPLACE FUNCTION public.app_events_in_zone(
-  zone_city text DEFAULT NULL,
-  zone_km numeric DEFAULT NULL
-)
-RETURNS SETOF public.events
-LANGUAGE sql
-STABLE
-SECURITY INVOKER
-AS $$
-  SELECT e.*
-  FROM (
-    SELECT
-      z.city_ids AS zone_villes,
-      z.center_lat AS zone_lat,
-      z.center_lng AS zone_lng,
-      z.radius_km AS zone_km,
-      array(
-        SELECT fl.festival_id
-        FROM public.festival_locations AS fl
-        JOIN public.locations AS fl_lieu ON fl_lieu.id = fl.location_id
-        WHERE z.city_ids IS NOT NULL
-          AND public.app_in_zone(
-            fl_lieu.city_id,
-            fl_lieu.latitude,
-            fl_lieu.longitude,
-            z.city_ids,
-            z.center_lat,
-            z.center_lng,
-            z.radius_km
-          )
-      ) AS festivals
-    FROM (SELECT) AS un
-    LEFT JOIN LATERAL public.app_zone(app_events_in_zone.zone_city, app_events_in_zone.zone_km) AS z ON true
-    OFFSET 0
-  ) AS b
-  CROSS JOIN public.app_events() AS e
-  LEFT JOIN public.locations AS l ON l.id = e.location_id
-  WHERE public.app_in_zone(
-      coalesce(e.city_id, l.city_id),
-      coalesce(l.latitude, e.latitude),
-      coalesce(l.longitude, e.longitude),
-      b.zone_villes,
-      b.zone_lat,
-      b.zone_lng,
-      b.zone_km
-    )
-    OR e.id = ANY (b.festivals)
-$$;
-
-COMMENT ON FUNCTION public.app_events_in_zone(text, numeric) IS
-  'Événements de app_events() dans la zone de l''app (zone_city, zone_km ; règle app_in_zone), et les festivals dont l''un des lieux (festival_locations) y est : l''accueil « Toutes les dates » et « À la une », avec les filtres PostgREST par-dessus. Sans zone ou ville inconnue : tous. Migrations 20261021220000 et 20261023120000.';
-
-GRANT EXECUTE ON FUNCTION public.app_events_in_zone(text, numeric) TO anon, authenticated;
-
 -- Vérification (SQL Editor) : les festivals, leurs lieux et leurs événements à venir.
 -- select f.title, array_agg(l.name order by fl.sort_index) as lieux,
 --   (select count(*) from public.app_festival_events() as a where a.festival_id = f.id) as a_venir
@@ -289,7 +233,7 @@ GRANT EXECUTE ON FUNCTION public.app_events_in_zone(text, numeric) TO anon, auth
 -- where exists (select 1 from public.events as c where c.festival_id = f.id) or fl.id is not null
 -- group by f.id, f.title;
 
--- Rollback : rejouer app_events_in_zone de 20261021220000_create_app_zone.sql, puis
+-- Rollback :
 -- DROP FUNCTION IF EXISTS public.app_festival_events(timestamp);
 -- DROP TABLE IF EXISTS public.festival_locations;
 -- DROP TRIGGER IF EXISTS trg_events_check_festival ON public.events;

@@ -1840,7 +1840,7 @@ export function EventFormSheet({
                       <FormBlock
                         id="event-where"
                         title="Lieux du festival"
-                        description="Tous ses lieux, dès l’annonce. Le premier sert de lieu à la fiche (versions de l’app qui n’en lisent qu’un, page publique)."
+                        description="Tous ses lieux, dès l’annonce. Le premier est le lieu de la fiche : la zone de l’app, les versions qui n’en lisent qu’un et la page publique s’en servent."
                       >
                         <div id="event-location">
                           <FestivalLocationsField
