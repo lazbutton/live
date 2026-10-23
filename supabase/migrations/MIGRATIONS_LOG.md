@@ -1133,3 +1133,33 @@
   restés ceux du fichier, avec les mêmes droits (anon appelle les trois premières, `app_follows` réservée aux
   comptes). En anon après : Dropkick 2, Clair Obscure 3, Le 108 12, L'Astrolabe 21, dans les pages, la recherche et
   « À voir aussi », comme à 16:46.
+
+## 2026-10-23 — Suspension UGC dans `raw_app_meta_data` (escalade corrigée)
+
+- `20261023230000_ugc_suspension_in_app_metadata` : même faille que le rôle admin (migration
+  `20261023150000`, en prod), mais sur `ugc_suspended`. La suspension d'un compte pour le contenu
+  communautaire était lue dans `raw_user_meta_data->>'ugc_suspended'` (`is_user_safety_suspended()`, qui
+  alimente `can_use_ugc_features()` et les policies RLS d'`events` ; `lib/mobile-user-auth.ts`). Or
+  l'utilisateur écrit lui-même `raw_user_meta_data` via `updateUser` (PUT /auth/v1/user) : un compte
+  suspendu pouvait lever sa propre suspension. (La PR du rôle admin avait laissé la suspension dans
+  user_metadata ; cette migration la ferme.)
+- Correctif : les clés `ugc_suspended` / `ugc_suspension_reason` / `ugc_suspended_at` / `ugc_suspended_by`
+  passent dans `raw_app_meta_data` (écrit par le service seul ; GoTrue refuse `app_metadata` en self-service).
+  `is_user_safety_suspended()` lit app_meta. Garde-fou : trigger `strip_ugc_suspension_from_user_metadata`
+  (BEFORE INSERT/UPDATE OF raw_user_meta_data sur `auth.users`) qui efface ces clés de user_metadata à chaque
+  écriture. `ugc_terms_accepted_version` et le reste de user_metadata (nom, etc.) sont intacts.
+- Trigger et fonction distincts de ceux du rôle admin (`strip_role_from_user_metadata`) : indépendants ;
+  les deux garde-fous pourront être fusionnés plus tard. Numéro `20261023230000` : 160000/180000/190000
+  étaient pris par des migrations festivals déjà en prod.
+- Côté TypeScript (même PR, par-dessus la PR du rôle) : lecture (`lib/mobile-user-auth.ts`,
+  `/api/admin/users/list`) et écriture (`/api/admin/users/[id]`, `/api/admin/moderation/reports/[id]` :
+  rôle ET suspension dans app_metadata) passées à `app_metadata`.
+- Côté app Flutter (`lazbutton/live-app`) : `AuthRepository.isSuspended` / `suspensionReason` passés à
+  `appMetadata` (PR #169, à déployer avec cette migration) ; `isAdmin` de même (PR #170, avec la migration
+  du rôle). Sinon la détection côté client cesse jusqu'au rafraîchissement du jeton, mais le serveur
+  (RLS + `requireMobileUserAuth`) refuse toujours.
+- Tests : `supabase/tests/ugc_suspension.test.sql` (le trigger retire la clé à l'inscription et à la mise à
+  jour ; `is_user_safety_suspended` / `can_use_ugc_features` lisent app_meta ; l'auto-réhabilitation échoue,
+  vérifiée aussi de bout en bout via GoTrue réel) ; fixtures de `events_rls.test.sql` (u09 via app_meta) et
+  `lib/api/app/routes.test.mjs` (`jwt-suspended`). `npm run db:test`, `node --test`, `npx tsc --noEmit` au vert.
+- **Pas encore appliquée en prod** (attendre l'accord ; prévoir les PR de l'app en même temps).

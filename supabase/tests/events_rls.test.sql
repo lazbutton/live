@@ -128,12 +128,17 @@ INSERT INTO auth.users (id, email, is_anonymous, raw_user_meta_data) VALUES
   ('e7a00000-0000-4000-8000-000000000006', 'u06@test.local', false, '{}'),
   ('e7a00000-0000-4000-8000-000000000007', 'u07@test.local', false, '{}'),
   ('e7a00000-0000-4000-8000-000000000008', 'u08@test.local', false, '{}'),
-  ('e7a00000-0000-4000-8000-000000000009', 'u09@test.local', false, '{"ugc_suspended":"true"}'),
+  ('e7a00000-0000-4000-8000-000000000009', 'u09@test.local', false, '{}'),
   ('e7a00000-0000-4000-8000-000000000010', NULL, true, '{}');
 
 -- u01 est admin : depuis 20261023150000 le rôle vit dans app_metadata, plus dans raw_user_meta_data.
 UPDATE auth.users SET raw_app_meta_data = '{"role":"admin"}'::jsonb
 WHERE id = 'e7a00000-0000-4000-8000-000000000001';
+
+-- La suspension UGC vit dans app_metadata (migration 20261023230000), pas dans user_metadata (que
+-- l'utilisateur modifie ; le trigger y retire ugc_suspended). u09 est donc suspendu via app_meta.
+UPDATE auth.users SET raw_app_meta_data = '{"ugc_suspended":"true"}'::jsonb
+WHERE id = 'e7a00000-0000-4000-8000-000000000009';
 
 INSERT INTO public.organizers (id, name) VALUES
   ('e7b00000-0000-4000-8000-000000000031', 'Zz Orga 31'),

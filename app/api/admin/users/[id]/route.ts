@@ -39,12 +39,22 @@ export async function PATCH(
       );
     }
 
-    // Le rôle vit dans app_metadata (modifiable par le service seulement, cf. migration
-    // 20261023150000) ; les champs UGC restent dans user_metadata.
+    // Le rôle et la suspension UGC vivent dans app_metadata (modifiable par le service seulement,
+    // cf. migrations 20261023150000 et 20261023230000) ; le reste (nom, conditions) dans user_metadata.
     const updatedUserMetadata = { ...(currentUser.user.user_metadata || {}) };
-    const updatedAppMetadata = { ...(currentUser.user.app_metadata || {}) };
-    // raw_user_meta_data ne doit plus porter de rôle (un trigger l'y efface de toute façon).
-    delete (updatedUserMetadata as Record<string, unknown>).role;
+    const updatedAppMetadata: Record<string, unknown> = {
+      ...(currentUser.user.app_metadata || {}),
+    };
+    // raw_user_meta_data ne doit plus porter le rôle ni la suspension (des triggers les y effacent).
+    for (const key of [
+      "role",
+      "ugc_suspended",
+      "ugc_suspension_reason",
+      "ugc_suspended_at",
+      "ugc_suspended_by",
+    ]) {
+      delete (updatedUserMetadata as Record<string, unknown>)[key];
+    }
 
     if (body.role !== undefined) {
       if (body.role === "" || body.role === null) {
@@ -56,7 +66,7 @@ export async function PATCH(
 
     if (body.ugcSuspended !== undefined) {
       const nextSuspended = Boolean(body.ugcSuspended);
-      updatedUserMetadata.ugc_suspended = nextSuspended;
+      updatedAppMetadata.ugc_suspended = nextSuspended;
 
       const normalizedSuspensionReason =
         typeof body.ugcSuspensionReason === "string"
@@ -64,14 +74,14 @@ export async function PATCH(
           : "";
 
       if (nextSuspended) {
-        updatedUserMetadata.ugc_suspension_reason =
+        updatedAppMetadata.ugc_suspension_reason =
           normalizedSuspensionReason || "Suspendu par l'équipe de modération";
-        updatedUserMetadata.ugc_suspended_at = new Date().toISOString();
-        updatedUserMetadata.ugc_suspended_by = user.id;
+        updatedAppMetadata.ugc_suspended_at = new Date().toISOString();
+        updatedAppMetadata.ugc_suspended_by = user.id;
       } else {
-        delete updatedUserMetadata.ugc_suspension_reason;
-        delete updatedUserMetadata.ugc_suspended_at;
-        delete updatedUserMetadata.ugc_suspended_by;
+        delete updatedAppMetadata.ugc_suspension_reason;
+        delete updatedAppMetadata.ugc_suspended_at;
+        delete updatedAppMetadata.ugc_suspended_by;
       }
     }
 
