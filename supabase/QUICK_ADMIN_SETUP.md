@@ -17,7 +17,7 @@
 
 ```sql
 UPDATE auth.users
-SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || '{"role": "admin"}'::jsonb
+SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || '{"role": "admin"}'::jsonb
 WHERE email = 'admin@example.com';
 ```
 
@@ -30,7 +30,7 @@ Exécutez cette requête pour vérifier :
 ```sql
 SELECT 
   email,
-  raw_user_meta_data->>'role' as role
+  raw_app_meta_data->>'role' as role
 FROM auth.users
 WHERE email = 'admin@example.com';
 ```

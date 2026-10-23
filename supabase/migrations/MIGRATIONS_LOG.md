@@ -880,6 +880,45 @@
   `rpc/app_events_in_zone('orleans', 25)`. Temps serveur (`x-envoy-upstream-service-time`, 7 appels) :
   `rpc/app_festival_events` 3 à 23 ms, les 391 cartes de l'accueil 39 à 69 ms.
 
+## 2026-10-23 — Radio Campus dans OutLive : stations, émissions, épisodes, grille
+
+- Concept validé le 2026-10-23 (`../live/docs/RADIO_CAMPUS.md`, contrat au § 4, recopié dans `docs/API_APP.md`,
+  « Radio ») ; l'accord écrit de la radio n'est pas encore reçu : tout est construit, la station reste désactivée.
+- Numérotées de `20261023140000` à `20261023143000`, après `20261023120000_create_festivals` (déjà en prod) : elles
+  avaient d'abord pris `20261023120000` à `20261023123000`, le même numéro que celle des Festivals.
+- `20261023140000_create_radio_tables` : `radio_stations` (interrupteur `enabled`, faux par défaut ; organisateur
+  unique, sa suppression refusée tant que la station existe), `radio_shows` (créneaux vérifiés par
+  `radio_slots_valid`, famille `musique` ou `parole`, collectif `organizer_id`), `radio_episodes` (`guid` unique ;
+  `last_episode_at` de l'émission tenu par trigger), `radio_show_sync` (suivi de l'import, service seulement).
+  RLS : lecture par anon et authenticated d'une station activée, de ses émissions et de ses épisodes, par une
+  sous-requête non corrélée (une fois par requête) ; aucune écriture ni TRUNCATE hors service role. Radio Campus
+  Orléans insérée désactivée, id fixe `e2f7ade2-f5d2-4408-90b4-f8bfca383399`, par `insert … select` depuis son
+  organisateur (`9d6d803d-…`) : rien sur une base sans lui.
+- `20261023141000_create_app_radio_functions` : `app_radio_day(p_station, p_day)` et `app_radio_shows(p_station)`
+  pour l'app (`letter` en plus du contrat : la lettre de la liste A à Z), `radio_live_grid(p_station)` pour la
+  route « ce qui passe » ; les règles : émission active (un épisode depuis 45 jours), créneaux répétés chaque
+  semaine à l'heure de Paris, épisode rattaché au créneau où il commence (jusqu'à 15 minutes avant), état
+  `past`/`live`/`next`. `security invoker` : une station désactivée ne rend rien en anon.
+- `20261023142000_add_radio_audience_metrics` : `radio_live_play` et `radio_episode_play` dans les deux listes
+  d'`app_audience_add` (contrainte de la table et fonction).
+- `20261023143000_schedule_radio_import` : pg_cron (tâche `radio-import`, chaque heure à :07) appelle
+  `/api/cron/radio-import` par pg_net avec le secret `radio_import_cron_secret` de Vault ; sans secret, rien. Raison :
+  Vercel Hobby refuse un cron plus fréquent que quotidien (`vercel.json` garde un passage à 5:30 UTC).
+- Testées sur la base jetable de `npm run db:test` (Postgres 17, toutes les migrations) :
+  `supabase/tests/app_radio.test.sql` (44 cas : trigger, créneaux refusés, RLS et coût des politiques, journées
+  passées, d'aujourd'hui et de nuit, rattachement, liste A à Z, grille du direct, droits, pg_cron) et le cas radio
+  d'`app_audience.test.sql` ; les autres fichiers restent verts. Cinq règles cassées une à une (tolérance de
+  15 minutes, 45 jours, émissions passées sans épisode, RLS des émissions, articles du tri) : un cas échoue chaque
+  fois. Types régénérés (`npm run db:types`) : ils rattrapent aussi `20261021220000_create_app_zone`, jamais
+  régénérée.
+- **Pas appliquées en prod.** Ordre : `20261023140000`, `20261023141000`, `20261023142000`, puis, pour l'import
+  horaire, `20261023143000` et le secret : `select vault.create_secret('<CRON_SECRET de Vercel>',
+  'radio_import_cron_secret');`. Avant la première, vérifier l'organisateur :
+  `select id, name from public.organizers where id = '9d6d803d-4a7e-4118-beba-1744a1159b99';`. Après : un premier
+  import à la main (page des crons de l'admin, ou `/admin/radio`, « Importer maintenant »), puis
+  `select count(*), count(*) filter (where last_episode_at > now() - interval '45 days') from public.radio_shows;`
+  (91 et 47 le 2026-10-23). `enabled` reste à faux jusqu'à l'accord écrit de la radio.
+
 ## 2026-10-23 — Festivals, étape 4 : le programme dans le message des suivis, « À voir aussi » sans le même festival
 
 - `20261023160000_add_festival_follows_and_see_also` : étape 4 du § 6 de `../live/docs/FESTIVALS.md` (§ 3,

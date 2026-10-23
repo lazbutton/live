@@ -14,7 +14,9 @@ export type AdminMobileAuthContext = {
 
 function isAdminUser(user: User | null) {
   if (!user) return false;
-  return user.user_metadata?.role === "admin" || user.app_metadata?.role === "admin";
+  // Rôle admin dans app_metadata seulement (raw_user_meta_data est modifiable par l'utilisateur,
+  // cf. migration 20261023150000).
+  return user.app_metadata?.role === "admin";
 }
 
 function createTokenClient(token: string) {

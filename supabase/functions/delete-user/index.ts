@@ -57,7 +57,7 @@ serve(async (req) => {
 
     // Vérifier que l'utilisateur demande la suppression de son propre compte
     // (sauf si c'est un admin)
-    const isAdmin = user.user_metadata?.role === 'admin'
+    const isAdmin = user.app_metadata?.role === 'admin'
     if (!isAdmin && userIdToDelete !== user.id) {
       return new Response(
         JSON.stringify({ error: 'You can only delete your own account' }),

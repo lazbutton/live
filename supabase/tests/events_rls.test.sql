@@ -120,7 +120,7 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA pg_temp TO anon, authenticated;
 -- 42 et propriétaire de 34 ; u08 auteur ; u09 auteur suspendu ; u10 invité (session anonyme),
 -- propriétaire de 35.
 INSERT INTO auth.users (id, email, is_anonymous, raw_user_meta_data) VALUES
-  ('e7a00000-0000-4000-8000-000000000001', 'u01@test.local', false, '{"role":"admin"}'),
+  ('e7a00000-0000-4000-8000-000000000001', 'u01@test.local', false, '{}'),
   ('e7a00000-0000-4000-8000-000000000002', 'u02@test.local', false, '{}'),
   ('e7a00000-0000-4000-8000-000000000003', 'u03@test.local', false, '{}'),
   ('e7a00000-0000-4000-8000-000000000004', 'u04@test.local', false, '{}'),
@@ -130,6 +130,10 @@ INSERT INTO auth.users (id, email, is_anonymous, raw_user_meta_data) VALUES
   ('e7a00000-0000-4000-8000-000000000008', 'u08@test.local', false, '{}'),
   ('e7a00000-0000-4000-8000-000000000009', 'u09@test.local', false, '{"ugc_suspended":"true"}'),
   ('e7a00000-0000-4000-8000-000000000010', NULL, true, '{}');
+
+-- u01 est admin : depuis 20261023150000 le rôle vit dans app_metadata, plus dans raw_user_meta_data.
+UPDATE auth.users SET raw_app_meta_data = '{"role":"admin"}'::jsonb
+WHERE id = 'e7a00000-0000-4000-8000-000000000001';
 
 INSERT INTO public.organizers (id, name) VALUES
   ('e7b00000-0000-4000-8000-000000000031', 'Zz Orga 31'),

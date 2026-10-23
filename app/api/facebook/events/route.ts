@@ -59,10 +59,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("Utilisateur authentifié:", user.email, "Rôle:", user.user_metadata?.role);
+    console.log("Utilisateur authentifié:", user.email, "Rôle:", user.app_metadata?.role);
 
     // Vérifier que l'utilisateur est admin
-    const userRole = user.user_metadata?.role;
+    const userRole = user.app_metadata?.role;
     if (userRole !== "admin") {
       return NextResponse.json(
         { error: "Accès refusé. Administrateur requis." },

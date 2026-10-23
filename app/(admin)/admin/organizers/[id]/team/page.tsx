@@ -110,7 +110,7 @@ function TeamManagementContent() {
         return;
       }
 
-      const role = user.user_metadata?.role;
+      const role = user.app_metadata?.role;
       const isAdmin = role === "admin";
 
       if (!isAdmin) {
@@ -196,7 +196,7 @@ function TeamManagementContent() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const role = user.user_metadata?.role;
+      const role = user.app_metadata?.role;
       const isAdmin = role === "admin";
 
       // Pour les propriétaires, utiliser directement Supabase avec RLS

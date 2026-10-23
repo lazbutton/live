@@ -45,7 +45,7 @@ export async function GET(req: Request) {
       }
     }
 
-    const role = user?.user_metadata?.role;
+    const role = user?.app_metadata?.role;
     if (role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

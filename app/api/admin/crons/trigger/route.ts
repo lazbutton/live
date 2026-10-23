@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const role = user.user_metadata?.role;
+  const role = user.app_metadata?.role;
   if (role !== "admin") {
     return NextResponse.json(
       { error: "Accès non autorisé" },

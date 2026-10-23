@@ -57,7 +57,11 @@ END $$;
 
 INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
   ('3d000000-0000-4000-8000-000000000001', 'quidam@test.local', '{}'::jsonb),
-  ('3d000000-0000-4000-8000-000000000009', 'admin@test.local',  '{"role":"admin"}'::jsonb);
+  ('3d000000-0000-4000-8000-000000000009', 'admin@test.local',  '{}'::jsonb);
+
+-- Le rôle admin vit dans app_metadata (20261023150000) ; raw_user_meta_data ne peut plus le porter.
+UPDATE auth.users SET raw_app_meta_data = '{"role":"admin"}'::jsonb
+WHERE id = '3d000000-0000-4000-8000-000000000009';
 
 SELECT pg_temp.verifie('app_audience_add : exécutable par anon et authenticated, pas par public',
   has_function_privilege('anon', 'public.app_audience_add(date, jsonb)', 'execute')::text || ' '
@@ -160,5 +164,18 @@ SELECT pg_temp.verifie('plus de 25 mois : effacé au passage ; 25 mois tout just
    FROM public.app_audience_counts AS c
    WHERE c.day < pg_temp.jour(-700)),
   'event_liked=4');
+
+-- Radio (20261023142000_add_radio_audience_metrics.sql) : direct écouté, épisode écouté --------------
+
+SET LOCAL ROLE anon;
+SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
+SELECT pg_temp.verifie('radio : direct et épisode écoutés comptés, une autre clé radio ignorée',
+  pg_temp.ajoute(pg_temp.jour(-2), '{"radio_live_play": 3, "radio_episode_play": 2, "radio_inconnu": 1}'),
+  '2');
+RESET ROLE;
+SELECT pg_temp.verifie('radio : les deux compteurs du jour',
+  (SELECT string_agg(c.metric || '=' || c.count, ' ' ORDER BY c.metric)
+   FROM public.app_audience_counts AS c WHERE c.day = pg_temp.jour(-2)),
+  'radio_episode_play=2 radio_live_play=3');
 
 ROLLBACK;
