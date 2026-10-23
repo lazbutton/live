@@ -81,6 +81,21 @@ function normalizeExtractedPayload(
     ];
   }
 
+  if (typeof normalized.festival_name === "string") {
+    normalized.festival_name = normalized.festival_name.trim() || undefined;
+  }
+
+  if (Array.isArray(normalized.festival_venues)) {
+    const venues = [
+      ...new Set(
+        normalized.festival_venues
+          .map((venue) => (typeof venue === "string" ? venue.trim() : ""))
+          .filter(Boolean),
+      ),
+    ];
+    normalized.festival_venues = venues.length ? venues : undefined;
+  }
+
   if (typeof normalized.door_opening_time === "string") {
     normalized.door_opening_time = normalized.door_opening_time.trim();
   }
@@ -271,6 +286,8 @@ Retourne un JSON avec seulement les champs utiles parmi:
 - instagram_url
 - facebook_url
 - tags
+- festival_name
+- festival_venues
 
 Contraintes:
 - title: nom principal de l'evenement.
@@ -283,6 +300,8 @@ Contraintes:
 - door_opening_time: format HH:mm.
 - is_full: true uniquement si l'image indique explicitement complet, sold out ou equivalent.
 - tags: 3 a 8 tags utiles en minuscules si possible.
+- festival_name: nom du festival dont l'evenement fait partie, seulement si l'affiche le dit (« dans le cadre du festival X », « Festival X - soiree Y »), sans numero d'edition ni annee. Vide pour l'affiche d'un festival entier, ou quand un festival est seulement cite (un prix recu a Cannes).
+- festival_venues: affiche d'un festival entier seulement : les lieux ou il se tient, tels qu'ecrits, un par element (« Dropkick », « Le 108 », « L'Astrolabe »).
 - image_url: renseigne-la uniquement si tu vois une URL d'image publique ou si elle est deja evidente. Sinon laisse ce champ vide.
 
 Retourne uniquement du JSON valide, sans texte avant ou apres.`;

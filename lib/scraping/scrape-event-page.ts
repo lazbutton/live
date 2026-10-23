@@ -55,6 +55,10 @@ export interface ScrapedEventData {
   artists?: string[];
   category?: string;
   tags?: string[];
+  /** Festival dont l'événement fait partie, quand la page le dit. */
+  festival_name?: string;
+  /** Page d'un festival entier : les lieux qu'elle nomme. */
+  festival_venues?: string[];
   capacity?: string;
   door_opening_time?: string;
   is_full?: boolean;
@@ -340,6 +344,8 @@ const FULL_FIELDS: Record<string, unknown> = {
   door_opening_time: { type: ["string", "null"], description: "HH:mm" },
   capacity: { type: ["integer", "null"] },
   image_url: NULLABLE_STRING,
+  festival: NULLABLE_STRING,
+  festival_venues: { type: "array", items: { type: "string" } },
 };
 
 /** Champs réglables par source dans « Champs IA » (organizer_ai_fields). */
@@ -365,6 +371,8 @@ const COMPLEMENT_FIELDS = [
   "category",
   "tags",
   "artists",
+  "festival",
+  "festival_venues",
   "door_opening_time",
   "price_min",
   "price_max",
@@ -394,6 +402,10 @@ const FIELD_GUIDANCE: Record<string, string> = {
   door_opening_time: "ouverture des portes",
   capacity: "jauge",
   image_url: "image principale",
+  festival:
+    "nom du festival dont l'événement fait partie, seulement si la page le dit (« dans le cadre du festival X », titre « Festival X – soirée Y »), sans numéro d'édition ni année ; null pour la page d'un festival entier, ou quand un festival est seulement cité (un prix reçu à Cannes)",
+  festival_venues:
+    "page d'un festival entier seulement : les lieux où il se tient, tels qu'écrits, un par élément ; sinon liste vide",
 };
 
 async function extractWithAI(args: {
@@ -692,6 +704,8 @@ export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<Scrape
         data.address = data.address || extracted.address || undefined;
         data.organizer = data.organizer || extracted.organizer || undefined;
         data.artists = data.artists?.length ? data.artists : cleanList(extracted.artists, 20);
+        data.festival_name = data.festival_name || (typeof extracted.festival === "string" ? decodeHtmlText(extracted.festival) : "") || undefined;
+        data.festival_venues = data.festival_venues?.length ? data.festival_venues : cleanList(extracted.festival_venues, 10);
         data.category = data.category || extracted.category || undefined;
         data.tags = cleanList(extracted.tags, 6)?.map((tag) => tag.toLowerCase());
         if (data.price_min === undefined) {

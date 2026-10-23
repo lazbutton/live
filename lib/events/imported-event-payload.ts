@@ -26,6 +26,10 @@ export type ImportedEventPayload = {
   instagram_url?: string;
   facebook_url?: string;
   tags?: string[];
+  /** Festival dont l'événement fait partie, quand le texte le dit (« dans le cadre du festival … »). */
+  festival_name?: string;
+  /** Pour un festival : les lieux que nomme son texte (« le Dropkick, le 108 et l'Astrolabe »). */
+  festival_venues?: string[];
   metadata?: Record<string, unknown>;
   [key: string]: unknown;
 };
@@ -70,4 +74,6 @@ export const IMPORTED_EVENT_FIELD_LABELS: Partial<
   instagram_url: "Instagram",
   facebook_url: "Facebook",
   tags: "Tags",
+  festival_name: "Festival",
+  festival_venues: "Lieux du festival",
 };
