@@ -107,6 +107,8 @@ type MajorEventOption = {
 type AdditionalTimeSlot = {
   start: string;
   end: string;
+  /** Lien de billetterie propre à la séance, repris d'un import (`?session=336`). */
+  externalUrl?: string;
 };
 
 type QuickCreateState = { kind: "location" | "organizer" | "artist"; name: string } | null;
@@ -451,7 +453,7 @@ export function EventFormSheet({
     setAdditionalTimeSlots(
       (prefill?.additionalDates || [])
         .filter((slot) => slot.date)
-        .map((slot) => ({ start: slot.date, end: slot.end_date || "" })),
+        .map((slot) => ({ start: slot.date, end: slot.end_date || "", externalUrl: slot.external_url })),
     );
     setSelectedOrganizerIds(prefill?.organizerIds || []);
     setSelectedArtistIds(prefill?.artistIds || []);
@@ -959,7 +961,7 @@ export function EventFormSheet({
     }
 
     const allSlots: AdditionalTimeSlot[] = [{ start: formData.date, end: formData.end_date || "" }, ...additionalTimeSlots]
-      .map((slot) => ({ start: slot.start.trim(), end: slot.end.trim() }))
+      .map((slot) => ({ start: slot.start.trim(), end: slot.end.trim(), externalUrl: slot.externalUrl?.trim() || undefined }))
       .filter((slot) => Boolean(slot.start));
 
     setSaving(true);
@@ -1085,6 +1087,7 @@ export function EventFormSheet({
           ...baseData,
           date: fromDatetimeLocal(slot.start) || slot.start,
           end_date: slot.end ? fromDatetimeLocal(slot.end) || slot.end : null,
+          external_url: slot.externalUrl || baseData.external_url,
           created_by: userId,
         };
 

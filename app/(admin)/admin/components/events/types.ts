@@ -132,6 +132,9 @@ export type EventFormPrefill = Partial<{
   organizerIds: string[];
   artistIds: string[];
   tagIds: string[];
-  /** Autres séances (format datetime-local) : un événement par date à l'enregistrement. */
-  additionalDates: Array<{ date: string; end_date?: string }>;
+  /**
+   * Autres séances (format datetime-local) : un événement par date à l'enregistrement, avec le lien de
+   * billetterie de la séance quand la page en donne un par séance.
+   */
+  additionalDates: Array<{ date: string; end_date?: string; external_url?: string }>;
 }>;

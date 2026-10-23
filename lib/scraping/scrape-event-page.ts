@@ -5,7 +5,10 @@ import { AI_MODEL_FULL, AI_MODEL_LIGHT, generationParams } from "@/lib/ai/openai
 import { splitArtistNames } from "@/lib/events/artist-names";
 
 import { fetchHtml, FetchHtmlError } from "./fetch-html";
-import { checkDateAgainstText, parisToday, toParisWallClock } from "./dates";
+import { isAstrolabeTicketingUrl, readAstrolabeProgramText } from "./astrolabe";
+import { isBilletwebUrl, readBilletwebDetails } from "./billetweb";
+import { checkDateAgainstText, findDoorsAndStart, parisToday, toParisWallClock } from "./dates";
+import { isMapadoEventUrl, readMapadoPrices } from "./mapado";
 import { onSortEventUid, scrapeOnSortEvent } from "./on-sort";
 import {
   dateOptionsForPage,
@@ -19,7 +22,9 @@ import {
 /*
  * Lecture d'une page d'événement, par ordre de fiabilité :
  *   1. sélecteurs CSS configurés pour la source ;
- *   2. données structurées schema.org (JSON-LD, microdata) ;
+ *   2. données structurées schema.org (JSON-LD, microdata), et billetteries lues à part : tarifs de
+ *      Mapado (état de la page, ou page de la séance) et de Billetweb (boutique), début écrit sur la page
+ *      de L'Astrolabe quand sa billetterie donne l'ouverture des portes ;
  *   3. IA, seulement pour ce qui manque (modèle léger si l'essentiel est déjà connu) ;
  *   4. métadonnées Open Graph.
  * Les dates sont rendues en heure murale de Paris (`YYYY-MM-DDTHH:mm:00`).
@@ -31,8 +36,8 @@ export interface ScrapedEventData {
   description?: string;
   date?: string;
   end_date?: string;
-  /** Autres dates du même événement (plusieurs séances). */
-  occurrences?: Array<{ date: string; end_date?: string }>;
+  /** Autres dates du même événement (plusieurs séances), avec le lien de billetterie de chacune s'il est connu. */
+  occurrences?: Array<{ date: string; end_date?: string; external_url?: string }>;
   /** Faux quand seule la date est connue, pas l'heure. */
   time_known?: boolean;
   price?: string;
@@ -379,8 +384,9 @@ const FIELD_GUIDANCE: Record<string, string> = {
   artists: "artistes musicaux programmés : musiciens, chanteurs, groupes, DJ (noms seuls) ; ni compagnie, ni comédien, ni danseur, ni intervenant",
   category: "catégorie",
   tags: "3 à 5 mots-clés courts en minuscules (style, public, thème)",
-  price_min: "tarif le plus bas en euros",
-  price_max: "tarif le plus haut en euros si différent",
+  price_min:
+    "tarif le plus bas ouvert à tous, en euros (réduit, prévente, sur place, enfant) ; jamais un tarif réservé (abonnés, adhérents, carte du lieu, groupes, scolaires, CE, élèves du conservatoire)",
+  price_max: "tarif le plus haut ouvert à tous, en euros, si différent",
   is_free: "gratuit / entrée libre",
   is_pay_what_you_want: "prix libre / participation libre",
   is_full: "complet / sold out",
@@ -497,6 +503,48 @@ function firstDefined<T>(...values: Array<T | null | undefined>) {
   return values.find((value) => value !== undefined && value !== null && value !== "") ?? undefined;
 }
 
+/** Billetteries dont les tarifs (et la description) ne sont pas dans les données structurées de la page. */
+async function readTicketingDetails(
+  $: CheerioDocument,
+  pageUrl: string,
+): Promise<{ description?: string; min?: number; max?: number }> {
+  if (isMapadoEventUrl(pageUrl)) return readMapadoPrices($, pageUrl);
+  if (isBilletwebUrl(pageUrl)) return readBilletwebDetails($, pageUrl);
+  return {};
+}
+
+/** Même jour à l'heure `time` (`HH:mm`), le lendemain pour un début après minuit (portes à 23h, début à 0h30). */
+function atTime(date: string, time: string) {
+  const day = new Date(`${date.slice(0, 10)}T00:00:00Z`);
+  if (time < date.slice(11, 16) && time < "06:00") day.setUTCDate(day.getUTCDate() + 1);
+  return `${day.toISOString().slice(0, 10)}T${time}:00`;
+}
+
+/**
+ * Heure lue = ouverture des portes (la page le dit, ou la source donne l'ouverture pour le début, comme la
+ * billetterie de L'Astrolabe, dont le début écrit l'emporte toujours) : le début écrit sur la page
+ * (« OUVERTURE DES PORTES À 15H, DÉBUT À 15H30 ») la remplace et l'ouverture va dans door_opening_time.
+ */
+function applyDoorsAndStart(data: ScrapedEventData, written: { doors?: string; start?: string }, doorsAsStart: boolean) {
+  if (!data.date) return;
+  const time = data.date.slice(11, 16);
+  const doors = written.doors ?? (doorsAsStart ? time : undefined);
+  if (written.start && written.start !== time && (doors === time || doorsAsStart)) {
+    const start = written.start;
+    const doorsAt = doors ? `${data.date.slice(0, 11)}${doors}:00` : undefined;
+    data.date = atTime(data.date, start);
+    if (data.end_date && data.end_date <= data.date) delete data.end_date;
+    data.occurrences = data.occurrences?.map((occurrence) =>
+      occurrence.date.slice(11, 16) === time ? { ...occurrence, date: atTime(occurrence.date, start) } : occurrence,
+    );
+    // L'ouverture précède le début (une billetterie en retard sur le site ne la met pas après).
+    if (doors && doorsAt && doorsAt < data.date) data.door_opening_time = doors;
+    else delete data.door_opening_time;
+  } else if (!data.door_opening_time && written.doors && written.doors < time) {
+    data.door_opening_time = written.doors;
+  }
+}
+
 export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<ScrapeEventPageResult> {
   const startedAt = Date.now();
   try {
@@ -536,9 +584,13 @@ export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<Scrape
   const pageDateOptions = dateOptionsForPage($);
   const cssStart = toParisWallClock(css.date, undefined, pageDateOptions);
   const cssEnd = toParisWallClock(css.end_date, undefined, pageDateOptions);
+  // Autres séances : chacune garde son lien (Fleury : deux séances le même jour, `?session=335` et `?session=336`).
   const otherStructured = structuredEvents
     .filter((event) => event !== primary && event.date && primary?.title && event.title === primary.title)
-    .map((event) => ({ date: event.date as string, end_date: event.end_date }));
+    .map((event) => ({ date: event.date as string, end_date: event.end_date, external_url: event.ticket_url || event.url }));
+  // Mapado et Billetweb : tarifs ouverts au public lus à part (page de la séance, boutique).
+  const ticketing = await readTicketingDetails($, page.finalUrl);
+  const ticketingMax = ticketing.min !== undefined && ticketing.max !== undefined && ticketing.max > ticketing.min ? ticketing.max : undefined;
 
   const data: ScrapedEventData = {
     title: firstDefined(
@@ -550,6 +602,7 @@ export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<Scrape
     ),
     description: firstDefined(
       css.description ? decodeHtmlText(css.description, { multiline: true }) : undefined,
+      ticketing.description,
       primary?.description,
     ),
     date: cssStart?.value ?? primary?.date,
@@ -567,8 +620,9 @@ export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<Scrape
     external_url: primary?.ticket_url || page.finalUrl,
     organizer: firstDefined(css.organizer, primary?.organizer),
     artists: primary?.artists,
-    price_min: css.price !== undefined && Number.isFinite(Number(css.price)) ? Number(css.price) : primary?.price_min,
-    price_max: primary?.price_max,
+    price_min:
+      css.price !== undefined && Number.isFinite(Number(css.price)) ? Number(css.price) : (ticketing.min ?? primary?.price_min),
+    price_max: ticketing.min !== undefined ? ticketingMax : primary?.price_max,
     is_full: primary?.is_full,
     is_cancelled: primary?.is_cancelled,
     door_opening_time: css.door_opening_time,
@@ -667,11 +721,23 @@ export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<Scrape
     if (summary) data.description = decodeHtmlText(summary, { multiline: true });
   }
   data.title = withoutLocationSuffix(data.title, data.location);
+  const pageText = data.date ? mainText($, 12_000) : "";
+
+  // Ouverture des portes lue pour le début : la billetterie de L'Astrolabe la donne toujours, son début
+  // n'est écrit que dans sa présentation, sinon sur la page du spectacle de lastrolabe.org.
+  if (data.date && data.time_known !== false) {
+    const doorsAsStart = isAstrolabeTicketingUrl(page.finalUrl);
+    let written = findDoorsAndStart([primary?.description, meta["og:description"], pageText]);
+    if (doorsAsStart && !written.start) {
+      written = findDoorsAndStart([await readAstrolabeProgramText({ title: data.title, date: data.date })]);
+    }
+    applyDoorsAndStart(data, written, doorsAsStart);
+  }
 
   // Date confrontée aux jours de semaine écrits sur la page : « mercredi 7 octobre » fixe l'année
   // (2026 et non 2027) ; « dimanche 11 novembre 2026 » (un mercredi) rend la date douteuse.
   if (data.date) {
-    const pageTexts = [data.title, meta["og:title"], meta["og:description"], mainText($, 12_000)];
+    const pageTexts = [data.title, meta["og:title"], meta["og:description"], pageText];
     const check = checkDateAgainstText(data.date, pageTexts);
     if (check.corrected) {
       const [wrongYear, rightYear] = [data.date.slice(0, 4), check.value.slice(0, 4)];
