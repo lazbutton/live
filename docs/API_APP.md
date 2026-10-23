@@ -1137,7 +1137,8 @@ journées finies : `event_opened` (fiche ouverte), `ticket_tapped` (billetterie 
 la migration `20261023142000_add_radio_audience_metrics.sql` `radio_live_play` (le direct de la radio lancé)
 et `radio_episode_play` (un épisode lancé), depuis `20261023180000_add_festival_audience_metric.sql`
 `festival_opened` (la page d'un festival s'ouvre : la fiche d'un festival qui a un programme ; elle compte aussi
-dans `event_opened`). Un appel par journée :
+dans `event_opened`). En prod depuis le 2026-10-23 à 16:24, ces huit compteurs sont acceptés, ceux de la radio
+compris (la migration de la radio n'y est pas encore, la liste est la même). Un appel par journée :
 `{"day": "2026-10-20", "counts": {"event_opened": 3, "event_liked": 1}}`.
 
 - **Sans identité** : l'app appelle avec la clé publique seule (`apikey` et `Authorization: Bearer <clé anon>`),
