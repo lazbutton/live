@@ -24,6 +24,7 @@ import { findOrCreateArtist, type AgentArtistInput } from "./artists";
 import { logAgentAction } from "./audit";
 import { hasTimeLeft, loadAgentReferences, type AgentContext } from "./context";
 import { copyImageToStorage } from "./images";
+import { announcedRoom, findOrCreateRoom, findRoom } from "./locations";
 import { resolveKnownSource, type AgentSource } from "./sources";
 
 /*
@@ -31,9 +32,12 @@ import { resolveKnownSource, type AgentSource } from "./sources";
  * - source suivie (active) ET fiche complète (heure, lieu, catégorie, affiche)
  *   → publié directement ;
  * - sinon → en attente de validation dans l'admin.
- * Les doublons (même page, même créneau au même lieu, même titre le même jour) sont écartés.
+ * Les doublons (même page, même créneau au même lieu, même titre le même jour) sont écartés ;
+ * deux séances à la même heure dans deux salles d'un même lieu n'en sont pas.
  * Une date douteuse (page qui se contredit, titre qui annonce un autre jour) n'est pas créée :
  * l'agent relit la page et passe par create_event (statut « to_check »).
+ * Salle : demandée (`room`), sinon annoncée avec le lieu (« Théâtre d'Orléans - Salle Vitez ») ; créée
+ * dans le lieu si elle n'y est pas encore.
  */
 
 export type AgentEventStatus = "published" | "pending" | "duplicate" | "to_check" | "skipped" | "error";
@@ -51,6 +55,12 @@ export type AgentEventResult = {
   duplicate_of?: { id: string; title: string | null; date: string | null };
   source?: string | null;
   location?: string | null;
+  /** Salle du lieu où a lieu la séance (rooms). */
+  room?: string;
+  /** Salle créée dans le lieu pour cette séance. */
+  room_created?: boolean;
+  /** Salle demandée sans lieu connu : ignorée. */
+  room_unmatched?: string;
   /** Lieu annoncé sans fiche correspondante (à créer ou à préciser via search). */
   location_unmatched?: string;
   /** Lieu annoncé et son adresse, gardés dans l'adresse de l'événement en attente. */
@@ -77,6 +87,8 @@ export type AgentEventInput = {
   additional_dates?: Array<{ start: string; end?: string }>;
   location?: string;
   location_id?: string;
+  /** Salle du lieu (« Salle Vitez ») : rattachée à la séance, créée si le lieu ne l'a pas encore. */
+  room?: string;
   address?: string;
   organizers?: string[];
   artists?: Array<string | AgentArtistInput>;
@@ -136,19 +148,23 @@ function sameDay(left: string | null | undefined, right: string | null | undefin
 
 async function findDuplicateEvent(
   ctx: AgentContext,
-  { urls, title, start, end, locationId, venueWindowMinutes }: {
+  { urls, title, start, end, locationId, room, venueWindowMinutes }: {
     urls: Array<string | null | undefined>;
     title: string;
     /** Début au format du formulaire (« AAAA-MM-JJTHH:mm », heure de Paris). */
     start: string;
     end?: string;
     locationId?: string;
+    /** Salle de la séance, si elle est connue (`id` vide : salle pas encore créée). */
+    room?: { id: string | null } | null;
     /** Agenda partagé : même lieu à cet écart près (en minutes) = même événement, quel que soit le titre. */
     venueWindowMinutes?: number;
   },
 ): Promise<DuplicateMatch | null> {
   const startIso = fromDatetimeLocal(start);
   const day = start.slice(0, 10);
+  // Même lieu mais une autre salle connue des deux côtés : une autre séance (trois salles au Théâtre d'Orléans).
+  const otherRoom = (roomId: string | null | undefined) => Boolean(room && roomId && roomId !== room.id);
 
   // Même page déjà importée, pour un événement du même jour ou au même titre
   // (un post peut annoncer plusieurs événements différents).
@@ -172,12 +188,14 @@ async function findDuplicateEvent(
     const margin = venueWindowMinutes * 60_000;
     const { data: nearby } = await ctx.supabase
       .from("events")
-      .select("id, title, date")
+      .select("id, title, date, room_id")
       .eq("location_id", locationId)
       .eq("archived", false)
       .gte("date", new Date(startMs - margin).toISOString())
       .lte("date", new Date(startMs + margin).toISOString());
-    const near = ((nearby || []) as Array<{ id: string; title: string | null; date: string }>)[0];
+    const near = ((nearby || []) as Array<{ id: string; title: string | null; date: string; room_id: string | null }>).find(
+      (event) => !otherRoom(event.room_id),
+    );
     if (near) return { id: near.id, title: near.title, date: near.date, reason: "Même lieu, à deux heures près" };
   }
 
@@ -189,9 +207,15 @@ async function findDuplicateEvent(
       startValue: startIso,
       endValue: end ? fromDatetimeLocal(end) : startIso,
     }).catch(() => []);
-    const exact = overlapping.find(
+    const sameSlot = overlapping.filter(
       (event) => event.matchKind === "exact" || Date.parse(event.date) === Date.parse(startIso),
     );
+    const rooms = new Map<string, string | null>();
+    if (room && sameSlot.length) {
+      const { data } = await ctx.supabase.from("events").select("id, room_id").in("id", sameSlot.map((event) => event.id));
+      for (const row of (data || []) as Array<{ id: string; room_id: string | null }>) rooms.set(row.id, row.room_id);
+    }
+    const exact = sameSlot.find((event) => !otherRoom(rooms.get(event.id)));
     if (exact) return { id: exact.id, title: exact.title, date: exact.date, reason: "Même lieu, même horaire" };
   }
 
@@ -419,6 +443,14 @@ export async function createAgentEvent(
   const organizerIds = [...(prefill.organizerIds || [])];
   for (const id of args.extraOrganizerIds || []) if (!organizerIds.includes(id)) organizerIds.push(id);
 
+  const location = form.location_id ? references.locations.find((entry) => entry.id === form.location_id) || null : null;
+  // Salle : demandée (`room`), sinon annoncée avec le nom du lieu (« Théâtre d'Orléans - Salle Vitez »).
+  const requestedRoom = typeof data.room === "string" ? data.room.trim() : "";
+  const roomName = location
+    ? requestedRoom || announcedRoom(references.rooms, location, [data.location as string | undefined]).name
+    : null;
+  const knownRoom = location && roomName ? findRoom(references.rooms, location.id, roomName) : null;
+
   // Page de la source elle-même (agenda en texte seul, profil) : elle annonce plusieurs événements,
   // parfois le même spectacle à plusieurs dates. Son adresse ne désigne pas un événement : restent
   // les règles « même lieu, même horaire » et « même titre le même jour ».
@@ -432,6 +464,7 @@ export async function createAgentEvent(
     start,
     end,
     locationId: form.location_id || undefined,
+    room: roomName ? { id: knownRoom?.id ?? null } : null,
     venueWindowMinutes: sourceUrl && onSortEventUid(sourceUrl) ? SHARED_AGENDA_VENUE_WINDOW_MINUTES : undefined,
   });
   if (duplicate) {
@@ -479,7 +512,7 @@ export async function createAgentEvent(
     ? await copyImageToStorage(ctx, imageSource, { bucket: "event-images" })
     : { url: "", copied: false };
 
-  const location = form.location_id ? references.locations.find((entry) => entry.id === form.location_id) || null : null;
+  const room = location && roomName ? await findOrCreateRoom(ctx, location, roomName) : null;
   // Lieu annoncé sans fiche : gardé dans l'adresse de l'événement pour la validation (le formulaire de
   // l'admin la remplace par celle du lieu choisi).
   const announcedVenue = location ? null : announcedVenueOf(locationWarning?.value || data.location, data.address);
@@ -511,7 +544,7 @@ export async function createAgentEvent(
     capacity: form.capacity ? Number.parseInt(form.capacity, 10) || null : null,
     is_full: Boolean(form.is_full),
     location_id: location?.id || null,
-    room_id: null,
+    room_id: room?.id || null,
     door_opening_time: (form.door_opening_time || "").trim() || null,
     external_url: (form.external_url || "").trim() || null,
     external_url_label: (form.external_url_label || "").trim() || null,
@@ -544,6 +577,9 @@ export async function createAgentEvent(
           ? "Source en pause : à valider dans l'admin"
           : `Fiche incomplète (${missing.join(", ")}) : à compléter et valider dans l'admin`,
     location: location?.name ?? null,
+    room: room?.name,
+    room_created: room?.created || undefined,
+    room_unmatched: !location && requestedRoom ? requestedRoom : undefined,
     location_unmatched: !location && locationWarning?.value ? locationWarning.value : undefined,
     announced_venue: announcedVenue || undefined,
     category: category?.name ?? null,
@@ -628,6 +664,7 @@ function toImportedPayload(input: AgentEventInput, sourceUrl: string | null): Im
     occurrences: (input.additional_dates || []).map((slot) => ({ date: slot.start, end_date: slot.end })),
     location: input.location,
     location_id: input.location_id,
+    room: input.room,
     address: input.address,
     artists,
     category: input.category,
@@ -677,6 +714,9 @@ export async function createAgentEventFromInput(
   });
 }
 
+/** Lieu (et salle) imposés aux pages importées : la page ne le donne pas, ou se trompe (« Adresse secrète »). */
+export type AgentVenueOverride = { locationId?: string | null; room?: string | null };
+
 /** Lit une page d'événement (site, billetterie, événement Facebook) puis crée l'événement. */
 export async function importAgentEventFromUrl(
   ctx: AgentContext,
@@ -684,8 +724,15 @@ export async function importAgentEventFromUrl(
     url,
     source,
     ownerId,
+    venue,
     createMissingArtists = true,
-  }: { url: string; source: AgentSource | null; ownerId?: string | null; createMissingArtists?: boolean },
+  }: {
+    url: string;
+    source: AgentSource | null;
+    ownerId?: string | null;
+    venue?: AgentVenueOverride;
+    createMissingArtists?: boolean;
+  },
 ): Promise<AgentEventResult> {
   if (isInstagramPostUrl(url)) {
     return {
@@ -714,6 +761,8 @@ export async function importAgentEventFromUrl(
     if (!scraped.ok) return { status: "error", url, reason: scraped.error };
     data = scraped.data as unknown as ImportedEventPayload;
   }
+  if (venue?.locationId) data = { ...data, location_id: venue.locationId };
+  if (venue?.room) data = { ...data, room: venue.room };
 
   return createAgentEvent(ctx, { data, sourceUrl: url, source, ownerId, createMissingArtists });
 }
@@ -725,10 +774,20 @@ export async function importAgentEventUrls(
     urls,
     sourceId,
     ownerId,
+    venue,
     createMissingArtists = true,
-  }: { urls: string[]; sourceId?: string | null; ownerId?: string | null; createMissingArtists?: boolean },
+  }: {
+    urls: string[];
+    sourceId?: string | null;
+    ownerId?: string | null;
+    venue?: AgentVenueOverride;
+    createMissingArtists?: boolean;
+  },
 ) {
   const unique = [...new Set(urls.map((url) => url.trim()).filter(Boolean))];
+  if (venue?.locationId && !(await loadAgentReferences(ctx)).locations.some((location) => location.id === venue.locationId)) {
+    throw new Error("Lieu introuvable : location_id doit venir de search ou d'upsert_location.");
+  }
   const fixedSource = sourceId ? await resolveKnownSource(ctx, { sourceId }) : null;
   const results: AgentEventResult[] = [];
   const remaining: string[] = [];
@@ -746,7 +805,7 @@ export async function importAgentEventUrls(
         }
         try {
           const source = fixedSource || (await resolveKnownSource(ctx, { url }));
-          results.push(await importAgentEventFromUrl(ctx, { url, source, ownerId, createMissingArtists }));
+          results.push(await importAgentEventFromUrl(ctx, { url, source, ownerId, venue, createMissingArtists }));
         } catch (error) {
           results.push({ status: "error", url, reason: error instanceof Error ? error.message : "Erreur inconnue" });
         }

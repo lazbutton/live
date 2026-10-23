@@ -177,3 +177,36 @@ export async function markAgentSourceReviewed(ctx: AgentContext, sourceId: strin
   }
   return { source_id: sourceId, name: source.name, next_review_at: update.next_scan_at, dry_run: ctx.dryRun || undefined };
 }
+
+/** Source d'une fiche créée par l'agent : suivie (« active ») ou en pause, à réactiver dans la Collecte de l'admin. */
+export type CreatedOwnerSource = { id: string; url: string; status: string };
+
+/**
+ * Source de collecte d'une fiche que l'agent vient de créer. Les triggers des migrations 20260429105500 et
+ * 20260429114500 en créent une pour un organisateur, ou un lieu-organisateur, qui a un lien (site, sinon
+ * Instagram, sinon Facebook) : active et à revoir tout de suite, comme une fiche créée dans l'admin. Créée par
+ * l'agent, elle passe en pause sauf `follow` : suivre une source (relue à chaque collecte, publication directe)
+ * reste le choix de l'utilisateur. Le trigger la réactive si le nom ou un lien de la fiche change.
+ */
+export async function settleCreatedOwnerSource(
+  ctx: AgentContext,
+  owner: { type: "organizer" | "location"; id: string },
+  follow: boolean,
+): Promise<CreatedOwnerSource | null> {
+  const { data: source, error } = await ctx.supabase
+    .from("event_sources")
+    .select("id, url, status, notes")
+    .eq(owner.type === "organizer" ? "organizer_id" : "organizer_location_id", owner.id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!source) return null;
+  if (follow || source.status !== "active") return { id: source.id, url: source.url, status: source.status };
+
+  const note = "[agent] Fiche créée par la collecte : source en pause, à réactiver pour la suivre.";
+  const { error: updateError } = await ctx.supabase
+    .from("event_sources")
+    .update({ status: "paused", notes: [source.notes, note].filter(Boolean).join("\n") })
+    .eq("id", source.id);
+  if (updateError) throw new Error(updateError.message);
+  return { id: source.id, url: source.url, status: "paused" };
+}

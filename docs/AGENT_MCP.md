@@ -7,26 +7,30 @@ créer et publier des événements, sans passer par l'interface.
 | --- | --- | --- |
 | `list_sources` | Sources de collecte (sites, Instagram, Facebook), à revoir d'abord | non |
 | `scan_agenda` | Lit l'agenda d'un site, d'une billetterie Socoop ou d'une page Facebook : événements trouvés, déjà importés, passés, annulés | non |
-| `import_urls` | Lit des pages d'événements et crée les événements | oui |
-| `create_event` | Crée un événement lu par Claude (post Instagram, page Facebook, affiche) | oui |
+| `import_urls` | Lit des pages d'événements et crée les événements (lieu et salle imposables : `location_id`, `room`) | oui |
+| `create_event` | Crée un événement lu par Claude (post Instagram, page Facebook, affiche), avec sa salle (`room`) | oui |
 | `upsert_artist` | Retrouve ou crée la fiche d'un artiste | oui |
-| `search` | Cherche lieux, organisateurs, artistes, catégories, tags | non |
+| `upsert_location` | Retrouve ou crée un lieu, avec son adresse de la Base Adresse Nationale | oui |
+| `upsert_organizer` | Retrouve ou crée un organisateur, avec au moins un lien (site, Instagram, Facebook) | oui |
+| `search` | Cherche lieux (et leurs salles), organisateurs, artistes, catégories, tags | non |
 | `mark_source_reviewed` | Marque une source revue (sort de « À revoir ») | oui |
-| `recent_activity` | Ce que l'agent a créé récemment, événements en attente | non |
+| `recent_activity` | Ce que l'agent a créé récemment (événements, artistes, lieux, salles, organisateurs), événements en attente | non |
 
-Aucun outil ne supprime ni ne modifie un événement existant.
+Aucun outil ne supprime ni ne modifie un événement, un lieu, une salle ou un organisateur existant.
 
 ## Règle de publication
 
 - Source suivie (active dans la Collecte) **et** fiche complète (heure, lieu, catégorie, affiche) → **publié directement**.
 - Sinon → **en attente** dans Événements, avec ce qui manque.
 - Doublons écartés : même page déjà importée, même lieu au même horaire, ou même titre le même jour. Depuis
-  On sort ! (agenda partagé, horaires et titres souvent écrits autrement) : même lieu à deux heures près.
+  On sort ! (agenda partagé, horaires et titres souvent écrits autrement) : même lieu à deux heures près. Deux
+  séances dans deux salles connues d'un même lieu ne sont pas des doublons.
 - Jeune public (`events.is_young_audience`) : coché quand la source le dit (catégorie, tag « Jeune public »),
   quand le titre ou la description annonce un public d'enfants (« dès 3 ans », « 7-10 ans », « tout-petits »,
   « boum ») ou quand Claude le précise dans `create_event`. Modifiable dans l'admin ; l'app ne filtre pas dessus.
 - Lieu annoncé sans fiche : l'événement reste en attente, avec le nom et l'adresse du lieu dans son adresse
-  (montrés dans le formulaire de l'admin, remplacés par ceux du lieu choisi).
+  (montrés dans le formulaire de l'admin, remplacés par ceux du lieu choisi). Claude crée d'abord les lieux qui
+  manquent (voir plus bas) ; `scan_agenda` les liste pour On sort ! (`unknown_venues`).
 - Date douteuse → **rien n'est créé** (statut `to_check`) : jour de semaine qui contredit la date sur la page,
   ou titre qui annonce un autre jour. Claude relit la page et crée l'événement avec la bonne date.
 - Artistes absents créés automatiquement (noms génériques comme « DJ set » ou « invités » ignorés).
@@ -53,8 +57,33 @@ Aucun outil ne supprime ni ne modifie un événement existant.
   comprise ; seules les pages réservées aux membres restent à lire dans le navigateur.
 - **Affiche** d'une page sans image de partage : image mise en avant ou plus grande image du contenu.
 - **Lieux** : reconnus par leur nom, une de leurs salles (« Salle du CREDO au 108 ») ou leur adresse (numéro et voie).
+- **Salles** : la salle nommée avec le lieu (« Théâtre d'Orléans - Salle Vitez », « L'Alliage (salle Yvremont) »)
+  est rattachée à la séance ; créée si le morceau commence par « salle », « plateau », « studio »…
 
-Tests : `node --test lib/scraping/*.test.mjs lib/agent/*.test.mjs`.
+## Lieux, salles et organisateurs
+
+Créés par Claude avant l'événement qui les nomme (`lib/agent/locations.ts`, `organizers.ts`), comme dans l'admin :
+
+- **Lieu** (`upsert_location`) : nom, adresse cherchée dans la Base Adresse Nationale (Géoplateforme de l'IGN,
+  `data.geopf.fr/geocodage`, qui remplace `api-adresse.data.gouv.fr`), liens publics, lieu-organisateur ou non.
+  L'adresse enregistrée est le libellé de la BAN, avec son code postal (« 119 Rue de Bourgogne 45000 Orléans ») :
+  `sync_location_city` en tire la ville. Refusé : « Adresse secrète », lieu « communiqué à la réservation » ou
+  « à confirmer », en ligne, ville seule, adresse absente, introuvable, sans ville écrite ou incertaine (score de
+  la BAN sous 0,7).
+- **Salle** (`room` de `create_event` et `import_urls`) : retrouvée par son nom sans « salle » en tête (« Vitez » =
+  « Salle Vitez », « Plateau Vitez » à part), créée dans le lieu sinon.
+- **Organisateur** (`upsert_organizer`) : nom et au moins un lien (site, Instagram, Facebook), rangés et vérifiés.
+- **Doublons** : un lieu au même nom (sans article, accents ni ponctuation) ou au nom proche dans la même ville
+  (sauf deux numéros de rue différents), à la même adresse, ou une salle connue ; un organisateur ou un lieu au même
+  compte Instagram, à la même page Facebook, au même site, ou au nom proche (sauf liens tous différents). Un
+  homonyme dans une autre ville n'est pas un doublon.
+- **Triggers** : le nom passe par `format_entity_label` (« l'improviste bar » → « L'Improviste Bar », mais
+  « FabriCode » → « Fabricode ») et l'outil renvoie le nom enregistré. Un organisateur, ou un lieu-organisateur, qui
+  a un lien reçoit une source de collecte active (migrations 20260429105500 et 20260429114500) : l'outil la met en
+  pause (« [agent] Fiche créée par la collecte… »), sauf `follow`, pour que l'utilisateur décide de la suivre ; le
+  trigger la réactive si le nom ou un lien de la fiche change. Vérifiés par `supabase/tests/agent_places.test.sql`.
+
+Tests : `node --test lib/scraping/*.test.mjs lib/agent/*.test.mjs` ; triggers : `npm run db:test`.
 
 ## Brancher les outils
 

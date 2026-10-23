@@ -1,15 +1,15 @@
 ---
 name: collecte
-description: Collecte automatique OutLive. Passe en revue les sources à revoir (sites, comptes Instagram et Facebook), crée et publie les événements à venir, ajoute les artistes musicaux, marque les sources revues et fait un récapitulatif. À utiliser quand on demande de « faire la collecte », « récupérer les événements » ou « mettre l'agenda à jour ».
+description: Collecte automatique OutLive. Passe en revue les sources à revoir (sites, comptes Instagram et Facebook), crée et publie les événements à venir, ajoute les artistes musicaux et les lieux, salles et organisateurs qui manquent, marque les sources revues et fait un récapitulatif. À utiliser quand on demande de « faire la collecte », « récupérer les événements » ou « mettre l'agenda à jour ».
 ---
 
 # Collecte OutLive
 
 Tu alimentes l'agenda culturel OutLive (Orléans et alentours) à partir des sources suivies dans l'admin.
 Tu disposes des outils du serveur MCP **outlive** (`list_sources`, `scan_agenda`, `import_urls`, `create_event`,
-`upsert_artist`, `search`, `mark_source_reviewed`, `recent_activity`), de WebFetch et du navigateur Chrome de
-l'utilisateur (extension Claude in Chrome) pour lire Instagram, Facebook quand une page n'est pas lisible sans
-connexion, et les sites que `scan_agenda` ne sait pas lire (`unreadable`).
+`upsert_artist`, `upsert_location`, `upsert_organizer`, `search`, `mark_source_reviewed`, `recent_activity`), de
+WebFetch et du navigateur Chrome de l'utilisateur (extension Claude in Chrome) pour lire Instagram, Facebook quand
+une page n'est pas lisible sans connexion, et les sites que `scan_agenda` ne sait pas lire (`unreadable`).
 
 Si les outils `outlive` sont absents, arrête-toi et dis-le : le serveur MCP local n'est pas branché
 (`node scripts/outlive-mcp.mjs` dans le projet live-admin). Le serveur garde en mémoire le code de son lancement :
@@ -49,7 +49,36 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
   Relis la page (navigateur ou WebFetch), trouve la vraie date, puis `create_event` avec `source_id`, `source_url`
   = la page et cette date. Si la page ne permet pas de trancher, signale-le dans le récapitulatif.
 - **Pas de doublon à la main** : les outils écartent déjà les événements existants ; n'essaie pas de modifier ou
-  supprimer un événement (aucun outil ne le permet).
+  supprimer un événement, un lieu ou un organisateur (aucun outil ne le permet).
+- **Lieux, salles et organisateurs** : chaque événement est rattaché à son vrai lieu et à son organisateur. Un
+  événement créé ne se corrige plus : ce qui manque se crée **avant** `create_event` ou `import_urls`, seulement
+  pour un événement que tu vas créer (jamais de fiche « au cas où »).
+  - **Lieu** sans fiche (`search` ne le trouve pas, `unknown_venues` du scan, ou lieu annoncé dans une
+    publication) : `upsert_location` avec `name` (le nom du lieu tel qu'il se présente, sans la ville) et `address`
+    complète (numéro, rue, code postal, ville), lue sur le site du lieu, sa page ou la publication ; les liens
+    (`website_url`, `instagram_url`, `facebook_url`) s'ils sont connus, `is_organizer: true` pour un lieu qui
+    programme lui-même (bar, salle, tiers-lieu), `capacity` si elle est annoncée. L'outil géocode l'adresse (Base
+    Adresse Nationale), qui donne la ville et la position sur la carte. Passe ensuite l'`id` renvoyé
+    (`location_id`).
+  - **Jamais de lieu** pour une « Adresse secrète », un lieu « communiqué à la réservation » ou « à confirmer », une
+    ville seule, un domicile, un événement en ligne : l'outil refuse, le lieu annoncé reste dans l'événement. Une
+    « Adresse secrète » alors que le titre ou le texte nomme le lieu (« Match d'impro au Théâtre Gérard-Philipe »,
+    « Zigo Comedy Club, à L'improviste Bar ») : c'est ce lieu-là.
+  - **Salle** : une salle d'un lieu connu n'est pas un lieu (« Théâtre d'Orléans - Salle Vitez », « Le 108 – salle
+    C14 », « L'Alliage, salle Yvremont », « Grande salle » de L'Astrolabe). Passe-la par `room` à `create_event`
+    (ou à `import_urls` pour un lot dans la même salle) ; elle est créée si le lieu ne l'a pas encore. `search`
+    (type `location`) donne les salles connues d'un lieu : reprends leur nom. `import_urls` rattache seul la salle
+    annoncée avec le lieu.
+  - **Organisateur** sans fiche (la structure qui organise : association, collectif, compagnie, festival,
+    programmateur, quand ce n'est pas le lieu) : `upsert_organizer` avec `name` et au moins un lien lu sur ses
+    pages (`website_url` = son propre site, pas celui d'un lieu ou d'une billetterie ; `instagram_url` ;
+    `facebook_url`), puis son `id` dans `organizers`. Pas de fiche pour une personne seule, un artiste, une
+    billetterie (HelloAsso, Billetweb, Shotgun) ni un média.
+  - Réponse `exists` : la fiche existe déjà (`matched_by` : même nom, nom proche, même adresse, même compte…) ;
+    utilise son `id`, et sa salle (`room`) s'il y en a une. `type: "location"` pour un organisateur : c'est un lieu,
+    rattache-le comme lieu. `refused` : n'insiste pas sous un autre nom, garde la raison pour le récapitulatif.
+  - **Sources** : un organisateur ou un lieu-organisateur créé avec un lien reçoit une source de collecte, **en
+    pause** : l'utilisateur décide de la suivre. Ne passe `follow: true` que s'il te l'a demandé.
 - Rythme raisonnable sur les réseaux : au plus une vingtaine de comptes par passage, quelques secondes par page.
 
 ## Déroulé
@@ -67,12 +96,16 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
      à deux heures près, publié deux fois dans l'agenda) sont sortis de `to_import` avec `duplicate_of`.
      Dans `to_import`, regarde encore `organizer` et `venue` de chaque événement et écarte les têtes d'affiche en
      tournée, le théâtre de boulevard des grandes salles et les revues commerciales ; garde les artistes, troupes,
-     associations et lieux du coin. Beaucoup de ses lieux n'ont pas encore de fiche (`location_unmatched` et
-     `announced_venue` à l'import) : regroupe-les dans le récapitulatif ;
+     associations et lieux du coin. Beaucoup de ses lieux n'ont pas encore de fiche : `unknown_venues` les liste
+     avec leur adresse. Avant l'import, crée ceux des événements gardés (`upsert_location`, voir les règles ; une
+     adresse sans numéro ni code postal se complète sur le site du lieu) ; ceux qui restent sans fiche vont dans le
+     récapitulatif. Un titre qui nomme un autre lieu que `venue` (« Zigo Comedy Club, à L'improviste Bar » au QG des
+     Zigotastiques), ou un `venue` « Adresse Secrète » : importe cette page seule avec `location_id` du bon lieu ;
    - dans `to_import`, garde seulement les vrais événements d'après leur titre (voir les règles). Les dates du scan
      sont indicatives : une exposition déjà ouverte peut figurer dans `past`, importe-la quand même ;
    - `import_urls` avec ces URL (par lots de 15 au plus) et `source_id` ; si `remaining` revient, rappelle l'outil ;
-     traite les `to_check` (voir les règles) ;
+     traite les `to_check` (voir les règles) ; un résultat avec `location_unmatched` : crée le lieu (s'il a une
+     adresse) pour les prochains imports et note-le, l'événement attend sa validation avec le lieu annoncé ;
    - `mark_source_reviewed` avec `imported_count` = événements publiés + en attente (sauf si `unreadable` est
      renvoyé : voir plus bas).
    - `agenda_url` renvoyé : l'adresse enregistrée ne menait à rien (lien mort, page d'accueil) et l'outil a suivi
@@ -110,12 +143,14 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
      (zoome sur l'affiche si besoin) ;
    - l'affiche est reprise automatiquement du post (première image) : ne donne `image_url` que si l'affiche est
      une autre image du carrousel, ou une image d'un autre site ;
-   - si le lieu n'est pas évident, `search` avec `type: "location"` pour retrouver son nom exact ;
+   - si le lieu n'est pas évident, `search` avec `type: "location"` pour retrouver son nom exact (et ses salles) ;
+     sans fiche, `upsert_location` (adresse lue dans la publication, sur le compte ou le site du lieu) ; un
+     organisateur nommé sans fiche (collectif, association…), `upsert_organizer` avec son compte (voir les règles) ;
    - `create_event` avec `source_id`, `source_url` (lien de la publication), titre court et propre, `start` à l'heure
-     de Paris (année : voir la règle Dates), lieu, catégorie (liste donnée par l'outil ; « Concert » ou « DJ Set »
-     pour la musique), artistes musicaux (voir la règle Artistes ; objets avec `instagram_url` quand ils sont
-     identifiés dans la publication), prix, billetterie, description de 2 à 4 phrases en français reformulée sans
-     hashtag ni emoji ;
+     de Paris (année : voir la règle Dates), lieu (`location_id` s'il vient d'être créé, `room` pour une salle),
+     organisateurs, catégorie (liste donnée par l'outil ; « Concert » ou « DJ Set » pour la musique), artistes
+     musicaux (voir la règle Artistes ; objets avec `instagram_url` quand ils sont identifiés dans la publication),
+     prix, billetterie, description de 2 à 4 phrases en français reformulée sans hashtag ni emoji ;
    - plusieurs dates d'un même événement : un seul appel avec `additional_dates` ; événements différents : un appel chacun ;
    - `mark_source_reviewed` avec le nombre d'événements créés.
 
@@ -130,6 +165,10 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
      pour un lieu manquant, son nom et son adresse (`announced_venue`), regroupés par lieu ;
    - événements jeune public créés (`young_audience`) ;
    - artistes créés ;
+   - lieux, salles et organisateurs créés (`locations_created` avec leur adresse, `rooms_created` avec leur lieu,
+     `organizers_created`) ; leurs sources de collecte créées en pause, à réactiver dans la Collecte
+     (`sources_path`) si l'utilisateur veut les suivre ; les lieux et organisateurs refusés (raison : adresse
+     secrète, vague ou introuvable, lien manquant…) et ceux retrouvés par un « nom proche », à vérifier ;
    - artistes écartés à vérifier : les `artists_skipped` notés au fil des imports dont la raison commence par
      « Titre de l'événement », « Prénom seul » ou « Catégorie inconnue », avec leur événement, pour que
      l'utilisateur crée la fiche à la main si c'est un vrai musicien ;

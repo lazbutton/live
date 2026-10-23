@@ -1,17 +1,20 @@
 import { z } from "zod";
 
-import { normalizeSearchValue } from "@/lib/events/import-prefill";
+import { normalizeSearchValue, resolveLocationFromImportedData } from "@/lib/events/import-prefill";
 import type { AgendaUnreadableReason } from "@/lib/scraping/agenda";
 import { scanAgendaPage } from "@/lib/scraping/agenda-scan";
 
 import { findOrCreateArtist } from "./artists";
 import { AGENT_ACTOR, loadAgentReferences, type AgentContext } from "./context";
 import { createAgentEventFromInput, findAgendaDuplicates, importAgentEventUrls, type AgendaDuplicate } from "./events";
+import { findOrCreateLocation } from "./locations";
+import { findOrCreateOrganizer } from "./organizers";
+import { isUndisclosedPlace } from "./places";
 import { getAgentSource, listAgentSources, markAgentSourceReviewed } from "./sources";
 
 /*
  * Outils exposés à Claude par le serveur MCP de l'admin (local ou HTTP).
- * Aucun outil ne supprime quoi que ce soit.
+ * Aucun outil ne supprime quoi que ce soit, ni ne modifie un événement, un lieu, une salle ou un organisateur.
  */
 
 export type AgentToolAnnotations = {
@@ -95,8 +98,10 @@ const scanAgenda = defineTool({
     "son API sur le mois à venir ; seule la scène locale et indépendante est gardée (concerts, spectacles, danse, " +
     "expositions, cinéma, festivals) : jeune public, institutions (mairies, médiathèques, musées, tourisme, Scène " +
     "nationale), conférences, musique classique, loisirs et tributes sont comptés dans `excluded`. Chaque événement " +
-    "donne son lieu (`venue`) et son organisateur ; les doublons probables (même titre le même jour, même lieu à deux " +
-    "heures près, publié deux fois) sont signalés dans `duplicate_of` et sortis de `to_import`. Aucune écriture.",
+    "donne son lieu (`venue`, `address`) et son organisateur ; les doublons probables (même titre le même jour, même " +
+    "lieu à deux heures près, publié deux fois) sont signalés dans `duplicate_of` et sortis de `to_import`. " +
+    "`unknown_venues` : lieux des événements à importer qui n'ont pas de fiche ; crée avec upsert_location ceux qui ont " +
+    "une adresse précise avant import_urls. Aucune écriture.",
   input: z
     .object({
       source_id: z.string().optional().describe("Source à scanner (list_sources) : sa page d'agenda est utilisée."),
@@ -122,6 +127,17 @@ const scanAgenda = defineTool({
       ? []
       : scan.events.filter((event) => !event.known && !event.past && !event.cancelled && !duplicates.has(event.url));
     const excluded = Object.values(scan.excluded || {}).reduce((total, count) => total + count, 0);
+    // Lieux annoncés sans fiche (On sort !), hors lieux tus (« Adresse secrète ») : à créer avant l'import.
+    const locations = toImport.some((event) => event.venue) ? (await loadAgentReferences(ctx)).locations : [];
+    const unknownVenues = new Map<string, { venue: string; address?: string; events: number }>();
+    for (const event of toImport) {
+      if (!event.venue || isUndisclosedPlace(event.venue)) continue;
+      if (resolveLocationFromImportedData(locations, event.venue, event.address)) continue;
+      const key = normalizeSearchValue(event.venue);
+      const entry = unknownVenues.get(key) || { venue: event.venue, address: event.address, events: 0 };
+      entry.events += 1;
+      unknownVenues.set(key, entry);
+    }
     return {
       source: source ? { id: source.id, name: source.name } : null,
       url,
@@ -143,11 +159,13 @@ const scanAgenda = defineTool({
       },
       excluded: excluded ? scan.excluded : undefined,
       to_import: toImport.map((event) => event.url),
-      events: scan.events.map(({ url: eventUrl, title, date, known, past, cancelled, venue, organizer }) => ({
+      unknown_venues: unknownVenues.size ? [...unknownVenues.values()] : undefined,
+      events: scan.events.map(({ url: eventUrl, title, date, known, past, cancelled, venue, address, organizer }) => ({
         url: eventUrl,
         title,
         date,
         venue,
+        address,
         organizer,
         known,
         past,
@@ -167,11 +185,21 @@ const importUrls = defineTool({
     "suivie et la fiche complète (heure, lieu, catégorie, affiche) ; sinon en attente de validation. Statut " +
     "`to_check` : la date est douteuse (page qui se contredit, titre qui annonce un autre jour), rien n'est créé ; " +
     "relis la page et utilise create_event avec la bonne date. Pour les posts Instagram, utilise plutôt " +
-    "create_event. Si `remaining` est renvoyé, rappelle l'outil avec ces URL.",
+    "create_event. Si `remaining` est renvoyé, rappelle l'outil avec ces URL. La salle annoncée avec le lieu " +
+    "(« Théâtre d'Orléans - Salle Vitez ») est rattachée à la séance (`room`, `room_created`). Lieu sans fiche : " +
+    "`location_unmatched` ; crée-le avant l'import (upsert_location) plutôt qu'après.",
   input: z.object({
     urls: z.array(z.string().url()).min(1).max(25).describe("Pages d'événements à importer (une page = un événement)."),
     source_id: z.string().optional().describe("Source suivie d'où viennent ces pages (list_sources)."),
     owner_id: z.string().optional().describe("Lieu ou organisateur à rattacher si aucune source n'est connue."),
+    location_id: z
+      .string()
+      .optional()
+      .describe(
+        "Lieu de tous ces événements (search ou upsert_location), quand les pages ne le donnent pas ou se trompent " +
+          "(« Adresse secrète » alors que le titre nomme le lieu).",
+      ),
+    room: z.string().optional().describe("Salle de ce lieu pour tous ces événements (créée si le lieu ne l'a pas)."),
     create_missing_artists: z
       .boolean()
       .default(true)
@@ -183,6 +211,7 @@ const importUrls = defineTool({
       urls: args.urls,
       sourceId: args.source_id,
       ownerId: args.owner_id,
+      venue: { locationId: args.location_id, room: args.room },
       createMissingArtists: args.create_missing_artists,
     }),
 });
@@ -195,7 +224,8 @@ const createEvent = defineTool({
     "`source_id` et `source_url` : un événement d'une source suivie dont la fiche est complète (heure, lieu, " +
     "catégorie, affiche) est publié directement, sinon il attend une validation. Lieu, organisateurs, artistes, " +
     "catégorie et tags sont rapprochés des fiches existantes ; les artistes musicaux absents sont créés (concerts " +
-    "et DJ sets seulement). Doublons écartés. Post Instagram : sans `image_url`, l'affiche du post est reprise " +
+    "et DJ sets seulement). Lieu ou organisateur sans fiche : crée-le d'abord (upsert_location, upsert_organizer) " +
+    "et passe son identifiant. Doublons écartés. Post Instagram : sans `image_url`, l'affiche du post est reprise " +
     "automatiquement. Exposition déjà ouverte : `start` = ouverture, `end` = dernier jour.",
   input: z.object({
     source_id: z.string().optional().describe("Source suivie d'où vient l'événement (list_sources)."),
@@ -208,9 +238,19 @@ const createEvent = defineTool({
       .optional()
       .describe("Autres séances du même événement (une fiche par séance)."),
     location: z.string().optional().describe("Nom du lieu tel qu'annoncé."),
-    location_id: z.string().optional().describe("Identifiant du lieu s'il est connu (search)."),
+    location_id: z.string().optional().describe("Identifiant du lieu s'il est connu (search, upsert_location)."),
+    room: z
+      .string()
+      .optional()
+      .describe(
+        "Salle du lieu où a lieu la séance (« Salle Vitez », « Plateau Barrault », « Grande salle »), pour un lieu à " +
+          "plusieurs salles : rattachée, ou créée si le lieu ne l'a pas encore (search donne ses salles connues).",
+      ),
     address: z.string().optional(),
-    organizers: z.array(z.string()).optional().describe("Organisateurs (noms ou identifiants)."),
+    organizers: z
+      .array(z.string())
+      .optional()
+      .describe("Organisateurs (noms ou identifiants : search, upsert_organizer)."),
     artists: z
       .array(z.union([z.string(), artistInput]))
       .optional()
@@ -267,10 +307,70 @@ const upsertArtist = defineTool({
   run: (ctx, args) => findOrCreateArtist(ctx, args, { create: true }),
 });
 
+const followInput = z
+  .boolean()
+  .default(false)
+  .describe(
+    "Suivre sa source de collecte (relue à chaque collecte, publication directe) : seulement si l'utilisateur l'a " +
+      "demandé. Faux par défaut : la source créée avec la fiche reste en pause, l'utilisateur l'active dans l'admin.",
+  );
+
+const upsertLocation = defineTool({
+  name: "upsert_location",
+  title: "Trouver ou créer un lieu",
+  description:
+    "Retrouve un lieu (nom, adresse, salle d'un lieu connu) ou le crée avec son adresse, géocodée par la Base " +
+    "Adresse Nationale : l'adresse enregistrée est celle de la BAN, la ville en découle. Refusé (`refused`, avec la " +
+    "raison) : « Adresse secrète » ou lieu à confirmer, adresse absente, réduite à une ville, introuvable ou " +
+    "incertaine, et nom proche d'un lieu de la même ville (doublon probable). `exists` : la fiche existante " +
+    "(`matched_by`) ; `room` y désigne une salle à passer à create_event. Une salle n'est pas un lieu. Ne modifie " +
+    "jamais une fiche existante. Passe ensuite l'identifiant à create_event (location_id) ou import_urls.",
+  input: z.object({
+    name: z.string().min(2).describe("Nom du lieu tel qu'il se présente (« L'Improviste Bar »), sans ville."),
+    address: z
+      .string()
+      .optional()
+      .describe("Adresse complète, lue sur le site du lieu : numéro, rue, code postal et ville (« 119 rue de Bourgogne, 45000 Orléans »)."),
+    website_url: z.string().optional().describe("Site du lieu."),
+    instagram_url: z.string().optional().describe("Compte Instagram (lien ou @identifiant)."),
+    facebook_url: z.string().optional().describe("Page Facebook."),
+    short_description: z.string().optional().describe("Présentation courte, en français."),
+    capacity: z.number().int().min(1).optional().describe("Nombre de places."),
+    is_organizer: z
+      .boolean()
+      .default(false)
+      .describe("Lieu qui programme lui-même ses événements (bar, salle, tiers-lieu) : il peut en être l'organisateur."),
+    follow: followInput,
+  }),
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  run: (ctx, args) => findOrCreateLocation(ctx, args),
+});
+
+const upsertOrganizer = defineTool({
+  name: "upsert_organizer",
+  title: "Trouver ou créer un organisateur",
+  description:
+    "Retrouve un organisateur (même compte Instagram, page Facebook ou site, ou nom proche, lieux-organisateurs " +
+    "compris) ou le crée : association, collectif, compagnie, programmateur qui organise l'événement. Il faut au " +
+    "moins un lien (site, Instagram ou Facebook) lu sur ses pages. `exists` avec `type: \"location\"` : c'est un " +
+    "lieu. Ne modifie jamais une fiche existante. Passe ensuite son identifiant dans `organizers` de create_event.",
+  input: z.object({
+    name: z.string().min(2).describe("Nom de la structure tel qu'elle l'écrit (« Orlin's Comedy »)."),
+    website_url: z.string().optional().describe("Site de la structure (pas celui d'un lieu ou d'une billetterie)."),
+    instagram_url: z.string().optional().describe("Compte Instagram (lien ou @identifiant)."),
+    facebook_url: z.string().optional().describe("Page Facebook."),
+    short_description: z.string().optional().describe("Présentation courte, en français."),
+    follow: followInput,
+  }),
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  run: (ctx, args) => findOrCreateOrganizer(ctx, args),
+});
+
 const search = defineTool({
   name: "search",
   title: "Chercher dans l'admin",
-  description: "Cherche des lieux, organisateurs, artistes, catégories ou tags par nom (sans accents ni casse).",
+  description:
+    "Cherche des lieux (avec leurs salles), organisateurs, artistes, catégories ou tags par nom (sans accents ni casse).",
   input: z.object({
     type: z.enum(["location", "organizer", "artist", "category", "tag"]),
     query: z.string().optional().describe("Texte à chercher ; vide = les premiers par ordre alphabétique."),
@@ -279,11 +379,14 @@ const search = defineTool({
   annotations: { readOnlyHint: true, openWorldHint: false },
   run: async (ctx, args) => {
     const references = await loadAgentReferences(ctx);
+    const roomsOf = (locationId: string) =>
+      references.rooms.filter((room) => room.location_id === locationId).map((room) => room.name);
     const pools: Record<typeof args.type, Array<Record<string, unknown> & { id: string; name: string }>> = {
       location: references.locations.map((location) => ({
         id: location.id,
         name: location.name,
         address: location.address ?? null,
+        ...(roomsOf(location.id).length ? { rooms: roomsOf(location.id) } : {}),
       })),
       organizer: references.organizers.map((organizer) => ({ id: organizer.id, name: organizer.name, type: organizer.type })),
       artist: references.artists.map((artist) => ({ id: artist.id, name: artist.name })),
@@ -316,8 +419,9 @@ const recentActivity = defineTool({
   name: "recent_activity",
   title: "Activité récente de l'agent",
   description:
-    "Ce que l'agent a créé récemment (événements publiés ou en attente, artistes) et le nombre total " +
-    "d'événements en attente de validation. Utile pour le récapitulatif de fin de collecte.",
+    "Ce que l'agent a créé récemment (événements publiés ou en attente, artistes, lieux, salles, organisateurs, " +
+    "avec l'état de leur source de collecte) et le nombre total d'événements en attente de validation. Utile pour le " +
+    "récapitulatif de fin de collecte.",
   input: z.object({ hours: z.number().min(1).max(168).default(24).describe("Fenêtre en heures (24 par défaut).") }),
   annotations: { readOnlyHint: true, openWorldHint: false },
   run: async (ctx, args) => {
@@ -352,8 +456,23 @@ const recentActivity = defineTool({
       artists_created: rows
         .filter((row) => row.action === "artist.create")
         .map((row) => ({ id: row.entity_id, name: row.entity_label })),
+      locations_created: rows
+        .filter((row) => row.action === "location.create")
+        .map((row) => ({
+          id: row.entity_id,
+          name: row.entity_label,
+          address: row.metadata?.address ?? null,
+          source: row.metadata?.source_status ?? undefined,
+        })),
+      rooms_created: rows
+        .filter((row) => row.action === "room.create")
+        .map((row) => ({ id: row.entity_id, name: row.entity_label, location: row.metadata?.location ?? null })),
+      organizers_created: rows
+        .filter((row) => row.action === "organizer.create")
+        .map((row) => ({ id: row.entity_id, name: row.entity_label, source: row.metadata?.source_status ?? undefined })),
       pending_total: pendingRes.count ?? null,
       review_path: "/admin/events?status=pending",
+      sources_path: "/admin/intake",
     };
   },
 });
@@ -364,6 +483,8 @@ export const AGENT_TOOLS: AgentTool[] = [
   importUrls,
   createEvent,
   upsertArtist,
+  upsertLocation,
+  upsertOrganizer,
   search,
   markSourceReviewed,
   recentActivity,
