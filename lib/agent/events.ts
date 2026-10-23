@@ -8,6 +8,7 @@ import {
   resolveLocationFromImportedData,
   resolveOrganizerFromName,
 } from "@/lib/events/import-prefill";
+import { festivalFiche, isFestivalCategory } from "@/lib/events/festivals";
 import type { ImportedEventPayload } from "@/lib/events/imported-event-payload";
 import { fetchPotentialDuplicateEvents } from "@/lib/events/potential-duplicates";
 import { toNullablePrice } from "@/lib/events/price-utils";
@@ -22,7 +23,7 @@ import { scrapeEventPage } from "@/lib/scraping/scrape-event-page";
 
 import { findOrCreateArtist, type AgentArtistInput } from "./artists";
 import { logAgentAction } from "./audit";
-import { hasTimeLeft, loadAgentReferences, type AgentContext } from "./context";
+import { hasTimeLeft, invalidateAgentReferences, loadAgentReferences, type AgentContext } from "./context";
 import { copyImageToStorage } from "./images";
 import { announcedRoom, findOrCreateRoom, findRoom } from "./locations";
 import { resolveKnownSource, type AgentSource } from "./sources";
@@ -75,6 +76,16 @@ export type AgentEventResult = {
   artists_skipped?: Array<{ name: string; reason: string }>;
   /** Correction appliquée à la date lue (année d'après le jour de la semaine…). */
   date_note?: string;
+  /** Festival auquel l'événement est rattaché (il le nomme, ses dates le couvrent) : l'équipe peut défaire. */
+  festival?: string;
+  /** Fait partie d'un festival qui n'est pas dans l'app : à signaler, et à proposer de créer. */
+  festival_unknown?: string;
+  /** Festival du même nom dans l'app, mais à d'autres dates : non rattaché. */
+  festival_out_of_dates?: string;
+  /** Festival créé : ses lieux, reconnus dans son texte (le premier est celui de la fiche). */
+  festival_venues?: string[];
+  /** Lieux du festival sans fiche (à créer avec upsert_location, puis à ajouter dans l'admin). */
+  festival_venues_unmatched?: string[];
   dry_run?: boolean;
 };
 
@@ -106,11 +117,18 @@ export type AgentEventInput = {
   /** Jeune public : pensé pour les enfants ou les familles. */
   is_young_audience?: boolean;
   door_opening_time?: string;
+  /** Festival dont l'événement fait partie, tel qu'annoncé (« dans le cadre du festival … »). */
+  festival?: string;
+  /** Pour un festival entier : les lieux qu'il nomme. */
+  festival_venues?: string[];
 };
 
 type DuplicateMatch = { id: string; title: string | null; date: string | null; reason: string };
 
-const DUPLICATE_SELECT = "id, title, date, scraping_url, external_url, instagram_url, facebook_url";
+const DUPLICATE_SELECT = "id, title, date, end_date, category, scraping_url, external_url, instagram_url, facebook_url";
+
+/** Ce que la règle des festivals lit d'un doublon possible (`festivalFiche`). */
+type DuplicateCandidate = { id: string; date: string; end_date?: string | null; category?: string | null };
 
 function titleTokens(value: string) {
   return normalizeName(value)
@@ -148,7 +166,7 @@ function sameDay(left: string | null | undefined, right: string | null | undefin
 
 async function findDuplicateEvent(
   ctx: AgentContext,
-  { urls, title, start, end, locationId, room, venueWindowMinutes }: {
+  { urls, title, start, end, locationId, room, venueWindowMinutes, notDuplicate }: {
     urls: Array<string | null | undefined>;
     title: string;
     /** Début au format du formulaire (« AAAA-MM-JJTHH:mm », heure de Paris). */
@@ -159,6 +177,11 @@ async function findDuplicateEvent(
     room?: { id: string | null } | null;
     /** Agenda partagé : même lieu à cet écart près (en minutes) = même événement, quel que soit le titre. */
     venueWindowMinutes?: number;
+    /**
+     * Ce qui ne peut pas être un doublon : un festival et un événement qui n'en est pas un (Fulgurances et sa
+     * soirée Micro, même lieu, même heure, titres proches).
+     */
+    notDuplicate: (candidate: DuplicateCandidate) => boolean;
   },
 ): Promise<DuplicateMatch | null> {
   const startIso = fromDatetimeLocal(start);
@@ -172,6 +195,7 @@ async function findDuplicateEvent(
   if (keys.size > 0) {
     const { data } = await ctx.supabase.from("events").select(DUPLICATE_SELECT);
     for (const row of (data || []) as any[]) {
+      if (notDuplicate(row)) continue;
       const urlMatch = [row.scraping_url, row.external_url, row.instagram_url, row.facebook_url].some(
         (value) => typeof value === "string" && urlMatchKeys(value).some((key) => keys.has(key)),
       );
@@ -188,13 +212,13 @@ async function findDuplicateEvent(
     const margin = venueWindowMinutes * 60_000;
     const { data: nearby } = await ctx.supabase
       .from("events")
-      .select("id, title, date, room_id")
+      .select("id, title, date, end_date, category, room_id")
       .eq("location_id", locationId)
       .eq("archived", false)
       .gte("date", new Date(startMs - margin).toISOString())
       .lte("date", new Date(startMs + margin).toISOString());
-    const near = ((nearby || []) as Array<{ id: string; title: string | null; date: string; room_id: string | null }>).find(
-      (event) => !otherRoom(event.room_id),
+    const near = ((nearby || []) as Array<DuplicateCandidate & { title: string | null; room_id: string | null }>).find(
+      (event) => !otherRoom(event.room_id) && !notDuplicate(event),
     );
     if (near) return { id: near.id, title: near.title, date: near.date, reason: "Même lieu, à deux heures près" };
   }
@@ -208,7 +232,8 @@ async function findDuplicateEvent(
       endValue: end ? fromDatetimeLocal(end) : startIso,
     }).catch(() => []);
     const sameSlot = overlapping.filter(
-      (event) => event.matchKind === "exact" || Date.parse(event.date) === Date.parse(startIso),
+      (event) =>
+        (event.matchKind === "exact" || Date.parse(event.date) === Date.parse(startIso)) && !notDuplicate(event),
     );
     const rooms = new Map<string, string | null>();
     if (room && sameSlot.length) {
@@ -222,10 +247,12 @@ async function findDuplicateEvent(
   // Même titre le même jour, où que ce soit.
   const { data: sameDayEvents } = await ctx.supabase
     .from("events")
-    .select("id, title, date")
+    .select("id, title, date, end_date, category")
     .gte("date", `${day}T00:00:00.000Z`)
     .lte("date", `${day}T23:59:59.999Z`);
-  const similar = ((sameDayEvents || []) as any[]).find((event) => similarTitles(event.title, title));
+  const similar = ((sameDayEvents || []) as any[]).find(
+    (event) => !notDuplicate(event) && similarTitles(event.title, title),
+  );
   if (similar) return { id: similar.id, title: similar.title, date: similar.date, reason: "Même titre le même jour" };
 
   return null;
@@ -399,7 +426,7 @@ export async function createAgentEvent(
 
   // Plateaux « A + B » et mentions « 1ère partie » : un nom par artiste, quelle que soit la source.
   const artistNames = splitArtistNames(data.artists);
-  const { prefill, warnings } = await buildEventFormPrefillFromImport({
+  const { prefill, warnings, festival } = await buildEventFormPrefillFromImport({
     data: { ...data, artists: artistNames },
     sourceUrl: sourceUrl || undefined,
     owner,
@@ -407,13 +434,16 @@ export async function createAgentEvent(
     locations: references.locations,
     organizers: references.organizers,
     artists: references.artists,
+    festivals: references.festivals,
     findOrCreateTagIds: async (names) => matchExistingTagIds(names, references.tags),
     defaultStatus: "pending",
   });
   const form = prefill.form || {};
-  // Lieu annoncé mais inconnu : on ne retombe pas sur le lieu de la source (événement « hors les murs »).
+  const festivalLocationIds = prefill.festivalLocationIds || [];
+  // Lieu annoncé mais inconnu : on ne retombe pas sur le lieu de la source (événement « hors les murs ») ; un
+  // festival garde le premier de ses lieux reconnus.
   const locationWarning = warnings.find((warning) => warning.field === "location");
-  if (locationWarning && typeof data.location_id !== "string") form.location_id = "";
+  if (locationWarning && typeof data.location_id !== "string" && festivalLocationIds.length === 0) form.location_id = "";
   // Titre déjà nettoyé par le préremplissage (date, lieu répété, capitales : lib/collecte/event-text.ts) ;
   // la date écrite dans le titre lu sert encore au contrôle des séances.
   const rawTitle = typeof data.title === "string" ? data.title.trim() : "";
@@ -463,6 +493,9 @@ export async function createAgentEvent(
   const fromSourcePage = Boolean(
     sourcePageKey && [source?.url, source?.scan_url].some((value) => urlMatchKey(value) === sourcePageKey),
   );
+  // Un festival n'est le doublon que d'un festival ; un autre événement, jamais d'un festival (`festivalFiche` :
+  // une séance rangée en Festival reste un événement). Sans fin connue d'un côté ou de l'autre, pas de règle.
+  const importFiche = festivalFiche({ category: form.category, date: form.date || "", end_date: form.end_date }, references.categories);
   const duplicate = await findDuplicateEvent(ctx, {
     urls: fromSourcePage ? [] : [sourceUrl, data.instagram_url as string, data.facebook_url as string],
     title,
@@ -471,6 +504,10 @@ export async function createAgentEvent(
     locationId: form.location_id || undefined,
     room: roomName ? { id: knownRoom?.id ?? null } : null,
     venueWindowMinutes: sourceUrl && onSortEventUid(sourceUrl) ? SHARED_AGENDA_VENUE_WINDOW_MINUTES : undefined,
+    notDuplicate: (candidate) => {
+      const candidateFiche = importFiche === null ? null : festivalFiche(candidate, references.categories);
+      return candidateFiche !== null && candidateFiche !== importFiche;
+    },
   });
   if (duplicate) {
     return {
@@ -566,6 +603,7 @@ export async function createAgentEvent(
     longitude: location?.longitude || null,
     is_young_audience: youngAudience,
     created_by: null,
+    ...(form.festival_id ? { festival_id: form.festival_id } : {}),
   };
   const result: AgentEventResult = {
     ...base,
@@ -594,6 +632,13 @@ export async function createAgentEvent(
     artists_unmatched: artistsUnmatched.length ? artistsUnmatched : undefined,
     artists_skipped: artistsSkipped.length ? artistsSkipped : undefined,
     date_note: typeof data.date_note === "string" ? data.date_note : undefined,
+    festival: festival.attached?.title,
+    festival_unknown: festival.unknownName ?? undefined,
+    festival_out_of_dates: festival.outOfDates?.title,
+    festival_venues: festivalLocationIds.length
+      ? festivalLocationIds.map((id) => references.locations.find((entry) => entry.id === id)?.name ?? id)
+      : undefined,
+    festival_venues_unmatched: festival.unmatchedVenues.length ? festival.unmatchedVenues : undefined,
   };
   if (ctx.dryRun) return result;
 
@@ -635,8 +680,22 @@ export async function createAgentEvent(
       );
       if (artistError) throw new Error(artistError.message);
     }
+    // Un festival : ses lieux, dans l'ordre de son texte (le premier est celui de la fiche).
+    if (festivalLocationIds.length) {
+      const { error: festivalLocationsError } = await ctx.supabase.from("festival_locations").insert(
+        festivalLocationIds.map((locationId, sortIndex) => ({
+          festival_id: created.id,
+          location_id: locationId,
+          sort_index: sortIndex,
+        })),
+      );
+      if (festivalLocationsError) throw new Error(festivalLocationsError.message);
+    }
     if (publish) await notifyOrganizersOfPublication(ctx, created.id, title);
   }
+
+  // Un festival créé : les événements suivants de la collecte s'y rattachent.
+  if (isFestivalCategory(form.category, references.categories)) invalidateAgentReferences(ctx);
 
   await logAgentAction(ctx, {
     action: "event.create",
@@ -649,6 +708,8 @@ export async function createAgentEvent(
       source_url: sourceUrl,
       occurrences: eventIds.length,
       missing,
+      ...(festival.attached ? { festival_id: festival.attached.id, festival: festival.attached.title } : {}),
+      ...(festival.unknownName ? { festival_unknown: festival.unknownName } : {}),
     },
   });
 
@@ -685,6 +746,8 @@ function toImportedPayload(input: AgentEventInput, sourceUrl: string | null): Im
     is_cancelled: input.is_cancelled,
     is_young_audience: input.is_young_audience,
     door_opening_time: input.door_opening_time,
+    festival_name: input.festival,
+    festival_venues: input.festival_venues,
     instagram_url: kind === "instagram" ? sourceUrl ?? undefined : undefined,
     facebook_url: kind === "facebook" ? sourceUrl ?? undefined : undefined,
   };

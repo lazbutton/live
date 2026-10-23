@@ -159,13 +159,15 @@ Donnees brutes:
 ${JSON.stringify(raw, null, 2)}
 
 Retourne un JSON avec des champs eventuels parmi:
-title, description, date, end_date, category, price, location, address, organizer, image_url, external_url, instagram_url, tags
+title, description, date, end_date, category, price, location, address, organizer, image_url, external_url, instagram_url, tags, festival_name, festival_venues
 
 Regles:
 - N'invente rien.
 - Si l'info manque, n'ajoute pas le champ.
 - date/end_date doivent etre en ISO si possible.
 - Garde le francais pour le texte si tu reformules.
+- festival_name : le festival dont l'evenement fait partie, seulement si le post le dit, sans numero d'edition ; pas pour un festival entier.
+- festival_venues : pour un festival entier seulement, les lieux ou il se tient (liste de noms).
 `,
       },
     ],

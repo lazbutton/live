@@ -495,6 +495,7 @@ export function EventFormSheet({
     setSelectedOrganizerIds(prefill?.organizerIds || []);
     setSelectedArtistIds(prefill?.artistIds || []);
     setSelectedTagIds(prefill?.tagIds || []);
+    setFestivalLocationIds(prefill?.festivalLocationIds || []);
     setImagePreview(merged.image_url ? merged.image_url : null);
     setShowEndDate(Boolean(merged.end_date));
   }, [defaultDate, event, open, prefill]);

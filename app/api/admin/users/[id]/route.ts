@@ -21,7 +21,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    const role = user.user_metadata?.role;
+    const role = user.app_metadata?.role;
     if (role !== "admin") {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
@@ -39,20 +39,28 @@ export async function PATCH(
       );
     }
 
-    // Mettre à jour les métadonnées
-    const currentMetadata = currentUser.user.user_metadata || {};
-    const updatedMetadata = { ...currentMetadata };
-
-    // La suspension UGC vit dans app_metadata (écrit par le service seul), pas dans user_metadata
-    // que l'utilisateur peut modifier lui-même (migration 20261023160000).
-    const currentAppMetadata = currentUser.user.app_metadata || {};
-    const updatedAppMetadata: Record<string, unknown> = { ...currentAppMetadata };
+    // Le rôle et la suspension UGC vivent dans app_metadata (modifiable par le service seulement,
+    // cf. migrations 20261023150000 et 20261023190000) ; le reste (nom, conditions) dans user_metadata.
+    const updatedUserMetadata = { ...(currentUser.user.user_metadata || {}) };
+    const updatedAppMetadata: Record<string, unknown> = {
+      ...(currentUser.user.app_metadata || {}),
+    };
+    // raw_user_meta_data ne doit plus porter le rôle ni la suspension (des triggers les y effacent).
+    for (const key of [
+      "role",
+      "ugc_suspended",
+      "ugc_suspension_reason",
+      "ugc_suspended_at",
+      "ugc_suspended_by",
+    ]) {
+      delete (updatedUserMetadata as Record<string, unknown>)[key];
+    }
 
     if (body.role !== undefined) {
       if (body.role === "" || body.role === null) {
-        delete updatedMetadata.role;
+        delete (updatedAppMetadata as Record<string, unknown>).role;
       } else {
-        updatedMetadata.role = body.role;
+        (updatedAppMetadata as Record<string, unknown>).role = body.role;
       }
     }
 
@@ -81,7 +89,7 @@ export async function PATCH(
     const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
       id,
       {
-        user_metadata: updatedMetadata,
+        user_metadata: updatedUserMetadata,
         app_metadata: updatedAppMetadata,
       }
     );
@@ -127,7 +135,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    const role = user.user_metadata?.role;
+    const role = user.app_metadata?.role;
     if (role !== "admin") {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }

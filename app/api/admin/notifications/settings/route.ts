@@ -26,7 +26,6 @@ export async function GET() {
 
     // Vérifier que l'utilisateur est admin
     const isAdmin =
-      user.user_metadata?.role === "admin" ||
       user.app_metadata?.role === "admin";
 
     if (!isAdmin) {
@@ -113,7 +112,6 @@ export async function PUT(request: NextRequest) {
 
     // Vérifier que l'utilisateur est admin
     const isAdmin =
-      user.user_metadata?.role === "admin" ||
       user.app_metadata?.role === "admin";
 
     if (!isAdmin) {

@@ -15,7 +15,7 @@ export async function GET() {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    const role = user.user_metadata?.role;
+    const role = user.app_metadata?.role;
     if (role !== "admin") {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
@@ -36,7 +36,7 @@ export async function GET() {
     const usersList = (users || []).map((u) => ({
       id: u.id,
       email: u.email || "",
-      role: u.user_metadata?.role || null,
+      role: u.app_metadata?.role || null,
       first_name: u.user_metadata?.first_name || u.user_metadata?.firstName || null,
       last_name: u.user_metadata?.last_name || u.user_metadata?.lastName || null,
       full_name: u.user_metadata?.full_name || u.user_metadata?.fullName || null,

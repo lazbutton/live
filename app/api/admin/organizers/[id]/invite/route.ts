@@ -24,7 +24,7 @@ export async function POST(
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
     
-    const role = user.user_metadata?.role;
+    const role = user.app_metadata?.role;
     const isAdmin = role === "admin";
 
     // Vérifier que l'utilisateur est admin ou owner de l'organisateur

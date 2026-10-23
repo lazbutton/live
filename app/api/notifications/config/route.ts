@@ -28,7 +28,6 @@ export async function GET(request: NextRequest) {
 
     // Vérifier que l'utilisateur est admin
     const isAdmin =
-      user.user_metadata?.role === "admin" ||
       user.app_metadata?.role === "admin";
 
     if (!isAdmin) {

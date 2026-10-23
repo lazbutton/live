@@ -11,6 +11,7 @@ import {
   extractImportedCategoryLabels,
   resolveImportedCategory,
 } from "@/lib/events/category-resolution";
+import { festivalFiche, findFestivalForImport, type FestivalCandidate } from "@/lib/events/festivals";
 import { deriveGenericPriceRange } from "@/lib/events/price-utils";
 import {
   type ImportedEventPayload,
@@ -34,6 +35,8 @@ type BuildEventPrefillFromImportArgs = {
   organizers: OrganizerOption[];
   /** Artistes existants, rapprochés des artistes détectés sur la page. */
   artists?: ArtistOption[];
+  /** Festivals de l'app (`fetchFestivalCandidates`) : l'événement est rattaché à celui qu'il nomme. */
+  festivals?: FestivalCandidate[];
   findOrCreateTagIds?: (rawTagNames: string[]) => Promise<string[]>;
   defaultStatus?: EventStatus;
 };
@@ -251,11 +254,19 @@ export async function buildEventFormPrefillFromImport({
   locations,
   organizers,
   artists = [],
+  festivals = [],
   findOrCreateTagIds,
   defaultStatus,
 }: BuildEventPrefillFromImportArgs): Promise<{
   prefill: EventFormPrefill;
   warnings: ImportedEventWarning[];
+  /** Le festival retenu, celui du nom relevé qui ne couvre pas la date, le nom sans festival, les lieux inconnus. */
+  festival: {
+    attached: FestivalCandidate | null;
+    outOfDates: FestivalCandidate | null;
+    unknownName: string | null;
+    unmatchedVenues: string[];
+  };
 }> {
   const importedTags = parseImportedTags(data.tags as unknown);
 
@@ -378,6 +389,62 @@ export async function buildEventFormPrefillFromImport({
     });
   }
 
+  // Festivals (../live/docs/FESTIVALS.md, § 4, « À l'import ») : un événement est rattaché au festival qu'il
+  // nomme quand ses dates le couvrent (l'équipe le voit dans le formulaire et peut défaire) ; un festival importé
+  // reprend les lieux que nomme son texte. Une séance rangée en Festival, sur un seul jour, est un événement comme
+  // un autre ; sans fin connue, un festival.
+  const startDate = importedDateTime(data.date);
+  const endDate = importedDateTime(data.end_date);
+  const festivalName = typeof data.festival_name === "string" ? data.festival_name.trim() : "";
+  const isFestival = festivalFiche({ category: resolvedCategory.id, date: startDate, end_date: endDate }, categories) !== false;
+  const festivalMatch =
+    !isFestival && startDate
+      ? findFestivalForImport(festivals, { festivalName, title: typeof data.title === "string" ? data.title : "", date: startDate })
+      : { festival: null, outOfDates: null };
+  if (festivalMatch.festival) {
+    warnings.push({
+      field: "festival",
+      message: `Rattaché au festival « ${festivalMatch.festival.title} » : vérifie-le dans « Fait partie du festival ».`,
+      value: festivalMatch.festival.title,
+    });
+  } else if (festivalMatch.outOfDates) {
+    warnings.push({
+      field: "festival",
+      message: `Le festival « ${festivalMatch.outOfDates.title} » est dans l'app, mais ses dates ne couvrent pas celle-ci : rattache-le à la main si besoin.`,
+      value: festivalMatch.outOfDates.title,
+    });
+  } else if (festivalName && !isFestival) {
+    warnings.push({
+      field: "festival",
+      message: `Fait partie d'un festival qui n'est pas dans l'app : ${festivalName}.`,
+      value: festivalName,
+    });
+  }
+
+  const festivalLocationIds: string[] = [];
+  const unmatchedVenues: string[] = [];
+  if (isFestival && Array.isArray(data.festival_venues)) {
+    for (const venue of data.festival_venues) {
+      if (typeof venue !== "string" || !venue.trim()) continue;
+      const location = resolveLocationFromImportedData(locations, venue, null);
+      if (!location) unmatchedVenues.push(venue.trim());
+      else if (!festivalLocationIds.includes(location.id)) festivalLocationIds.push(location.id);
+    }
+  }
+  // Le lieu de la page, s'il n'est pas déjà parmi eux, vient en tête.
+  if (festivalLocationIds.length > 0 && resolvedLocationId && !festivalLocationIds.includes(resolvedLocationId)) {
+    festivalLocationIds.unshift(resolvedLocationId);
+  }
+  if (unmatchedVenues.length > 0) {
+    warnings.push({
+      field: "festival_venues",
+      message:
+        unmatchedVenues.length > 1
+          ? `Lieux du festival sans fiche : ${unmatchedVenues.join(", ")}. Crée-les depuis « Lieux du festival ».`
+          : `Lieu du festival sans fiche : ${unmatchedVenues[0]}. Crée-le depuis « Lieux du festival ».`,
+    });
+  }
+
   const derivedPrices = deriveGenericPriceRange(data);
   const isPayWhatYouWant = data.is_pay_what_you_want === true;
   // Titre et description tels que l'app les affichera : date, lieu et capitales retirés, lignes
@@ -391,8 +458,8 @@ export async function buildEventFormPrefillFromImport({
     form: {
       title,
       description: cleanEventDescription((data.description || "").toString()),
-      date: importedDateTime(data.date),
-      end_date: importedDateTime(data.end_date),
+      date: startDate,
+      end_date: endDate,
       category: resolvedCategory.id,
       price_min:
         !isPayWhatYouWant && derivedPrices.priceMin != null
@@ -410,8 +477,9 @@ export async function buildEventFormPrefillFromImport({
             ? String(matchedLocation.capacity)
             : "",
       is_full: Boolean(data.is_full),
-      location_id: resolvedLocationId,
+      location_id: festivalLocationIds[0] || resolvedLocationId,
       room_id: "",
+      festival_id: festivalMatch.festival?.id ?? "",
       door_opening_time: (data.door_opening_time || "").toString(),
       external_url: (data.external_url || sourceUrl || "").toString(),
       external_url_label: (data.external_url_label || "").toString(),
@@ -426,6 +494,7 @@ export async function buildEventFormPrefillFromImport({
     organizerIds,
     artistIds: artistMatch.matchedIds,
     tagIds,
+    festivalLocationIds: festivalLocationIds.length > 0 ? festivalLocationIds : undefined,
     // Chaque séance garde son propre lien de billetterie (`?session=336` pour la deuxième séance du jour).
     additionalDates: Array.isArray(data.occurrences)
       ? (data.occurrences as Array<{ date?: string; end_date?: string; external_url?: string }>)
@@ -451,5 +520,11 @@ export async function buildEventFormPrefillFromImport({
   return {
     prefill,
     warnings,
+    festival: {
+      attached: festivalMatch.festival,
+      outOfDates: festivalMatch.outOfDates,
+      unknownName: !festivalMatch.festival && !festivalMatch.outOfDates && festivalName && !isFestival ? festivalName : null,
+      unmatchedVenues,
+    },
   };
 }

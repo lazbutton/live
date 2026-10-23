@@ -28,7 +28,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    if (user.user_metadata?.role !== "admin") {
+    if (user.app_metadata?.role !== "admin") {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
 
@@ -130,7 +130,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       }
 
       // La suspension UGC vit dans app_metadata (écrit par le service seul), pas dans user_metadata
-      // que l'utilisateur peut modifier lui-même (migration 20261023160000).
+      // que l'utilisateur peut modifier lui-même (migration 20261023190000).
       const currentMetadata = reportedUser.user.app_metadata || {};
       const updatedMetadata: Record<string, unknown> = { ...currentMetadata };
 

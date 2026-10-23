@@ -2,8 +2,9 @@ import { createServiceClient } from "@/lib/supabase/service";
 import type { FollowsDigestRow } from "./follows-digest";
 
 /**
- * Les nouveaux événements des suivis de chacun, publiés jusqu'à [atTime] (ISO) : `follows_digest()`
- * (migration 20261021142000), qui reprend chaque personne là où son dernier message s'est arrêté.
+ * Les nouveaux événements des suivis de chacun, publiés jusqu'à [atTime] (ISO), et ceux entrés au
+ * programme de ses festivals en favori : `follows_digest()` (migrations 20261021142000 et
+ * 20261023160000), qui reprend chaque personne là où son dernier message s'est arrêté.
  * Service role : la fonction n'est exécutable que par lui.
  */
 export async function loadFollowsDigest(atTime: string): Promise<FollowsDigestRow[]> {

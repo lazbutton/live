@@ -1,4 +1,4 @@
--- Tests de la suspension UGC dans app_metadata (migration 20261023160000_ugc_suspension_in_app_metadata).
+-- Tests de la suspension UGC dans app_metadata (migration 20261023190000_ugc_suspension_in_app_metadata).
 --
 -- Sur une base jetable avec toutes les migrations et aucun événement : npm run db:test. Jamais en prod :
 -- tout se passe dans une transaction annulée, mais le script s'arrête si la base contient des événements.

@@ -1,0 +1,29 @@
+{
+ "icestats": {
+  "admin": "admin@example.org",
+  "host": "streams.labomedia.org",
+  "location": "Orléans",
+  "server_id": "Icecast 2.4.4",
+  "server_start": "Fri, 23 Oct 2026 04:03:09 +0200",
+  "server_start_iso8601": "2026-10-23T04:03:09+0200",
+  "source": {
+   "audio_info": "ice-samplerate=44100;ice-bitrate=320;ice-channels=2",
+   "bitrate": 320,
+   "genre": "College",
+   "ice-bitrate": 320,
+   "ice-channels": 2,
+   "ice-samplerate": 44100,
+   "listener_peak": 37,
+   "listeners": 12,
+   "listenurl": "http://streams.labomedia.org:8000/stream_rco_dab.mp3",
+   "server_description": "RCO MP3 320 Kbps",
+   "server_name": "Radio Campus Orléans DAB+",
+   "server_type": "audio/mpeg",
+   "server_url": "https://www.orleans.radiocampus.org",
+   "stream_start": "Fri, 23 Oct 2026 04:03:20 +0200",
+   "stream_start_iso8601": "2026-10-23T04:03:20+0200",
+   "title": "AMYRA - Sage (Radio Edit)",
+   "dummy": null
+  }
+ }
+}

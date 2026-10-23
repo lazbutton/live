@@ -98,7 +98,7 @@ export function AppAudience() {
       ) : (
         <>
           <ManagementSectionLabel>7 derniers jours, comparés aux 7 d&apos;avant</ManagementSectionLabel>
-          <ManagementStatGrid className="xl:grid-cols-5">
+          <ManagementStatGrid>
             {trends.map((trend) => (
               <ManagementStat
                 key={trend.metric}

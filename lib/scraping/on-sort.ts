@@ -313,6 +313,21 @@ function spanInDays(event: OnSortEvent) {
   return Number.isNaN(start) || Number.isNaN(end) ? 0 : (end - start) / 86_400_000;
 }
 
+/**
+ * Plus d'un jour (heure de Paris) de la première séance à la fin de la dernière, une nuit qui finit avant 6 h
+ * comptant pour la veille (la règle de l'app, « Ce soir » de 18 h à 6 h) : un festival s'étend sur plusieurs
+ * jours, pas une soirée qui finit à 2 h. Les séances de l'agenda portent l'heure de Paris et son décalage.
+ */
+function spansSeveralDays(event: OnSortEvent) {
+  const begin = event.firstTiming?.begin || "";
+  const end = event.lastTiming?.end || event.lastTiming?.begin || "";
+  const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+  if (!localDateTime.test(begin) || !localDateTime.test(end)) return false;
+  const lastDay = new Date(`${end.slice(0, 10)}T00:00:00Z`);
+  if (end.slice(11, 16) < "06:00") lastDay.setUTCDate(lastDay.getUTCDate() - 1);
+  return lastDay.toISOString().slice(0, 10) > begin.slice(0, 10);
+}
+
 function isCancelled(event: OnSortEvent) {
   // Annulé, ou reporté sans nouvelle date.
   return event.status === 6 || event.status === 4;
@@ -354,10 +369,11 @@ export function cleanOnSortTitle(event: OnSortEvent) {
 }
 
 /**
- * Catégorie OutLive : festival d'après le titre ; puis concert, spectacle, exposition, cinéma, rencontre ;
- * atelier pour une fiche importée à la main. Musique et spectacle cochés ensemble : spectacle pour du
- * théâtre, de la danse, du cirque…, concert si le titre ou les mots-clés le disent, sinon l'ordre choisi
- * par l'organisateur (« Luminiscence » : cinéma, spectacle, musique).
+ * Catégorie OutLive : festival d'après le titre, pour le festival entier seulement (plus d'un jour : une soirée
+ * d'un festival garde sa catégorie, ../live/docs/FESTIVALS.md, § 4) ; puis concert, spectacle, exposition,
+ * cinéma, rencontre ; atelier pour une fiche importée à la main. Musique et spectacle cochés ensemble :
+ * spectacle pour du théâtre, de la danse, du cirque…, concert si le titre ou les mots-clés le disent, sinon
+ * l'ordre choisi par l'organisateur (« Luminiscence » : cinéma, spectacle, musique).
  */
 export function onSortCategory(event: OnSortEvent): string | undefined {
   const categories = categoriesOf(event);
@@ -365,7 +381,9 @@ export function onSortCategory(event: OnSortEvent): string | undefined {
   const title = normalizeName(french(event.title));
   const text = `${title} ${normalizeName(keywordsOf(event).join(" "))}`;
   const useful = USEFUL_CATEGORIES.some(has);
-  if (FESTIVAL.test(title) || (!useful && has(CATEGORY.fete) && FESTIVAL.test(text))) return "Festival";
+  if ((FESTIVAL.test(title) || (!useful && has(CATEGORY.fete) && FESTIVAL.test(text))) && spansSeveralDays(event)) {
+    return "Festival";
+  }
 
   const showTypes = subcategoriesOf(event, "spectacle");
   const staged = showTypes.some((id) => STAGED_SHOW_TYPES.has(id));

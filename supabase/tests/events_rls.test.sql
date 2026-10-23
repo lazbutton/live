@@ -120,7 +120,7 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA pg_temp TO anon, authenticated;
 -- 42 et propriétaire de 34 ; u08 auteur ; u09 auteur suspendu ; u10 invité (session anonyme),
 -- propriétaire de 35.
 INSERT INTO auth.users (id, email, is_anonymous, raw_user_meta_data) VALUES
-  ('e7a00000-0000-4000-8000-000000000001', 'u01@test.local', false, '{"role":"admin"}'),
+  ('e7a00000-0000-4000-8000-000000000001', 'u01@test.local', false, '{}'),
   ('e7a00000-0000-4000-8000-000000000002', 'u02@test.local', false, '{}'),
   ('e7a00000-0000-4000-8000-000000000003', 'u03@test.local', false, '{}'),
   ('e7a00000-0000-4000-8000-000000000004', 'u04@test.local', false, '{}'),
@@ -131,7 +131,11 @@ INSERT INTO auth.users (id, email, is_anonymous, raw_user_meta_data) VALUES
   ('e7a00000-0000-4000-8000-000000000009', 'u09@test.local', false, '{}'),
   ('e7a00000-0000-4000-8000-000000000010', NULL, true, '{}');
 
--- La suspension UGC vit dans app_metadata (migration 20261023160000), pas dans user_metadata (que
+-- u01 est admin : depuis 20261023150000 le rôle vit dans app_metadata, plus dans raw_user_meta_data.
+UPDATE auth.users SET raw_app_meta_data = '{"role":"admin"}'::jsonb
+WHERE id = 'e7a00000-0000-4000-8000-000000000001';
+
+-- La suspension UGC vit dans app_metadata (migration 20261023190000), pas dans user_metadata (que
 -- l'utilisateur modifie ; le trigger y retire ugc_suspended). u09 est donc suspendu via app_meta.
 UPDATE auth.users SET raw_app_meta_data = '{"ugc_suspended":"true"}'::jsonb
 WHERE id = 'e7a00000-0000-4000-8000-000000000009';

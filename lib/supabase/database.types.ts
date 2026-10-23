@@ -866,6 +866,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_added_at: string | null
           festival_id: string | null
           hide_from_home: boolean
           id: string
@@ -919,6 +920,7 @@ export type Database = {
           external_url?: string | null
           external_url_label?: string | null
           facebook_url?: string | null
+          festival_added_at?: string | null
           festival_id?: string | null
           hide_from_home?: boolean
           id?: string
@@ -972,6 +974,7 @@ export type Database = {
           external_url?: string | null
           external_url_label?: string | null
           facebook_url?: string | null
+          festival_added_at?: string | null
           festival_id?: string | null
           hide_from_home?: boolean
           id?: string
@@ -1989,6 +1992,207 @@ export type Database = {
         }
         Relationships: []
       }
+      radio_episodes: {
+        Row: {
+          aired_at: string
+          audio_url: string
+          created_at: string
+          duration_s: number | null
+          guid: string
+          id: string
+          page_url: string | null
+          show_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          aired_at: string
+          audio_url: string
+          created_at?: string
+          duration_s?: number | null
+          guid: string
+          id?: string
+          page_url?: string | null
+          show_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          aired_at?: string
+          audio_url?: string
+          created_at?: string
+          duration_s?: number | null
+          guid?: string
+          id?: string
+          page_url?: string | null
+          show_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radio_episodes_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "radio_shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      radio_show_sync: {
+        Row: {
+          feed_checked_at: string | null
+          feed_etag: string | null
+          feed_last_modified: string | null
+          page_checked_at: string | null
+          show_id: string
+          source_modified_at: string | null
+        }
+        Insert: {
+          feed_checked_at?: string | null
+          feed_etag?: string | null
+          feed_last_modified?: string | null
+          page_checked_at?: string | null
+          show_id: string
+          source_modified_at?: string | null
+        }
+        Update: {
+          feed_checked_at?: string | null
+          feed_etag?: string | null
+          feed_last_modified?: string | null
+          page_checked_at?: string | null
+          show_id?: string
+          source_modified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radio_show_sync_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: true
+            referencedRelation: "radio_shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      radio_shows: {
+        Row: {
+          created_at: string
+          description: string | null
+          family: string
+          feed_url: string | null
+          id: string
+          last_episode_at: string | null
+          name: string
+          organizer_id: string | null
+          page_url: string
+          slots: Json
+          slug: string
+          source_id: number
+          station_id: string
+          style: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          family?: string
+          feed_url?: string | null
+          id?: string
+          last_episode_at?: string | null
+          name: string
+          organizer_id?: string | null
+          page_url: string
+          slots?: Json
+          slug: string
+          source_id: number
+          station_id: string
+          style?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          family?: string
+          feed_url?: string | null
+          id?: string
+          last_episode_at?: string | null
+          name?: string
+          organizer_id?: string | null
+          page_url?: string
+          slots?: Json
+          slug?: string
+          source_id?: number
+          station_id?: string
+          style?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radio_shows_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "organizers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radio_shows_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "radio_stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      radio_stations: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          frequency: string
+          id: string
+          name: string
+          organizer_id: string
+          site_url: string
+          status_url: string
+          stream_url: string
+          stream_url_light: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          frequency: string
+          id?: string
+          name: string
+          organizer_id: string
+          site_url: string
+          status_url: string
+          stream_url: string
+          stream_url_light?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          frequency?: string
+          id?: string
+          name?: string
+          organizer_id?: string
+          site_url?: string
+          status_url?: string
+          stream_url?: string
+          stream_url_light?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radio_stations_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: true
+            referencedRelation: "organizers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rooms: {
         Row: {
           capacity: number | null
@@ -2537,6 +2741,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_added_at: string | null
           festival_id: string | null
           hide_from_home: boolean
           id: string
@@ -2609,6 +2814,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_added_at: string | null
           festival_id: string | null
           hide_from_home: boolean
           id: string
@@ -2671,6 +2877,7 @@ export type Database = {
           external_url: string | null
           external_url_label: string | null
           facebook_url: string | null
+          festival_added_at: string | null
           festival_id: string | null
           hide_from_home: boolean
           id: string
@@ -2814,6 +3021,38 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      app_radio_day: {
+        Args: { p_at?: string; p_day: string; p_station: string }
+        Returns: {
+          audio_url: string
+          duration_s: number
+          ends_at: string
+          episode_id: string
+          family: string
+          name: string
+          show_id: string
+          slug: string
+          starts_at: string
+          state: string
+          style: string
+        }[]
+      }
+      app_radio_shows: {
+        Args: { p_at?: string; p_station: string }
+        Returns: {
+          description: string
+          family: string
+          id: string
+          last_episode_at: string
+          letter: string
+          name: string
+          organizer_id: string
+          page_url: string
+          slots: Json
+          slug: string
+          style: string
+        }[]
       }
       app_search: {
         Args: {
@@ -3067,6 +3306,34 @@ export type Database = {
         }
         Returns: string
       }
+      radio_live_grid: {
+        Args: { p_at?: string; p_station: string }
+        Returns: {
+          ends_at: string
+          family: string
+          kind: string
+          name: string
+          show_id: string
+          starts_at: string
+          style: string
+        }[]
+      }
+      radio_request_import: { Args: never; Returns: number }
+      radio_show_is_active: {
+        Args: { at_time: string; last_episode_at: string }
+        Returns: boolean
+      }
+      radio_show_letter: { Args: { name: string }; Returns: string }
+      radio_show_sort_key: { Args: { name: string }; Returns: string }
+      radio_slot_occurrences: {
+        Args: { p_first_day: string; p_last_day: string; p_station: string }
+        Returns: {
+          ends_at: string
+          show_id: string
+          starts_at: string
+        }[]
+      }
+      radio_slots_valid: { Args: { slots: Json }; Returns: boolean }
       refresh_city_center: { Args: { p_city_id: string }; Returns: undefined }
       resolve_city_id_from_address: {
         Args: {

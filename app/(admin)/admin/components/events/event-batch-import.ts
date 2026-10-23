@@ -62,7 +62,8 @@ export async function createPendingEventFromPrefill({
   if (!title) return { status: "skipped", reason: "Titre introuvable" };
   if (!form.date) return { status: "skipped", reason: "Date introuvable" };
 
-  // Même lieu, même horaire : déjà dans l'agenda.
+  // Même lieu, même horaire : déjà dans l'agenda. Pas le festival dont l'événement fait partie : il commence
+  // souvent avec sa première soirée, au même lieu.
   if (form.location_id) {
     const duplicates = await fetchPotentialDuplicateEvents({
       supabase,
@@ -70,7 +71,7 @@ export async function createPendingEventFromPrefill({
       startValue: form.date,
       endValue: form.end_date || form.date,
     }).catch(() => []);
-    if (duplicates.some((duplicate) => duplicate.matchKind === "exact")) {
+    if (duplicates.some((duplicate) => duplicate.matchKind === "exact" && duplicate.id !== form.festival_id)) {
       return { status: "skipped", reason: "Déjà dans l’agenda au même horaire" };
     }
   }
@@ -113,6 +114,8 @@ export async function createPendingEventFromPrefill({
     latitude: location?.latitude || null,
     longitude: location?.longitude || null,
     created_by: user?.id || null,
+    // Le festival que l'événement nomme (buildEventFormPrefillFromImport) ; colonne envoyée seulement alors.
+    ...(form.festival_id ? { festival_id: form.festival_id } : {}),
   };
 
   // Une séance qui a son propre lien de billetterie le garde (deuxième séance du jour à Fleury).
@@ -165,6 +168,17 @@ export async function createPendingEventFromPrefill({
     if (artistsToLink.length) {
       const { error: artistError } = await supabase.from("event_artists").insert(artistsToLink);
       if (artistError) throw artistError;
+    }
+    // Un festival importé : les lieux que nomme son texte, dans l'ordre (le premier est celui de la fiche).
+    if (prefill.festivalLocationIds?.length) {
+      const { error: festivalLocationsError } = await supabase.from("festival_locations").insert(
+        prefill.festivalLocationIds.map((locationId, sortIndex) => ({
+          festival_id: created.id,
+          location_id: locationId,
+          sort_index: sortIndex,
+        })),
+      );
+      if (festivalLocationsError) throw festivalLocationsError;
     }
   }
 

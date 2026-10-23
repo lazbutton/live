@@ -38,7 +38,7 @@ async function createAdminUser() {
       email: adminEmail,
       password: adminPassword,
       email_confirm: true, // Confirmer l'email automatiquement
-      user_metadata: {
+      app_metadata: {
         role: 'admin'
       }
     });
@@ -57,7 +57,7 @@ async function createAdminUser() {
           const { error: updateError } = await adminClient.auth.admin.updateUserById(
             user.id,
             {
-              user_metadata: { role: 'admin' }
+              app_metadata: { role: 'admin' }
             }
           );
           
@@ -77,7 +77,7 @@ async function createAdminUser() {
       console.log('✅ Utilisateur admin créé avec succès!');
       console.log(`   Email: ${data.user.email}`);
       console.log(`   ID: ${data.user.id}`);
-      console.log(`   Rôle: ${data.user.user_metadata.role}`);
+      console.log(`   Rôle: ${data.user.app_metadata.role}`);
       console.log('\n🔐 Vous pouvez maintenant vous connecter à:');
       console.log('   http://localhost:3000/admin/login');
     }

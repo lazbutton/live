@@ -880,30 +880,211 @@
   `rpc/app_events_in_zone('orleans', 25)`. Temps serveur (`x-envoy-upstream-service-time`, 7 appels) :
   `rpc/app_festival_events` 3 à 23 ms, les 391 cartes de l'accueil 39 à 69 ms.
 
+## 2026-10-23 — Radio Campus dans OutLive : stations, émissions, épisodes, grille
+
+- Concept validé le 2026-10-23 (`../live/docs/RADIO_CAMPUS.md`, contrat au § 4, recopié dans `docs/API_APP.md`,
+  « Radio ») ; l'accord écrit de la radio n'est pas encore reçu : tout est construit, la station reste désactivée.
+- Numérotées de `20261023140000` à `20261023143000`, après `20261023120000_create_festivals` (déjà en prod) : elles
+  avaient d'abord pris `20261023120000` à `20261023123000`, le même numéro que celle des Festivals.
+- `20261023140000_create_radio_tables` : `radio_stations` (interrupteur `enabled`, faux par défaut ; organisateur
+  unique, sa suppression refusée tant que la station existe), `radio_shows` (créneaux vérifiés par
+  `radio_slots_valid`, famille `musique` ou `parole`, collectif `organizer_id`), `radio_episodes` (`guid` unique ;
+  `last_episode_at` de l'émission tenu par trigger), `radio_show_sync` (suivi de l'import, service seulement).
+  RLS : lecture par anon et authenticated d'une station activée, de ses émissions et de ses épisodes, par une
+  sous-requête non corrélée (une fois par requête) ; aucune écriture ni TRUNCATE hors service role. Radio Campus
+  Orléans insérée désactivée, id fixe `e2f7ade2-f5d2-4408-90b4-f8bfca383399`, par `insert … select` depuis son
+  organisateur (`9d6d803d-…`) : rien sur une base sans lui.
+- `20261023141000_create_app_radio_functions` : `app_radio_day(p_station, p_day)` et `app_radio_shows(p_station)`
+  pour l'app (`letter` en plus du contrat : la lettre de la liste A à Z), `radio_live_grid(p_station)` pour la
+  route « ce qui passe » ; les règles : émission active (un épisode depuis 45 jours), créneaux répétés chaque
+  semaine à l'heure de Paris, épisode rattaché au créneau où il commence (jusqu'à 15 minutes avant), état
+  `past`/`live`/`next`. `security invoker` : une station désactivée ne rend rien en anon.
+- `20261023142000_add_radio_audience_metrics` : `radio_live_play` et `radio_episode_play` dans les deux listes
+  d'`app_audience_add` (contrainte de la table et fonction). Ses listes comptent aussi `festival_opened` depuis
+  `20261023180000` (le compteur des festivals, en prod avant la Radio) : appliquée après, elle ne le retire pas.
+- `20261023143000_schedule_radio_import` : pg_cron (tâche `radio-import`, chaque heure à :07) appelle
+  `/api/cron/radio-import` par pg_net avec le secret `radio_import_cron_secret` de Vault ; sans secret, rien. Raison :
+  Vercel Hobby refuse un cron plus fréquent que quotidien (`vercel.json` garde un passage à 5:30 UTC).
+- Testées sur la base jetable de `npm run db:test` (Postgres 17, toutes les migrations) :
+  `supabase/tests/app_radio.test.sql` (44 cas : trigger, créneaux refusés, RLS et coût des politiques, journées
+  passées, d'aujourd'hui et de nuit, rattachement, liste A à Z, grille du direct, droits, pg_cron) et le cas radio
+  d'`app_audience.test.sql` ; les autres fichiers restent verts. Cinq règles cassées une à une (tolérance de
+  15 minutes, 45 jours, émissions passées sans épisode, RLS des émissions, articles du tri) : un cas échoue chaque
+  fois. Types régénérés (`npm run db:types`) : ils rattrapent aussi `20261021220000_create_app_zone`, jamais
+  régénérée.
+- **Pas appliquées en prod.** Ordre : `20261023140000`, `20261023141000`, `20261023142000`, puis, pour l'import
+  horaire, `20261023143000` et le secret : `select vault.create_secret('<CRON_SECRET de Vercel>',
+  'radio_import_cron_secret');`. Avant la première, vérifier l'organisateur :
+  `select id, name from public.organizers where id = '9d6d803d-4a7e-4118-beba-1744a1159b99';`. Après : un premier
+  import à la main (page des crons de l'admin, ou `/admin/radio`, « Importer maintenant »), puis
+  `select count(*), count(*) filter (where last_episode_at > now() - interval '45 days') from public.radio_shows;`
+  (91 et 47 le 2026-10-23). `enabled` reste à faux jusqu'à l'accord écrit de la radio.
+
+## 2026-10-23 — Festivals, étape 4 : le programme dans le message des suivis, « À voir aussi » sans le même festival
+
+- `20261023160000_add_festival_follows_and_see_also` : étape 4 du § 6 de `../live/docs/FESTIVALS.md` (§ 3,
+  « Favoris et notifications », et § 5). Contrat : `docs/API_APP.md`, « Festivals », « Suivis » et « À voir aussi ».
+  Prérequis : `20261023120000_create_festivals` (en prod). Mêmes signatures : rien ne change pour les appelants.
+  - `events.festival_added_at` : l'instant où l'événement est entré au programme de son festival (rattaché, ou
+    passé à un autre festival), null hors festival ; tenue par `set_event_festival_added_at()` (déclencheur
+    `BEFORE INSERT OR UPDATE OF festival_id, festival_added_at`, comme `published_at` : une valeur envoyée est
+    ignorée). Pas de reprise : Micro et Infra, rattachés le 23/10, la gardent nulle (leur entrée compte à leur
+    publication, aucun message ne les annonce après coup).
+  - `follows_digest(at_time)` : en plus des lieux, organisateurs et artistes suivis, les festivals en favori
+    (`event_likes` sur la fiche d'un festival visible) ; lignes `target_type` `festival`, `target_id` le festival,
+    `target_name` son titre. Un événement entre au programme quand il est rattaché et publié
+    (`greatest(festival_added_at, published_at)`), dans la fenêtre des suivis (depuis le cœur, le dernier message,
+    au plus 7 jours), avec leurs règles (visible, pas complet, pas terminé, ni masqué ni d'un auteur bloqué).
+    Toujours réservée au service role. Titre (`lib/notifications/follows-digest.ts`) : « Fulgurances
+    Électroniques #2 : 2 événements ajoutés au programme ».
+  - `app_see_also(…)` : rien du même festival (`coalesce(festival_id, id)` égal) dans les deux rangées, ni dans le
+    choix de la source (un lieu qui n'a que des événements du festival passe la main à l'organisateur) ;
+    `source_events_count` reste celui de la page. Reprise de la définition de `20261021220000` (la zone).
+- Testée par `npm run db:test` (Docker) : `supabase/tests/festival_follows_see_also.test.sql`, 13 cas
+  (`festival_added_at` à l'insertion, valeur envoyée ignorée, même festival, changement, détachement et festival
+  supprimé ; message : fenêtre, cœur, dernier message, 7 jours, complet, fini, masqué, bloqué, festival en
+  attente, cœur sur un événement qui n'est pas un festival, un événement au programme et dans un lieu suivi (deux
+  lignes, que le message compte une fois), festival retiré (le lieu suivi reste) ; « À voir aussi » : un
+  événement du festival, le festival, hors festival, une source qui n'a que le festival) ; 19 règles faussées à
+  tour de rôle, 18 repérées (la 19e, le filtre des 7 jours d'`ajouts`, double celui du cœur et ne sert qu'à lire
+  moins de lignes). Les 25 fichiers de `supabase/tests` passent (421 cas).
+  `lib/supabase/database.types.ts` régénéré (`npm run db:types`).
+- Essayée sur une pile Supabase locale (base, auth, PostgREST) avec toutes les migrations et Fulgurances :
+  `create_event` de l'agent (rattaché par le nom, par le titre, festival absent, hors dates, un festival et ses
+  lieux, un événement du festival créé juste avant, doublons de Micro et du festival), l'import par lot de l'admin
+  connecté en admin (rattachement, lieux du festival sous la RLS), le message des suivis d'un festival en favori
+  (« Fulgurances Électroniques #2 : 2 événements ajoutés au programme ») et `rpc/app_see_also` en anon.
+- Répétée en prod le 23/10/2026 dans une transaction annulée (psql `--single-transaction`, `SET ROLE postgres`,
+  `lock_timeout` 5 s, accès par `supabase db dump --linked --dry-run`, le fichier de la branche) :
+  - avant : ni la colonne ni la fonction du déclencheur ; `follows_digest` et `app_see_also` identiques à
+    `20261021142000` et `20261021220000` (md5 de `prosrc`) ; Micro et Infra rattachés, publiés le 18/10 ; aucun
+    cœur sur le festival ; `follows_digest()` vide à cet instant ;
+  - migration sans erreur, ~50 ms par instruction (latence réseau), ~0,7 s en tout ; après : la colonne, aucune
+    date posée, le déclencheur actif ; `follows_digest` exécutable par le service role seulement, `app_see_also`
+    par anon ; les deux corps sont ceux du fichier ;
+  - « À voir aussi » en anon sur 33 fiches (les 30 prochaines de la zone d'Orléans, le festival, Micro, Infra) :
+    les 31 hors festival à l'identique ; le festival perd Micro (4 → 3 lignes), Micro perd le festival (2 → 1) ;
+    Infra inchangée (rien du festival au 108). `follows_digest()` : mêmes lignes (aucune), aucune de festival ;
+  - EXPLAIN ANALYZE : `app_see_also` (Micro, anon) 12,2 ms avant, 12,3 ms après ; `follows_digest()` (service
+    role) 7,6 ms avant, 8,7 ms après ;
+  - `events` verrouillée ~2,2 s, de la migration à l'annulation (vérifications comprises) ; rien n'est resté.
+- **Appliquée en prod le 23/10/2026 à 16:01 (14:01 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche au commit `e5256ae`),
+  sans erreur. Vérifiée ensuite : la colonne (aucune date posée), le déclencheur actif, les corps de
+  `follows_digest` et `app_see_also` sont ceux du fichier, `follows_digest` réservée au service role (vide à cet
+  instant ; aucun cœur sur Fulgurances). En anon par l'API publique, avant puis après les deux migrations du jour :
+  les appels de l'app gardent leurs statuts et leurs nombres (391, 389, 389, 70, 389 cartes, 354, 136 séries,
+  `app_festival_events` 2) ; « À voir aussi » de Micro ne propose plus le festival ni Infra, celui du festival ni
+  Micro ni Infra ; `events?select=id,festival_added_at` répond 200 (le cache de schéma s'est rechargé seul).
+
+## 2026-10-23 — Festivals : sur « Tout », un festival qui a un programme compte par ses événements
+
+- `20261023170000_count_festival_programmes` : demandé par la session de coordination pour l'accueil de l'app
+  (étape 3, PR lazbutton/live-app#168). Un festival y est une carte, ses événements dedans, et les nombres de la
+  page comptent ses événements, pas sa fiche en plus (`EventsListPageData.build`) ; les nombres lus en SQL
+  comptaient la fiche, un de trop chaque jour du festival (U3). Contrat : `docs/API_APP.md`, « Festivals ».
+  - La règle, celle de l'app : une fiche ne compte pas quand `app_festival_events(at_time)` a au moins une ligne
+    pour elle (un événement à venir rattaché, visible pour l'utilisateur, retiré de l'accueil compris) ; une fiche
+    sans programme compte comme avant ; seulement sur « Tout », pas sur une page de catégorie (la page « Festival »
+    montre les festivals). La catégorie de la fiche n'est pas regardée, comme dans l'app.
+  - `app_event_counts` (sur « Tout » : category vide), `app_zone_counts`, `app_cities` (`upcoming_events_count`
+    seulement : une ville qui n'a que des fiches à venir reste dans la liste, la prochaine date et les récents ne
+    changent pas). Reprises de `20261021220000`, mêmes signatures ; les listes et les autres comptes ne changent
+    pas.
+- Testée par `npm run db:test` (Docker) : `supabase/tests/festival_counts.test.sql`, 7 cas (l'index ; « Tout »
+  jour par jour, events_count et starting_count ; la page « Festival » ; une autre catégorie ; un programme tout
+  masqué par l'utilisateur ; `app_zone_counts` ; `app_cities`) ; 8 règles faussées à tour de rôle (la fiche
+  comptée, retirée aussi par catégorie, tout rattachement pris pour un programme, programme sans les événements
+  retirés de l'accueil, la zone, les villes : compte, liste, `a_venir`), toutes repérées. Les 26 fichiers de
+  `supabase/tests` passent (428 cas). `lib/supabase/database.types.ts` inchangé (`npm run db:types`).
+- Répétée en prod le 23/10/2026 dans une transaction annulée (psql `--single-transaction`, `SET ROLE postgres`,
+  `lock_timeout` 5 s, le fichier de la branche ; aucune table verrouillée, la migration ne remplace que des
+  fonctions) :
+  - avant : les trois fonctions identiques à `20261021220000` (md5 de `prosrc`) ; un seul festival a un
+    programme, Fulgurances Électroniques #2 (Micro et Infra) ;
+  - migration sans erreur (9 instructions, 20 à 110 ms chacune, latence réseau comprise) ; les corps sont ceux du
+    fichier, anon les appelle ;
+  - en anon, zone d'Orléans · 25 km, 46 jours à partir d'aujourd'hui et « toutes les dates » : seules 5 plages
+    changent, chacune d'un (la fiche de Fulgurances) : 19/11 6/6 → 5/5, 20/11 10/9 → 9/9, 21/11 12/11 → 11/11,
+    22/11 3/2 → 2/2, toutes les dates 354 → 353 ; pages « Festival » et « Concert » identiques ; la liste
+    (`app_events_in_zone`) 391 comme avant ; `app_zone_counts` 335/354/354/354 → 334/353/353/353 ;
+    `app_cities` : Orléans 207 → 206, les autres villes identiques ;
+  - coût (EXPLAIN ANALYZE, anon) : exécution d'`app_event_counts` (47 plages) 9,8 → 10,9 ms, `app_zone_counts`
+    16,4 → 17,0 ms, `app_cities` 7,2 → 8,5 ms ; planification +16 à 18 ms (25 → 42 ms pour `app_event_counts` :
+    la sous-requête d'`app_festival_events` est planifiée avec la RLS d'`events`), payée seulement tant que le
+    plan n'est pas en cache : en requête préparée (comme PostgREST), plan générique dès la 7e exécution,
+    planification 0,1 ms, exécution 10,0 → 10,5 ms. Une variante sans `app_festival_events`
+    (`app_events_in_range` directement) ne gagnait que 2 ms de planification : écartée ;
+  - rien n'est resté (les trois corps comme avant l'essai).
+- **Appliquée en prod le 23/10/2026 à 16:02 (14:02 UTC)**, après `20261023160000`, avec l'accord de
+  l'utilisateur (psql, `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche
+  au commit `e5256ae`), sans erreur ; les trois corps sont ceux du fichier, anon les appelle. En anon par l'API
+  publique (Orléans · 25 km), avant → après : « Tout » 19/11 6 → 5, 20/11 9 → 8 (starting 8), 21/11 14 → 13,
+  22/11 3 → 2, toutes les dates 352 → 351 ; page « Festival » identique (19/11 à 22/11 : 1, toutes les dates 4) ;
+  `app_zone_counts` 333/352/352/352 → 332/351/351/351 ; `app_cities` : Orléans 206 → 205, les autres villes
+  identiques. Juste après, la première requête de chaque connexion replanifie (`events` a changé) : jusqu'à
+  0,6 s une fois, puis les temps d'avant (`app_event_series` ~100 ms).
+
+## 2026-10-23 — Festivals : le compteur d'audience `festival_opened`
+
+- `20261023180000_add_festival_audience_metric` : demandé par la session de coordination pour l'étape 5 de l'app,
+  à déclarer avant sa sortie. `festival_opened` : la page d'un festival s'ouvre (la fiche d'un festival qui a un
+  programme) ; elle compte aussi dans `event_opened`. Les deux listes d'`app_audience_add` (contrainte de la table et
+  fonction) gagnent la clé ; rien d'autre ne change. Contrat : `docs/API_APP.md`, « Mesure d'audience ».
+  - En prod, les listes sont encore celles de `20261021013000` (5 compteurs) : la Radio (`20261023142000`) n'y est
+    pas. Celle-ci reprend la liste de la Radio, la clé en plus (8 compteurs), et `20261023142000` gagne la clé
+    elle aussi (elle n'est appliquée nulle part) : les deux rendent la même liste, à l'octet près pour la fonction,
+    dans n'importe quel ordre d'application. Sinon, la Radio appliquée après aurait retiré `festival_opened`, en
+    silence, ou en échouant sur les lignes déjà comptées.
+  - Un compteur inconnu d'`app_audience_add` est ignoré sans erreur, le reste de l'envoi compté (déjà testé) : une
+    app qui envoie `festival_opened` avant cette migration le perd (elle jette la journée dès la réponse), sans rien
+    perdre d'autre.
+- Testée : `supabase/tests/app_audience.test.sql` (3 cas de plus : compté avec le reste de l'envoi et une clé
+  inconnue ignorée, les lignes du jour, la contrainte de la table accepte la clé et refuse une clé inconnue) ;
+  `lib/audience/app-audience.test.mjs` : la page « Audience de l'app » (colonne « Festivals ouverts ») et une garde
+  qui compare la liste de la page aux deux listes de chaque migration (trois oublis simulés, tous repérés).
+- Répétée en prod le 23/10/2026 dans une transaction annulée (psql `--single-transaction`, `SET ROLE postgres`,
+  `lock_timeout` 5 s, le fichier de la branche) :
+  - avant : la contrainte et `app_audience_add` sont celles de `20261021013000` (5 compteurs, md5 de `prosrc`) ;
+    comptés jusque-là : `event_opened` 49, `ticket_tapped` 2, `when_sheet_used` 1. Un envoi comme l'app, en anon,
+    `{"festival_opened": 1, "event_opened": 1}` : 1 compteur ajouté (`festival_opened` ignoré, le reste compté) ;
+  - migration sans erreur (4 instructions, 26 à 67 ms chacune ; `app_audience_counts` seule verrouillée, le temps de
+    la transaction) ; après : la contrainte à 8 compteurs, le corps de la fonction celui du fichier, anon et
+    authenticated l'appellent ; le même envoi avec une clé inconnue en plus : 2 compteurs ajoutés ;
+  - rien n'est resté (5 compteurs, la fonction d'avant, les mêmes totaux).
+- **Appliquée en prod le 23/10/2026 à 16:24 (14:24 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche au commit `139709d`),
+  sans erreur. Vérifiée : la contrainte compte les 8 compteurs, le corps d'`app_audience_add` est celui du fichier,
+  anon et authenticated l'appellent ; en anon, dans une transaction annulée pour ne pas fausser les chiffres, un envoi
+  comme l'app (`festival_opened`, `event_opened` et une clé inconnue) ajoute 2 compteurs ; par l'API publique, en anon,
+  `rpc/app_audience_add` répond 200 (un jour hors fenêtre : 0, rien d'écrit). Totaux inchangés (49, 2, 1). La Radio
+  (`20261023142000`) n'est toujours pas en prod : appliquée plus tard, elle garde la même liste.
+
 ## 2026-10-23 — Suspension UGC dans `raw_app_meta_data` (escalade corrigée)
 
-- `20261023160000_ugc_suspension_in_app_metadata` : même faille que le rôle admin (voir la PR du rôle),
-  mais sur `ugc_suspended`. La suspension d'un compte pour le contenu communautaire était lue dans
-  `raw_user_meta_data->>'ugc_suspended'` (`is_user_safety_suspended()`, qui alimente `can_use_ugc_features()`
-  et les policies RLS d'`events` ; `lib/mobile-user-auth.ts`). Or l'utilisateur écrit lui-même
-  `raw_user_meta_data` via `updateUser` (PUT /auth/v1/user) : un compte suspendu pouvait lever sa propre
-  suspension.
+- `20261023190000_ugc_suspension_in_app_metadata` : même faille que le rôle admin (migration
+  `20261023150000`, en prod), mais sur `ugc_suspended`. La suspension d'un compte pour le contenu
+  communautaire était lue dans `raw_user_meta_data->>'ugc_suspended'` (`is_user_safety_suspended()`, qui
+  alimente `can_use_ugc_features()` et les policies RLS d'`events` ; `lib/mobile-user-auth.ts`). Or
+  l'utilisateur écrit lui-même `raw_user_meta_data` via `updateUser` (PUT /auth/v1/user) : un compte
+  suspendu pouvait lever sa propre suspension. (La PR du rôle admin avait laissé la suspension dans
+  user_metadata ; cette migration la ferme.)
 - Correctif : les clés `ugc_suspended` / `ugc_suspension_reason` / `ugc_suspended_at` / `ugc_suspended_by`
   passent dans `raw_app_meta_data` (écrit par le service seul ; GoTrue refuse `app_metadata` en self-service).
   `is_user_safety_suspended()` lit app_meta. Garde-fou : trigger `strip_ugc_suspension_from_user_metadata`
   (BEFORE INSERT/UPDATE OF raw_user_meta_data sur `auth.users`) qui efface ces clés de user_metadata à chaque
   écriture. `ugc_terms_accepted_version` et le reste de user_metadata (nom, etc.) sont intacts.
-- Indépendant de la migration du rôle admin (`20261023150000`) : fonction et trigger distincts, aucune
-  dépendance ; les deux garde-fous pourront être fusionnés plus tard.
-- Côté TypeScript (même PR) : lecture (`lib/mobile-user-auth.ts`, `/api/admin/users/list`) et écriture
-  (`/api/admin/users/[id]`, `/api/admin/moderation/reports/[id]`) passées à `app_metadata`.
-- Côté app Flutter (`../live`) : `AuthRepository.isSuspended` / `suspensionReason` lisent `userMetadata`
-  (pour déconnecter le compte suspendu). À faire passer sur `appMetadata` dans une PR de l'app, à déployer
-  avec cette migration ; sinon la détection côté client cesse jusqu'au rafraîchissement, mais le serveur
-  (RLS + `requireMobileUserAuth`) refuse toujours. Les autres lectures (`ugc_terms_accepted_version`,
-  `isAdmin`) restent sur `userMetadata`.
+- Trigger et fonction distincts de ceux du rôle admin (`strip_role_from_user_metadata`) : indépendants ;
+  les deux garde-fous pourront être fusionnés plus tard.
+- Côté TypeScript (même PR, par-dessus la PR du rôle) : lecture (`lib/mobile-user-auth.ts`,
+  `/api/admin/users/list`) et écriture (`/api/admin/users/[id]`, `/api/admin/moderation/reports/[id]` :
+  rôle ET suspension dans app_metadata) passées à `app_metadata`.
+- Côté app Flutter (`lazbutton/live-app`) : `AuthRepository.isSuspended` / `suspensionReason` passés à
+  `appMetadata` (PR #169, à déployer avec cette migration) ; `isAdmin` de même (PR #170, avec la migration
+  du rôle). Sinon la détection côté client cesse jusqu'au rafraîchissement du jeton, mais le serveur
+  (RLS + `requireMobileUserAuth`) refuse toujours.
 - Tests : `supabase/tests/ugc_suspension.test.sql` (le trigger retire la clé à l'inscription et à la mise à
-  jour ; `is_user_safety_suspended` / `can_use_ugc_features` lisent app_meta ; l'auto-réhabilitation échoue) ;
-  fixture de `events_rls.test.sql` (u09 suspendu via app_meta) et de `lib/api/app/routes.test.mjs`
-  (`jwt-suspended`) mises à jour. `npm run db:test`, `node --test`, `npx tsc --noEmit` au vert.
-- **Pas encore appliquée en prod** (attendre l'accord ; prévoir la PR de l'app en même temps).
+  jour ; `is_user_safety_suspended` / `can_use_ugc_features` lisent app_meta ; l'auto-réhabilitation échoue,
+  vérifiée aussi de bout en bout via GoTrue réel) ; fixtures de `events_rls.test.sql` (u09 via app_meta) et
+  `lib/api/app/routes.test.mjs` (`jwt-suspended`). `npm run db:test`, `node --test`, `npx tsc --noEmit` au vert.
+- **Pas encore appliquée en prod** (attendre l'accord ; prévoir les PR de l'app en même temps).

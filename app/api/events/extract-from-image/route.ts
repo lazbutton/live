@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
     }
 
-    if (user.user_metadata?.role !== "admin") {
+    if (user.app_metadata?.role !== "admin") {
       return NextResponse.json(
         { error: "Acces refuse. Administrateur requis." },
         { status: 403 },

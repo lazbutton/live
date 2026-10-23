@@ -22,7 +22,7 @@ export async function GET(
 
     const { id: organizerId } = await params;
 
-    const role = user.user_metadata?.role;
+    const role = user.app_metadata?.role;
     const isAdmin = role === "admin";
 
     // Vérifier que l'utilisateur est admin ou owner de l'organisateur
@@ -111,7 +111,7 @@ export async function POST(
 
     const { id: organizerId } = await params;
 
-    const role = user.user_metadata?.role;
+    const role = user.app_metadata?.role;
     const isAdmin = role === "admin";
 
     // Vérifier que l'utilisateur est admin ou owner de l'organisateur
@@ -244,7 +244,7 @@ export async function DELETE(
 
     const { id: organizerId } = await params;
 
-    const role = user.user_metadata?.role;
+    const role = user.app_metadata?.role;
     const isAdmin = role === "admin";
 
     // Vérifier que l'utilisateur est admin ou owner de l'organisateur
