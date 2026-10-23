@@ -928,7 +928,14 @@
   - EXPLAIN ANALYZE : `app_see_also` (Micro, anon) 12,2 ms avant, 12,3 ms après ; `follows_digest()` (service
     role) 7,6 ms avant, 8,7 ms après ;
   - `events` verrouillée ~2,2 s, de la migration à l'annulation (vérifications comprises) ; rien n'est resté.
-- **Pas encore appliquée en prod** : attend l'accord de l'utilisateur.
+- **Appliquée en prod le 23/10/2026 à 16:01 (14:01 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche au commit `e5256ae`),
+  sans erreur. Vérifiée ensuite : la colonne (aucune date posée), le déclencheur actif, les corps de
+  `follows_digest` et `app_see_also` sont ceux du fichier, `follows_digest` réservée au service role (vide à cet
+  instant ; aucun cœur sur Fulgurances). En anon par l'API publique, avant puis après les deux migrations du jour :
+  les appels de l'app gardent leurs statuts et leurs nombres (391, 389, 389, 70, 389 cartes, 354, 136 séries,
+  `app_festival_events` 2) ; « À voir aussi » de Micro ne propose plus le festival ni Infra, celui du festival ni
+  Micro ni Infra ; `events?select=id,festival_added_at` répond 200 (le cache de schéma s'est rechargé seul).
 
 ## 2026-10-23 — Festivals : sur « Tout », un festival qui a un programme compte par ses événements
 
@@ -969,5 +976,11 @@
     planification 0,1 ms, exécution 10,0 → 10,5 ms. Une variante sans `app_festival_events`
     (`app_events_in_range` directement) ne gagnait que 2 ms de planification : écartée ;
   - rien n'est resté (les trois corps comme avant l'essai).
-- **Pas encore appliquée en prod** : attend l'accord de l'utilisateur (après `20261023160000`, ou avant : elles
-  sont indépendantes).
+- **Appliquée en prod le 23/10/2026 à 16:02 (14:02 UTC)**, après `20261023160000`, avec l'accord de
+  l'utilisateur (psql, `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche
+  au commit `e5256ae`), sans erreur ; les trois corps sont ceux du fichier, anon les appelle. En anon par l'API
+  publique (Orléans · 25 km), avant → après : « Tout » 19/11 6 → 5, 20/11 9 → 8 (starting 8), 21/11 14 → 13,
+  22/11 3 → 2, toutes les dates 352 → 351 ; page « Festival » identique (19/11 à 22/11 : 1, toutes les dates 4) ;
+  `app_zone_counts` 333/352/352/352 → 332/351/351/351 ; `app_cities` : Orléans 206 → 205, les autres villes
+  identiques. Juste après, la première requête de chaque connexion replanifie (`events` a changé) : jusqu'à
+  0,6 s une fois, puis les temps d'avant (`app_event_series` ~100 ms).

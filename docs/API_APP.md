@@ -363,8 +363,8 @@ lieux).
   toute façon.
 
 Étape 4 (§ 6), migration `20261023160000_add_festival_follows_and_see_also.sql`, tests
-`supabase/tests/festival_follows_see_also.test.sql` ; **pas encore en prod**. Mêmes signatures, rien à changer
-dans l'app pour la lire :
+`supabase/tests/festival_follows_see_also.test.sql` ; en prod depuis le 2026-10-23 à 16:01. Mêmes signatures, rien
+à changer dans l'app pour la lire :
 
 - **`events.festival_added_at`** (instant ou null) : l'instant où l'événement est entré au programme de son
   festival (rattaché, ou passé à un autre festival) ; null hors festival. Tenue par la base seule (déclencheur,
@@ -378,7 +378,7 @@ dans l'app pour la lire :
 - **Un cœur sur un festival** (`event_likes`, sur sa fiche) vaut suivi de son programme : le message des suivis
   annonce ce qui y entre (« Suivis », plus bas).
 - **Les nombres sur « Tout »** (migration `20261023170000_count_festival_programmes.sql`, tests
-  `supabase/tests/festival_counts.test.sql`, **pas encore en prod**) : comme l'accueil de l'app
+  `supabase/tests/festival_counts.test.sql`, en prod depuis le 2026-10-23 à 16:02) : comme l'accueil de l'app
   (`EventsListPageData.build` : un festival y est une carte, ses événements dedans), la fiche d'un festival qui a
   un programme, c'est-à-dire au moins une ligne dans `app_festival_events` pour l'utilisateur, ne compte pas ; ses
   événements comptent, chacun à sa date. Une fiche sans programme compte comme avant. `app_event_counts` sur
@@ -776,7 +776,7 @@ en un appel une fois la fiche affichée.
   série de la fiche : elles sont dans ses puces (« Autres dates »). Un même titre au même lieu à plus de
   7 jours d'écart est une autre série : « La Scène est à toi » de novembre est proposée sur la fiche de
   celle d'avril. Les comptes comptent chaque date.
-- Rien du même festival (migration `20261023160000`, **pas encore en prod**) : ni les autres événements du
+- Rien du même festival (migration `20261023160000`, en prod depuis le 2026-10-23) : ni les autres événements du
   festival de la fiche, ni le festival lui-même, ni, sur la fiche d'un festival, ses événements ; ils sont
   dans « Au même festival » et le programme. Un lieu qui n'a d'autres spectacles que ceux du festival passe
   la main à l'organisateur, comme un lieu sans autre spectacle. Les comptes ne changent pas.
@@ -1200,7 +1200,7 @@ Migrations `20261021140000_add_events_published_at.sql`, `20261021141000_create_
 `lib/notifications/digest-routes.test.mjs`. U8 de `../live/docs/AMELIORATIONS.md` : suivre un lieu, un
 organisateur ou un artiste, « Mes suivis », la notification qui va avec. Les festivals en favori s'y ajoutent
 avec `20261023160000_add_festival_follows_and_see_also.sql` (tests `supabase/tests/festival_follows_see_also.test.sql`,
-**pas encore en prod**) : un cœur sur un festival vaut suivi de son programme, sans ligne dans `user_follows`.
+en prod depuis le 2026-10-23) : un cœur sur un festival vaut suivi de son programme, sans ligne dans `user_follows`.
 
 ### Table `user_follows`
 
