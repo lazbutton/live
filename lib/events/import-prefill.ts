@@ -6,6 +6,7 @@
 
 import { cleanEventDescription, cleanEventTitle } from "@/lib/collecte/event-text";
 import { toDatetimeLocal } from "@/lib/date-utils";
+import { toParisWallClock } from "@/lib/scraping/dates";
 import {
   extractImportedCategoryLabels,
   resolveImportedCategory,
@@ -222,6 +223,18 @@ export function resolveArtistsFromNames(artists: ArtistOption[], rawNames: unkno
   return { matchedIds, unmatched };
 }
 
+/**
+ * Date importée → champ du formulaire (« AAAA-MM-JJTHH:mm », heure de Paris). Une date sans fuseau est
+ * déjà l'heure de Paris (lecteurs de pages, affiches, On sort !, Facebook) ; une date avec fuseau est un
+ * instant (« 2026-10-29 17:45:00Z » des pages Odoo, ISO d'une IA, demandes lues par l'ancien scraper),
+ * converti en heure de Paris : `toDatetimeLocal`, fait pour les dates de la base, en garderait les chiffres.
+ */
+export function importedDateTime(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : value instanceof Date ? value.toISOString() : "";
+  if (!text) return "";
+  return toParisWallClock(text)?.value.slice(0, 16) ?? toDatetimeLocal(text);
+}
+
 /** Tags existants correspondant aux suggestions d'un import (aucune création). */
 export function matchExistingTagIds(rawTagNames: unknown, tags: Array<{ id: string; name: string }>) {
   const ids = parseImportedTags(rawTagNames)
@@ -378,8 +391,8 @@ export async function buildEventFormPrefillFromImport({
     form: {
       title,
       description: cleanEventDescription((data.description || "").toString()),
-      date: data.date ? toDatetimeLocal(String(data.date)) : "",
-      end_date: data.end_date ? toDatetimeLocal(String(data.end_date)) : "",
+      date: importedDateTime(data.date),
+      end_date: importedDateTime(data.end_date),
       category: resolvedCategory.id,
       price_min:
         !isPayWhatYouWant && derivedPrices.priceMin != null
@@ -413,12 +426,16 @@ export async function buildEventFormPrefillFromImport({
     organizerIds,
     artistIds: artistMatch.matchedIds,
     tagIds,
+    // Chaque séance garde son propre lien de billetterie (`?session=336` pour la deuxième séance du jour).
     additionalDates: Array.isArray(data.occurrences)
-      ? (data.occurrences as Array<{ date?: string; end_date?: string }>)
+      ? (data.occurrences as Array<{ date?: string; end_date?: string; external_url?: string }>)
           .filter((occurrence) => typeof occurrence?.date === "string")
           .map((occurrence) => ({
-            date: toDatetimeLocal(String(occurrence.date)),
-            end_date: occurrence.end_date ? toDatetimeLocal(String(occurrence.end_date)) : "",
+            date: importedDateTime(occurrence.date),
+            end_date: importedDateTime(occurrence.end_date),
+            ...(typeof occurrence.external_url === "string" && occurrence.external_url.trim()
+              ? { external_url: occurrence.external_url.trim() }
+              : {}),
           }))
           .filter((occurrence) => occurrence.date)
       : undefined,

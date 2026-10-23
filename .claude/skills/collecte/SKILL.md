@@ -41,7 +41,10 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
   `artists_skipped` avec la raison : ne les recrée pas avec `upsert_artist`, signale-les dans le récapitulatif.
 - **Dates** : heure de Paris ; sans année écrite, l'année est celle où le jour de la semaine annoncé tombe juste
   (« mercredi 7 octobre » = 2026, pas 2027) et un événement déjà passé n'est jamais reporté à l'an prochain. Une
-  exposition déjà ouverte s'ajoute avec `start` = ouverture et `end` = dernier jour.
+  exposition déjà ouverte s'ajoute avec `start` = ouverture et `end` = dernier jour. `start` est le début du
+  spectacle, jamais l'ouverture des portes (« portes 20h, début 20h30 » : `start` 20:30, `door_opening_time` 20:00).
+- **Prix** : `price_min` est le tarif le plus bas ouvert à tous (réduit, prévente, sur place), jamais un tarif
+  abonné, adhérent, carte du lieu, groupe, scolaire ou réservé aux élèves d'une école.
 - **Titres** : courts, en casse normale (pas tout en capitales), sans date ni lieu ; l'outil retire de toute façon la
   date et le lieu collés au titre, remet les capitales en casse normale (noms propres en majuscule initiale, sigles
   gardés), pose les guillemets français et recolle les lignes coupées des descriptions (lib/collecte/event-text.ts).

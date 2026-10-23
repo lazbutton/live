@@ -201,7 +201,10 @@ const createEvent = defineTool({
     source_id: z.string().optional().describe("Source suivie d'où vient l'événement (list_sources)."),
     source_url: z.string().url().optional().describe("Lien du post ou de la page lue."),
     title: z.string().min(2).describe("Titre court et propre, en casse normale, sans emoji, ni date, ni lieu."),
-    start: localDate("Début, heure de Paris : 2026-11-20T20:30 (ou 2026-11-20 si l'heure est inconnue)."),
+    start: localDate(
+      "Début du spectacle, heure de Paris : 2026-11-20T20:30 (ou 2026-11-20 si l'heure est inconnue) ; jamais " +
+        "l'ouverture des portes, qui va dans `door_opening_time`.",
+    ),
     end: localDate("Fin éventuelle, même format.").optional(),
     additional_dates: z
       .array(z.object({ start: localDate("Début de la séance."), end: localDate("Fin de la séance.").optional() }))
@@ -227,8 +230,15 @@ const createEvent = defineTool({
       .optional()
       .describe("Affiche : lien direct vers l'image (copiée dans le stockage). Facultatif pour un post Instagram."),
     ticket_url: z.string().url().optional().describe("Billetterie."),
-    price_min: z.number().min(0).optional(),
-    price_max: z.number().min(0).optional(),
+    price_min: z
+      .number()
+      .min(0)
+      .optional()
+      .describe(
+        "Tarif le plus bas ouvert à tous (réduit, prévente, sur place) ; jamais un tarif abonné, adhérent, carte du " +
+          "lieu, groupe, scolaire ou réservé aux élèves d'une école.",
+      ),
+    price_max: z.number().min(0).optional().describe("Tarif le plus haut ouvert à tous, s'il est différent."),
     is_free: z.boolean().optional(),
     is_pay_what_you_want: z.boolean().optional().describe("Prix libre."),
     is_full: z.boolean().optional().describe("Complet."),

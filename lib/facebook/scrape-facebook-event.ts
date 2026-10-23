@@ -29,7 +29,7 @@ export interface FacebookScrapedEventData {
   metadata?: Record<string, unknown>;
 }
 
-function toFloatingParisIsoString(timestamp?: number | null) {
+export function toFloatingParisIsoString(timestamp?: number | null) {
   if (!timestamp) {
     return undefined;
   }
@@ -47,11 +47,10 @@ function toFloatingParisIsoString(timestamp?: number | null) {
   const minutes = String(parts.minute).padStart(2, "0");
   const seconds = String(parts.second).padStart(2, "0");
 
-  // Le back-office manipule les dates d'événements comme des heures "murales"
-  // (sans conversion de timezone à l'affichage). On sérialise donc ici l'heure
-  // Europe/Paris avec les mêmes chiffres dans l'ISO, afin d'éviter le décalage
-  // constaté lors de l'import Facebook.
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000Z`;
+  // Heure murale de Paris, sans fuseau, comme les autres lecteurs : l'import
+  // (buildEventFormPrefillFromImport) convertit une date avec fuseau, un « Z »
+  // ajouté ici la décalerait d'une ou deux heures.
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 }
 
 function compactText(value?: string | null) {

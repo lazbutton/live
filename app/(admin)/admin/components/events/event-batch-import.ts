@@ -115,9 +115,14 @@ export async function createPendingEventFromPrefill({
     created_by: user?.id || null,
   };
 
+  // Une séance qui a son propre lien de billetterie le garde (deuxième séance du jour à Fleury).
   const slots = [
-    { date: form.date, end_date: form.end_date || "" },
-    ...(prefill.additionalDates || []).map((slot) => ({ date: slot.date, end_date: slot.end_date || "" })),
+    { date: form.date, end_date: form.end_date || "", external_url: baseData.external_url },
+    ...(prefill.additionalDates || []).map((slot) => ({
+      date: slot.date,
+      end_date: slot.end_date || "",
+      external_url: trimOrNull(slot.external_url) || baseData.external_url,
+    })),
   ].filter((slot, index, all) => slot.date && all.findIndex((other) => other.date === slot.date) === index);
 
   const organizerEntries = (eventId: string) =>
@@ -143,6 +148,7 @@ export async function createPendingEventFromPrefill({
           ...baseData,
           date: fromDatetimeLocal(slot.date) || slot.date,
           end_date: slot.end_date ? fromDatetimeLocal(slot.end_date) || null : null,
+          external_url: slot.external_url,
         },
       ])
       .select("id")

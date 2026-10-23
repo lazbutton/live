@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 
 import { toParisWallClock, type ParisWallClockOptions } from "./dates";
+import { publicPriceRange, type Tariff } from "./prices";
 
 /*
  * Extraction des données structurées schema.org (JSON-LD et microdata) que
@@ -156,29 +157,38 @@ function parsePrice(value: unknown): number | undefined {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
+/** Nom d'une offre (« Prévente », « Abonné.e ») et sa catégorie, pour écarter les tarifs réservés. */
+function tariffName(offer: SchemaNode) {
+  return [textOf(offer.name), textOf(offer.category)].filter(Boolean).join(" ");
+}
+
 function offersOf(value: unknown, baseUrl: string) {
-  const prices: number[] = [];
+  const tariffs: Tariff[] = [];
   let soldOut = false;
   let anyAvailable = false;
   let ticketUrl: string | undefined;
   for (const offer of asArray(value as any)) {
     if (!offer || typeof offer !== "object") continue;
+    const name = tariffName(offer);
+    const description = textOf(offer.description);
     for (const key of ["price", "lowPrice", "highPrice"]) {
       const price = parsePrice(offer[key]);
-      if (price !== undefined) prices.push(price);
+      if (price !== undefined) tariffs.push({ name, description, price });
     }
     for (const nested of asArray(offer.offers)) {
       const price = parsePrice(nested?.price);
-      if (price !== undefined) prices.push(price);
+      if (price !== undefined) tariffs.push({ name: tariffName(nested) || name, description: textOf(nested?.description), price });
     }
     const availability = String(offer.availability || "");
     if (/SoldOut/i.test(availability)) soldOut = true;
     else if (availability) anyAvailable = true;
     ticketUrl = ticketUrl || absoluteUrl(offer.url, baseUrl);
   }
+  // Tarifs ouverts au public : « Abonné.e » 20 € n'est pas le prix d'un concert à 25 € en prévente.
+  const range = publicPriceRange(tariffs);
   return {
-    priceMin: prices.length ? Math.min(...prices) : undefined,
-    priceMax: prices.length ? Math.max(...prices) : undefined,
+    priceMin: range.min,
+    priceMax: range.max,
     soldOut: soldOut && !anyAvailable,
     ticketUrl,
   };

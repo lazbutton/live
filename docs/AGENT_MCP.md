@@ -36,11 +36,21 @@ Aucun outil ne supprime ni ne modifie un événement existant.
 ## Lecture des pages
 
 - **Dates** : toujours ramenées à l'heure de Paris. Les pages Odoo (Orléans Comedy Club) écrivent leurs dates en UTC
-  sans fuseau ; elles sont converties. Sans année écrite, l'année est celle où le jour de semaine annoncé tombe
-  juste (« mercredi 7 octobre » = 2026) ; un événement passé n'est pas reporté à l'année suivante. La date collée
-  au titre (« Atelier broderie - dim. 01/11 ») est retirée, comme le lieu en fin de titre (« … - Théâtre de la Tête Noire »).
+  sans fuseau ; elles sont converties, comme toute date importée avec un fuseau (« 2026-10-29 17:45:00Z »). Sans
+  année écrite, l'année est celle où le jour de semaine annoncé tombe juste (« mercredi 7 octobre » = 2026) ; un
+  événement passé n'est pas reporté à l'année suivante. La date collée au titre (« Atelier broderie - dim. 01/11 »)
+  est retirée, comme le lieu en fin de titre (« … - Théâtre de la Tête Noire »).
+- **Début et ouverture des portes** : quand l'heure lue est celle de l'ouverture (« OUVERTURE DES PORTES À 15H, DÉBUT
+  À 15H30 »), le début écrit sur la page la remplace et l'ouverture va dans `door_opening_time`. La billetterie de
+  L'Astrolabe donne toujours l'ouverture : son début est lu dans la présentation, sinon sur la page du spectacle de
+  lastrolabe.org (retrouvée dans les spectacles à venir de l'accueil).
 - **Séances** : seules les séances à venir ou en cours sont créées ; une exposition déjà ouverte s'ajoute tant
-  qu'elle n'est pas finie.
+  qu'elle n'est pas finie. Chaque séance garde son lien de billetterie (`?session=` à Fleury-les-Aubrais).
+- **Prix** : le minimum est le tarif le plus bas ouvert à tous (réduit, prévente, sur place) ; les tarifs réservés
+  (abonnés, adhérents, carte du lieu, groupes, scolaires, CE, élèves du conservatoire) et un billet gratuit à côté
+  de billets payants ne comptent pas (`lib/scraping/prices.ts`). Mapado : tarifs lus dans l'état de la page, ceux
+  d'un événement à plusieurs séances sur la page d'une séance (`?eventDate=`). Billetweb : tarifs de la boutique
+  (`shop.php`), description de la page avec ses paragraphes.
 - **Agendas** : billetteries Socoop (L'Astrolabe, La Passerelle) lues par leur API publique ; menus, en-tête et pied
   de page ignorés ; adresse morte ou page d'accueil → le lien « Agenda » du site est suivi et renvoyé (`agenda_url`).
 - **On sort !** (agenda d'Orléans Métropole sur OpenAgenda) : lu par son API sur le mois à venir, réduit à la scène

@@ -4,6 +4,7 @@ import { isYoungAudience } from "@/lib/events/young-audience";
 import type { AgendaDiscoveryResult, DiscoveredAgendaEvent } from "./agenda";
 import { parisToday, toParisWallClock } from "./dates";
 import { SCRAPER_USER_AGENT } from "./fetch-html";
+import { publicAmountsInText } from "./prices";
 import type { ScrapedEventData, ScrapeEventPageResult } from "./scrape-event-page";
 import { decodeHtmlText } from "./structured-event";
 
@@ -566,14 +567,10 @@ export function onSortSessions(
   };
 }
 
-function amount(raw: string) {
-  const value = Number(raw.replace(",", "."));
-  return Number.isFinite(value) && value >= 0 && value <= 500 ? value : null;
-}
-
 /**
  * Tarifs écrits en clair : « Tarifs de 5€ à 25€ », « de 12 à 36 euros », « Entrée libre »,
- * « Participation libre » ; « gratuit » dans les mots-clés vaut entrée gratuite.
+ * « Participation libre » ; « gratuit » dans les mots-clés vaut entrée gratuite. Les tarifs réservés
+ * (« 15€ avec la Carte », « Abonnés : 6€ ») ne comptent pas.
  */
 export function readOnSortPrice(
   conditions: string,
@@ -583,15 +580,7 @@ export function readOnSortPrice(
   if (/\b(prix libre|participation libre|libre participation|au chapeau)\b/.test(text)) {
     return { is_pay_what_you_want: true };
   }
-  const amounts = [
-    ...[...conditions.matchAll(/(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:€|euros?\b)/gi)].map((match) => match[1]),
-    // « de 12 à 36 euros » : le premier montant n'a pas d'unité.
-    ...[...conditions.matchAll(/(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:à|-|–)\s*\d{1,3}(?:[.,]\d{1,2})?\s*(?:€|euros?\b)/gi)].map(
-      (match) => match[1],
-    ),
-  ]
-    .map(amount)
-    .filter((value): value is number => value !== null);
+  const amounts = publicAmountsInText(conditions);
   if (amounts.length > 0) {
     const min = Math.min(...amounts);
     const max = Math.max(...amounts);

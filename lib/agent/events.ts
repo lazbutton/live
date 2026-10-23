@@ -397,11 +397,16 @@ export async function createAgentEvent(
   if (!title) return { ...base, reason: "Titre introuvable" };
   if (!form.date) return { ...base, title, reason: "Date introuvable" };
 
-  // Séances à venir ou en cours (une exposition ouverte jusqu'au 7 mars s'ajoute encore).
+  // Séances à venir ou en cours (une exposition ouverte jusqu'au 7 mars s'ajoute encore), chacune avec son
+  // lien de billetterie quand la page en donne un par séance.
   const today = parisToday();
   const slots = [
-    { date: form.date, end_date: form.end_date || "" },
-    ...(prefill.additionalDates || []).map((slot) => ({ date: slot.date, end_date: slot.end_date || "" })),
+    { date: form.date, end_date: form.end_date || "", external_url: "" },
+    ...(prefill.additionalDates || []).map((slot) => ({
+      date: slot.date,
+      end_date: slot.end_date || "",
+      external_url: (slot.external_url || "").trim(),
+    })),
   ].filter(
     (slot, index, all) =>
       slot.date && (slot.end_date || slot.date).slice(0, 10) >= today && all.findIndex((other) => other.date === slot.date) === index,
@@ -565,6 +570,7 @@ export async function createAgentEvent(
           ...row,
           date: fromDatetimeLocal(slot.date) || slot.date,
           end_date: slot.end_date ? fromDatetimeLocal(slot.end_date) || null : null,
+          external_url: slot.external_url || row.external_url,
         },
       ])
       .select("id")

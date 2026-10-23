@@ -303,6 +303,44 @@ export function checkDateAgainstText(value: string, texts: Array<string | null |
   return { value, warning: `La page annonce « ${undated[0].raw} », qui ne correspond pas au ${label}.` };
 }
 
+/* ------------------------------------------------------------------ */
+/* Ouverture des portes et début                                       */
+/* ------------------------------------------------------------------ */
+
+const CLOCK = "(\\d{1,2})\\s*(?:h|:)\\s*(\\d{2})?(?!\\d)";
+/** « OUVERTURE DES PORTES À 15H », « ouverture des portes : 19h30 ». */
+const DOORS_PATTERN = new RegExp(`ouverture\\s+des\\s+portes\\s*(?:à|a|:|-|dès|des)?\\s*${CLOCK}`, "gi");
+/** « DÉBUT À 15H30 », « DÉBUT DE LA 1ÈRE PARTIE À 21H », « début du concert : 20h30 », « débute à 20h ». */
+const START_PATTERN = new RegExp(
+  `d[ée]but(?:e|era)?(?:\\s+(?:du|de\\s+la|de\\s+l['’]|des|de)\\s+[^,.;:\\n]{1,40}?)?\\s*(?:à|a|:|-)?\\s*${CLOCK}`,
+  "gi",
+);
+
+function clockTimes(texts: Array<string | null | undefined>, pattern: RegExp) {
+  const times = new Set<string>();
+  for (const text of texts) {
+    for (const match of (text || "").matchAll(pattern)) {
+      const [hour, minute] = [Number(match[1]), Number(match[2] ?? 0)];
+      if (hour <= 23 && minute <= 59) times.add(`${pad(hour)}:${pad(minute)}`);
+    }
+  }
+  return times;
+}
+
+/**
+ * Heures d'ouverture des portes et de début écrites dans une page (« OUVERTURE DES PORTES À 20H, DÉBUT DE
+ * LA 1ÈRE PARTIE À 20H30 » → 20:00 et 20:30), au format `HH:mm`. Une heure n'est rendue que si la page
+ * n'en écrit qu'une (plusieurs séances : rien).
+ */
+export function findDoorsAndStart(texts: Array<string | null | undefined>): { doors?: string; start?: string } {
+  const doors = clockTimes(texts, DOORS_PATTERN);
+  const starts = clockTimes(texts, START_PATTERN);
+  return {
+    ...(doors.size === 1 ? { doors: [...doors][0] } : {}),
+    ...(starts.size === 1 ? { start: [...starts][0] } : {}),
+  };
+}
+
 /** Plage de jours dans un titre (« du 19 au 21/11 », « 19-21 novembre ») : rien à comparer. */
 const TITLE_DATE_RANGE = new RegExp(`\\b\\d{1,2}(?:er)?\\s*(?:au|-|–|&|et)\\s*\\d{1,2}(?:er)?\\s*(?:/|${MONTHS})`, "i");
 
