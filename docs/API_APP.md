@@ -319,14 +319,15 @@ aussi ». Migration `20261021220000_create_app_zone.sql` (règle complète en t�
 - **`zone_city`** : l'id ou le slug d'une ville active (`app_cities().slug` ; « orleans » sans rien avoir lu),
   casse et espaces ignorés. Nul ou inconnu : pas de zone, toutes les villes. **`zone_km`** : le rayon ; nul :
   la ville seule.
-- Les fonctions du tableau plus haut la prennent en arguments nommés, à la fin ; l'accueil « Toutes les dates »
-  et « À la une » lisent `app_events_in_zone` à la place d'`app_events()` :
+- Les fonctions du tableau plus haut la prennent en arguments nommés, à la fin. L'accueil « Toutes les dates »
+  et « À la une » lisent `app_events_in_range` depuis la migration `20261024120000` (« « Tout » et la catégorie »
+  plus bas) ; `app_events_in_zone` reste pour les versions de l'app qui la lisent :
 
 | Objet | Appel Dart | Rend |
 | --- | --- | --- |
-| `app_events_in_zone(zone_city, zone_km)` | `rpc('app_events_in_zone', params: …, get: true)` + filtres, `select`, tri | lignes de `events` dans la zone, toutes dates (`setof events`, comme `app_events()`) |
+| `app_events_in_zone(zone_city, zone_km)` | `rpc('app_events_in_zone', params: …, get: true)` + filtres, `select`, tri | lignes de `events` dans la zone, toutes dates (`setof events`, comme `app_events()`), sans retirer les masqués ni les auteurs bloqués : l'accueil des versions précédentes de l'app |
 | `app_major_events_in_zone(zone_city, zone_km)` | `rpc('app_major_events_in_zone', params: …, get: true)` + `eq('status', 'approved')`, `select`, tri | grands événements de la zone : leur ville ou leur centre sur la carte, l'un de leurs lieux ou de leurs événements |
-| `app_zone_counts(zone_city, radii, at_time)` | `rpc('app_zone_counts', params: {'zone_city': …, 'radii': [5, 10, 25, 50]}, get: true)` | une ligne par rayon, dans l'ordre : `radius_km`, `events_count` (à venir comme l'accueil sur « Tout » : à partir d'aujourd'hui, sans `hide_from_home`, sans la fiche d'un festival qui a un programme, migration `20261023170000`) |
+| `app_zone_counts(zone_city, radii, at_time)` | `rpc('app_zone_counts', params: {'zone_city': …, 'radii': [5, 10, 25, 50]}, get: true)` | une ligne par rayon, dans l'ordre : `radius_km`, `events_count` (à venir comme l'accueil sur « Tout » : à partir d'aujourd'hui, ceux d'`app_on_tout`, sans la fiche d'un festival qui a un programme, migrations `20261023170000` et `20261024120000`) |
 | `app_cities(at_time)` | `rpc('app_cities', get: true)` + `select(…)` | les villes qui ont un centre et des événements : `id`, `slug`, `label`, centre, alias, `source_ids`, `upcoming_events_count` (comme `app_zone_counts`), `recent_events_count` (commencés dans les 120 derniers jours), `next_event_date`, `last_event_date` |
 | `app_zone(zone_city, zone_km)`, `app_in_zone(…)`, `app_city_groups()`, `app_distance_km(…)` | aucun | la règle, partagée par les fonctions ci-dessus |
 
@@ -334,6 +335,31 @@ aussi ». Migration `20261021220000_create_app_zone.sql` (règle complète en t�
 adresse prise pour une ville…) ; ses comptes à venir suivent `app_events_in_range` (heure de Paris, sans
 `hide_from_home`) au lieu de leur ancienne fenêtre (minuit UTC, 365 jours). Les versions installées de l'app
 la lisent comme avant (une colonne de plus).
+
+## « Tout » et la catégorie : `app_on_tout`, `events.category`
+
+Les dernières règles de l'accueil en Dart, passées en SQL (migration `20261024120000_app_home_rules.sql`, règle complète
+en tête ; tests `supabase/tests/app_home_rules.test.sql`). « Toutes les dates » et « À la une » lisent
+`app_events_in_range` (en cours de plus de 12 h, masqués, auteurs bloqués, zone : « Règle d'appartenance à une plage »
+plus bas), comme une plage du calendrier.
+
+- **`app_on_tout(events)`** : la règle de « Tout », la première page de l'accueil. Un événement y est s'il n'est pas
+  retiré de l'accueil (`hide_from_home` : « Masquer de l'accueil » dans l'admin ; il reste dans sa catégorie). Une
+  fonction de la ligne, que PostgREST rend comme une colonne calculée, sur `events` comme sur les RPC qui rendent
+  `setof events` :
+  - lue dans le `select` (`select=id,…,app_on_tout`) par une liste partagée entre « Tout » et les catégories (« Toutes
+    les dates », une plage du calendrier) : la page « Tout » garde ceux où elle est vraie ;
+  - filtrée (`app_on_tout=is.true`, `.eq('app_on_tout', true)` en Dart) par une liste de « Tout » seul (« À la une »,
+    la carte du soir sans catégorie) ;
+  - lue par les nombres de « Tout » : `app_event_counts` sans catégorie, `app_zone_counts`, `app_cities`.
+
+  Un `select` qui la nomme échoue (400) sur une base qui n'a pas la migration.
+- **`events.category`** : l'id de sa catégorie. Le trigger `events_normalize_category` remplace à l'écriture un nom de
+  catégorie (casse et espaces ignorés, catégories inactives comprises) par son id : la catégorie d'une demande de l'app
+  arrive en capitales (« CONCERT »). Un texte qui ne désigne aucune catégorie reste tel quel. Le paramètre `category`
+  des fonctions accepte toujours l'id ou le nom.
+- **`app_events_in_range`** : les masqués et les auteurs bloqués en sous-requêtes lues une fois par requête, la
+  catégorie demandée résolue une fois. Mêmes lignes, même signature ; rien n'est plus relu pour chaque événement.
 
 ## Festivals : `events.festival_id`, `festival_locations`, `app_festival_events`
 
@@ -486,11 +512,13 @@ prod) sur une base locale chargée de l'instantané prod : ci-dessous, les compt
   envoient (`CityPreferencesController.effectiveCityIds`), comparés à `events.city_id`, à défaut à la ville du
   lieu. `null` ou `[]` : toutes les villes. Avec une zone en plus, les deux s'appliquent.
 - **Par utilisateur** : avec une session (anonyme comprise), sans les événements qu'il a masqués
-  (`user_hidden_events`) ni ceux des auteurs qu'il a bloqués (`blocked_users`), comme les filtres
-  Dart de l'accueil. Sans session : rien n'est retiré.
+  (`user_hidden_events`) ni ceux des auteurs qu'il a bloqués (`blocked_users`), lus une fois par
+  requête (migration `20261024120000`) ; l'accueil n'a plus ces filtres en Dart. Sans session : rien
+  n'est retiré.
 - **Catégorie** (`category`) : son id ou son nom, sans tenir compte de la casse (« Spectacle »,
-  « SPECTACLE » ou l'uuid). `events.category` contient un id, ou pour quelques lignes anciennes un nom
-  (2 « Concert » en prod) : les deux comptent, comme le filtre de catégorie de l'app. `null` ou vide : Tout.
+  « SPECTACLE » ou l'uuid), lu une fois. `events.category` est l'id de sa catégorie depuis la migration
+  `20261024120000` (« « Tout » et la catégorie » plus bas) ; un texte qui ne désigne aucune catégorie compte
+  par ce texte. `null` ou vide : toutes les catégories (et, pour les comptes, « Tout »).
 
 ### Règle d'appartenance à une plage
 
@@ -504,10 +532,9 @@ Une plage est `[début, fin)`. Un événement en fait partie :
    (« reste affiché toute la journée » : `../live/docs/fonctionnalites/accueil.md`, « La liste »). Ne joue que
    sur la plage du jour.
 
-C'est la liste de l'accueil (requête de `EventService._getApprovedEventsFromNetwork` puis filtre de
-période de `EventsListLogic`), à trois écarts près, assumés : l'app compare la fin à l'instant UTC
-(1 à 2 h trop tôt) ; elle ne filtre que les événements chargés, au plus 200 par plage (limite
-atteinte sur « Tout ») plus son cache ; ces fonctions portent sur toute la base.
+L'accueil de l'app la lit telle quelle : une plage du calendrier, et depuis la migration `20261024120000`
+« Toutes les dates » et « À la une » (avant, ils refaisaient en Dart la règle 2, avec la fin comparée à l'instant
+UTC, 1 à 2 h trop tôt).
 
 ### `app_event_counts` : comptes du calendrier
 
@@ -584,7 +611,8 @@ app_events_in_range(range_start timestamp, range_end timestamp = null, city_ids 
 
 Les lignes de `app_events()` qui appartiennent à `[range_start, range_end)` (fin nulle : sans fin),
 dans le périmètre et la catégorie, sans les événements masqués par l'utilisateur ni les auteurs
-bloqués. Avec `hide_from_home` : sur Tout, l'accueil les filtre lui-même. Comme sur `rpc/app_events` :
+bloqués. Avec `hide_from_home` : la règle de « Tout » est `app_on_tout`, une colonne calculée (« « Tout » et
+la catégorie » plus bas). Comme sur `rpc/app_events` :
 filtres avant `select`, tri et pagination après (PostgREST v13 ne filtre pas une jointure d'un RPC).
 Trié par date, un événement commencé avant la plage (exposition en cours) vient en premier.
 
@@ -595,7 +623,7 @@ var query = supabase.rpc('app_events_in_range', params: {
   'city_ids': cityPreferences.effectiveCityIds,
   'category': selectedCategory,
 });
-if (selectedCategory == null) query = query.eq('hide_from_home', false);
+if (selectedCategory == null) query = query.eq('app_on_tout', true); // « Tout » seul
 // Ceux qui commencent dans la plage seulement (starting_count) :
 // query = query.gte('date', DateTime.utc(start.year, start.month, start.day).toIso8601String());
 final data = await query
@@ -634,7 +662,7 @@ final events = await supabase.rpc('app_events_in_range', params: {
   'range_start': wall(today),
   'city_ids': cityPreferences.effectiveCityIds,
   'free': true,
-}).eq('hide_from_home', false).select(_eventColumns).order('date').range(0, 199);
+}).eq('app_on_tout', true).select(_eventColumns).order('date').range(0, 199);
 ```
 
 ### Vacances scolaires : table `school_holidays`

@@ -40,6 +40,11 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   `20261020181000` appliquée) ; contrat dans `docs/API_APP.md`, tests SQL dans `supabase/tests/`. Genre de prix
   (« Gratuit », prix libre, non renseigné) : colonne générée
   `events.price_kind`, lue par `formatGenericPriceLabel` ; ne pas le recalculer en TS ni en Dart.
+- « Tout », la première page de l'accueil de l'app (`../live/docs/fonctionnalites/accueil.md`, « Règles ») :
+  `app_on_tout(events)`, une colonne calculée pour PostgREST (`select=…,app_on_tout`, filtre `app_on_tout=is.true`),
+  que lisent aussi les nombres de « Tout » ; ne pas refiltrer `hide_from_home` en TS ni en Dart. `events.category`
+  est toujours l'id d'une catégorie (trigger `events_normalize_category`, qui convertit un nom écrit) ; le paramètre
+  `category` des fonctions accepte encore l'id ou le nom.
 - Données d'un invité (session anonyme) recopiées sur le compte qui se connecte : `copy_guest_data()`
   (`security definer`, l'id de la session invitée sert de preuve ; `docs/API_APP.md`).
 - Festivals (`../live/docs/fonctionnalites/festivals.md`) : une fiche de la catégorie Festival ; ses événements y sont rattachés
