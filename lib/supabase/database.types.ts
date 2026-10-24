@@ -492,6 +492,47 @@ export type Database = {
           },
         ]
       }
+      event_genres: {
+        Row: {
+          category_id: string
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          name: string
+          phrase: string
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          phrase: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          phrase?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_genres_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_likes: {
         Row: {
           created_at: string | null
@@ -854,6 +895,8 @@ export type Database = {
           address: string | null
           agenda_types: string[]
           archived: boolean
+          audience: string | null
+          booking: string | null
           capacity: number | null
           category: string
           city_id: string | null
@@ -864,6 +907,7 @@ export type Database = {
           created_by: string | null
           date: string
           description: string | null
+          details_to_confirm: boolean
           door_opening_time: string | null
           end_date: string | null
           end_time: string | null
@@ -872,6 +916,7 @@ export type Database = {
           facebook_url: string | null
           festival_added_at: string | null
           festival_id: string | null
+          genre_ids: string[]
           hide_from_home: boolean
           id: string
           image_card_error: string | null
@@ -889,6 +934,7 @@ export type Database = {
           latitude: number | null
           location_id: string | null
           longitude: number | null
+          min_age: number | null
           presale_price: number | null
           price: number | null
           price_kind: string | null
@@ -908,6 +954,8 @@ export type Database = {
           address?: string | null
           agenda_types?: string[]
           archived?: boolean
+          audience?: string | null
+          booking?: string | null
           capacity?: number | null
           category: string
           city_id?: string | null
@@ -918,6 +966,7 @@ export type Database = {
           created_by?: string | null
           date: string
           description?: string | null
+          details_to_confirm?: boolean
           door_opening_time?: string | null
           end_date?: string | null
           end_time?: string | null
@@ -926,6 +975,7 @@ export type Database = {
           facebook_url?: string | null
           festival_added_at?: string | null
           festival_id?: string | null
+          genre_ids?: string[]
           hide_from_home?: boolean
           id?: string
           image_card_error?: string | null
@@ -943,6 +993,7 @@ export type Database = {
           latitude?: number | null
           location_id?: string | null
           longitude?: number | null
+          min_age?: number | null
           presale_price?: number | null
           price?: number | null
           price_kind?: string | null
@@ -962,6 +1013,8 @@ export type Database = {
           address?: string | null
           agenda_types?: string[]
           archived?: boolean
+          audience?: string | null
+          booking?: string | null
           capacity?: number | null
           category?: string
           city_id?: string | null
@@ -972,6 +1025,7 @@ export type Database = {
           created_by?: string | null
           date?: string
           description?: string | null
+          details_to_confirm?: boolean
           door_opening_time?: string | null
           end_date?: string | null
           end_time?: string | null
@@ -980,6 +1034,7 @@ export type Database = {
           facebook_url?: string | null
           festival_added_at?: string | null
           festival_id?: string | null
+          genre_ids?: string[]
           hide_from_home?: boolean
           id?: string
           image_card_error?: string | null
@@ -997,6 +1052,7 @@ export type Database = {
           latitude?: number | null
           location_id?: string | null
           longitude?: number | null
+          min_age?: number | null
           presale_price?: number | null
           price?: number | null
           price_kind?: string | null
@@ -2759,6 +2815,8 @@ export type Database = {
           address: string | null
           agenda_types: string[]
           archived: boolean
+          audience: string | null
+          booking: string | null
           capacity: number | null
           category: string
           city_id: string | null
@@ -2769,6 +2827,7 @@ export type Database = {
           created_by: string | null
           date: string
           description: string | null
+          details_to_confirm: boolean
           door_opening_time: string | null
           end_date: string | null
           end_time: string | null
@@ -2777,6 +2836,7 @@ export type Database = {
           facebook_url: string | null
           festival_added_at: string | null
           festival_id: string | null
+          genre_ids: string[]
           hide_from_home: boolean
           id: string
           image_card_error: string | null
@@ -2794,6 +2854,7 @@ export type Database = {
           latitude: number | null
           location_id: string | null
           longitude: number | null
+          min_age: number | null
           presale_price: number | null
           price: number | null
           price_kind: string | null
@@ -2833,6 +2894,8 @@ export type Database = {
           address: string | null
           agenda_types: string[]
           archived: boolean
+          audience: string | null
+          booking: string | null
           capacity: number | null
           category: string
           city_id: string | null
@@ -2843,6 +2906,7 @@ export type Database = {
           created_by: string | null
           date: string
           description: string | null
+          details_to_confirm: boolean
           door_opening_time: string | null
           end_date: string | null
           end_time: string | null
@@ -2851,6 +2915,7 @@ export type Database = {
           facebook_url: string | null
           festival_added_at: string | null
           festival_id: string | null
+          genre_ids: string[]
           hide_from_home: boolean
           id: string
           image_card_error: string | null
@@ -2868,6 +2933,7 @@ export type Database = {
           latitude: number | null
           location_id: string | null
           longitude: number | null
+          min_age: number | null
           presale_price: number | null
           price: number | null
           price_kind: string | null
@@ -2896,6 +2962,8 @@ export type Database = {
           address: string | null
           agenda_types: string[]
           archived: boolean
+          audience: string | null
+          booking: string | null
           capacity: number | null
           category: string
           city_id: string | null
@@ -2906,6 +2974,7 @@ export type Database = {
           created_by: string | null
           date: string
           description: string | null
+          details_to_confirm: boolean
           door_opening_time: string | null
           end_date: string | null
           end_time: string | null
@@ -2914,6 +2983,7 @@ export type Database = {
           facebook_url: string | null
           festival_added_at: string | null
           festival_id: string | null
+          genre_ids: string[]
           hide_from_home: boolean
           id: string
           image_card_error: string | null
@@ -2931,6 +3001,7 @@ export type Database = {
           latitude: number | null
           location_id: string | null
           longitude: number | null
+          min_age: number | null
           presale_price: number | null
           price: number | null
           price_kind: string | null

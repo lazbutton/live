@@ -45,6 +45,12 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   que lisent aussi les nombres de « Tout » ; ne pas refiltrer `hide_from_home` en TS ni en Dart. `events.category`
   est toujours l'id d'une catégorie (trigger `events_normalize_category`, qui convertit un nom écrit) ; le paramètre
   `category` des fonctions accepte encore l'id ou le nom.
+- Genre, pour qui, réservation d'un événement (`../live/docs/chantiers/pour-toi.md`, « Des fiches plus riches ») : des
+  listes fermées, `events.genre_ids` (`event_genres` de sa catégorie, tenus dans Réglages), `audience`, `min_age`,
+  `booking` ; valeurs et libellés dans `lib/events/event-details.ts`. Le trigger `events_sync_details` garde les genres
+  de la catégorie et recalcule `is_young_audience` depuis `audience` (`family`, `teens`) : ne pas le recalculer en TS.
+  La collecte les remplit quand la source les dit (rien n'est deviné), « lus, à confirmer » (`details_to_confirm`) ;
+  ce qui manque ou attend : « Fiches à compléter » (`/admin/fiches`).
 - « Pour toi », la page de ce qui te plaît (`../live/docs/chantiers/pour-toi.md`) : les goûts dans `app_interests`
   (tenus ici, sans nouvelle version de l'app), les choix dans `user_interests` ; un goût prend un événement par
   `app_interest_ids(events)` (colonne calculée ; le jeune public seulement par « En famille »), la page par `for_me`
