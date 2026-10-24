@@ -86,11 +86,14 @@ Ce que font les crons aujourd'hui (`lib/notifications/digest.ts`, contrat des do
 « Résumés poussés ») :
 
 - passe `daily` : les evenements de ce soir (18 h a 6 h, heure de Paris, comme « Ce soir » dans l'app) ;
-  s'il n'y en a aucun dans les categories de l'utilisateur, ceux de la journee ; sinon rien
+  s'il n'y en a aucun pour l'utilisateur, ceux de la journee ; sinon rien
 - passe `weekly` : du lundi au dimanche
-- les evenements sont ceux de l'accueil de l'app (`app_events_in_range`), sans les complets ni ceux retires
-  de l'accueil, comptes quand ils commencent dans la fenetre
-- message : « 3 événements ce soir dans tes catégories », puis les deux premiers titres
+- les evenements sont ceux de l'accueil de l'app (`app_events_in_range`), sans les complets, comptes quand ils
+  commencent dans la fenetre ; les dates d'un meme spectacle (`app_event_series`) font une carte
+- qui a choisi des gouts (« Pour toi ») : ce qui est pour lui (`app_digest_for_me`, la regle de la page, en SQL) ;
+  les autres : leurs categories, parmi les evenements de « Tout » (`app_on_tout`)
+- message : « 3 événements ce soir » (« … pour toi » avec des gouts), puis les deux premieres cartes (« Le Dîner de
+  Condé (4 dates) »)
 - heure d'envoi : celle de `vercel.json` (08:00 UTC) ; `notification_settings.notification_time` n'est pas
   lu par les crons
 
@@ -100,7 +103,8 @@ Pour chaque passe d'envoi :
 
 - ne garder que les evenements a venir
 - exclure les evenements deja termines
-- ne garder que les evenements appartenant aux categories suivies par l'utilisateur
+- avec des gouts : ne garder que ce qui est pour lui (`app_digest_for_me`) ; sinon, les evenements de « Tout »
+  appartenant aux categories suivies par l'utilisateur
 - ne pas envoyer un evenement hors fenetre de la passe concernee
 - agreger les evenements d'un meme utilisateur dans un seul envoi par passe
 
@@ -110,7 +114,8 @@ Le backend ou l'admin doivent raisonner ainsi :
 
 - une passe `daily` ne regarde que les utilisateurs `daily`
 - une passe `weekly` ne regarde que les utilisateurs `weekly`
-- un utilisateur sans categorie suivie ne doit rien recevoir
+- un utilisateur sans gout ni categorie suivie ne doit rien recevoir ; avec des gouts, ses categories ne comptent
+  plus
 - un utilisateur sans token push ne doit rien recevoir
 - un utilisateur desactive globalement ne doit rien recevoir
 

@@ -1355,15 +1355,25 @@ final response = await http.post(
 ## Résumés poussés : `daily-events` et `weekly-summary`
 
 Les crons (`app/api/cron/notifications/`, `lib/notifications/digest.ts`) envoient un message par
-utilisateur et par passe, sur ses catégories (`user_notification_preferences`, fréquence `daily` ou
-`weekly`). Les événements sont ceux de l'accueil de l'app : `app_events_in_range` (heure de Paris, pas
-terminés), sans les complets ni `hide_from_home`, comptés quand ils commencent dans la plage (une
-exposition de plusieurs mois ne fait pas un message chaque soir).
+utilisateur et par passe (`user_notification_preferences`, fréquence `daily` ou `weekly`). Les événements sont
+ceux de l'accueil de l'app : `app_events_in_range` (heure de Paris, pas terminés), sans les complets, comptés quand
+ils commencent dans la plage (une exposition de plusieurs mois ne fait pas un message chaque soir) ; les dates d'un
+même spectacle (`app_event_series`) font une carte, comptée une fois, comme sur l'accueil.
+
+- **Qui a choisi des goûts** (« Pour toi », migration `20261024210000_pour_toi_digests.sql`) reçoit ce qui est pour
+  lui : `app_digest_for_me(range_start, range_end, at_time)` (service seulement), la règle de la page (goûts et
+  suivis), sans ses masqués ni les auteurs qu'il a bloqués, et comme la page sans la règle de « Tout ». Des goûts sans
+  rien dans la plage : pas de message (pas le résumé de ses catégories à la place).
+- **Sans goût**, comme avant : ses catégories (`category_ids`, à défaut `user_notification_categories` ; aucune :
+  rien) parmi les événements de « Tout » (`app_on_tout`).
 
 | Passe | Plage | Titre | Corps |
 | --- | --- | --- | --- |
-| chaque matin (`daily`) | ce soir, de 18 h à 6 h (« Ce soir » de l'app) ; rien ce soir : la journée | « 3 événements ce soir dans tes catégories » ; « 2 événements aujourd’hui… » | les deux premiers titres, puis « et 1 autre » |
-| le lundi (`weekly`) | du lundi au dimanche | « 12 événements cette semaine dans tes catégories » | idem |
+| chaque matin (`daily`) | ce soir, de 18 h à 6 h (« Ce soir » de l'app) ; rien ce soir : la journée | « 3 événements ce soir » ; « 2 événements aujourd’hui » ; avec des goûts : « 3 événements ce soir pour toi » | les deux premières cartes, puis « et 1 autre » ; une série : « Le Dîner de Condé (4 dates) » |
+| le lundi (`weekly`) | du lundi au dimanche | « 12 événements cette semaine » ; « 7 événements cette semaine pour toi » | idem |
+
+Jusqu'au 2026-10-24, les titres finissaient par « dans tes catégories » et comptaient chaque date. L'aperçu « Tu
+recevras » de l'app reprend ces titres.
 
 Rien dans la plage, pas de message. Ni nom, ni e-mail, ni donnée personnelle. Envoi : 08:00 UTC
 (`vercel.json`, à l'heure près sur Hobby), soit 10 h l'été et 9 h l'hiver à Paris.
@@ -1377,13 +1387,19 @@ JSON, à la racine du message à côté de `aps`.
 | `type` | `daily_events` | `weekly_summary` |
 | `period` | `tonight` ou `today` | `week` |
 | `date` / `start_date`, `end_date` | `date` : le jour (`2026-10-21`) | le lundi et le dimanche |
-| `categories` | ids des catégories des événements envoyés | idem |
+| `categories` | ids des catégories des événements envoyés ; vide pour « Pour toi » | idem |
 | `event_ids` | les 10 premiers, par date | idem |
-| `events_count` | le nombre d'événements du message | idem |
+| `events_count` | le nombre d'événements (de dates) du message | idem |
+| `for_me` | `true` pour « Pour toi » (`"true"` sur Android), absent sinon : l'app ouvre « Pour toi » sur la période | idem |
 
 Les versions de l'app d'avant le 2026-10-21 n'ouvrent rien de particulier au toucher (l'app s'ouvre
 là où elle était) : ces champs ne lui servent pas, et aucun n'a été retiré sauf `days_count` (hebdo,
-jamais lu).
+jamais lu). Celles d'avant « Pour toi » ignorent `for_me` et ouvrent « Tout » sur la période (`categories` vide).
+
+**Les catégories cochées deviennent des goûts** (choix 6 de la fiche), une fois, le jour de la sortie de la version
+de l'app qui a « Pour toi » : `select * from app_interests_from_categories(false)` montre ce qui serait écrit,
+`app_interests_from_categories(true)` l'écrit (service seulement). Seulement un choix (toutes les catégories
+actives, c'est le défaut de l'app) et pour qui n'a pas encore de goût ; Spectacle devient Théâtre, Humour et Cirque.
 
 ## Suivis : `user_follows`, `app_follows`, notification `follows-digest`
 

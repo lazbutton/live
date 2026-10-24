@@ -56,7 +56,8 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   `app_interest_ids(events)` (colonne calculée ; le jeune public seulement par « En famille »), la page par `for_me`
   d'`app_events_in_range` et d'`app_event_counts` (`app_is_for_me` : un goût choisi, ou un suivi), les bulles par
   `app_interest_counts`. Rien de cela ne se refait en TS ni en Dart ; les résumés de notification passent par
-  `app_for_me_profile_of`.
+  `app_digest_for_me` (qui a des goûts reçoit « … pour toi »), et les dates d'une série y font une carte
+  (`app_event_series`).
 - Attribution publique d'une proposition (« Proposé par … ») : `events.community_contributor_label` ne vient que de
   `public_contributor_label()`, jamais d'une adresse e-mail (contrainte `events_community_contributor_label_not_email`) ;
   l'auteur d'une demande sans nom se reconnaît par l'e-mail de son compte (`get_user_emails`), jamais public.
