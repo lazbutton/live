@@ -1430,4 +1430,21 @@
   utilisateurs, les comptes de « Tout », de « Pour toi » et des autres, les bulles et leur seuil, la zone, un goût
   inactif, la RLS et les droits, la recopie invité → compte, les compteurs) ; 15 règles cassées une à une, chacune
   attrapée. Les 34 fichiers de `supabase/tests/` passent (Postgres 17 local en ICU, comme la prod).
-- **Pas encore appliquée en prod** (attendre l'accord ; essai à blanc d'abord). Retour arrière : en fin de migration.
+- Essai à blanc en prod le 2026-10-24 vers 8 h (accord de l'utilisateur, transaction annulée) : empreintes de départ
+  conformes (`app_audience_add` 2655acba : la migration de « Suivre une émission » n'était pas en prod), migration
+  sans erreur, mêmes nombres avant et après en anon (« Tout » 7 jours 17/17, 350 à venir dont 2 hors « Tout »,
+  48 concerts, zones 328/347/347/347), les douze goûts posés avec leurs catégories et tags, aucune ligne pour toi sans
+  session. Bulles d'aujourd'hui (Orléans · 25 km) : Concerts 48, DJ sets et électro 11, Théâtre 80, Humour 50,
+  Cirque 30, Danse 57, Cinéma 8, Ateliers 43, En famille 56 ; les cinq personnes de la fiche sur les quatre semaines
+  suivantes : Inès 33, Julien 6, Monique 24, Lucas 20, Camille 31. Sauvegarde des quatre fonctions d'avant et retour
+  arrière (testé en local : empreintes d'avant retrouvées, les autres tests passent) :
+  `~/Documents/Backups/outlive/pour-toi-2026-10-24/`.
+- **Appliquée en prod le 2026-10-24 à 8 h 13 (heure de Paris)**, avec l'accord de l'utilisateur : psql
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de cette PR (sha256 `af6c866d9b5c4a13…`),
+  sans erreur. Vérifié : les empreintes d'après (`app_events_in_range` 78383a47, `app_event_counts` 9a653e81,
+  `app_interest_ids` e79be31c…) ; par l'API publique, l'appel des versions installées de l'app en 200 et « Tout »
+  inchangé (17 sur 7 jours), `app_interests` lisible, `app_interest_counts` (les neuf bulles ci-dessus),
+  `user_interests` refusé à anon (401), `app_interest_ids` sur les cartes ; 200 cartes du `select` de l'app : 62 ms
+  (médiane de 10, temps du serveur), 70 ms avec `app_interest_ids`.
+- À surveiller : si `20261024150000` (« Suivre une émission ») est appliquée après celle-ci sans les trois compteurs de
+  « Pour toi », elle les retire d'`app_audience_add` (sa session est prévenue).
