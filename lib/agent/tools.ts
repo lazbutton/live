@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { EVENT_AUDIENCE_VALUES, EVENT_BOOKING_VALUES } from "@/lib/events/event-details";
 import { normalizeSearchValue, resolveLocationFromImportedData } from "@/lib/events/import-prefill";
 import type { AgendaUnreadableReason } from "@/lib/scraping/agenda";
 import { scanAgendaPage } from "@/lib/scraping/agenda-scan";
@@ -291,7 +292,35 @@ const createEvent = defineTool({
       .optional()
       .describe(
         "Jeune public : pensé pour les enfants ou les familles (conte, spectacle « dès 3 ans », atelier 7-10 ans, " +
-          "boum). Repéré aussi d'après le titre et la description.",
+          "boum). Repéré aussi d'après le titre et la description. Remplacé par `audience` quand il est donné.",
+      ),
+    genres: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Genres, seulement s'ils se lisent dans le texte : leurs noms dans la liste de la catégorie (search, type " +
+          "« genre »). Un nom hors de la liste n'est pas repris (`genres_unmatched`).",
+      ),
+    audience: z
+      .enum(EVENT_AUDIENCE_VALUES)
+      .optional()
+      .describe(
+        "Pour qui, seulement si le texte le dit : all (tout public, même avec un âge minimum), family (jeune public, " +
+          "en famille, pour les enfants), teens (ados), adults (public adulte).",
+      ),
+    min_age: z
+      .number()
+      .int()
+      .min(1)
+      .max(18)
+      .optional()
+      .describe("Âge minimum annoncé, en années (« dès 6 ans » : 6 ; « à partir de 18 mois » : 2)."),
+    booking: z
+      .enum(EVENT_BOOKING_VALUES)
+      .optional()
+      .describe(
+        "Réservation, seulement si le texte le dit : none (sans réservation), reservation (sur réservation ou " +
+          "inscription), online (billets vendus en ligne).",
       ),
     door_opening_time: z.string().regex(/^\d{2}:\d{2}$/).optional().describe("Ouverture des portes (HH:mm)."),
     festival: z
@@ -398,9 +427,10 @@ const search = defineTool({
   name: "search",
   title: "Chercher dans l'admin",
   description:
-    "Cherche des lieux (avec leurs salles), organisateurs, artistes, catégories ou tags par nom (sans accents ni casse).",
+    "Cherche des lieux (avec leurs salles), organisateurs, artistes, catégories, genres (avec leur catégorie) ou tags " +
+    "par nom (sans accents ni casse).",
   input: z.object({
-    type: z.enum(["location", "organizer", "artist", "category", "tag"]),
+    type: z.enum(["location", "organizer", "artist", "category", "genre", "tag"]),
     query: z.string().optional().describe("Texte à chercher ; vide = les premiers par ordre alphabétique."),
     limit: z.number().int().min(1).max(50).default(10),
   }),
@@ -419,6 +449,13 @@ const search = defineTool({
       organizer: references.organizers.map((organizer) => ({ id: organizer.id, name: organizer.name, type: organizer.type })),
       artist: references.artists.map((artist) => ({ id: artist.id, name: artist.name })),
       category: references.categories.map((category) => ({ id: category.id, name: category.name })),
+      genre: references.genres
+        .filter((genre) => genre.is_active)
+        .map((genre) => ({
+          id: genre.id,
+          name: genre.name,
+          category: references.categories.find((category) => category.id === genre.category_id)?.name ?? null,
+        })),
       tag: references.tags.map((tag) => ({ id: tag.id, name: tag.name })),
     };
     const query = normalizeSearchValue(args.query || "");

@@ -374,6 +374,120 @@ plus bas), comme une plage du calendrier.
 - **`app_events_in_range`** : les masqués et les auteurs bloqués en sous-requêtes lues une fois par requête, la
   catégorie demandée résolue une fois. Mêmes lignes, même signature ; rien n'est plus relu pour chaque événement.
 
+## La fiche : genre, public, réservation (`events.genre_ids`, `audience`, `min_age`, `booking`)
+
+Étape 1 de « Pour toi » (`../live/docs/chantiers/pour-toi.md`, « Des fiches plus riches » et « live-admin : les
+fiches »), migration `20261024170000_event_genres_audience_booking.sql`, tests
+`supabase/tests/event_details.test.sql`. Des listes fermées, jamais du texte libre ; null (vide pour `genre_ids`) : la
+fiche ne le dit pas, et rien n'est deviné.
+
+| Colonne | Type | Valeurs |
+| --- | --- | --- |
+| `genre_ids` | `uuid[]`, jamais null | les genres de l'événement, ids d'`event_genres` de sa catégorie ; vide par défaut |
+| `audience` | texte ou `null` | `all` (« Tout public »), `family` (« En famille »), `teens` (« Ados »), `adults` (« Adultes ») |
+| `min_age` | entier ou `null` | âge minimum annoncé, de 1 à 18 ans (« dès 18 mois » : 2) |
+| `booking` | texte ou `null` | `none` (« Sans réservation »), `reservation` (« Sur réservation »), `online` (« Billetterie en ligne ») |
+| `details_to_confirm` | booléen | lus par la collecte, pas encore confirmés dans le back-office ; pas pour l'app |
+
+- **`event_genres`** (`id`, `category_id`, `name`, `phrase`, `display_order`, `is_active`) : une liste par catégorie,
+  tenue dans le back-office (Réglages, « Genres »). `phrase` dit le genre dans une phrase (« le jazz », « l'humour »,
+  apostrophe droite : l'app la rend typographique). Lisible par tous (les actifs ; les admins voient aussi les autres),
+  écrite par les admins. Au départ : Spectacle (Théâtre, Humour, Impro, Cirque, Marionnettes, Magie, Conte), Concert
+  (Rock, Jazz, Rap et hip-hop, Électro, Classique, Chanson, Pop, Musiques du monde), Danse (Contemporaine, Hip-hop,
+  Classique, Traditionnelle), Atelier (Arts plastiques, Textile, Cuisine, Écriture, Musique, Numérique), Cinéma
+  (Documentaire, Fiction, Animation, Courts métrages).
+- **Le trigger `events_sync_details`**, à l'écriture : `genre_ids` ne garde que les genres de la catégorie de
+  l'événement (inactifs compris), chacun une fois, dans l'ordre de la liste ; changer de catégorie retire ceux de
+  l'ancienne. Un genre supprimé, ou rangé dans une autre catégorie, quitte les événements (`event_genres_forget`).
+- **`is_young_audience`** reste, recalculé depuis `audience` quand elle est connue : vrai pour `family` et `teens`,
+  faux pour `all` et `adults` (un « tout public dès 6 ans » n'est pas du jeune public). Sans `audience`, il reste tel
+  qu'écrit. « En famille » (U5, paramètre `family`) le lit toujours, comme les versions installées de l'app ; ni l'app
+  ni l'admin ne le recalculent.
+- L'app lit `audience`, `min_age` et `booking` dans la fiche (`EventSelects.detail`) pour sa ligne de repères
+  (« Dès 6 ans · Sans réservation », `../live/docs/fonctionnalites/fiche.md`, « Le haut »), sur `events` par id. Un
+  `select` qui les nomme échoue (400) sur une base qui n'a pas la migration : la version de l'app qui les lit sort
+  après elle. `app_events()` et les fonctions qui rendent `setof events` les portent aussi ; aucune ne filtre dessus.
+- Écrits par le formulaire d'un événement du back-office (« Genre, public et réservation »), et par la collecte quand la
+  source les dit : la lecture des pages par IA (`scrape-event-page.ts`, avec les genres de chaque catégorie dans sa
+  consigne), l'outil `create_event` de l'agent, l'agenda On sort ! (catégorie Jeune public, âge de l'agenda,
+  conditions et inscription) et les imports du back-office. Ce qu'une source a dit arrive « lu, à confirmer »
+  (`details_to_confirm`) : le formulaire le signale, la vue « Fiches à compléter » (`/admin/fiches`) liste les
+  événements à venir sans genre, sans public, sans réservation ou à confirmer, les plus proches d'abord. La reprise des
+  fiches déjà en base est l'étape 3.
+
+## « Pour toi » : `app_interests`, `user_interests`, `app_interest_ids`, `for_me`, `app_interest_counts`
+
+Une page de l'accueil qui ne montre que ce qui te plaît, « Tout » juste à côté (`../live/docs/chantiers/pour-toi.md`).
+Migration `20261024190000_create_pour_toi.sql` (règle complète en tête), tests `supabase/tests/pour_toi.test.sql`. La
+règle est ici, une fois : l'app passe `for_me`, ne compare ni catégorie ni tag.
+
+- **`app_interests`** : les goûts, les bulles de l'app. `id`, `slug` (clé stable : `concerts`, `humour`, `en-famille`…),
+  `name` (« Humour »), `phrase` (« l'humour » : « Ajouter l'humour à Pour toi », « Tu aimes l'humour ? »), `icon_svg`
+  (SVG 24 × 24 en `currentColor`, comme `categories.icon_svg`), `display_order`, `category_ids`, `tag_ids`, `family`
+  (« En famille »), `is_active`. Lisibles par tous, actifs ou non (l'app lit `is_active=eq.true`) ; écrits par les
+  admins. Les douze de la fiche, posés par la migration : Concerts (catégorie Concert), DJ sets et électro (DJ Set,
+  tag Electro), Théâtre (tag Théâtre), Humour (tag Humour), Cirque (tags Cirque, Acrobaties), Danse (catégorie et tag
+  Danse), Cinéma, Expos, Ateliers (leurs catégories), Rencontres (Rencontre, tag Conférence), Festivals, En famille.
+- **`user_interests`** (`user_id`, `interest_id`, `created_at`) : les goûts choisis. Chacun ne lit, n'ajoute et ne
+  retire que les siens (rôle authenticated, invités compris) ; pas de mise à jour ; rien pour anon. Recopiés au compte
+  par `copy_guest_data`.
+- **`app_interest_ids(events) → uuid[]`**, une colonne calculée (`select=…,app_interest_ids`, sur `events` comme sur
+  les RPC qui rendent `setof events`) : les goûts actifs qui prennent l'événement, dans l'ordre des bulles. Le jeune
+  public (`is_young_audience` ou le tag « Jeune Public », la règle d'« En famille ») n'est pris que par « En famille » ;
+  les autres goûts prennent leurs catégories (`events.category`, l'id de la sienne) ou un de leurs tags. Indépendante de
+  l'utilisateur : l'app la croise avec ses goûts choisis (le menu d'une carte : « Ajouter l'humour à Pour toi » pour le
+  premier goût non choisi, « Retirer le cirque de Pour toi » pour le premier choisi).
+- **« Pour toi »** (`app_is_for_me`) : un des goûts choisis prend l'événement, ou un lieu, un organisateur ou un artiste
+  suivi le propose (`user_follows` : `location`, le lieu de l'événement ou un lieu qui l'organise ; `organizer` ;
+  `artist` ; comme `app_follows`). Sans session, sans goût ni suivi : rien.
+- **`for_me`**, paramètre d'`app_events_in_range` et d'`app_event_counts`, nul par défaut (comme avant) : `true`, ce qui
+  est pour l'appelant ; `false`, ce qui ne l'est pas. Les nombres de « Pour toi » (`for_me => true`) se comptent comme
+  une page de catégorie (chaque événement, sans la règle de « Tout ») ; avec `for_me => false` et sans catégorie, ce
+  sont **les autres de « Tout »** : sa règle (`app_on_tout`, un festival qui a un programme compte par ses
+  événements), moins ce qui est pour toi (« 5 autres événements dans “Tout” »). Les fonctions ont été supprimées puis
+  recréées avec ce paramètre (deux du même nom : PGRST203) ; les appels sans lui ne changent pas.
+- **`app_interest_counts(zone_city text = null, zone_km numeric = null, at_time timestamp = null)`** →
+  `(interest_id uuid, events_count integer, chosen boolean)`, dans l'ordre des bulles : pour chaque goût actif, ses
+  événements à venir de la zone (à partir d'aujourd'hui 0 h, heure de Paris, pas terminés, sans les masqués ni les
+  auteurs bloqués de l'appelant), comptés par `app_interest_ids`, et s'il est choisi. Seulement les goûts à 5 événements
+  ou plus, et ceux que l'appelant a choisis, même sous 5 (choix 13 de la fiche).
+- `app_for_me_profile_of(uuid)` (service seulement) et `app_for_me_profile()` (l'appelant ; `security definer`, pour
+  qu'un appel anonyme d'`app_events_in_range` n'ait pas à lire `user_interests` ni `user_follows`) : le profil lu par la
+  règle, une fois par requête. Les résumés de notification passeront par `app_for_me_profile_of`.
+
+Vérifié sur la lecture de la prod des maquettes (vendredi 23 octobre 18 h, Orléans · 25 km, 353 événements) : les
+douze bulles (Concerts 48… En famille 56) et les quatre semaines des personnes de la fiche (Inès 32, Julien 8,
+Monique 23, Lucas 17, Camille 31) sont ceux des planches validées. Temps en local sur ces 353 événements : « Pour toi »
+3 ms de plus que sans `for_me`, `app_interest_ids` 2 ms pour 200 cartes.
+
+```dart
+// La page « Pour toi » : comme une page de catégorie, par le chemin des plages.
+final events = await supabase.rpc('app_events_in_range', params: {
+  'range_start': wall(start),
+  'range_end': wall(end),
+  ...zone.params,
+  'for_me': true,
+}).select('$_cardColumns, app_interest_ids').order('date').range(0, 199);
+
+// « 5 autres événements dans “Tout” » sous une liste courte.
+final rows = await supabase.rpc('app_event_counts', params: {
+  'ranges': [{'start': wall(start), 'end': wall(end)}],
+  ...zone.params,
+  'for_me': false,
+}) as List<dynamic>;
+
+// Les bulles.
+final bubbles = await supabase.rpc('app_interest_counts', params: zone.params) as List<dynamic>;
+// [{"interest_id": "…", "events_count": 48, "chosen": true}, …]
+
+// Choisir un goût (après ensureSession), le retirer.
+await supabase.from('user_interests').insert({'user_id': userId, 'interest_id': id});
+await supabase.from('user_interests').delete().eq('user_id', userId).eq('interest_id', id);
+```
+
+Un `select` qui nomme `app_interest_ids`, un appel avec `for_me` ou d'`app_interest_counts` échouent sur une base qui
+n'a pas la migration : une version de l'app qui les lit sort après elle.
+
 ## Festivals : `events.festival_id`, `festival_locations`, `app_festival_events`
 
 Décision du 2026-10-23 (`../live/docs/fonctionnalites/festivals.md`, « Règles », « Données et code » et
@@ -1153,13 +1267,14 @@ version afficherait alors 0 favori, ou 1). L'app ne lit plus que ses propres lig
 ```sql
 copy_guest_data(guest_session_id uuid)
   returns table (likes integer, hidden_events integer, notification_preferences integer,
-                 notification_categories integer, follows integer)
+                 notification_categories integer, follows integer, interests integer)
 ```
 
 L'app ouvre une session anonyme par installation. Quand la personne se connecte ou crée un compte,
 `AuthCoordinator` (app) appelle cette fonction avec le jeton du compte : elle recopie sur lui les favoris
-(`event_likes`), les événements masqués (`user_hidden_events`) et les suivis (`user_follows`, avec leur
-date ; depuis `20261021141000`) de l'invité, sans doublons, et ses préférences de notification
+(`event_likes`), les événements masqués (`user_hidden_events`), les suivis (`user_follows`, avec leur
+date ; depuis `20261021141000`) et les goûts de « Pour toi » (`user_interests`, avec leur date ; depuis
+`20261024190000`) de l'invité, sans doublons, et ses préférences de notification
 (`user_notification_preferences`, `follows_enabled` compris, et `user_notification_categories`) si le
 compte n'en a pas encore. L'invité garde les siennes ; rejouer l'appel n'ajoute rien. Rend une ligne : le
 nombre de lignes ajoutées par table.
@@ -1180,8 +1295,9 @@ final rows = await supabase.rpc(
 // [{"likes":2,"hidden_events":1,"notification_preferences":1,"notification_categories":1,"follows":2}]
 ```
 
-`follows` est arrivé avec les suivis (la fonction a été recréée) : une version de l'app qui ne le lit pas
-l'ignore ; une version qui le lit doit accepter son absence (base pas encore migrée).
+`follows` est arrivé avec les suivis, `interests` avec « Pour toi » (la fonction a été recréée chaque fois) :
+une version de l'app qui ne les lit pas les ignore ; une version qui les lit doit accepter leur absence (base
+pas encore migrée).
 
 ## Mesure d'audience : `app_audience_add`, sans identité
 
@@ -1202,7 +1318,11 @@ la migration `20261023142000_add_radio_audience_metrics.sql` `radio_live_play` (
 et `radio_episode_play` (un épisode lancé), depuis `20261023180000_add_festival_audience_metric.sql`
 `festival_opened` (la page d'un festival s'ouvre : la fiche d'un festival qui a un programme ; elle compte aussi
 dans `event_opened`). En prod depuis le 2026-10-23 à 16:24, ces huit compteurs sont acceptés, ceux de la radio
-compris (la migration de la radio n'y est pas encore, la liste est la même). Un appel par journée :
+compris (la migration de la radio n'y est pas encore, la liste est la même). Depuis
+`20261024190000_create_pour_toi.sql`, ceux de « Pour toi » : `for_me_opened` (la page ouverte), `interests_changed`
+(un goût choisi ou retiré), `for_me_to_all` (« Voir dans Tout » touché depuis « Pour toi ») ; sa liste reprend
+`radio_show_follow` et `radio_followed_play` (« Suivre une émission »), pour qu'aucun ordre d'application ne retire
+les clés de l'autre. Un appel par journée :
 `{"day": "2026-10-20", "counts": {"event_opened": 3, "event_liked": 1}}`.
 
 - **Sans identité** : l'app appelle avec la clé publique seule (`apikey` et `Authorization: Bearer <clé anon>`),

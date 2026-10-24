@@ -30,6 +30,9 @@ type AdminEventColumns = Pick<
   | "facebook_url"
   | "scraping_url"
   | "image_url"
+  | "audience"
+  | "min_age"
+  | "booking"
 >;
 
 // Le reste dépend des requêtes (colonnes pas toujours lues, relations jointes) ;
@@ -42,6 +45,10 @@ export type AdminEvent = AdminEventColumns & {
   is_young_audience?: boolean | null;
   agenda_types?: string[] | null;
   tag_ids?: string[];
+  /** Genres de l'événement (event_genres de sa catégorie). */
+  genre_ids?: string[];
+  /** Genre, public ou réservation lus par la collecte, pas encore confirmés. */
+  details_to_confirm?: boolean;
   archived?: boolean;
   created_at?: string;
   /** Le festival dont l'événement fait partie (`events.festival_id`). */
@@ -125,6 +132,12 @@ export type EventFormData = {
   hide_from_home: boolean;
   show_on_app: boolean;
   is_young_audience: boolean;
+  /** Pour qui : `all`, `family`, `teens`, `adults`, ou "" (pas précisé). */
+  audience: string;
+  /** Âge minimum saisi (« 6 ») ; "" : pas d'âge annoncé. */
+  min_age: string;
+  /** Réservation : `none`, `reservation`, `online`, ou "" (pas précisée). */
+  booking: string;
   agenda_types: string[];
   major_event_id: string;
   /** « Fait partie du festival » : l'id du festival, ou "". */
@@ -136,6 +149,10 @@ export type EventFormPrefill = Partial<{
   organizerIds: string[];
   artistIds: string[];
   tagIds: string[];
+  /** Genres reconnus (event_genres de la catégorie). */
+  genreIds: string[];
+  /** Genre, public ou réservation lus par la collecte : « lus, à confirmer » (events.details_to_confirm). */
+  detailsToConfirm: boolean;
   /**
    * Autres séances (format datetime-local) : un événement par date à l'enregistrement, avec le lien de
    * billetterie de la séance quand la page en donne un par séance.

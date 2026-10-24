@@ -1,3 +1,4 @@
+import { toMinAge, type EventBooking } from "@/lib/events/event-details";
 import { normalizeName } from "@/lib/events/import-prefill";
 import { isYoungAudience } from "@/lib/events/young-audience";
 
@@ -54,6 +55,8 @@ export type OnSortEvent = {
   status?: number | null;
   /** 1 sur place, 2 en ligne, 3 les deux. */
   attendanceMode?: number | null;
+  /** Âges du public annoncés par l'agenda (`{ min: 7, max: 99 }`), souvent vides. */
+  age?: { min?: number | null; max?: number | null } | null;
   "categorie-principale"?: number[] | null;
   /** Sous-catégories, rangées par catégorie : `musique: [50, 54]`, `spectacle: [63]`… */
   [field: string]: unknown;
@@ -609,6 +612,26 @@ export function readOnSortPrice(
   return {};
 }
 
+/**
+ * Réservation dite par la fiche : « sans réservation » dans les conditions, ou une réservation, une inscription
+ * (« sur inscription », « réservation conseillée », « inscription à l'Office de Tourisme ») ; sinon le moyen
+ * d'inscription donné : un lien (billets en ligne ; pour un événement gratuit, une inscription), un téléphone ou un
+ * e-mail (sur réservation). Rien sans l'un ni l'autre.
+ */
+export function readOnSortBooking(
+  conditions: string,
+  registration: OnSortEvent["registration"],
+  free: boolean,
+): EventBooking | undefined {
+  const text = normalizeName(conditions);
+  if (/\bsans (reservation|inscription)\b/.test(text)) return "none";
+  if (/\b(reservations?|inscriptions?|reserver|s inscrire)\b/.test(text)) return "reservation";
+  const types = (registration || []).map((entry) => entry?.type);
+  if (types.includes("link")) return free ? "reservation" : "online";
+  if (types.includes("phone") || types.includes("email")) return "reservation";
+  return undefined;
+}
+
 function addressOf(location: OnSortEvent["location"]) {
   const address = clean(location?.address);
   const city = clean(location?.city);
@@ -651,6 +674,11 @@ export function onSortEventToScrapedData(event: OnSortEvent, today: string = par
     is_cancelled: isCancelled(event) || undefined,
     // Fiche importée à la main depuis l'admin : le scan, lui, écarte le jeune public.
     is_young_audience: isOnSortYoungAudience(event) || undefined,
+    // Pour qui et réservation, seulement ce que la fiche dit : sa catégorie « Jeune public », l'âge minimum de
+    // l'agenda, ses conditions et son inscription.
+    audience: categoriesOf(event).includes(CATEGORY.jeunePublic) ? "family" : undefined,
+    min_age: toMinAge(event.age?.min) ?? undefined,
+    booking: readOnSortBooking(french(event.conditions), event.registration, price.price_min === 0),
   };
   for (const key of Object.keys(data) as Array<keyof ScrapedEventData>) {
     if (data[key] === undefined) delete data[key];

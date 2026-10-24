@@ -33,6 +33,11 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
   atelier 7-10 ans, boum) se collecte comme les autres, signalé par `is_young_audience: true` dans
   `create_event`. L'outil le repère aussi seul d'après le titre, la description et les tags ; une mention
   « tout public dès 12 ans » n'en fait pas un événement jeune public.
+- **Genre, pour qui, réservation** : ce que le texte dit, rien de plus (`create_event` : `genres`, `audience`,
+  `min_age`, `booking` ; `import_urls` les lit seul). Les genres se choisissent dans la liste de la catégorie
+  (`search`, type « genre ») ; « Tout public dès 6 ans » donne `audience: all` et `min_age: 6` ; « sur réservation »
+  ou un formulaire d'inscription, `booking: reservation` ; une billetterie en ligne, `online` ; « sans réservation »,
+  `none`. Sans mention, rien : l'équipe confirme ce qui est lu dans « Fiches à compléter ».
 - **Artistes : seulement des artistes musicaux** (musiciens, chanteurs, groupes, DJ). Les événements de toutes
   sortes restent collectés, mais l'admin ne crée de fiche artiste que pour un événement « Concert » ou « DJ Set » :
   choisis bien la catégorie. Jamais de compagnie, comédien, danseur, humoriste, drag, conférencier ni animateur
@@ -174,6 +179,7 @@ après une mise à jour de l'admin, il faut une nouvelle session Claude pour en 
    - événements en attente avec ce qui manque, et le chemin `/admin/events?status=pending` pour les valider ;
      pour un lieu manquant, son nom et son adresse (`announced_venue`), regroupés par lieu ;
    - événements jeune public créés (`young_audience`) ;
+   - genres lus hors de la liste de leur catégorie (`genres_unmatched`) : un genre qui manque peut-être ;
    - artistes créés ;
    - lieux, salles et organisateurs créés (`locations_created` avec leur adresse, `rooms_created` avec leur lieu,
      `organizers_created`) ; leurs sources de collecte créées en pause, à réactiver dans la Collecte

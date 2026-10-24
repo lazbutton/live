@@ -56,7 +56,7 @@ export function SettingsPage() {
           variant="line"
           className={cn(isMobile && "overflow-x-auto overflow-y-hidden")}
         >
-          <TabsTrigger value="categories">Catégories & Tags</TabsTrigger>
+          <TabsTrigger value="categories">Catégories, genres et tags</TabsTrigger>
           <TabsTrigger value="users">Utilisateurs</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="system">Système</TabsTrigger>
