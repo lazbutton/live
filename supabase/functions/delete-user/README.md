@@ -4,26 +4,28 @@ Cette Edge Function permet de supprimer un compte utilisateur avec les permissio
 
 ## 🔒 Sécurité
 
-- ✅ Vérifie que l'utilisateur est authentifié
+- ✅ Vérifie elle-même le jeton de l'utilisateur (`auth.getUser()`), d'où le déploiement sans « Verify JWT »
 - ✅ Vérifie que l'utilisateur demande la suppression de son propre compte (sauf si admin)
-- ✅ Utilise la `SUPABASE_SERVICE_ROLE_KEY` pour les permissions admin
+- ✅ Utilise la clé secrète du projet pour les permissions admin
 - ✅ Gère les erreurs CORS
 
-## 📋 Prérequis
+## 📋 Les clés
 
-1. **Service Role Key** : Vous devez avoir la `SUPABASE_SERVICE_ROLE_KEY` configurée dans les secrets de votre projet Supabase.
-
-2. **Configuration des secrets** :
-   ```bash
-   supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-   ```
+Rien à configurer : Supabase injecte les clés dans l'environnement de la fonction. Elle prend la clé publishable et
+la clé secrète nommées `default` (`SUPABASE_PUBLISHABLE_KEYS`, `SUPABASE_SECRET_KEYS`) dès qu'elles existent, sinon
+les clés legacy (`SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`), qui cessent de marcher une fois désactivées dans
+Settings → API Keys.
 
 ## 🚀 Déploiement
 
 ```bash
 # Depuis la racine du projet
-supabase functions deploy delete-user
+supabase functions deploy delete-user --no-verify-jwt
 ```
+
+Sans `--no-verify-jwt`, la plateforme vérifie le jeton avant la fonction, et cette vérification casse le jour où le
+projet passe aux « JWT Signing Keys » (doc de Supabase, « JWT Signing Keys », « Getting started »). La fonction
+refuse d'elle-même une requête sans jeton valide (401).
 
 ## 📡 Utilisation depuis Flutter
 
@@ -40,4 +42,3 @@ final response = await SupabaseService.client.functions.invoke(
 ## 🔄 Webhook (Optionnel)
 
 Cette fonction peut aussi être appelée via un webhook Supabase qui écoute les événements de suppression.
-
