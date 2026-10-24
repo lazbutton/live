@@ -1460,5 +1460,17 @@
 - Politique de confidentialité (`components/privacy-policy/`) : la conservation de la session invitée (section 2.2) et
   sa suppression (section 3) disent les 13 mois. À appliquer en prod avant la fin de 2026 pour que la page dise vrai :
   les premières sessions passent 13 mois le 5 janvier 2027.
-- **Pas encore appliquée en prod** (attendre l'accord). Sans elle, l'étape 5 du cron journalise une erreur
-  (`guestSessionsError`) et le reste du ménage continue.
+- **Essai à blanc en prod le 2026-10-24 à 8 h 10** (heure de Paris), avec l'accord de l'utilisateur, dans une
+  transaction annulée (psql, identifiants de `supabase db dump --linked --dry-run`, `SET ROLE postgres`, `lock_timeout`
+  5 s, le fichier de la branche, sha256 `7588ffb6…`) : les deux fonctions absentes avant ; migration sans erreur ;
+  empreintes `left(md5(pg_get_functiondef(…)), 8)` `e650a0b0` (règle) et `beb02031` (purge), celles de la base locale ;
+  `security definer`, `search_path` vide (et `lock_timeout` 5 s pour la purge), propriétaire postgres, `execute` au
+  service role seulement (anon et authenticated refusés, 42501) ; aucune session à supprimer (la règle sur les 257
+  invités : 26 ms) ; la purge appelée comme le cron, par service_role : `{"failed": 0, "deleted": 0, "has_more":
+  false}`. Après le ROLLBACK : ni l'une ni l'autre fonction, 257 invités et 23 comptes. Script, sortie et requêtes du
+  relevé : `~/Documents/Backups/outlive/purge-sessions-invitees-2026-10-24/`, hors dépôt.
+- **Pas encore appliquée en prod** : l'essai à blanc seulement, au choix de l'utilisateur (2026-10-24). À appliquer
+  avant la fin de 2026 (les premières sessions passent 13 mois le 5 janvier 2027), depuis la racine de live-admin :
+  `psql -X -v ON_ERROR_STOP=1 --single-transaction -c 'SET ROLE postgres' -c "SET lock_timeout = '5s'" -f
+  supabase/migrations/20261024180000_purge_inactive_guest_sessions.sql`, puis les empreintes ci-dessus. Sans elle,
+  l'étape 5 du cron journalise une erreur (`guestSessionsError`) et le reste du ménage continue.
