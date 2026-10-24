@@ -57,23 +57,16 @@ export function buildEventFormPrefillFromRequest(request: any): EventFormPrefill
 
 /**
  * Marque une demande comme convertie après la création de son événement
- * (journal d'audit + toast). Renvoie false si la mise à jour échoue.
+ * (journal d'audit + toast). La fonction SQL recopie aussi sur l'événement
+ * l'attribution de la demande : origine communautaire, accord et, avec
+ * l'accord, le nom public (jamais une adresse e-mail). Renvoie false si elle
+ * échoue.
  */
 export async function markRequestConverted(requestId: string, eventId: string) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { error } = await supabase
-    .from("user_requests")
-    .update({
-      status: "converted",
-      converted_event_id: eventId,
-      converted_at: new Date().toISOString(),
-      reviewed_by: user?.id || null,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", requestId);
+  const { error } = await supabase.rpc("mark_event_request_converted", {
+    request_id: requestId,
+    event_id: eventId,
+  });
 
   if (error) {
     toast({

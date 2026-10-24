@@ -166,6 +166,18 @@ communautaire ») : `public_contributor_label`, le nom sans les espaces autour, 
 (une contrainte d'`events` le refuse aussi). Le back-office reconnaît l'auteur d'une demande sans nom par l'e-mail de
 son compte (`get_user_emails`), qui n'est jamais public.
 
+Une demande complétée dans le formulaire d'événement du back-office (« Compléter » : le seul chemin des demandes
+`event_from_url`, que `convert_event_request_to_event` refuse, et celui des affiches seules) garde la même
+attribution : une fois l'événement enregistré, `mark_event_request_converted(request_id, event_id)` (admin seulement,
+appelée par `markRequestConverted`) recopie sur lui l'origine communautaire, l'accord et, avec l'accord, le nom
+public, puis marque la demande convertie. La demande doit être en attente et l'événement créé par l'admin qui
+appelle ; rejouer l'appel pour le même événement ne change rien.
+
+Dans les deux cas, l'événement est au demandeur (`created_by`) : « Mes suggestions » le montre (`created_by` = soi),
+et « Bloquer aussi l'auteur », que l'app offre sur un événement communautaire, vise ce `created_by`, donc le
+demandeur, jamais l'admin. Tant que l'événement est en attente, son demandeur peut le modifier ou le supprimer
+(policies « Users can update / delete their own pending events »).
+
 À la conversion en événement, `date` et `end_date` restent l'heure murale : la fonction SQL
 `convert_event_request_to_event` (back-office, ancienne route de conversion) les lit en
 `::timestamptz` dans la session PostgREST, en UTC (les dates en sortent en `+00:00`), et le

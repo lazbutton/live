@@ -3238,6 +3238,10 @@ export type Database = {
       is_user_organizer: { Args: { organizer_uuid?: string }; Returns: boolean }
       is_user_safety_suspended: { Args: never; Returns: boolean }
       make_user_admin: { Args: { user_email: string }; Returns: string }
+      mark_event_request_converted: {
+        Args: { event_id: string; request_id: string }
+        Returns: undefined
+      }
       normalize_artist_label: { Args: { value: string }; Returns: string }
       normalize_city_label: { Args: { value: string }; Returns: string }
       normalize_entity_label: { Args: { value: string }; Returns: string }

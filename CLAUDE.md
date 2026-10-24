@@ -47,7 +47,11 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   `category` des fonctions accepte encore l'id ou le nom.
 - Attribution publique d'une proposition (« Proposé par … ») : `events.community_contributor_label` ne vient que de
   `public_contributor_label()`, jamais d'une adresse e-mail (contrainte `events_community_contributor_label_not_email`) ;
-  l'auteur d'une demande sans nom se reconnaît par l'e-mail de son compte (`get_user_emails`), jamais public.
+  l'auteur d'une demande sans nom se reconnaît par l'e-mail de son compte (`get_user_emails`), jamais public. Elle se
+  recopie en SQL à la conversion d'une demande : `convert_event_request_to_event`, ou `mark_event_request_converted`
+  pour une demande complétée dans le formulaire d'événement (`markRequestConverted`) ; jamais en TS. L'événement
+  converti est au demandeur (`created_by`) : « Bloquer aussi l'auteur » (app) vise `created_by` dès que
+  `community_submission` est vrai.
 - Données d'un invité (session anonyme) recopiées sur le compte qui se connecte : `copy_guest_data()`
   (`security definer`, l'id de la session invitée sert de preuve ; `docs/API_APP.md`).
 - Festivals (`../live/docs/fonctionnalites/festivals.md`) : une fiche de la catégorie Festival ; ses événements y sont rattachés
