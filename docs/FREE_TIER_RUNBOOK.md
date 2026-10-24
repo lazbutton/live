@@ -116,7 +116,8 @@ Le premier jour ouvré du mois :
 3. Relever invocations, CPU, mémoire et transfert dans Vercel.
 4. Déclencher le nettoyage depuis l'admin ou appeler
    `cleanup_free_tier_technical_data()`.
-5. Lancer l'audit Storage :
+5. Lancer l'audit Storage. La simulation liste les fichiers de plus de 30 jours
+   qu'aucune des références de `bucketReferences` (dans le script) ne cite :
 
 ```bash
 node --env-file=.env.local scripts/audit-storage.mjs --grace-days=30

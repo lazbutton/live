@@ -44,6 +44,9 @@ const bucketReferences = {
     ["events", "image_url"],
     // Vignettes (cards/…, docs/EVENT_IMAGE_CARDS.md) : une remplacée devient orpheline.
     ["events", "image_card_url"],
+    // Affiches des propositions de l'app (events/…), dans le JSON de la demande : en attente, ou refusées
+    // que l'auteur peut corriger et renvoyer.
+    ["user_requests", "event_data->>image_url"],
     ["major_events", "image_url"],
     ["notification_settings", "in_app_popup_image_url"],
   ],
@@ -51,6 +54,8 @@ const bucketReferences = {
   "organizers-images": [
     ["organizers", "logo_url"],
     ["artists", "image_url"],
+    // Visuels gardés des émissions de la radio (radio-shows/…, lib/radio/show-images.ts).
+    ["radio_shows", "image_url"],
   ],
 };
 
@@ -72,9 +77,10 @@ async function fetchReferencedPaths(bucket) {
     const pageSize = 1000;
 
     while (true) {
+      // Sous un alias : la colonne peut être un chemin dans du JSON (event_data->>image_url).
       const { data, error } = await supabase
         .from(table)
-        .select(column)
+        .select(`url:${column}`)
         .not(column, "is", null)
         .range(offset, offset + pageSize - 1);
 
@@ -84,7 +90,7 @@ async function fetchReferencedPaths(bucket) {
       }
 
       for (const row of data ?? []) {
-        const objectPath = extractObjectPath(row[column], bucket);
+        const objectPath = extractObjectPath(row.url, bucket);
         if (objectPath) referenced.add(objectPath);
       }
 

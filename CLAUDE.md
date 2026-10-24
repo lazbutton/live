@@ -74,6 +74,10 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   passe » : `GET /api/v1/radio/[stationId]/live` ; contrat dans `docs/API_APP.md`, « Radio ». Visuels gardés des
   émissions (à la place de la pochette que l'app dessine) : `radio_shows.image_url`, `lib/radio/show-images.ts`,
   posés par `scripts/radio-show-images.mjs` et le back-office.
+- Storage : une colonne qui garde l'adresse d'un fichier (ou une valeur dans du JSON, comme l'affiche d'une proposition
+  de l'app, `user_requests.event_data->>'image_url'`) se déclare dans `bucketReferences` (`scripts/audit-storage.mjs`) :
+  sinon l'audit mensuel (`docs/FREE_TIER_RUNBOOK.md`) prend ses fichiers pour des orphelins, et `--delete` les efface
+  après 30 jours.
 
 ## Structure
 
