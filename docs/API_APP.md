@@ -1276,8 +1276,8 @@ Migrations `20261021140000_add_events_published_at.sql`, `20261021141000_create_
 lieu, un organisateur ou un artiste, « Mes suivis », la notification qui va avec. Les festivals en favori s'y ajoutent
 avec `20261023160000_add_festival_follows_and_see_also.sql` (tests `supabase/tests/festival_follows_see_also.test.sql`,
 en prod depuis le 2026-10-23) : un cœur sur un festival vaut suivi de son programme, sans ligne dans `user_follows`.
-Les émissions de radio s'y ajoutent avec `20261024150000_add_radio_show_follows.sql` (tests
-`supabase/tests/user_follows.test.sql` et `app_radio.test.sql`, `../live/docs/chantiers/radio-suivre.md`) : le type
+Les émissions de radio s'y ajoutent avec `20261024150000_add_radio_show_follows.sql` (en prod depuis le 2026-10-24 ;
+tests `supabase/tests/user_follows.test.sql` et `app_radio.test.sql`, `../live/docs/chantiers/radio-suivre.md`) : le type
 `radio_show`, les émissions dans « Mes suivis » et « Tes émissions » sur la page de la radio (plus bas, « Radio »).
 
 ### Table `user_follows`
