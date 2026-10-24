@@ -11,6 +11,7 @@ import {
   extractImportedCategoryLabels,
   resolveImportedCategory,
 } from "@/lib/events/category-resolution";
+import { matchGenreIds, readEventDetails, type EventGenreOption } from "@/lib/events/event-details";
 import { festivalFiche, findFestivalForImport, type FestivalCandidate } from "@/lib/events/festivals";
 import { deriveGenericPriceRange } from "@/lib/events/price-utils";
 import {
@@ -37,6 +38,8 @@ type BuildEventPrefillFromImportArgs = {
   artists?: ArtistOption[];
   /** Festivals de l'app (`fetchFestivalCandidates`) : l'événement est rattaché à celui qu'il nomme. */
   festivals?: FestivalCandidate[];
+  /** Genres (event_genres) : ceux que la source nomme, dans la liste de la catégorie, sont repris. */
+  genres?: EventGenreOption[];
   findOrCreateTagIds?: (rawTagNames: string[]) => Promise<string[]>;
   defaultStatus?: EventStatus;
 };
@@ -255,11 +258,14 @@ export async function buildEventFormPrefillFromImport({
   organizers,
   artists = [],
   festivals = [],
+  genres = [],
   findOrCreateTagIds,
   defaultStatus,
 }: BuildEventPrefillFromImportArgs): Promise<{
   prefill: EventFormPrefill;
   warnings: ImportedEventWarning[];
+  /** Genres nommés par la source hors de la liste de la catégorie (non repris : un genre qui manque ?). */
+  genresUnmatched: string[];
   /** Le festival retenu, celui du nom relevé qui ne couvre pas la date, le nom sans festival, les lieux inconnus. */
   festival: {
     attached: FestivalCandidate | null;
@@ -445,6 +451,20 @@ export async function buildEventFormPrefillFromImport({
     });
   }
 
+  // Genre, pour qui, réservation (../live/docs/chantiers/pour-toi.md, « Des fiches plus riches ») : ce que la source
+  // dit, dans les listes fermées ; le formulaire les montre « lus, à confirmer ».
+  const genreMatch = matchGenreIds(data.genres, genres, resolvedCategory.id);
+  const details = readEventDetails(data);
+  const detailsRead =
+    genreMatch.ids.length > 0 || details.audience !== null || details.minAge !== null || details.booking !== null;
+  if (genreMatch.unmatched.length > 0) {
+    warnings.push({
+      field: "genres",
+      message: `Genre lu hors de la liste de la catégorie : ${genreMatch.unmatched.join(", ")}. Ajoute-le dans les réglages s'il manque.`,
+      value: genreMatch.unmatched.join(", "),
+    });
+  }
+
   const derivedPrices = deriveGenericPriceRange(data);
   const isPayWhatYouWant = data.is_pay_what_you_want === true;
   // Titre et description tels que l'app les affichera : date, lieu et capitales retirés, lignes
@@ -489,11 +509,16 @@ export async function buildEventFormPrefillFromImport({
       facebook_url:
         typeof data.facebook_url === "string" ? data.facebook_url : "",
       image_url: (data.image_url || "").toString(),
+      audience: details.audience ?? "",
+      min_age: details.minAge !== null ? String(details.minAge) : "",
+      booking: details.booking ?? "",
       ...(defaultStatus ? { status: defaultStatus } : {}),
     },
     organizerIds,
     artistIds: artistMatch.matchedIds,
     tagIds,
+    genreIds: genreMatch.ids,
+    detailsToConfirm: detailsRead,
     festivalLocationIds: festivalLocationIds.length > 0 ? festivalLocationIds : undefined,
     // Chaque séance garde son propre lien de billetterie (`?session=336` pour la deuxième séance du jour).
     additionalDates: Array.isArray(data.occurrences)
@@ -520,6 +545,7 @@ export async function buildEventFormPrefillFromImport({
   return {
     prefill,
     warnings,
+    genresUnmatched: genreMatch.unmatched,
     festival: {
       attached: festivalMatch.festival,
       outOfDates: festivalMatch.outOfDates,

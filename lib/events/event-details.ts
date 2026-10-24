@@ -24,6 +24,10 @@ export const EVENT_BOOKINGS = [
 
 export type EventBooking = (typeof EVENT_BOOKINGS)[number]["value"];
 
+/** Les valeurs seules (schémas zod des outils de l'agent). */
+export const EVENT_AUDIENCE_VALUES = EVENT_AUDIENCES.map((audience) => audience.value) as [EventAudience, ...EventAudience[]];
+export const EVENT_BOOKING_VALUES = EVENT_BOOKINGS.map((booking) => booking.value) as [EventBooking, ...EventBooking[]];
+
 /** Âges minimum permis (contrainte d'events.min_age). */
 export const MIN_AGE_RANGE = { min: 1, max: 18 } as const;
 
@@ -82,4 +86,61 @@ export function genreIdsForCategory(genreIds: string[], genres: EventGenreOption
   if (!categoryId) return [];
   const ofCategory = new Set(genres.filter((genre) => genre.category_id === categoryId).map((genre) => genre.id));
   return [...new Set(genreIds)].filter((id) => ofCategory.has(id));
+}
+
+/** Nom comparable : sans accents, casse ni ponctuation (« Électro » = « electro »). */
+function comparable(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/**
+ * Genres nommés par une source (la lecture par IA, l'agent), rapprochés des genres actifs de la catégorie par leur
+ * nom ou leur phrase, casse et accents ignorés. Un nom hors de la liste n'est pas deviné : il revient dans
+ * `unmatched`, à signaler (un genre qui manque à la liste).
+ */
+export function matchGenreIds(names: unknown, genres: EventGenreOption[], categoryId: string | null | undefined) {
+  const wanted = Array.isArray(names) ? names.filter((name): name is string => typeof name === "string" && Boolean(name.trim())) : [];
+  const offered = genresOfCategory(genres, categoryId);
+  const ids: string[] = [];
+  const unmatched: string[] = [];
+  for (const name of wanted) {
+    const key = comparable(name);
+    const genre = offered.find((candidate) => comparable(candidate.name) === key || comparable(candidate.phrase) === key);
+    if (!genre) unmatched.push(name.trim());
+    else if (!ids.includes(genre.id)) ids.push(genre.id);
+  }
+  return { ids, unmatched };
+}
+
+/** Pour qui, l'âge et la réservation lus par une source : seulement des valeurs des listes, sinon null. */
+export function readEventDetails(data: { audience?: unknown; min_age?: unknown; booking?: unknown }) {
+  return {
+    audience: isEventAudience(data.audience) ? data.audience : null,
+    minAge: toMinAge(data.min_age),
+    booking: isEventBooking(data.booking) ? data.booking : null,
+  };
+}
+
+/**
+ * Les colonnes d'events tirées d'un préremplissage d'import (`buildEventFormPrefillFromImport`) : les genres
+ * reconnus, pour qui, l'âge et la réservation, « lus, à confirmer » s'il y en a.
+ */
+export function detailsColumnsFromPrefill(prefill: {
+  form?: { audience?: string; min_age?: string; booking?: string };
+  genreIds?: string[];
+  detailsToConfirm?: boolean;
+}) {
+  const form = prefill.form || {};
+  return {
+    genre_ids: prefill.genreIds || [],
+    audience: isEventAudience(form.audience) ? form.audience : null,
+    min_age: toMinAge(form.min_age),
+    booking: isEventBooking(form.booking) ? form.booking : null,
+    details_to_confirm: Boolean(prefill.detailsToConfirm),
+  };
 }

@@ -407,8 +407,13 @@ fiche ne le dit pas, et rien n'est deviné.
   (« Dès 6 ans · Sans réservation », `../live/docs/fonctionnalites/fiche.md`, « Le haut »), sur `events` par id. Un
   `select` qui les nomme échoue (400) sur une base qui n'a pas la migration : la version de l'app qui les lit sort
   après elle. `app_events()` et les fonctions qui rendent `setof events` les portent aussi ; aucune ne filtre dessus.
-- Écrits par le formulaire d'un événement du back-office (« Genre, public et réservation ») ; la collecte les remplit
-  à l'étape 2, la reprise des fiches à venir à l'étape 3.
+- Écrits par le formulaire d'un événement du back-office (« Genre, public et réservation »), et par la collecte quand la
+  source les dit : la lecture des pages par IA (`scrape-event-page.ts`, avec les genres de chaque catégorie dans sa
+  consigne), l'outil `create_event` de l'agent, l'agenda On sort ! (catégorie Jeune public, âge de l'agenda,
+  conditions et inscription) et les imports du back-office. Ce qu'une source a dit arrive « lu, à confirmer »
+  (`details_to_confirm`) : le formulaire le signale, la vue « Fiches à compléter » (`/admin/fiches`) liste les
+  événements à venir sans genre, sans public, sans réservation ou à confirmer, les plus proches d'abord. La reprise des
+  fiches déjà en base est l'étape 3.
 
 ## Festivals : `events.festival_id`, `festival_locations`, `app_festival_events`
 

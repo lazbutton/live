@@ -330,6 +330,8 @@ export function EventFormSheet({
   const [selectedArtistIds, setSelectedArtistIds] = React.useState<string[]>([]);
   const [selectedTagIds, setSelectedTagIds] = React.useState<string[]>([]);
   const [selectedGenreIds, setSelectedGenreIds] = React.useState<string[]>([]);
+  // Genre, public, réservation lus par la collecte et pas encore confirmés (events.details_to_confirm).
+  const [detailsToConfirm, setDetailsToConfirm] = React.useState(false);
   // Les genres de toutes les catégories (event_genres), lus une fois à la première ouverture.
   const [genres, setGenres] = React.useState<EventGenreOption[]>([]);
   const [genresLoading, setGenresLoading] = React.useState(false);
@@ -476,6 +478,7 @@ export function EventFormSheet({
 
       setSelectedTagIds(event.tag_ids || []);
       setSelectedGenreIds(event.genre_ids || []);
+      setDetailsToConfirm(Boolean(event.details_to_confirm));
       setImagePreview(event.image_url || null);
       setShowEndDate(Boolean(event.end_date));
       return;
@@ -509,6 +512,7 @@ export function EventFormSheet({
     setSelectedArtistIds(prefill?.artistIds || []);
     setSelectedTagIds(prefill?.tagIds || []);
     setSelectedGenreIds(prefill?.genreIds || []);
+    setDetailsToConfirm(Boolean(prefill?.detailsToConfirm));
     setFestivalLocationIds(prefill?.festivalLocationIds || []);
     setImagePreview(merged.image_url ? merged.image_url : null);
     setShowEndDate(Boolean(merged.end_date));
@@ -1196,6 +1200,7 @@ export function EventFormSheet({
         min_age: toMinAge(formData.min_age),
         booking: formData.booking || null,
         genre_ids: genreIdsForCategory(selectedGenreIds, genres, formData.category.trim()),
+        details_to_confirm: detailsToConfirm,
         agenda_types: parseAgendaTypes(formData.agenda_types),
         tag_ids: selectedTagIds.length > 0 ? selectedTagIds : [],
         // Envoyé seulement s'il y a un festival, choisi ou à retirer : une fiche sans festival s'enregistre aussi
@@ -1607,6 +1612,9 @@ export function EventFormSheet({
       ? [{ key: "genres", label: "Genre", done: selectedGenreIds.some((id) => categoryGenres.some((genre) => genre.id === id)), targetId: "event-details" }]
       : []),
     { key: "audience", label: "Pour qui", done: Boolean(formData.audience), targetId: "event-details" },
+    ...(detailsToConfirm
+      ? [{ key: "details-to-confirm", label: "Genre, public, réservation à confirmer", done: false, targetId: "event-details" }]
+      : []),
     { key: "booking", label: "Réservation", done: Boolean(formData.booking), targetId: "event-details" },
     { key: "organizers", label: "Organisateur", done: selectedOrganizerIds.length > 0, targetId: "event-organizers" },
   ];
@@ -2029,6 +2037,8 @@ export function EventFormSheet({
                         }}
                         onChange={(next: EventDetailsValue) => {
                           setDirty(true);
+                          // Corriger ce qui a été lu vaut confirmation.
+                          setDetailsToConfirm(false);
                           setSelectedGenreIds(next.genreIds);
                           setFormData((previous) => ({
                             ...previous,
@@ -2039,6 +2049,11 @@ export function EventFormSheet({
                         }}
                         minAgeError={errors.minAge}
                         legacyYoungAudience={formData.is_young_audience}
+                        toConfirm={detailsToConfirm}
+                        onConfirm={() => {
+                          setDirty(true);
+                          setDetailsToConfirm(false);
+                        }}
                         disabled={busy}
                       />
                     </FormBlock>
