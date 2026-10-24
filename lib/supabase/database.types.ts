@@ -476,47 +476,6 @@ export type Database = {
           },
         ]
       }
-      event_notifications: {
-        Row: {
-          created_at: string | null
-          event_id: string
-          id: string
-          is_enabled: boolean
-          notification_scheduled_at: string | null
-          reminder_timing: string | null
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          event_id: string
-          id?: string
-          is_enabled?: boolean
-          notification_scheduled_at?: string | null
-          reminder_timing?: string | null
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          created_at?: string | null
-          event_id?: string
-          id?: string
-          is_enabled?: boolean
-          notification_scheduled_at?: string | null
-          reminder_timing?: string | null
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_notifications_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       event_opportunities: {
         Row: {
           assigned_to: string | null
