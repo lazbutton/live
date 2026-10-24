@@ -10,9 +10,27 @@ import {
 } from "@/lib/api/app/schemas";
 
 /**
+ * Un token push est celui d'un téléphone, où une seule session est ouverte : enregistré pour [userId], il quitte
+ * les autres utilisateurs (l'invité devenu compte, le compte déconnecté sans avoir pu retirer son token), qui n'y
+ * envoient plus rien ; sinon le téléphone recevrait un résumé par utilisateur. Service role : la RLS ne laisse
+ * chacun toucher qu'à ses lignes. Un échec est journalisé, l'enregistrement tient.
+ */
+async function releaseFromOtherUsers(token: string, userId: string) {
+  const { error } = await createServiceClient()
+    .from("user_push_tokens")
+    .delete()
+    .eq("token", token)
+    .neq("user_id", userId);
+  if (error) {
+    console.error("❌ Erreur lors du retrait du token des autres utilisateurs:", error);
+  }
+}
+
+/**
  * POST /api/notifications/register-token
  * 
- * Enregistre ou met à jour un token de notification push pour l'utilisateur connecté
+ * Enregistre ou met à jour un token de notification push pour l'utilisateur connecté, et le retire des autres
+ * utilisateurs (`releaseFromOtherUsers`)
  * 
  * Headers (un des deux) :
  * - Authorization: Bearer <jwt_token> (pour l'app mobile)
@@ -104,6 +122,7 @@ export async function POST(request: NextRequest) {
         return appError("Erreur lors de la mise à jour du token", 500);
       }
 
+      await releaseFromOtherUsers(token, user.id);
       return NextResponse.json<PushTokenResponse>({
         success: true,
         message: "Token mis à jour",
@@ -125,6 +144,7 @@ export async function POST(request: NextRequest) {
         return appError("Erreur lors de l'enregistrement du token", 500);
       }
 
+      await releaseFromOtherUsers(token, user.id);
       return NextResponse.json<PushTokenResponse>({
         success: true,
         message: "Token enregistré",
@@ -139,7 +159,7 @@ export async function POST(request: NextRequest) {
 /**
  * DELETE /api/notifications/register-token
  * 
- * Supprime un token de notification push pour l'utilisateur connecté
+ * Supprime un token de notification push pour l'utilisateur connecté (l'app, juste avant « Se déconnecter »)
  * 
  * Body : `unregisterPushTokenBodySchema` (lib/api/app/schemas.ts).
  */

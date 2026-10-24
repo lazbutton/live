@@ -1,7 +1,10 @@
 # Photos des artistes
 
-Chantier U33 de `../live/docs/AMELIORATIONS.md`. Sur la fiche d'un événement, un artiste sans photo
-n'a que ses initiales. Le 2026-10-21, 4 artistes sur 195 avaient une photo.
+Chantier U33 de la refonte (`../live/docs/HISTORIQUE.md`) ; côté app, `../live/docs/fonctionnalites/lieux.md`
+(« Règles ») ; ce qui reste à poser en prod, `../live/docs/FEUILLE_DE_ROUTE.md` (« Données et contenus
+(live-admin) »). Sur la fiche d'un événement, un artiste sans photo n'a que ses initiales. Le 2026-10-21,
+4 artistes sur 195 avaient une photo ; le 2026-10-24, 36 sur 189, dont 32 avec leur crédit (« Relecture du
+2026-10-24 »).
 
 ## Règles (décision du 2026-10-21)
 
@@ -11,8 +14,14 @@ n'a que ses initiales. Le 2026-10-21, 4 artistes sur 195 avaient une photo.
   interdisent de reproduire les photos d'artistes, propriété de Deezer ou des ayants droit (§ VII).
 - **Le crédit s'affiche avec la photo**, partout où elle paraît (page de l'artiste dans l'app, page publique
   `/artists/[slug]`, et toute rangée qui montre la photo) : « Photo : <auteur>, <licence> », l'auteur menant à
-  la page Commons du fichier. Les licences CC BY et CC BY-SA l'exigent. Tant que l'app ne l'affiche pas, ne
-  poser que des photos CC0 ou du domaine public.
+  la page Commons du fichier. Les licences CC BY et CC BY-SA l'exigent. La règle du 2026-10-21 ne posait que des
+  photos CC0 ou du domaine public tant que l'app n'affichait pas le crédit ; le 2026-10-24, l'utilisateur a choisi
+  de poser aussi les CC BY et CC BY-SA sans attendre la prochaine version de l'app.
+- **Où en est le crédit, le 2026-10-24** : la page de l'artiste l'affiche dans l'app depuis live-app#162
+  (prochaine version), la page publique aussi, et l'API publique v1 (`artists[].imageCredit`, `imageLicense`,
+  `imageSourceUrl`) avec live-admin#68. La 1.0.6 de l'App Store (avril 2026) montre la photo sans crédit, sur la
+  page de l'artiste et sur la fiche d'un événement, jusqu'à la prochaine version. Les rangées d'artistes (fiche
+  d'un événement dans l'app et sur le web) montrent la photo en vignette et mènent à la page de l'artiste.
 
 ## Colonnes d'`artists`
 
@@ -39,7 +48,8 @@ une contrainte refuse un crédit sans photo. Tests : `supabase/tests/artist_imag
 2. Sinon MusicBrainz (une requête par seconde), qui relie les musiciens à leur fiche Wikidata.
 3. Deux artistes de scène du même nom : rien (« ambiguous »).
 4. L'image de la fiche (P18) sur Commons : licence acceptée, photo (JPEG, PNG, WebP ou TIFF) de 400 px de
-   large au moins, auteur connu pour CC BY et CC BY-SA. Copie de 1 280 px de large.
+   large au moins, auteur connu pour CC BY et CC BY-SA. Copie de 1 280 px de large (vignette que Commons sert
+   sur `upload.wikimedia.org` ou, depuis peu, `thumb.wikimedia.org`).
 
 Un homonyme peut encore passer (un rappeur espagnol pour une chanteuse française du même nom) : la liste
 se relit avant d'écrire, avec la description de Wikidata et les événements de l'artiste chez nous.
@@ -65,3 +75,46 @@ Recherche du 2026-10-21 sur les 185 artistes sans photo : 30 photos trouvées, d
 (homonymes, repérés à leurs événements : des ateliers pour « Marine » et « Sidonie », un spectacle de krump
 pour « Nach », une soirée d'artistes locaux pour « Luce ») ; 25 fiches Wikidata sans image, 4 noms ambigus,
 2 photos trop petites, 121 artistes sans fiche, 3 recherches à refaire (MusicBrainz saturé).
+
+## Relecture du 2026-10-24
+
+La recherche automatique ne regarde que l'image de la fiche Wikidata. Pour les 185 artistes sans photo, la
+relecture est allée plus loin, en lecture seule : les fiches Wikidata du même nom (en français et en anglais),
+leur image, leur catégorie Commons et les fichiers qui les représentent, puis la recherche plein texte de
+Commons. Chaque artiste a été recoupé avec ses événements chez nous et la page de la salle, chaque photo
+regardée, et sa provenance vérifiée : photo déposée par son auteur, licence Flickr vérifiée sur Commons, ou
+autorisation enregistrée (VRT).
+
+- **38 photos proposées** (32 sûres, 6 probables), relues par l'utilisateur sur une page avec les vignettes, la
+  licence, le crédit et le degré de certitude. Les 32 sûres sont validées et posées :
+  `docs/artist-photos-2026-10-24.json` (au format de `--plan`, avec l'heure de pose et l'adresse de chaque copie).
+- **Posées le 2026-10-24** : d'abord les 4 photos CC0 ou du domaine public (Albertina Carri, Brad Mehldau, Marie
+  Brassard, Marie Chouinard, vers 5 h 07), puis, à la demande de l'utilisateur, les 28 sous CC BY ou CC BY-SA
+  (vers 5 h 29). Vérifié en anonyme : 32 sur 32 conformes à la liste (photo, crédit, licence, lien, image en 200) ;
+  « Photo : Thesupermat, CC BY-SA 4.0 » sur la page publique de Jeanne Added.
+- **Les 6 probables, laissées de côté** : Abou Lagraa et Les 7 Doigts de la Main (photo déposée par la compagnie
+  elle-même, sans autorisation VRT), La Jungle, Jean-Yves Masson, Nans Vincent et Philippe Gordiani (rien ne relie
+  les photos à l'artiste de chez nous).
+- **Choix faits à la main** : une autre photo que l'image Wikidata pour Jeanne Added (image déposée par son label,
+  sans autorisation), Leïla Martial (elles sont deux sur l'image) et Catherine Major (plusieurs images) ; crédit
+  raccourci quand Commons y ajoute un lieu ou une adresse (Alcest, Omar Sosa, L'Orchestre d'Hommes-Orchestres) ;
+  « Olivier Dumay » pour Dick Annegarn (Commons : « DUMAY Olivier Victor Marius »).
+- **147 artistes sans photo trouvée** : 15 prénoms seuls (ateliers) ; 13 fiches Wikidata sans photo libre (Agathe
+  & Adrien, Aurélien Bory, Cirque Alfonse, Daniel Garlitsky, Emma Bojan, Hélène Bressiant, Leïla Ka, Linda
+  Hayford, Louis Mazetier, Rosa Bursztein, Shana Carroll, Thibaut Garcia, Triptik) ; 15 écartés (homonymes pour
+  Nach, Luce, Luiza, The Gnomes, El Coyoté, Borduas, Shedding et Assassin ; photo trop petite pour Thierry
+  Malandain ; la gare de Biarritz pour le Malandain Ballet Biarritz ; une photo prise à travers une vitre pour
+  Guilhem Valayé ; une photo de groupe pour Suzanne de Baecque ; une statue pour David Coria ; une image de
+  YouTube pas encore vérifiée sur Commons pour Zed Yun Pavarotti ; des photos de la BnF données pour domaine
+  public, à tort semble-t-il, pour Robyn Orlin) ; 104 sans fiche ni photo libre.
+
+Revenir en arrière pour une photo posée : remettre `image_url` à `null` si c'est toujours notre copie (le trigger
+efface le crédit), puis supprimer la copie dans le stockage (tableau de bord Supabase, ou
+`supabase.storage.from("organizers-images").remove([...])`).
+
+```sql
+update public.artists set image_url = null
+where id = '<artist_id>' and image_url = '<adresse de la copie>';
+```
+
+Les adresses des copies du 2026-10-24 sont dans `docs/artist-photos-2026-10-24.json` (champ `copie`).

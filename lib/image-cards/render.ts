@@ -1,5 +1,6 @@
 /*
- * Vignette d'une affiche pour les listes de l'app (étapes C7a et C7b de ../live/docs/PLAN_REFONTE.md) :
+ * Vignette d'une affiche pour les listes de l'app (étapes C7a et C7b de la refonte : ../live/docs/HISTORIQUE.md,
+ * « Plan de refonte (fluidité et look) » ; ce que l'app en fait : ../live/docs/ARCHITECTURE.md, « Les données ») :
  * 1 200 px de large au plus, WebP, 140 Ko au plus (une affiche très chargée est rétrécie). Donne aussi les dimensions de l'original
  * (orientation EXIF appliquée) et sa couleur dominante : l'app réserve la place de l'image, au
  * bon ratio et dans sa couleur, avant son arrivée.

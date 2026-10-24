@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Festivals dans le formulaire d'un événement (../live/docs/FESTIVALS.md, § 4) : les lieux d'un festival, son
- * programme (avec les suggestions), et le festival dont un événement fait partie. Rien n'est écrit ici : le
- * formulaire enregistre tout avec la fiche.
+ * Festivals dans le formulaire d'un événement (../live/docs/fonctionnalites/festivals.md, « Données et code ») : les
+ * lieux d'un festival, son programme (avec les suggestions), et le festival dont un événement fait partie. Rien
+ * n'est écrit ici : le formulaire enregistre tout avec la fiche.
  */
 
 import * as React from "react";

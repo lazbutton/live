@@ -3,8 +3,13 @@
 Contrat entre l'app (`../live`) et live-admin, route par route. Source : les schémas zod de
 `lib/api/app/schemas.ts`. Tests : `lib/api/app/schemas.test.mjs` (schémas) et
 `lib/api/app/routes.test.mjs` (vrais handlers contre un faux Supabase et un faux OpenAI).
-Fichiers Dart cités : branche `main` de l'app au 2026-10-19. Référence de l'étape Dart de la
-phase 6 (`../live/docs/PLAN_REFACTO.md`) : un seul fichier de DTO aligné sur ces schémas.
+Fichiers Dart cités : branche `main` de l'app au 2026-10-19. Référence de l'étape Dart du chantier
+« La couche de données, fin » (phase 6 du refacto ; `../live/docs/FEUILLE_DE_ROUTE.md`, « Chantiers ») :
+un seul fichier de DTO aligné sur ces schémas.
+
+Les docs de l'app citées plus bas sont ses fiches de fonctionnalités (`../live/docs/fonctionnalites/`). Les repères
+de la refonte d'octobre 2026 (U1, U8, C7b, « lot 1 »…) sont expliqués dans `../live/docs/HISTORIQUE.md`, qui dit
+aussi où retrouver les anciens documents (plans de refacto et de refonte, relevé des améliorations…).
 
 Des builds de l'app sont publiés : une réponse peut gagner un champ, jamais en perdre ni en
 renommer, et un corps que l'app envoie aujourd'hui doit rester accepté. Changer un schéma de
@@ -53,8 +58,14 @@ Services Dart : `lib/services/notification_api_service.dart`, `lib/services/user
 ## Tokens push : `POST` et `DELETE /api/notifications/register-token`
 
 Appelés par `PushNotificationService` (`lib/services/push_notification_service.dart`) : POST à
-l'obtention du token, à son rafraîchissement et à la connexion ; DELETE seulement pour remplacer un
-ancien identifiant iOS `ios_user_…` par un vrai token APNs. JWT, ou cookie de session pour le navigateur.
+l'obtention du token, à son rafraîchissement et à la connexion (notifications autorisées et session
+ouverte) ; DELETE juste avant « Se déconnecter », la session encore là (`AuthRepository.signOut`). JWT, ou
+cookie de session pour le navigateur.
+
+Un token est celui d'un téléphone, où une seule session est ouverte : POST le retire des autres
+utilisateurs (l'invité devenu compte, un compte déconnecté hors ligne, qui n'a pas pu le retirer), sans quoi
+le téléphone recevrait un résumé par utilisateur. Un échec de ce retrait est journalisé, l'enregistrement
+tient.
 
 | Champ | Type | |
 | --- | --- | --- |
@@ -181,9 +192,9 @@ d'affiche a préremplie (avant le 2026-10-21, elle pouvait arriver en vrai UTC :
 Appelée par le wizard de création (`EventWizardController`, via
 `UserRequestApiService.extractEventFromImage`). JWT de toute session de l'app, invitée (anonyme)
 comprise, sauf un compte suspendu : depuis le 2026-10-21, « Proposer un événement » s'ouvre sans
-compte (`../live/docs/AMELIORATIONS.md`, § 5 et partie E, point 6) ; le compte et les conditions
-ne sont demandés qu'à l'envoi (`/api/user-requests`). Avant, un compte réel ayant accepté les
-conditions.
+compte (`../live/docs/fonctionnalites/proposer.md`, « Règles » et « Décisions ») ; le compte et les
+conditions ne sont demandés qu'à l'envoi (`/api/user-requests`). Avant, un compte réel ayant accepté
+les conditions.
 Formulaire multipart : champ `image`, fichier JPEG pour l'app (`imageUrl`, URL d'une image, sert
 aux autres appelants).
 
@@ -269,7 +280,8 @@ a quatre colonnes de plus pour l'app, plus `image_card_error` (diagnostic de l'a
 `null` tant que la vignette n'est pas faite (quelques secondes après l'enregistrement, au plus un
 jour) : garder `image_url`. Quand `image_card_url` est remplie, les trois autres le sont aussi.
 L'app actuelle ne sélectionne pas ces colonnes : ce qu'elle reçoit ne change pas. Elles seront lues
-à l'étape C7b de `../live/docs/PLAN_REFONTE.md`. Fabrication et garanties : `EVENT_IMAGE_CARDS.md`.
+à l'étape C7b de la refonte (faite depuis : `../live/docs/HISTORIQUE.md`, « Plan de refonte (fluidité et look) »).
+Fabrication et garanties : `EVENT_IMAGE_CARDS.md`.
 
 ## Genre de prix : `events.price_kind`
 
@@ -308,9 +320,10 @@ domaine public sont posées. Règles et script : `ARTIST_PHOTOS.md`.
 
 ## La zone : `app_zone`, `app_events_in_zone`, `app_zone_counts`, `app_cities`
 
-« Ville et rayon » de l'app (`../live/docs/VILLES.md`, décisions du 2026-10-21) : une ville et un rayon, une
-seule règle en SQL pour la liste, les comptes, la recherche, la carte et « À voir aussi ». Migration
-`20261021220000_create_app_zone.sql` (règle complète en tête), tests `supabase/tests/app_zone.test.sql`.
+« Ville et rayon » de l'app (`../live/docs/fonctionnalites/zone.md`, « Règles » et « Décisions » du 2026-10-21) :
+une ville et un rayon, une seule règle en SQL pour la liste, les comptes, la recherche, la carte et « À voir
+aussi ». Migration `20261021220000_create_app_zone.sql` (règle complète en tête), tests
+`supabase/tests/app_zone.test.sql`.
 
 - **La règle** (`app_in_zone`) : un événement est dans la zone s'il est dans la ville choisie (sa ville, à
   défaut celle de son lieu, est une ville de son groupe : « 45000 Orléans » = « Orléans »), ou si son lieu, à
@@ -319,14 +332,15 @@ seule règle en SQL pour la liste, les comptes, la recherche, la carte et « À 
 - **`zone_city`** : l'id ou le slug d'une ville active (`app_cities().slug` ; « orleans » sans rien avoir lu),
   casse et espaces ignorés. Nul ou inconnu : pas de zone, toutes les villes. **`zone_km`** : le rayon ; nul :
   la ville seule.
-- Les fonctions du tableau plus haut la prennent en arguments nommés, à la fin ; l'accueil « Toutes les dates »
-  et « À la une » lisent `app_events_in_zone` à la place d'`app_events()` :
+- Les fonctions du tableau plus haut la prennent en arguments nommés, à la fin. L'accueil « Toutes les dates »
+  et « À la une » lisent `app_events_in_range` depuis la migration `20261024120000` (« « Tout » et la catégorie »
+  plus bas) ; `app_events_in_zone` reste pour les versions de l'app qui la lisent :
 
 | Objet | Appel Dart | Rend |
 | --- | --- | --- |
-| `app_events_in_zone(zone_city, zone_km)` | `rpc('app_events_in_zone', params: …, get: true)` + filtres, `select`, tri | lignes de `events` dans la zone, toutes dates (`setof events`, comme `app_events()`) |
+| `app_events_in_zone(zone_city, zone_km)` | `rpc('app_events_in_zone', params: …, get: true)` + filtres, `select`, tri | lignes de `events` dans la zone, toutes dates (`setof events`, comme `app_events()`), sans retirer les masqués ni les auteurs bloqués : l'accueil des versions précédentes de l'app |
 | `app_major_events_in_zone(zone_city, zone_km)` | `rpc('app_major_events_in_zone', params: …, get: true)` + `eq('status', 'approved')`, `select`, tri | grands événements de la zone : leur ville ou leur centre sur la carte, l'un de leurs lieux ou de leurs événements |
-| `app_zone_counts(zone_city, radii, at_time)` | `rpc('app_zone_counts', params: {'zone_city': …, 'radii': [5, 10, 25, 50]}, get: true)` | une ligne par rayon, dans l'ordre : `radius_km`, `events_count` (à venir comme l'accueil sur « Tout » : à partir d'aujourd'hui, sans `hide_from_home`, sans la fiche d'un festival qui a un programme, migration `20261023170000`) |
+| `app_zone_counts(zone_city, radii, at_time)` | `rpc('app_zone_counts', params: {'zone_city': …, 'radii': [5, 10, 25, 50]}, get: true)` | une ligne par rayon, dans l'ordre : `radius_km`, `events_count` (à venir comme l'accueil sur « Tout » : à partir d'aujourd'hui, ceux d'`app_on_tout`, sans la fiche d'un festival qui a un programme, migrations `20261023170000` et `20261024120000`) |
 | `app_cities(at_time)` | `rpc('app_cities', get: true)` + `select(…)` | les villes qui ont un centre et des événements : `id`, `slug`, `label`, centre, alias, `source_ids`, `upcoming_events_count` (comme `app_zone_counts`), `recent_events_count` (commencés dans les 120 derniers jours), `next_event_date`, `last_event_date` |
 | `app_zone(zone_city, zone_km)`, `app_in_zone(…)`, `app_city_groups()`, `app_distance_km(…)` | aucun | la règle, partagée par les fonctions ci-dessus |
 
@@ -335,10 +349,36 @@ adresse prise pour une ville…) ; ses comptes à venir suivent `app_events_in_r
 `hide_from_home`) au lieu de leur ancienne fenêtre (minuit UTC, 365 jours). Les versions installées de l'app
 la lisent comme avant (une colonne de plus).
 
+## « Tout » et la catégorie : `app_on_tout`, `events.category`
+
+Les dernières règles de l'accueil en Dart, passées en SQL (migration `20261024120000_app_home_rules.sql`, règle complète
+en tête ; tests `supabase/tests/app_home_rules.test.sql`). « Toutes les dates » et « À la une » lisent
+`app_events_in_range` (en cours de plus de 12 h, masqués, auteurs bloqués, zone : « Règle d'appartenance à une plage »
+plus bas), comme une plage du calendrier.
+
+- **`app_on_tout(events)`** : la règle de « Tout », la première page de l'accueil. Un événement y est s'il n'est pas
+  retiré de l'accueil (`hide_from_home` : « Masquer de l'accueil » dans l'admin ; il reste dans sa catégorie). Une
+  fonction de la ligne, que PostgREST rend comme une colonne calculée, sur `events` comme sur les RPC qui rendent
+  `setof events` :
+  - lue dans le `select` (`select=id,…,app_on_tout`) par une liste partagée entre « Tout » et les catégories (« Toutes
+    les dates », une plage du calendrier) : la page « Tout » garde ceux où elle est vraie ;
+  - filtrée (`app_on_tout=is.true`, `.eq('app_on_tout', true)` en Dart) par une liste de « Tout » seul (« À la une »,
+    la carte du soir sans catégorie) ;
+  - lue par les nombres de « Tout » : `app_event_counts` sans catégorie, `app_zone_counts`, `app_cities`.
+
+  Un `select` qui la nomme échoue (400) sur une base qui n'a pas la migration.
+- **`events.category`** : l'id de sa catégorie. Le trigger `events_normalize_category` remplace à l'écriture un nom de
+  catégorie (casse et espaces ignorés, catégories inactives comprises) par son id : la catégorie d'une demande de l'app
+  arrive en capitales (« CONCERT »). Un texte qui ne désigne aucune catégorie reste tel quel. Le paramètre `category`
+  des fonctions accepte toujours l'id ou le nom.
+- **`app_events_in_range`** : les masqués et les auteurs bloqués en sous-requêtes lues une fois par requête, la
+  catégorie demandée résolue une fois. Mêmes lignes, même signature ; rien n'est plus relu pour chaque événement.
+
 ## Festivals : `events.festival_id`, `festival_locations`, `app_festival_events`
 
-Décision du 2026-10-23 (`../live/docs/FESTIVALS.md`, § 4 et 5) : un festival est un événement de la catégorie
-Festival qui contient les autres ; sa page dans l'app est sa fiche en mode festival. Migration
+Décision du 2026-10-23 (`../live/docs/fonctionnalites/festivals.md`, « Règles », « Données et code » et
+« Décisions ») : un festival est un événement de la catégorie Festival qui contient les autres ; sa page dans
+l'app est sa fiche en mode festival. Migration
 `20261023120000_create_festivals.sql` (règle complète en tête), tests `supabase/tests/festivals.test.sql`. En prod
 depuis le 2026-10-23 à 14:27, avec le premier festival : Fulgurances Électroniques #2 (Micro et Infra, ses trois
 lieux).
@@ -432,8 +472,9 @@ comptes sont les mêmes qu'avant la migration (la zone d'Orléans · 25 km : 391
 
 ## Fonctions SQL de la refonte : calendrier, vacances scolaires, recherche
 
-Pour le calendrier « Quand ? » et la recherche des maquettes (`../live/docs/MAQUETTES_REFONTE.md`),
-l'app lit ces comptes dans Supabase au lieu de les calculer en Dart. Migrations :
+Pour le calendrier « Quand ? » (`../live/docs/fonctionnalites/accueil.md`, « Le calendrier ») et la recherche
+(`../live/docs/fonctionnalites/recherche.md`), refaits d'après les maquettes (`../live/docs/DESIGN.md`,
+« Les maquettes »), l'app lit ces comptes dans Supabase au lieu de les calculer en Dart. Migrations :
 `20261019210000_create_app_events_in_range_and_counts.sql` (règle complète en tête),
 `20261019211000_create_school_holidays.sql`, `20261019212000_create_app_search_counts.sql`, pour la
 fiche `20261020140000_create_app_organizer_counts.sql` et `20261021110000_create_app_see_also.sql`
@@ -484,11 +525,13 @@ prod) sur une base locale chargée de l'instantané prod : ci-dessous, les compt
   envoient (`CityPreferencesController.effectiveCityIds`), comparés à `events.city_id`, à défaut à la ville du
   lieu. `null` ou `[]` : toutes les villes. Avec une zone en plus, les deux s'appliquent.
 - **Par utilisateur** : avec une session (anonyme comprise), sans les événements qu'il a masqués
-  (`user_hidden_events`) ni ceux des auteurs qu'il a bloqués (`blocked_users`), comme les filtres
-  Dart de l'accueil. Sans session : rien n'est retiré.
+  (`user_hidden_events`) ni ceux des auteurs qu'il a bloqués (`blocked_users`), lus une fois par
+  requête (migration `20261024120000`) ; l'accueil n'a plus ces filtres en Dart. Sans session : rien
+  n'est retiré.
 - **Catégorie** (`category`) : son id ou son nom, sans tenir compte de la casse (« Spectacle »,
-  « SPECTACLE » ou l'uuid). `events.category` contient un id, ou pour quelques lignes anciennes un nom
-  (2 « Concert » en prod) : les deux comptent, comme le filtre de catégorie de l'app. `null` ou vide : Tout.
+  « SPECTACLE » ou l'uuid), lu une fois. `events.category` est l'id de sa catégorie depuis la migration
+  `20261024120000` (« « Tout » et la catégorie » plus bas) ; un texte qui ne désigne aucune catégorie compte
+  par ce texte. `null` ou vide : toutes les catégories (et, pour les comptes, « Tout »).
 
 ### Règle d'appartenance à une plage
 
@@ -499,12 +542,12 @@ Une plage est `[début, fin)`. Un événement en fait partie :
    sans être fini au début de la plage. Un concert 20:30 → 02:30 n'appartient qu'à son jour de début ;
    une exposition de trois semaines, à chacun de ses jours ;
 3. et s'il n'est pas terminé : `end_date` passée, ou sans `end_date` le lendemain 0 h de son début
-   (« reste affiché toute la journée », décision 1 des maquettes). Ne joue que sur la plage du jour.
+   (« reste affiché toute la journée » : `../live/docs/fonctionnalites/accueil.md`, « La liste »). Ne joue que
+   sur la plage du jour.
 
-C'est la liste de l'accueil (requête de `EventService._getApprovedEventsFromNetwork` puis filtre de
-période de `EventsListLogic`), à trois écarts près, assumés : l'app compare la fin à l'instant UTC
-(1 à 2 h trop tôt) ; elle ne filtre que les événements chargés, au plus 200 par plage (limite
-atteinte sur « Tout ») plus son cache ; ces fonctions portent sur toute la base.
+L'accueil de l'app la lit telle quelle : une plage du calendrier, et depuis la migration `20261024120000`
+« Toutes les dates » et « À la une » (avant, ils refaisaient en Dart la règle 2, avec la fin comparée à l'instant
+UTC, 1 à 2 h trop tôt).
 
 ### `app_event_counts` : comptes du calendrier
 
@@ -581,7 +624,8 @@ app_events_in_range(range_start timestamp, range_end timestamp = null, city_ids 
 
 Les lignes de `app_events()` qui appartiennent à `[range_start, range_end)` (fin nulle : sans fin),
 dans le périmètre et la catégorie, sans les événements masqués par l'utilisateur ni les auteurs
-bloqués. Avec `hide_from_home` : sur Tout, l'accueil les filtre lui-même. Comme sur `rpc/app_events` :
+bloqués. Avec `hide_from_home` : la règle de « Tout » est `app_on_tout`, une colonne calculée (« « Tout » et
+la catégorie » plus bas). Comme sur `rpc/app_events` :
 filtres avant `select`, tri et pagination après (PostgREST v13 ne filtre pas une jointure d'un RPC).
 Trié par date, un événement commencé avant la plage (exposition en cours) vient en premier.
 
@@ -592,7 +636,7 @@ var query = supabase.rpc('app_events_in_range', params: {
   'city_ids': cityPreferences.effectiveCityIds,
   'category': selectedCategory,
 });
-if (selectedCategory == null) query = query.eq('hide_from_home', false);
+if (selectedCategory == null) query = query.eq('app_on_tout', true); // « Tout » seul
 // Ceux qui commencent dans la plage seulement (starting_count) :
 // query = query.gte('date', DateTime.utc(start.year, start.month, start.day).toIso8601String());
 final data = await query
@@ -631,7 +675,7 @@ final events = await supabase.rpc('app_events_in_range', params: {
   'range_start': wall(today),
   'city_ids': cityPreferences.effectiveCityIds,
   'free': true,
-}).eq('hide_from_home', false).select(_eventColumns).order('date').range(0, 199);
+}).eq('app_on_tout', true).select(_eventColumns).order('date').range(0, 199);
 ```
 
 ### Vacances scolaires : table `school_holidays`
@@ -770,9 +814,9 @@ app_see_also(event_id uuid, city_ids uuid[] = null, at_time timestamp = null, ma
   --  source_kind text, source_id uuid, source_name text, source_events_count integer)
 ```
 
-La fiche ne finit plus sur « Organisé par » (audit du 2026-10-20, `../live/docs/AMELIORATIONS.md`, U11 ;
-maquettes, lot 1 : « Fiche, À voir aussi ») : deux rangées au plus, chacune masquée si elle est vide, lues
-en un appel une fois la fiche affichée.
+La fiche ne finit plus sur « Organisé par » (audit du 2026-10-20, U11 ; `../live/docs/fonctionnalites/fiche.md`,
+« Les sections, dans l'ordre » ; maquettes, lot 1 : « Fiche, À voir aussi ») : deux rangées au plus, chacune
+masquée si elle est vide, lues en un appel une fois la fiche affichée.
 
 - `section = 'place'`, « Aussi à <lieu> » : les prochains événements du lieu de l'événement, ceux de sa
   page (qui s'y tiennent ou qu'il organise, toutes villes), par date (une exposition en cours d'abord). Si
@@ -855,8 +899,8 @@ app_possible_duplicates(title text = null, starts_at timestamp = null, location_
 ```
 
 Avant l'envoi d'une proposition, l'app montre l'événement déjà publié qui lui ressemble, avec « Voir la
-fiche » et « Ce n'est pas le même » (audit du 2026-10-20, `../live/docs/AMELIORATIONS.md`, partie E,
-point 6 ; maquettes du lot 2 : « Proposer, affiche lue »). La règle est celle de la collecte
+fiche » et « Ce n'est pas le même » (audit du 2026-10-20, `../live/docs/fonctionnalites/proposer.md`,
+« L'assistant » ; maquettes du lot 2 : « Proposer, affiche lue »). La règle est celle de la collecte
 (`findDuplicateEvent`, `lib/agent/events.ts`), réduite à ce qu'une proposition connaît, en SQL pour que
 l'admin puisse la reprendre.
 
@@ -907,10 +951,11 @@ app_event_series(at_time timestamp = null)
   returns table (event_id uuid, series_id uuid, date timestamptz, dates_count integer)
 ```
 
-Les dates d'un même spectacle (audit du 2026-10-20, `../live/docs/AMELIORATIONS.md`, U14 ; maquettes,
-lot 3 : « Séries ») : sur l'accueil, une carte par série, à sa première date, avec « et 3 autres dates »
-dans la ligne d'infos ; sur la fiche, « 4 dates » et les dates en puces, chacune ouvrant sa fiche. Règle
-tranchée le 2026-10-21 (AMELIORATIONS.md, § 5) : automatique, sans lien posé dans l'admin.
+Les dates d'un même spectacle (audit du 2026-10-20, U14 ; maquettes, lot 3 : « Séries ») : sur l'accueil
+(`../live/docs/fonctionnalites/accueil.md`, « La liste »), une carte par série, à sa première date, avec « et 3
+autres dates » dans la ligne d'infos ; sur la fiche (`../live/docs/fonctionnalites/fiche.md`, « Les sections, dans
+l'ordre »), « 4 dates » et les dates en puces, chacune ouvrant sa fiche. Règle tranchée le 2026-10-21
+(`accueil.md`, « Décisions ») : automatique, sans lien posé dans l'admin.
 
 - **Règle** : deux événements à venir sont de la même série s'ils ont le même titre normalisé, le même
   lieu (`location_id` ; sans lieu, d'aucune série), et si l'on passe de l'un à l'autre par des dates de
@@ -969,9 +1014,9 @@ app_search_names(query text, city_ids uuid[] = null, at_time timestamp = null, m
                  is_organizer boolean, image_url text, city text)
 ```
 
-La recherche de l'app sur toute la base (audit du 2026-10-20, `../live/docs/AMELIORATIONS.md`, U1 :
-« concert » ne rendait qu'un résultat quand la tuile Concert en annonce 47, l'app ne cherchant que
-dans les 200 événements chargés par l'accueil). « À venir », périmètre et filtres par utilisateur :
+La recherche de l'app sur toute la base (audit du 2026-10-20, U1, `../live/docs/fonctionnalites/recherche.md`,
+« Décisions » : « concert » ne rendait qu'un résultat quand la tuile Concert en annonce 47, l'app ne cherchant
+que dans les 200 événements chargés par l'accueil). « À venir », périmètre et filtres par utilisateur :
 ceux des comptes de la recherche (à partir d'aujourd'hui 0 h, expositions en cours comprises, avec
 `hide_from_home`), si bien que « Concert · 47 » ouvre les 47 événements de la tuile.
 
@@ -1147,7 +1192,8 @@ app_audience_add(day date, counts jsonb) returns integer
 Migration `20261021013000_create_app_audience_counts.sql` (compteurs ajoutés par `20261023142000` et
 `20261023180000`), tests `supabase/tests/app_audience.test.sql` ; lecture dans l'admin : « Audience de l'app »
 (`/admin/audience`, `lib/audience/app-audience.ts`). Conditions
-de la CNIL pour se passer de consentement, et ce qui y répond : `docs/AUDIENCE_ET_PLANTAGES.md` de l'app (U41).
+de la CNIL pour se passer de consentement, et ce qui y répond (U41) :
+`../live/docs/fonctionnalites/audience-et-plantages.md`.
 
 L'app compte ses gestes par jour, sur le téléphone, et envoie au plus une fois par jour les totaux des
 journées finies : `event_opened` (fiche ouverte), `ticket_tapped` (billetterie touchée), `search_no_result`
@@ -1224,8 +1270,8 @@ jamais lu).
 Migrations `20261021140000_add_events_published_at.sql`, `20261021141000_create_user_follows.sql` et
 `20261021142000_create_follows_digest.sql` ; tests `supabase/tests/user_follows.test.sql`,
 `supabase/tests/follows_digest.test.sql`, `lib/notifications/follows-digest.test.mjs` et
-`lib/notifications/digest-routes.test.mjs`. U8 de `../live/docs/AMELIORATIONS.md` : suivre un lieu, un
-organisateur ou un artiste, « Mes suivis », la notification qui va avec. Les festivals en favori s'y ajoutent
+`lib/notifications/digest-routes.test.mjs`. U8 (`../live/docs/fonctionnalites/favoris.md`, « Suivis ») : suivre un
+lieu, un organisateur ou un artiste, « Mes suivis », la notification qui va avec. Les festivals en favori s'y ajoutent
 avec `20261023160000_add_festival_follows_and_see_also.sql` (tests `supabase/tests/festival_follows_see_also.test.sql`,
 en prod depuis le 2026-10-23) : un cœur sur un festival vaut suivi de son programme, sans ligne dans `user_follows`.
 
@@ -1332,8 +1378,9 @@ rend `null`) ouvrent l'onglet Favoris.
 ## Radio : `radio_stations`, `app_radio_day`, `app_radio_shows`, `GET /api/v1/radio/{stationId}/live`
 
 « Radio Campus dans OutLive » : écouter le direct de Radio Campus Orléans et réécouter ses émissions dans
-l'app. Le contrat est celui du § 4 de `../live/docs/RADIO_CAMPUS.md` (fixé le 2026-10-23), recopié ici ; un
-changement se fait des deux côtés ensemble. Migrations `20261023140000_create_radio_tables.sql`,
+l'app. Le contrat est celui de `../live/docs/fonctionnalites/radio.md` (« Le contrat avec live-admin », fixé le
+2026-10-23), recopié ici ; un changement se fait des deux côtés ensemble. Migrations
+`20261023140000_create_radio_tables.sql`,
 `20261023141000_create_app_radio_functions.sql`, `20261023142000_add_radio_audience_metrics.sql` et
 `20261023143000_schedule_radio_import.sql` ; tests `supabase/tests/app_radio.test.sql` et
 `lib/radio/*.test.mjs` (fixtures enregistrées le 2026-10-23 dans `lib/radio/fixtures/`).
@@ -1341,7 +1388,8 @@ changement se fait des deux côtés ensemble. Migrations `20261023140000_create_
 **Radio Campus Orléans** : station `e2f7ade2-f5d2-4408-90b4-f8bfca383399` (id fixe, le même en local et en
 prod), organisateur `9d6d803d-4a7e-4118-beba-1744a1159b99`. Elle est créée avec `enabled = false` : la RLS
 la cache alors, avec ses émissions et ses épisodes, et l'app ne montre rien de la radio. L'utilisateur la
-passe à `true` en prod après l'accord écrit de la radio (RADIO_CAMPUS.md, § 5).
+passe à `true` en prod après l'accord écrit de la radio (`../live/docs/fonctionnalites/radio.md`, « Le contrat avec
+live-admin »).
 
 ### Tables
 
@@ -1498,7 +1546,7 @@ stale-while-revalidate=10`), CORS comme les autres routes v1. Lue par l'app via 
   `pause-poesie`, `le-moulin-a-paroles`, `h1000`. Ensuite, famille et collectif (`organizer_id`) se modifient
   dans le back-office (`/admin/radio`) ; l'import n'y touche plus.
 - **Visuels gardés** (`lib/radio/show-images.ts`) : onze émissions gardent leur visuel à la place de leur
-  pochette (choisies le 2026-10-23, ../live/docs/RADIO_CAMPUS.md, « Les pochettes ») : recadré en carré (au
+  pochette (choisies le 2026-10-23, ../live/docs/fonctionnalites/radio.md, « Les pochettes ») : recadré en carré (au
   plus 1 200 px, jamais agrandi), en WebP, dans `organizers-images/radio-shows/<slug>-<empreinte>.webp`.
   Posés par `scripts/radio-show-images.mjs` (simulation par défaut, `--write --confirm=<ref>`), puis
   ajoutés, remplacés ou retirés dans le back-office : `POST /api/admin/radio/shows/[id]/image` (multipart,

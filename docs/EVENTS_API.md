@@ -566,3 +566,7 @@ Erreur :
 | POST | `/api/v1/events/extract-from-image` | Bearer (`multipart/form-data`) |
 
 Champs jamais exposés en public : `scraping_url`, `created_by`, `is_safety_hidden`.
+
+Photos d'artistes (`artists[].imageUrl`) : celles qui viennent de Wikimedia Commons sont sous licence libre et
+s'affichent avec leur crédit, « Photo : `imageCredit`, `imageLicense` », l'auteur menant à `imageSourceUrl`. Les trois
+à `null` : rien à afficher.

@@ -200,6 +200,16 @@ const artistSchema = z
     name: z.string(),
     slug: z.string().nullable(),
     imageUrl: z.string().nullable(),
+    imageCredit: z.string().nullable().openapi({
+      description:
+        "Auteur de la photo, sous licence libre (Wikimedia Commons) : à afficher avec elle, « Photo : auteur, licence », l'auteur menant à imageSourceUrl. Null : rien à afficher.",
+    }),
+    imageLicense: z.string().nullable().openapi({
+      description: "Licence de la photo, à afficher avec le crédit (« CC BY-SA 4.0 », « CC0 », « Domaine public »).",
+    }),
+    imageSourceUrl: z.string().nullable().openapi({
+      description: "Page du fichier sur Wikimedia Commons, lien du crédit.",
+    }),
     artistTypeLabel: z.string().nullable(),
     originCity: z.string().nullable(),
     roleLabel: z.string().nullable(),

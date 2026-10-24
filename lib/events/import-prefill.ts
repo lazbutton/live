@@ -389,10 +389,10 @@ export async function buildEventFormPrefillFromImport({
     });
   }
 
-  // Festivals (../live/docs/FESTIVALS.md, § 4, « À l'import ») : un événement est rattaché au festival qu'il
-  // nomme quand ses dates le couvrent (l'équipe le voit dans le formulaire et peut défaire) ; un festival importé
-  // reprend les lieux que nomme son texte. Une séance rangée en Festival, sur un seul jour, est un événement comme
-  // un autre ; sans fin connue, un festival.
+  // Festivals (../live/docs/fonctionnalites/festivals.md, « Données et code », à l'import) : un événement est
+  // rattaché au festival qu'il nomme quand ses dates le couvrent (l'équipe le voit dans le formulaire et peut
+  // défaire) ; un festival importé reprend les lieux que nomme son texte. Une séance rangée en Festival, sur un seul
+  // jour, est un événement comme un autre ; sans fin connue, un festival.
   const startDate = importedDateTime(data.date);
   const endDate = importedDateTime(data.end_date);
   const festivalName = typeof data.festival_name === "string" ? data.festival_name.trim() : "";
