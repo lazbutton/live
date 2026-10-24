@@ -1220,3 +1220,23 @@
   clé publique de l'app ; les deux photos répondent en 200 `image/jpeg`.
 - Retour arrière : la liste inverse (accès à vide, `image_url` à null pour les deux photos), puis supprimer les
   deux fichiers copiés.
+
+## 2026-10-24 — Adresses de 4 lieux, accès de L'Envolée et du Vinaigrier (données)
+
+- Relu par l'utilisateur, écrit le 2026-10-24 à 6 h 02 (heure de Paris) par `scripts/location-details.mjs`, qui sait
+  désormais corriger `address` (avec `latitude` et `longitude`) et `short_description` :
+  - L'Envolée : « 189 Rue Jean Zay » → « 193 Rue Jean Zay 45800 Saint-Jean-de-Braye », (47.91222, 1.972269) →
+    (47.912152, 1.973077) ; accès « Tram B, arrêt Léon Blum / Bus 2, arrêt Mairie Jean Zay » → « Tram B, arrêt Clos
+    du Hameau / Bus 2, arrêt Mairie Jean Zay / Parking relais Clos du Hameau ».
+  - CCNO : « 7 Rue du Bourdon Blanc » → « 37 Rue du Bourdon Blanc 45000 Orléans », (47.900785, 1.91336) →
+    (47.902308, 1.913061).
+  - Théâtre Gérard-Philipe : « Place Sainte-Beuve » → « 7 Place Sainte-Beuve 45100 Orléans », (47.837612, 1.936918)
+    → (47.838031, 1.937421).
+  - Collégiale Saint-Pierre-le-Puellier : « Cloître Saint-Pierre le Puellier » → « 13 Cloître Saint-Pierre le
+    Puellier 45000 Orléans », coordonnées inchangées (le numéro n'est pas dans la Base Adresse Nationale).
+  - Le Vinaigrier : accès « 📍Le Vinaigrier, Résidence Dessaux du Crous » → « Tram B, arrêt Cathédrale / Parking
+    Halles Charpenterie » ; description vide → « Dans la résidence Dessaux du Crous. ».
+- Vérifié : les 5 lieux relus en base et lus par la clé publique de l'app ; chacun garde sa ville
+  (`sync_location_city`), aucune ville créée, Orléans et Saint-Jean-de-Braye inchangées (centre déjà fixé).
+- Retour arrière : la liste inverse par le même script (anciennes adresses et coordonnées ci-dessus, anciens accès,
+  description vide).

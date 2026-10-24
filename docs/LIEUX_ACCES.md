@@ -52,8 +52,8 @@ Parking des Mails, gratuit après 18 h et le week-end
   API demande une clé, mais la recherche du site lit un JSON public,
   `https://acceslibre.beta.gouv.fr/search/erps/?q=<nom>&zone=<lon1,lat1,lon2,lat2>&page=1&page_size=50`.
   Les fiches sont inégales (de 10 à 97 % remplies), parfois en double : vérifier l'adresse.
-- Coordonnées : celles de `locations`, recoupées avec la Base Adresse Nationale
-  (`https://data.geopf.fr/geocodage/search?q=…` ; api-adresse.data.gouv.fr ne répondait plus le 24/10/2026).
+- Coordonnées : celles de `locations`, recoupées avec la Base Adresse Nationale (api-adresse.data.gouv.fr,
+  celle du champ d'adresse de l'admin, ou `https://data.geopf.fr/geocodage/search?q=…` quand elle tarde).
 
 ## Photos
 
@@ -73,7 +73,9 @@ domaine public. Une photo sous CC BY ou CC BY-SA demandera le même crédit que 
 ## Appliquer une liste
 
 `scripts/location-details.mjs` lit une liste JSON relue (format en tête du script) et n'écrit une valeur que
-si elle est encore celle relevée dans la liste :
+si elle est encore celle relevée dans la liste. Il écrit l'accès et la photo, et corrige aussi une adresse,
+avec les coordonnées de la Base Adresse Nationale comme le champ d'adresse de l'admin, et la description
+courte :
 
 ```bash
 node --env-file=.env.local scripts/location-details.mjs lieux.json
@@ -98,11 +100,13 @@ Reste :
 - **Photos** : rien de libre sur Commons, et des photos « tous droits réservés » sur leurs sites, pour 11 lieux
   actifs : Espace Béraire, L'Unisson, Zigotastiques – le QG, L'Envolée, L'Improviste Bar, MAM, Chafouin,
   château de Saint-Jean-le-Blanc, Théâtre Gérard-Philipe, La Cave Végétale, Les Frangins. À demander aux lieux.
-- **Adresses en base**, sans effet sur l'accès : L'Envolée est au 193 rue Jean Zay (189 en base), le CCNO au
-  37 rue du Bourdon Blanc (7), le Théâtre Gérard-Philipe au 7 place Sainte-Beuve, la Collégiale au
-  13 cloître Saint-Pierre-le-Puellier.
-- **Le Vinaigrier** : son accès (« 📍Le Vinaigrier, Résidence Dessaux du Crous ») est une précision
-  d'adresse, pas un accès.
+
+Corrigés le même jour, après relecture : les adresses de L'Envolée (193 rue Jean Zay, et non 189), du CCNO
+(37 rue du Bourdon Blanc, et non 7), du Théâtre Gérard-Philipe (7 place Sainte-Beuve) et de la Collégiale
+(13 cloître Saint-Pierre-le-Puellier), avec les coordonnées de la Base Adresse Nationale (sauf la Collégiale,
+dont le numéro n'y est pas). L'Envolée, à sa vraie adresse, passe au tram Clos du Hameau et gagne le parking
+relais Clos du Hameau. Le Vinaigrier a un accès, et la précision « Résidence Dessaux du Crous », qui en tenait
+lieu, est passée dans sa description.
 
 Fauteuil roulant, pour la suite d'U33 (l'app n'a pas encore de champ) : ce que disent acceslibre et les
 sites des lieux.
