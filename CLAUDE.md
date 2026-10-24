@@ -40,9 +40,14 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   `20261020181000` appliquée) ; contrat dans `docs/API_APP.md`, tests SQL dans `supabase/tests/`. Genre de prix
   (« Gratuit », prix libre, non renseigné) : colonne générée
   `events.price_kind`, lue par `formatGenericPriceLabel` ; ne pas le recalculer en TS ni en Dart.
+- « Tout », la première page de l'accueil de l'app (`../live/docs/fonctionnalites/accueil.md`, « Règles ») :
+  `app_on_tout(events)`, une colonne calculée pour PostgREST (`select=…,app_on_tout`, filtre `app_on_tout=is.true`),
+  que lisent aussi les nombres de « Tout » ; ne pas refiltrer `hide_from_home` en TS ni en Dart. `events.category`
+  est toujours l'id d'une catégorie (trigger `events_normalize_category`, qui convertit un nom écrit) ; le paramètre
+  `category` des fonctions accepte encore l'id ou le nom.
 - Données d'un invité (session anonyme) recopiées sur le compte qui se connecte : `copy_guest_data()`
   (`security definer`, l'id de la session invitée sert de preuve ; `docs/API_APP.md`).
-- Festivals (`../live/docs/FESTIVALS.md`) : une fiche de la catégorie Festival ; ses événements y sont rattachés
+- Festivals (`../live/docs/fonctionnalites/festivals.md`) : une fiche de la catégorie Festival ; ses événements y sont rattachés
   par `events.festival_id` (pas de festival dans un festival : déclencheur `check_event_festival`), ses lieux dans
   `festival_locations` (le premier est le `location_id` de la fiche ; clé `id`, jamais `(festival_id,
   location_id)`, qui rendrait ambigus les `locations(…)` embarqués depuis `events`). `app_festival_events()` pour
@@ -56,10 +61,10 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   par jour par `take_poster_analysis()` (service role ; `lib/events/poster-analysis-quota.ts`).
 - Mesure d'audience de l'app (U41) : `app_audience_add(day, counts)` additionne des compteurs quotidiens envoyés
   sans identité (clé publique seule) dans `app_audience_counts`, lisible par les admins (`/admin/audience`) ;
-  conditions de la CNIL : `docs/AUDIENCE_ET_PLANTAGES.md` de l'app, contrat dans `docs/API_APP.md`.
+  conditions de la CNIL : `../live/docs/fonctionnalites/audience-et-plantages.md`, contrat dans `docs/API_APP.md`.
 - Une nouvelle colonne sur `events` que l'app doit lire : migration ici, puis ajout dans
   `_eventColumns` côté app (`lib/services/event_service.dart`).
-- Radio (« Radio Campus dans OutLive », `../live/docs/RADIO_CAMPUS.md`) : `radio_stations` (interrupteur `enabled`,
+- Radio (Radio Campus, `../live/docs/fonctionnalites/radio.md`) : `radio_stations` (interrupteur `enabled`,
   faux tant que la radio n'a pas donné son accord écrit : la RLS cache alors tout), `radio_shows`, `radio_episodes`,
   `app_radio_day()` et `app_radio_shows()` pour l'app ; import horaire en lecture seule chez la radio
   (`/api/cron/radio-import`, lancé chaque heure par pg_cron : Vercel Hobby n'accepte qu'un cron par jour) ; « ce qui
@@ -110,4 +115,10 @@ incohérences, point 1).
 
 ## Plan en cours
 
-`../live/docs/PLAN_REFACTO.md`.
+`../live/docs/FEUILLE_DE_ROUTE.md` : tout ce qui reste à faire, avec les priorités choisies le 2026-10-24 ; les
+chantiers en conception sont dans `../live/docs/chantiers/`. Avant de toucher à ce que l'app montre, lire la fiche de
+sa fonctionnalité (`../live/docs/fonctionnalites/`) et, pour qui elle est faite, `../live/docs/PERSONAS.md`. Les
+anciens documents (plans de refacto et de refonte, relevé des améliorations, conceptions des festivals, de la radio et
+des villes) sont retirés : `../live/docs/HISTORIQUE.md`, « Retrouver un ancien document », dit où ils sont. Les
+migrations et leur journal les citent encore : c'est leur histoire. Un renvoi vers une doc de l'app, dans le code ou
+ici, cite la fiche et sa section par son nom (« Les pochettes »), pas par un numéro de § : les numéros changent.

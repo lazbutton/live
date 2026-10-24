@@ -1,5 +1,5 @@
 /*
- * Radio : les visuels gardés des émissions (../live/docs/RADIO_CAMPUS.md, « Les pochettes »).
+ * Radio : les visuels gardés des émissions (../live/docs/fonctionnalites/radio.md, « Les pochettes »).
  *
  * Chaque émission a sa pochette, dessinée par l'app dans la charte de la radio. Celles dont le visuel
  * tient en carré le gardent à la place : recadré en carré (1 200 px au plus, jamais agrandi), en WebP, dans

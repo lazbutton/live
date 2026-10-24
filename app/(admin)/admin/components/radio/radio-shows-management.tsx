@@ -28,7 +28,7 @@ import {
  * (lib/radio/import.ts). Ici, leur famille (musique ou parole), le collectif qui les fait et leur visuel
  * gardé (à la place de leur pochette dans l'app, lib/radio/show-images.ts) ; l'import ne les touche plus.
  * L'interrupteur de la station s'affiche, il ne se change pas ici : il reste à faux jusqu'à l'accord écrit
- * de la radio (../live/docs/RADIO_CAMPUS.md, § 5).
+ * de la radio (../live/docs/fonctionnalites/radio.md, « Le contrat avec live-admin »).
  */
 
 const WEEKDAYS = ["", "Lun.", "Mar.", "Mer.", "Jeu.", "Ven.", "Sam.", "Dim."];

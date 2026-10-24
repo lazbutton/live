@@ -1,8 +1,10 @@
 # Photos des artistes
 
-Chantier U33 de `../live/docs/AMELIORATIONS.md`. Sur la fiche d'un événement, un artiste sans photo
-n'a que ses initiales. Le 2026-10-21, 4 artistes sur 195 avaient une photo ; le 2026-10-24, 36 sur 189, dont 32
-avec leur crédit (« Relecture du 2026-10-24 »).
+Chantier U33 de la refonte (`../live/docs/HISTORIQUE.md`) ; côté app, `../live/docs/fonctionnalites/lieux.md`
+(« Règles ») ; ce qui reste à poser en prod, `../live/docs/FEUILLE_DE_ROUTE.md` (« Données et contenus
+(live-admin) »). Sur la fiche d'un événement, un artiste sans photo n'a que ses initiales. Le 2026-10-21,
+4 artistes sur 195 avaient une photo ; le 2026-10-24, 36 sur 189, dont 32 avec leur crédit (« Relecture du
+2026-10-24 »).
 
 ## Règles (décision du 2026-10-21)
 

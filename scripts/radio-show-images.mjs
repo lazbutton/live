@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Radio : les onze visuels d'émissions gardés le 2026-10-23 (../live/docs/RADIO_CAMPUS.md, « Les pochettes »).
+ * Radio : les onze visuels d'émissions gardés le 2026-10-23 (../live/docs/fonctionnalites/radio.md, « Les pochettes »).
  * Chacun est lu sur le site de la radio (le visuel de la page de l'émission), recadré en carré selon sa
  * règle, déposé dans organizers-images/radio-shows/ et posé dans radio_shows.image_url
  * (lib/radio/show-images.ts). Les autres émissions gardent la pochette que l'app dessine ; le back-office

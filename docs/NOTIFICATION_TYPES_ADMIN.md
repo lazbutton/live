@@ -118,7 +118,8 @@ Le backend ou l'admin doivent raisonner ainsi :
 
 Le projet contenait un ancien systeme de rappels individuels. Il faut le considerer comme obsolete.
 
-- `event_notifications` ne doit plus etre utilise pour piloter les envois produit
+- `event_notifications` (les rappels individuels) : table supprimee le 2026-10-24
+  (`supabase/migrations/20261024043000_drop_event_notifications.sql`)
 - `default_notification_timings` ne doit plus etre utilise
 - les anciens rappels locaux doivent etre consideres comme legacy
 - si des lignes legacy existent encore, elles ne doivent plus influencer la logique d'envoi admin

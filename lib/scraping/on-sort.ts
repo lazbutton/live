@@ -370,8 +370,8 @@ export function cleanOnSortTitle(event: OnSortEvent) {
 
 /**
  * Catégorie OutLive : festival d'après le titre, pour le festival entier seulement (plus d'un jour : une soirée
- * d'un festival garde sa catégorie, ../live/docs/FESTIVALS.md, § 4) ; puis concert, spectacle, exposition,
- * cinéma, rencontre ; atelier pour une fiche importée à la main. Musique et spectacle cochés ensemble :
+ * d'un festival garde sa catégorie, ../live/docs/fonctionnalites/festivals.md, « Règles ») ; puis concert, spectacle,
+ * exposition, cinéma, rencontre ; atelier pour une fiche importée à la main. Musique et spectacle cochés ensemble :
  * spectacle pour du théâtre, de la danse, du cirque…, concert si le titre ou les mots-clés le disent, sinon
  * l'ordre choisi par l'organisateur (« Luminiscence » : cinéma, spectacle, musique).
  */

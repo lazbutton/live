@@ -1,6 +1,8 @@
 # Vignettes des affiches
 
-Étape C7a de `../live/docs/PLAN_REFONTE.md` (décision 1 : vignettes générées par live-admin).
+Étape C7a de la refonte (décision 1 : vignettes générées par live-admin ; `../live/docs/HISTORIQUE.md`,
+« Plan de refonte (fluidité et look) » et « Décisions 1 à 9 (plan de refonte) »). Ce que l'app en fait :
+`../live/docs/ARCHITECTURE.md`, « Les données ».
 Les listes de l'app chargent les affiches à leur taille d'origine (9,8 Mo pour les 40 premières de
 l'accueil le 2026-10-19, cible < 2,5 Mo) et la transformation d'images de Supabase n'est pas activée
 (offre payante). live-admin fabrique donc une vignette par affiche, une fois pour toutes.

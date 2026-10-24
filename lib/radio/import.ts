@@ -1,7 +1,7 @@
 /*
  * Radio : l'import horaire des émissions et des épisodes (`GET /api/cron/radio-import`), en lecture
- * seule chez la radio (`../live/docs/RADIO_CAMPUS.md`, § 4). Pour chaque station, activée ou non (le
- * back-office prépare familles et collectifs avant l'activation) :
+ * seule chez la radio (`../live/docs/fonctionnalites/radio.md`, « Le contrat avec live-admin »). Pour chaque
+ * station, activée ou non (le back-office prépare familles et collectifs avant l'activation) :
  *
  * 1. l'API WordPress des émissions : leur liste (id, slug, nom, page, date de modification) ;
  * 2. la page d'une émission, seulement si elle est nouvelle, modifiée sur le site, ou lue il y a plus de
