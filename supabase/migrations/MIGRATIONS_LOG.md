@@ -1302,6 +1302,23 @@
   après le changement de schéma, plus lents (1,2 s puis 0,2 s). Sauvegarde, sorties et retour arrière :
   `~/Documents/Backups/outlive/regles-accueil-2026-10-24/`. La PR de l'app (lazbutton/live-app#203) peut être fusionnée.
 
+## 2026-10-24 — Photos libres des artistes : 32 posées
+
+- Données seulement, pas de migration (colonnes du crédit : `20261021160000_add_artist_image_credit`). Relecture
+  dans `docs/ARTIST_PHOTOS.md`, « Relecture du 2026-10-24 » : 32 photos validées par l'utilisateur, dans
+  `docs/artist-photos-2026-10-24.json` (heure de pose et adresse de chaque copie).
+- Posées par `node --env-file=.env.local scripts/artist-photos.mjs --plan=… --write
+  --confirm=tkyuiltgvqcgebnqdgmb`, dans `organizers-images/artists/` (JPEG de 40 à 924 Ko) :
+  - **4 CC0 ou domaine public, entre 05:06 et 05:08 (heure de Paris)** : Albertina Carri, Brad Mehldau, Marie
+    Brassard, Marie Chouinard. La première passe a refusé Albertina Carri : l'API de Commons donne désormais ses
+    vignettes sur `thumb.wikimedia.org`, que `downloadCommonsPhoto` accepte depuis (live-admin#68).
+  - **28 CC BY ou CC BY-SA, entre 05:28 et 05:29**, à la demande de l'utilisateur, sans attendre la prochaine
+    version de l'app : la 1.0.6 de l'App Store montre la photo d'un artiste sans crédit d'ici là.
+- Vérifié en anonyme : 36 artistes avec photo, dont 32 avec crédit ; les 32 conformes à la liste (photo, crédit,
+  licence, lien Commons, image en 200 `image/jpeg`) ; « Photo : Thesupermat, CC BY-SA 4.0 » sur
+  https://www.outlive.fr/artists/jeanne-added. L'API publique v1 rend le crédit une fois live-admin#68 déployée.
+- Retour arrière : `docs/ARTIST_PHOTOS.md`.
+
 ## 2026-10-24 — Accès de 15 lieux et photo de la Tête Noire (données, pas une migration)
 
 - `locations.directions` des 15 lieux qui avaient 5 événements à venir ou plus dans l'app (326 des 350 dates),
