@@ -4,15 +4,19 @@
  * (`digest.test.mjs`) ; les événements d'une plage se lisent en SQL (`loadDigestEvents`,
  * `app_events_in_range`), comme dans l'app : la règle d'appartenance n'est pas ici.
  *
- * - Chaque matin : « 3 événements ce soir dans tes catégories » (ce soir = de 18 h à 6 h le lendemain,
- *   comme le raccourci « Ce soir » de l'app, `EventsListPeriod`) ; rien ce soir, ce qui reste aujourd'hui ;
- *   rien du tout, pas de message.
- * - Le lundi : « 12 événements cette semaine dans tes catégories », du lundi au dimanche.
+ * - Chaque matin : « 3 événements ce soir » (ce soir = de 18 h à 6 h le lendemain, comme le raccourci « Ce
+ *   soir » de l'app, `EventsListPeriod`) ; rien ce soir, ce qui reste aujourd'hui ; rien du tout, pas de message.
+ * - Le lundi : « 12 événements cette semaine », du lundi au dimanche.
+ * - Qui a choisi des goûts (« Pour toi », `../live/docs/chantiers/pour-toi.md`) reçoit ce qui est pour lui
+ *   (`app_digest_for_me`, la règle de la page, en SQL) : « 3 événements ce soir pour toi » ; le toucher ouvre
+ *   « Pour toi ». Sans goût, ses catégories, comme avant.
  *
  * Sont comptés les événements qui commencent dans la plage (le `starting_count` d'`app_event_counts`) :
- * une exposition de plusieurs mois appartient à chaque soirée, elle ne ferait qu'un message chaque jour.
- * Titres et corps courts, en français, sans donnée personnelle. L'aperçu de l'app (« Tu recevras »,
- * `notification_digest_preview.dart`) reprend `digestTitle` : changer l'un, c'est changer l'autre.
+ * une exposition de plusieurs mois appartient à chaque soirée, elle ne ferait qu'un message chaque jour. Les
+ * dates d'un même spectacle (`app_event_series`) font une carte, comme sur l'accueil : « Le Dîner de Condé
+ * (4 dates) », compté une fois. Titres et corps courts, en français, sans donnée personnelle. L'aperçu de
+ * l'app (« Tu recevras », `notification_digest_preview.dart`) reprend `digestTitle` : changer l'un, c'est
+ * changer l'autre.
  */
 
 import { addDaysToLocalDate, getIsoLocalDate, type LocalDateParts } from "@/lib/cron-timezone";
@@ -31,6 +35,14 @@ export interface DigestEvent {
   title: string;
   date: string;
   category: string | null;
+  /** La règle de « Tout » (`app_on_tout`) : le résumé sans goût n'a que ces événements, comme l'accueil. */
+  app_on_tout?: boolean | null;
+}
+
+/** Une carte du résumé : un événement, ou les dates d'une même série (`app_event_series`). */
+export interface DigestCard {
+  title: string;
+  dates: number;
 }
 
 export interface DigestCategory {
@@ -115,29 +127,49 @@ export interface DigestPlan<T extends DigestEvent> {
 }
 
 /**
- * Le résumé du matin d'un utilisateur : ce soir s'il s'y passe quelque chose dans ses catégories, sinon
- * le reste de la journée ; `null` : rien à envoyer. [tonight] et [today] : les événements qui commencent
- * dans ces plages (`startsIn`), triés par date.
+ * Le résumé du matin d'un utilisateur : ce soir s'il s'y passe quelque chose pour lui ([keep] : ses
+ * catégories, ou « Pour toi »), sinon le reste de la journée ; `null` : rien à envoyer. [tonight] et [today] :
+ * les événements qui commencent dans ces plages (`startsIn`), triés par date.
  */
 export function planDailyDigest<T extends DigestEvent>(
   tonight: T[],
   today: T[],
-  categoryIds: string[],
-  categories: DigestCategory[],
+  keep: (event: T) => boolean,
 ): DigestPlan<T> | null {
-  const evening = inCategories(tonight, categoryIds, categories);
+  const evening = tonight.filter(keep);
   if (evening.length > 0) return { period: "tonight", events: evening };
-  const day = inCategories(today, categoryIds, categories);
+  const day = today.filter(keep);
   if (day.length > 0) return { period: "today", events: day };
   return null;
 }
 
-/** « 3 événements ce soir dans tes catégories ». */
-export function digestTitle(count: number, period: DigestPeriod): string {
+/**
+ * Les événements de [events], une carte par série (`app_event_series` : [seriesOf], l'id de la série de chaque
+ * événement qui en a une), à sa première date, comme l'accueil de l'app : « Le Dîner de Condé », 4 dates.
+ */
+export function digestCards(events: DigestEvent[], seriesOf: Map<string, string>): DigestCard[] {
+  const cards: DigestCard[] = [];
+  const bySeries = new Map<string, DigestCard>();
+  for (const event of events) {
+    const series = seriesOf.get(event.id);
+    const card = series ? bySeries.get(series) : undefined;
+    if (card) {
+      card.dates++;
+      continue;
+    }
+    const next = { title: event.title, dates: 1 };
+    cards.push(next);
+    if (series) bySeries.set(series, next);
+  }
+  return cards;
+}
+
+/** « 3 événements ce soir », « 1 événement cette semaine pour toi » ([forMe] : le résumé de « Pour toi »). */
+export function digestTitle(count: number, period: DigestPeriod, forMe = false): string {
   const events = count === 1 ? "1 événement" : `${count} événements`;
   const when =
     period === "tonight" ? "ce soir" : period === "today" ? "aujourd’hui" : "cette semaine";
-  return `${events} ${when} dans tes catégories`;
+  return `${events} ${when}${forMe ? " pour toi" : ""}`;
 }
 
 /** Un titre d'événement sur une ligne, coupé au dernier mot entier au-delà de 40 caractères. */
@@ -150,18 +182,23 @@ export function shortTitle(title: string): string {
   return `${kept.replace(/[\s,.;:!?–-]+$/, "")}…`;
 }
 
-/** Les deux premiers titres, puis le reste : « Luiza, Dédoublée et 1 autre ». */
-export function digestBody(titles: string[]): string {
-  const shown = titles.slice(0, 2).map(shortTitle);
-  const rest = titles.length - shown.length;
+/**
+ * Les deux premières cartes, puis le reste : « Luiza, Dédoublée et 1 autre » ; une série dit ses dates :
+ * « Le Dîner de Condé (4 dates) ».
+ */
+export function digestBody(cards: DigestCard[]): string {
+  const shown = cards
+    .slice(0, 2)
+    .map((card) => (card.dates > 1 ? `${shortTitle(card.title)} (${card.dates} dates)` : shortTitle(card.title)));
+  const rest = cards.length - shown.length;
   if (rest > 0) return `${shown.join(", ")} et ${rest} ${rest === 1 ? "autre" : "autres"}`;
   return shown.join(" et ");
 }
 
 /**
- * Données de la notification, lues par l'app au toucher (l'accueil sur la période et ces catégories).
- * FCM les envoie en texte : les listes y deviennent « a,b » (`fcm.ts`) ; APNs les garde en listes.
- * Contrat : `docs/API_APP.md`, « Résumés poussés ».
+ * Données de la notification, lues par l'app au toucher (l'accueil sur la période et ces catégories, ou sur
+ * « Pour toi » : `for_me`). FCM les envoie en texte : les listes y deviennent « a,b », `true` « true »
+ * (`fcm.ts`) ; APNs les garde telles quelles. Contrat : `docs/API_APP.md`, « Résumés poussés ».
  */
 export function digestData(input: {
   period: DigestPeriod;
@@ -171,12 +208,15 @@ export function digestData(input: {
   endDate?: string;
   categoryIds: string[];
   eventIds: string[];
+  /** Le résumé de « Pour toi » : l'app l'ouvre ; les versions d'avant l'ignorent (« Tout », sans catégorie). */
+  forMe?: boolean;
 }): Record<string, unknown> {
   const common = {
     period: input.period,
     categories: input.categoryIds,
     event_ids: input.eventIds.slice(0, MAX_EVENT_IDS),
     events_count: input.eventIds.length,
+    ...(input.forMe ? { for_me: true } : {}),
   };
   if (input.period === "week") {
     return { type: "weekly_summary", start_date: input.date, end_date: input.endDate ?? input.date, ...common };

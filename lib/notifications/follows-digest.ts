@@ -97,7 +97,7 @@ export function followsDigestTitle(plan: FollowsDigestPlan): string {
 
 /** Les deux premiers titres, puis le reste : « Kid Francescoli, Folie’s et 1 autre ». */
 export function followsDigestBody(plan: FollowsDigestPlan): string {
-  return digestBody(plan.events.map((event) => event.title));
+  return digestBody(plan.events.map((event) => ({ title: event.title, dates: 1 })));
 }
 
 /**

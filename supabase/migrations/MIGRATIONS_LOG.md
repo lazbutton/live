@@ -1475,3 +1475,23 @@
   (médiane de 10, temps du serveur), 70 ms avec `app_interest_ids`.
 - À surveiller : si `20261024150000` (« Suivre une émission ») est appliquée après celle-ci sans les trois compteurs de
   « Pour toi », elle les retire d'`app_audience_add` (sa session est prévenue).
+
+## 2026-10-24 — « Pour toi » : les résumés de notification
+
+- `20261024210000_pour_toi_digests` (étape 7 de `../live/docs/chantiers/pour-toi.md`) : `app_is_for_me_by_ids` (la
+  règle de la page sur des valeurs déjà lues ; `app_is_for_me` la passe désormais, même résultat, dépliée de même
+  dans `app_events_in_range`), `app_digest_for_me(range_start, range_end, at_time)` (pour chaque utilisateur qui a un
+  goût actif, ce qui est pour lui sur la plage, sans ses masqués ni ses auteurs bloqués, une ligne sans événement s'il
+  n'a rien ; service seulement) et `app_interests_from_categories(apply)` (choix 6 : les catégories cochées
+  deviennent des goûts, à lancer une fois le jour de la sortie de l'app ; sans `apply`, rien n'est écrit).
+- Les crons `daily-events` et `weekly-summary` (`lib/notifications/digest.ts`, `digest-events.ts`) : qui a des goûts
+  reçoit « 3 événements ce soir pour toi » (données `for_me: true`, sans catégorie) ; les autres, leurs catégories
+  parmi « Tout » (`app_on_tout`, plus `hide_from_home` en TS), et les titres perdent « dans tes catégories » ; les
+  dates d'une série (`app_event_series`) font une carte : « Le Dîner de Condé (4 dates) », compté une fois.
+- Tests : `supabase/tests/pour_toi_digests.test.sql` (13 cas : la règle sur des valeurs, qui reçoit quoi, masqués,
+  bloqués, goût inactif, destinataire sans rien, la reprise des catégories à blanc et pour de bon, les droits) ;
+  11 règles cassées une à une, 10 attrapées (la onzième, « [] repris », ne change rien : une liste vide ne donne aucun
+  goût). `digest.test.mjs` et `digest-routes.test.mjs` (« Pour toi », séries, titres). Les 36 fichiers de
+  `supabase/tests/`, `node --test` (349), `tsc` et ESLint au vert.
+- **Pas encore appliquée en prod.** Elle passe avant la fusion de sa PR : les crons l'appellent. La reprise des
+  catégories (`app_interests_from_categories(true)`) attend la sortie de l'app.

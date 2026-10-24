@@ -7,15 +7,24 @@ import {
   sendNotificationToUser,
 } from "@/lib/notifications";
 import {
+  categoryIdOf,
   categoryIdsOf,
   dayRange,
   digestBody,
+  digestCards,
   digestData,
   digestTitle,
   planDailyDigest,
   tonightRange,
+  type DigestEvent,
+  type DigestPlan,
 } from "@/lib/notifications/digest";
-import { loadDigestCategories, loadDigestEvents } from "@/lib/notifications/digest-events";
+import {
+  loadDigestCategories,
+  loadDigestEvents,
+  loadDigestSeries,
+  loadForMeDigest,
+} from "@/lib/notifications/digest-events";
 import {
   getIsoLocalDate,
   getIsoLocalTime,
@@ -54,10 +63,11 @@ function verifyCronRequest(request: NextRequest): boolean {
  * GET /api/cron/notifications/daily-events
  *
  * Le résumé du matin (U9, `lib/notifications/digest.ts`) : à chaque utilisateur en `daily`, « 3 événements
- * ce soir dans tes catégories » (de 18 h à 6 h, comme « Ce soir » dans l'app) ; rien ce soir, ce qui reste
- * aujourd'hui ; rien du tout, pas de message. Les événements sont ceux de l'accueil de l'app
- * (`app_events_in_range`, heure de Paris). Toucher la notification ouvre l'accueil sur cette période et ces
- * catégories (données : `docs/API_APP.md`, « Résumés poussés »).
+ * ce soir » (de 18 h à 6 h, comme « Ce soir » dans l'app) ; rien ce soir, ce qui reste aujourd'hui ; rien du
+ * tout, pas de message. Qui a des goûts reçoit ce qui est pour lui (« … ce soir pour toi »,
+ * `app_digest_for_me`) ; les autres, leurs catégories parmi les événements de « Tout ». Les événements sont
+ * ceux de l'accueil de l'app (`app_events_in_range`, heure de Paris). Toucher la notification ouvre l'accueil
+ * sur cette période, et ces catégories ou « Pour toi » (données : `docs/API_APP.md`, « Résumés poussés »).
  * Sur Vercel Hobby, l'horaire est pilote par vercel.json avec une precision a l'heure.
  */
 export async function GET(request: NextRequest) {
@@ -85,15 +95,22 @@ export async function GET(request: NextRequest) {
       `🕒 Référence Europe/Paris: ${todayLabel} ${getIsoLocalTime(nowInParis)}`,
     );
 
-    // Ce soir, et toute la journée (repli) : ce qui y commence, comme l'accueil de l'app le montre.
+    // Ce soir, et toute la journée (repli) : ce qui y commence, comme l'accueil de l'app le montre ; ce qui
+    // est pour chacun de ceux qui ont des goûts ; les séries, pour les compter une fois.
     let tonightEvents;
     let todayEvents;
     let categories;
+    let tonightForMe;
+    let todayForMe;
+    let seriesOf;
     try {
-      [tonightEvents, todayEvents, categories] = await Promise.all([
+      [tonightEvents, todayEvents, categories, tonightForMe, todayForMe, seriesOf] = await Promise.all([
         loadDigestEvents(tonightRange(todayInParis)),
         loadDigestEvents(dayRange(todayInParis)),
         loadDigestCategories(),
+        loadForMeDigest(tonightRange(todayInParis)),
+        loadForMeDigest(dayRange(todayInParis)),
+        loadDigestSeries(),
       ]);
     } catch (eventsError: any) {
       console.error("❌ Erreur lors de la récupération des événements:", eventsError);
@@ -164,15 +181,21 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Le résumé de chaque utilisateur, selon ses catégories
-    const digestByUser = new Map<string, NonNullable<ReturnType<typeof planDailyDigest>>>();
+    // Le résumé de chaque utilisateur : « Pour toi » s'il a des goûts, sinon ses catégories parmi « Tout ».
+    const digestByUser = new Map<string, { plan: DigestPlan<DigestEvent>; forMe: boolean }>();
+    const tonightOnAll = tonightEvents.filter((event) => event.app_on_tout !== false);
+    const todayOnAll = todayEvents.filter((event) => event.app_on_tout !== false);
 
     let usersWithoutCategories = 0;
     let usersWithoutTokens = 0;
+    let usersForMe = 0;
 
     enabledUsers.forEach((user) => {
-      const userCategoryIds = getEffectiveNotificationCategoryIds(user);
-      if (userCategoryIds.length === 0) {
+      const tonightMine = tonightForMe.get(user.user_id);
+      const todayMine = todayForMe.get(user.user_id);
+      const forMe = tonightMine !== undefined || todayMine !== undefined;
+      const userCategoryIds = forMe ? [] : getEffectiveNotificationCategoryIds(user);
+      if (!forMe && userCategoryIds.length === 0) {
         usersWithoutCategories++;
         return;
       }
@@ -182,9 +205,21 @@ export async function GET(request: NextRequest) {
         return;
       }
 
-      const plan = planDailyDigest(tonightEvents, todayEvents, userCategoryIds, categories);
+      let plan;
+      if (forMe) {
+        usersForMe++;
+        const mine = (event: DigestEvent) => Boolean(tonightMine?.has(event.id) || todayMine?.has(event.id));
+        plan = planDailyDigest(tonightEvents, todayEvents, mine);
+      } else {
+        const wanted = new Set(userCategoryIds);
+        const inTheirCategories = (event: DigestEvent) => {
+          const id = categoryIdOf(event.category, categories);
+          return id !== null && wanted.has(id);
+        };
+        plan = planDailyDigest(tonightOnAll, todayOnAll, inTheirCategories);
+      }
       if (plan) {
-        digestByUser.set(user.user_id, plan);
+        digestByUser.set(user.user_id, { plan, forMe });
       }
     });
 
@@ -208,7 +243,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(
-      `📱 ${digestByUser.size} utilisateur(s) éligible(s) sur ${enabledUsers.length} (sans_categories=${usersWithoutCategories}, sans_tokens=${usersWithoutTokens})`,
+      `📱 ${digestByUser.size} utilisateur(s) éligible(s) sur ${enabledUsers.length} (pour_toi=${usersForMe}, sans_categories=${usersWithoutCategories}, sans_tokens=${usersWithoutTokens})`,
     );
 
     let totalSent = 0;
@@ -218,17 +253,19 @@ export async function GET(request: NextRequest) {
     const deliveryDiagnostics: Array<Record<string, any>> = [];
 
     // Envoyer une seule notification par utilisateur avec tous ses événements
-    for (const [userId, plan] of digestByUser) {
+    for (const [userId, { plan, forMe }] of digestByUser) {
       try {
         const userEvents = plan.events;
-        const categoryIds = categoryIdsOf(userEvents, categories);
-        const title = digestTitle(userEvents.length, plan.period);
-        const body = digestBody(userEvents.map((event) => event.title));
+        const categoryIds = forMe ? [] : categoryIdsOf(userEvents, categories);
+        const cards = digestCards(userEvents, seriesOf);
+        const title = digestTitle(cards.length, plan.period, forMe);
+        const body = digestBody(cards);
         const data = digestData({
           period: plan.period,
           date: todayLabel,
           categoryIds,
           eventIds: userEvents.map((event) => event.id),
+          forMe,
         });
 
         const deliveryKey = `daily_events:${todayLabel}:${userId}`;
@@ -253,6 +290,7 @@ export async function GET(request: NextRequest) {
               eventsCount: userEvents.length,
               period: plan.period,
               categories: categoryIds,
+              forMe,
               deliveryKey,
             });
           }
@@ -279,6 +317,7 @@ export async function GET(request: NextRequest) {
             eventsCount: userEvents.length,
             period: plan.period,
             categories: categoryIds,
+            forMe,
             deliveryKey,
             reclaimedStaleClaim: claim.reclaimedStale ?? false,
             diagnostics: result.diagnostics,
@@ -320,6 +359,7 @@ export async function GET(request: NextRequest) {
       flow: DAILY_FLOW,
       debug: {
         enabledUsers: enabledUsers.length,
+        usersForMe,
         usersWithoutCategories,
         usersWithoutTokens,
         eligibleUsers: digestByUser.size,

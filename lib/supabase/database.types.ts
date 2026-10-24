@@ -2750,6 +2750,13 @@ export type Database = {
           source_ids: string[]
         }[]
       }
+      app_digest_for_me: {
+        Args: { at_time?: string; range_end?: string; range_start: string }
+        Returns: {
+          event_id: string
+          user_id: string
+        }[]
+      }
       app_distance_km: {
         Args: { lat1: number; lat2: number; lng1: number; lng2: number }
         Returns: number
@@ -3085,10 +3092,28 @@ export type Database = {
         Args: { e: Database["public"]["Tables"]["events"]["Row"] }
         Returns: string[]
       }
+      app_interests_from_categories: {
+        Args: { apply?: boolean }
+        Returns: {
+          interest_slugs: string[]
+          user_id: string
+        }[]
+      }
       app_is_for_me: {
         Args: {
           e: Database["public"]["Tables"]["events"]["Row"]
           event_ids: string[]
+          interest_ids: string[]
+          location_ids: string[]
+        }
+        Returns: boolean
+      }
+      app_is_for_me_by_ids: {
+        Args: {
+          event_id: string
+          event_ids: string[]
+          event_interest_ids: string[]
+          event_location_id: string
           interest_ids: string[]
           location_ids: string[]
         }

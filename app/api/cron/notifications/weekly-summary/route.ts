@@ -9,12 +9,18 @@ import {
 import {
   categoryIdsOf,
   digestBody,
+  digestCards,
   digestData,
   digestTitle,
   inCategories,
   weekRange,
 } from "@/lib/notifications/digest";
-import { loadDigestCategories, loadDigestEvents } from "@/lib/notifications/digest-events";
+import {
+  loadDigestCategories,
+  loadDigestEvents,
+  loadDigestSeries,
+  loadForMeDigest,
+} from "@/lib/notifications/digest-events";
 import {
   addDaysToLocalDate,
   getIsoLocalDate,
@@ -55,9 +61,11 @@ function verifyCronRequest(request: NextRequest): boolean {
  * GET /api/cron/notifications/weekly-summary
  *
  * Le résumé de la semaine (U9, `lib/notifications/digest.ts`) : le lundi, à chaque utilisateur en `weekly`,
- * « 12 événements cette semaine dans tes catégories » (ceux qui commencent du lundi au dimanche, comme
- * l'accueil de l'app les montre : `app_events_in_range`, heure de Paris). Toucher la notification ouvre
- * l'accueil sur la semaine et ces catégories (données : `docs/API_APP.md`, « Résumés poussés »).
+ * « 12 événements cette semaine » (ceux qui commencent du lundi au dimanche, comme l'accueil de l'app les
+ * montre : `app_events_in_range`, heure de Paris). Qui a des goûts reçoit ce qui est pour lui (« … cette
+ * semaine pour toi », `app_digest_for_me`) ; les autres, leurs catégories parmi les événements de « Tout ».
+ * Toucher la notification ouvre l'accueil sur la semaine, et ces catégories ou « Pour toi » (données :
+ * `docs/API_APP.md`, « Résumés poussés »).
  * Convention produit: la passe hebdomadaire part en debut de semaine, le lundi.
  */
 export async function GET(request: NextRequest) {
@@ -108,10 +116,14 @@ export async function GET(request: NextRequest) {
     // chacun dépend de ses catégories).
     let weekEvents;
     let categories;
+    let weekForMe;
+    let seriesOf;
     try {
-      [weekEvents, categories] = await Promise.all([
+      [weekEvents, categories, weekForMe, seriesOf] = await Promise.all([
         loadDigestEvents(weekRange(weekStartLocal)),
         loadDigestCategories(),
+        loadForMeDigest(weekRange(weekStartLocal)),
+        loadDigestSeries(),
       ]);
     } catch (eventsError: any) {
       console.error("❌ Erreur lors de la récupération des événements:", eventsError);
@@ -180,15 +192,19 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Grouper les événements par utilisateur selon leurs préférences
-    const eventsByUser: Record<string, typeof weekEvents> = {};
+    // Les événements de chaque utilisateur : « Pour toi » s'il a des goûts, sinon ses catégories parmi « Tout ».
+    const eventsByUser: Record<string, { events: typeof weekEvents; forMe: boolean }> = {};
+    const weekOnAll = weekEvents.filter((event) => event.app_on_tout !== false);
 
     let usersWithoutCategories = 0;
     let usersWithoutTokens = 0;
+    let usersForMe = 0;
 
     enabledUsers.forEach((user) => {
-      const userCategoryIds = getEffectiveNotificationCategoryIds(user);
-      if (userCategoryIds.length === 0) {
+      const mine = weekForMe.get(user.user_id);
+      const forMe = mine !== undefined;
+      const userCategoryIds = forMe ? [] : getEffectiveNotificationCategoryIds(user);
+      if (!forMe && userCategoryIds.length === 0) {
         usersWithoutCategories++;
         return;
       }
@@ -198,9 +214,12 @@ export async function GET(request: NextRequest) {
         return;
       }
 
-      const userEvents = inCategories(weekEvents, userCategoryIds, categories);
+      if (forMe) usersForMe++;
+      const userEvents = forMe
+        ? weekEvents.filter((event) => mine.has(event.id))
+        : inCategories(weekOnAll, userCategoryIds, categories);
       if (userEvents.length > 0) {
-        eventsByUser[user.user_id] = userEvents;
+        eventsByUser[user.user_id] = { events: userEvents, forMe };
       }
     });
 
@@ -224,7 +243,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(
-      `📱 ${Object.keys(eventsByUser).length} utilisateur(s) éligible(s) sur ${enabledUsers.length} (sans_categories=${usersWithoutCategories}, sans_tokens=${usersWithoutTokens})`,
+      `📱 ${Object.keys(eventsByUser).length} utilisateur(s) éligible(s) sur ${enabledUsers.length} (pour_toi=${usersForMe}, sans_categories=${usersWithoutCategories}, sans_tokens=${usersWithoutTokens})`,
     );
 
     let totalSent = 0;
@@ -234,17 +253,19 @@ export async function GET(request: NextRequest) {
     const deliveryDiagnostics: Array<Record<string, any>> = [];
 
     // Envoyer une seule notification par utilisateur avec tous ses événements
-    for (const [userId, userEvents] of Object.entries(eventsByUser)) {
+    for (const [userId, { events: userEvents, forMe }] of Object.entries(eventsByUser)) {
       try {
-        const categoryIds = categoryIdsOf(userEvents, categories);
-        const title = digestTitle(userEvents.length, "week");
-        const body = digestBody(userEvents.map((event) => event.title));
+        const categoryIds = forMe ? [] : categoryIdsOf(userEvents, categories);
+        const cards = digestCards(userEvents, seriesOf);
+        const title = digestTitle(cards.length, "week", forMe);
+        const body = digestBody(cards);
         const data = digestData({
           period: "week",
           date: weekStartLabel,
           endDate: weekEndLabel,
           categoryIds,
           eventIds: userEvents.map((event) => event.id),
+          forMe,
         });
 
         const deliveryKey = `weekly_summary:${weekStartLabel}:${userId}`;
@@ -268,6 +289,7 @@ export async function GET(request: NextRequest) {
                   : "Notification hebdomadaire déjà envoyée pour cette semaine",
               eventsCount: userEvents.length,
               categories: categoryIds,
+              forMe,
               deliveryKey,
             });
           }
@@ -293,6 +315,7 @@ export async function GET(request: NextRequest) {
             status: result.success && result.sent > 0 ? "sent" : "failed",
             eventsCount: userEvents.length,
             categories: categoryIds,
+            forMe,
             deliveryKey,
             reclaimedStaleClaim: claim.reclaimedStale ?? false,
             diagnostics: result.diagnostics,
@@ -334,6 +357,7 @@ export async function GET(request: NextRequest) {
       flow: WEEKLY_FLOW,
       debug: {
         enabledUsers: enabledUsers.length,
+        usersForMe,
         usersWithoutCategories,
         usersWithoutTokens,
         eligibleUsers: Object.keys(eventsByUser).length,
