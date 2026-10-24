@@ -24,6 +24,7 @@ export {
   formatRequestAgeShort,
   getAdminRequestMissingFields,
   getQueueFilterFromLane,
+  getRequestContributorLabel,
   getRequestLaneLabel,
   getModerationReasonLabel,
   getRequestWorkspaceTab,
@@ -41,7 +42,13 @@ import {
   countActionablePendingRequests,
 } from "@/lib/admin-requests-core";
 
-export async function fetchAdminRequestItems() {
+/**
+ * Les demandes de création, la plus récente d'abord. `withRequesterEmails` : avec l'e-mail du compte de
+ * chaque auteur (la file des demandes, qui le montre quand une demande n'a pas de nom).
+ */
+export async function fetchAdminRequestItems({
+  withRequesterEmails = false,
+}: { withRequesterEmails?: boolean } = {}) {
   const { data, error } = await supabase
     .from("user_requests")
     .select(ADMIN_REQUEST_SELECT)
@@ -51,7 +58,34 @@ export async function fetchAdminRequestItems() {
   if (error) throw error;
 
   const rows = (data || []) as unknown as AdminRawRequest[];
-  return rows.map((request) => buildAdminRequestItem(request));
+  const emails = withRequesterEmails
+    ? await fetchRequesterEmails(rows)
+    : new Map<string, string>();
+  return rows.map((request) =>
+    buildAdminRequestItem(request, emails.get(request.requested_by ?? "") ?? null),
+  );
+}
+
+/**
+ * L'e-mail du compte de chaque auteur, par get_user_emails (admins seulement) ; vide si la lecture
+ * échoue : la file montre alors l'id du compte.
+ */
+async function fetchRequesterEmails(rows: AdminRawRequest[]) {
+  const ids = [
+    ...new Set(rows.map((row) => row.requested_by).filter((id): id is string => Boolean(id))),
+  ];
+  const emails = new Map<string, string>();
+  if (ids.length === 0) return emails;
+
+  const { data, error } = await supabase.rpc("get_user_emails", { user_ids: ids });
+  if (error) {
+    console.error("E-mails des auteurs indisponibles:", error);
+    return emails;
+  }
+  for (const row of data ?? []) {
+    if (row.user_id && row.email) emails.set(row.user_id, row.email);
+  }
+  return emails;
 }
 
 export async function fetchPendingAdminRequestsCount() {

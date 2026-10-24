@@ -83,6 +83,11 @@ export interface AdminRequestItem {
   contributorMessage: string | null;
   allowUserResubmission: boolean;
   contributorDisplayName: string | null;
+  /**
+   * L'e-mail du compte de l'auteur (get_user_emails, admins seulement), pour le reconnaître quand sa
+   * demande n'a pas de nom : jamais public (seul contributorDisplayName peut le devenir, sans « @ »).
+   */
+  requesterEmail: string | null;
   communityAttributionOptIn: boolean;
   eventDate: string | null;
   endDate: string | null;
@@ -285,7 +290,10 @@ function resolveLane(
   return "to_process";
 }
 
-export function buildAdminRequestItem(raw: AdminRawRequest): AdminRequestItem {
+export function buildAdminRequestItem(
+  raw: AdminRawRequest,
+  requesterEmail: string | null = null,
+): AdminRequestItem {
   const requestType =
     raw.request_type === "event_from_url" ? "event_from_url" : "event_creation";
   const eventData = raw.event_data ?? {};
@@ -360,6 +368,7 @@ export function buildAdminRequestItem(raw: AdminRawRequest): AdminRequestItem {
       normalizeString(raw.contributor_display_name) ??
       raw.contributor_display_name ??
       null,
+    requesterEmail: normalizeString(requesterEmail),
     communityAttributionOptIn: raw.community_attribution_opt_in === true,
     eventDate,
     endDate: normalizeString(eventData.end_date),
@@ -391,6 +400,16 @@ export function buildAdminRequestItem(raw: AdminRawRequest): AdminRequestItem {
       event_data: eventData,
     },
   };
+}
+
+/** Qui a envoyé la demande, pour l'admin : son nom, sinon l'e-mail de son compte, sinon son id. */
+export function getRequestContributorLabel(item: AdminRequestItem) {
+  return (
+    item.contributorDisplayName ||
+    item.requesterEmail ||
+    item.requestedBy ||
+    "Contributeur inconnu"
+  );
 }
 
 function getTimestamp(value: string | null) {

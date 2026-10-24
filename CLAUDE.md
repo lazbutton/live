@@ -45,6 +45,9 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   que lisent aussi les nombres de « Tout » ; ne pas refiltrer `hide_from_home` en TS ni en Dart. `events.category`
   est toujours l'id d'une catégorie (trigger `events_normalize_category`, qui convertit un nom écrit) ; le paramètre
   `category` des fonctions accepte encore l'id ou le nom.
+- Attribution publique d'une proposition (« Proposé par … ») : `events.community_contributor_label` ne vient que de
+  `public_contributor_label()`, jamais d'une adresse e-mail (contrainte `events_community_contributor_label_not_email`) ;
+  l'auteur d'une demande sans nom se reconnaît par l'e-mail de son compte (`get_user_emails`), jamais public.
 - Données d'un invité (session anonyme) recopiées sur le compte qui se connecte : `copy_guest_data()`
   (`security definer`, l'id de la session invitée sert de preuve ; `docs/API_APP.md`).
 - Festivals (`../live/docs/fonctionnalites/festivals.md`) : une fiche de la catégorie Festival ; ses événements y sont rattachés

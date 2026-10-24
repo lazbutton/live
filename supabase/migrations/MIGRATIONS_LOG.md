@@ -1376,6 +1376,39 @@
 - Retour arrière : la liste inverse par le même script (anciennes adresses et coordonnées ci-dessus, anciens accès,
   description vide).
 
+## 2026-10-24 — L'attribution publique d'une proposition, jamais une adresse e-mail
+
+- `20261024140000_community_attribution_without_email` : l'app envoyait l'e-mail d'un compte sans nom (connexion
+  Apple native, code par e-mail) comme `contributor_display_name` ; avec l'accord d'attribution, il serait devenu le
+  nom public de l'événement (« Proposé par … » sur la fiche de l'app, `communityContributorLabel` dans l'API v1).
+  L'app n'envoie plus que le nom du compte, sinon rien (lazbutton/live-app#211) ; la règle vit ici pour les versions
+  déjà installées : `public_contributor_label(text)` (le nom sans les espaces autour ; NULL s'il est vide ou contient
+  « @ »).
+- `convert_event_request_to_event` recopie de nouveau l'attribution : `20260415190000` et `20260415213000` (prix,
+  venues de l'app) avaient réécrit la fonction d'après une version antérieure à `20260411160000`, sans
+  `community_submission`, `community_attribution_opt_in` ni `community_contributor_label`. Corps de `20260415213000`
+  (prix libre) inchangé par ailleurs.
+- `events` : un nom public qui contiendrait « @ » est effacé, puis refusé par la contrainte
+  `events_community_contributor_label_not_email`, quel que soit le chemin.
+- Le back-office montre l'e-mail du compte (`get_user_emails`) quand une demande n'a pas de nom (file des demandes).
+- Une demande complétée dans le formulaire d'événement (`markRequestConverted`, le chemin des demandes « depuis un
+  lien » et des affiches seules) ne recopie toujours aucune attribution : pas d'e-mail possible, mais ni « Proposé
+  par » ni « Suggestion communautaire ».
+- Tests : `supabase/tests/community_attribution.test.sql` (le nom public, la conversion avec et sans accord, avec et
+  sans nom, l'e-mail d'une ancienne version écarté, le prix libre, le refus hors admin, la contrainte en insertion et
+  en mise à jour) ; `lib/admin-requests-core.test.mjs`. `npm run db:test` (33 fichiers), `node --test` (334),
+  `npx tsc --noEmit` et ESLint au vert.
+- État de la prod relevé avant, en lecture seule : `convert_event_request_to_event` était la version de
+  `20260415213000` (empreinte `left(md5(pg_get_functiondef(…)), 8)` = `9ba4d160`, aucune attribution) ; 465
+  événements, aucun nom public, aucun « @ », aucun événement communautaire.
+- Répétée en prod dans une transaction annulée, avec l'accord de l'utilisateur : `UPDATE 0`, contrainte validée,
+  fonction après `b0ca2c58` ; après le ROLLBACK, de nouveau `9ba4d160`, ni fonction ni contrainte.
+- **Appliquée en prod le 2026-10-24 à 6 h 25 (heure de Paris)**, avec l'accord de l'utilisateur : psql
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de `main` (sha256 `9e8a43be…`), sans
+  erreur (`UPDATE 0`). Vérifié en lecture seule : fonction `b0ca2c58` (attribution, nom filtré, prix libre, security
+  definer), `public_contributor_label` rend « Camille Martin » et NULL pour une adresse e-mail, contrainte validée,
+  465 événements dont aucun nom public avec « @ ».
+
 ## 2026-10-24 — Suivre une émission de radio : le type `radio_show`, « Tes émissions », les émissions dans « Mes suivis »
 
 - `20261024150000_add_radio_show_follows` : étape 1 de `../live/docs/chantiers/radio-suivre.md` (choix et maquettes

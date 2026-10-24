@@ -140,7 +140,7 @@ Il n'y a pas de route de mise à jour : l'app modifie ses demandes directement d
 | Champ | Type | |
 | --- | --- | --- |
 | `requestType` | `event_creation` ou `event_from_url` | |
-| `contributorDisplayName` | texte, facultatif | nom du compte, sinon e-mail ; `null` si inconnu |
+| `contributorDisplayName` | texte, facultatif | nom public : celui du compte, jamais l'e-mail ; `null` sans nom (l'app jusqu'à la 1.0.6 envoie l'e-mail : la conversion l'écarte) |
 | `communityAttributionOptIn` | booléen, facultatif | absent = `false` |
 
 `event_creation` ajoute `eventData`, stocké tel quel dans `user_requests.event_data` (clés en
@@ -158,6 +158,13 @@ snake_case, clés inconnues conservées) :
 | `location_id`, `location_name`, `address` | texte, facultatif | |
 | `image_url`, `external_url` | texte, facultatif | |
 | `tag_ids`, `tags`, `organizer_names` | liste de textes, facultatif | `tags` : noms, existants ou nouveaux |
+
+À la conversion en événement par la fonction SQL `convert_event_request_to_event`, l'événement est marqué
+communautaire (`community_submission`), garde l'accord (`community_attribution_opt_in`) et, avec l'accord seulement,
+le nom public dans `community_contributor_label` (« Proposé par … » sur la fiche ; sinon « Suggestion
+communautaire ») : `public_contributor_label`, le nom sans les espaces autour, jamais un texte qui contient « @ »
+(une contrainte d'`events` le refuse aussi). Le back-office reconnaît l'auteur d'une demande sans nom par l'e-mail de
+son compte (`get_user_emails`), qui n'est jamais public.
 
 À la conversion en événement, `date` et `end_date` restent l'heure murale : la fonction SQL
 `convert_event_request_to_event` (back-office, ancienne route de conversion) les lit en
