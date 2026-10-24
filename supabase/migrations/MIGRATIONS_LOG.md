@@ -1411,7 +1411,7 @@
 
 ## 2026-10-24 — Les sessions invitées sans trace depuis 13 mois, supprimées chaque nuit
 
-- `20261024180000_purge_inactive_guest_sessions` (règle complète en tête du fichier) : une session invitée (utilisateur
+- `20261024180000_purge_inactive_guest_sessions` (PR #76, règle complète en tête du fichier) : une session invitée (utilisateur
   anonyme d'`auth.users`) restait en base pour toujours, avec ses favoris, masqués, suivis, préférences et jeton de
   notification, même l'app désinstallée. Durée choisie par l'utilisateur le 2026-10-24 : 13 mois sans trace.
   - `inactive_guest_sessions()` : les sessions invitées dont la dernière trace a plus de 13 mois. La trace : création,
