@@ -66,7 +66,8 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   `_eventColumns` côté app (`lib/services/event_service.dart`).
 - Radio (Radio Campus, `../live/docs/fonctionnalites/radio.md`) : `radio_stations` (interrupteur `enabled`,
   faux tant que la radio n'a pas donné son accord écrit : la RLS cache alors tout), `radio_shows`, `radio_episodes`,
-  `app_radio_day()` et `app_radio_shows()` pour l'app ; import horaire en lecture seule chez la radio
+  `app_radio_day()`, `app_radio_shows()` et `app_radio_followed()` (« Tes émissions » : les émissions suivies,
+  `user_follows` de type `radio_show`) pour l'app ; import horaire en lecture seule chez la radio
   (`/api/cron/radio-import`, lancé chaque heure par pg_cron : Vercel Hobby n'accepte qu'un cron par jour) ; « ce qui
   passe » : `GET /api/v1/radio/[stationId]/live` ; contrat dans `docs/API_APP.md`, « Radio ». Visuels gardés des
   émissions (à la place de la pochette que l'app dessine) : `radio_shows.image_url`, `lib/radio/show-images.ts`,

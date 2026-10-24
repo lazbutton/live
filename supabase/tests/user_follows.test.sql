@@ -1,5 +1,6 @@
 -- Tests des suivis (migration 20261021141000_create_user_follows.sql) : la table et sa RLS, les
--- triggers de cible, app_follows() et la recopie invité → compte.
+-- triggers de cible, app_follows() et la recopie invité → compte ; les émissions de radio suivies
+-- (20261024150000_add_radio_show_follows.sql), à la fin.
 --
 -- Sur une base jetable avec toutes les migrations et aucun événement : scripts/db-test.sh.
 -- Jamais en prod : tout se passe dans une transaction annulée, mais le script s'arrête de lui-même
@@ -49,7 +50,8 @@ CREATE FUNCTION pg_temp.suivis(utilisateur uuid) RETURNS text
 LANGUAGE sql AS $$
   SELECT coalesce(string_agg(
     f.target_type || ' ' || CASE f.target_type
-      WHEN 'location' THEN 'L' WHEN 'organizer' THEN 'O' ELSE 'R' END || right(f.target_id::text, 1),
+      WHEN 'location' THEN 'L' WHEN 'organizer' THEN 'O' WHEN 'radio_show' THEN 'S' ELSE 'R' END
+      || right(f.target_id::text, 1),
     ', ' ORDER BY f.target_type, f.target_id), '-')
   FROM public.user_follows AS f
   WHERE f.user_id = utilisateur;
@@ -63,13 +65,14 @@ DECLARE
 BEGIN
   SELECT coalesce(string_agg(
       s.target_type || ' ' || CASE s.target_type
-        WHEN 'location' THEN 'L' WHEN 'organizer' THEN 'O' ELSE 'R' END || right(s.target_id::text, 1)
+        WHEN 'location' THEN 'L' WHEN 'organizer' THEN 'O' WHEN 'radio_show' THEN 'S' ELSE 'R' END
+        || right(s.target_id::text, 1)
       || ' ' || s.name || ' ' || s.upcoming_count || '/' || s.new_count
       || coalesce(' ' || s.image_url, ''),
       ' | ' ORDER BY s.ordre), '-')
   INTO resultat
   FROM public.app_follows(a) WITH ORDINALITY AS s(target_type, target_id, name, image_url,
-    upcoming_count, new_count, followed_at, ordre);
+    upcoming_count, new_count, followed_at, last_episode_id, last_episode_at, show_family, ordre);
   RETURN resultat;
 EXCEPTION WHEN OTHERS THEN
   RETURN 'erreur ' || SQLSTATE;
@@ -308,5 +311,177 @@ SELECT pg_temp.verifie('un artiste ou un lieu supprimé emporte ses suivis',
 DELETE FROM auth.users WHERE id = '3d000000-0000-4000-8000-00000000000a';
 SELECT pg_temp.verifie('un compte supprimé emporte ses suivis',
   pg_temp.suivis('3d000000-0000-4000-8000-00000000000a'), '-');
+
+-- Émissions de radio (20261024150000_add_radio_show_follows.sql) ----------------------------------------------
+-- K : invité (Karim, session 5e…0c) ; C : compte neuf. Station 1 allumée : S1 « Le Mag Culturel » (parole, son
+-- visuel gardé), S2 « Nation Groove » (musique) ; station 2 éteinte : S3. Épisodes (aired_at : l'heure de Paris
+-- étiquetée UTC ; created_at : leur arrivée dans OutLive, à l'import du lendemain matin).
+
+INSERT INTO auth.users (id, email, is_anonymous) VALUES
+  ('3d000000-0000-4000-8000-00000000000c', NULL, true),
+  ('3d000000-0000-4000-8000-000000000003', 'c@test.local', false);
+INSERT INTO auth.sessions (id, user_id) VALUES
+  ('5e000000-0000-4000-8000-00000000000c', '3d000000-0000-4000-8000-00000000000c');
+
+INSERT INTO public.organizers (id, name) VALUES
+  ('0a000000-0000-4000-8000-000000000002', 'Zz Radio Une'),
+  ('0a000000-0000-4000-8000-000000000003', 'Zz Radio Deux');
+INSERT INTO public.radio_stations (id, organizer_id, name, frequency, stream_url, status_url, site_url, enabled) VALUES
+  ('ad000000-0000-4000-8000-0000000000a1', '0a000000-0000-4000-8000-000000000002', 'Zz Radio Une', '88.3',
+   'https://flux.test/a', 'https://flux.test/status-json.xsl', 'https://radio-a.test/', true),
+  ('ad000000-0000-4000-8000-0000000000a2', '0a000000-0000-4000-8000-000000000003', 'Zz Radio Deux', '91.1',
+   'https://flux.test/b', 'https://flux.test/status-json.xsl', 'https://radio-b.test/', false);
+INSERT INTO public.radio_shows (id, station_id, source_id, slug, name, family, page_url, image_url) VALUES
+  ('ad000000-0000-4000-8000-000000000101', 'ad000000-0000-4000-8000-0000000000a1', 1, 'mag', 'Zz Le Mag Culturel',
+   'parole', 'https://radio-a.test/mag/', 'https://img.test/mag.webp'),
+  ('ad000000-0000-4000-8000-000000000102', 'ad000000-0000-4000-8000-0000000000a1', 2, 'groove', 'Zz Nation Groove',
+   'musique', 'https://radio-a.test/groove/', NULL),
+  ('ad000000-0000-4000-8000-000000000103', 'ad000000-0000-4000-8000-0000000000a2', 3, 'eteinte', 'Zz Émission éteinte',
+   'musique', 'https://radio-b.test/eteinte/', NULL);
+INSERT INTO public.radio_episodes (id, show_id, guid, title, aired_at, duration_s, audio_url, created_at) VALUES
+  ('ad000000-0000-4000-8000-000000000201', 'ad000000-0000-4000-8000-000000000101', 'mag-08', 'Mag du 08/10',
+   '2026-10-08 17:00+00', 3587, 'https://radio-a.test/mag-08.mp3', '2026-10-09 04:07+00'),
+  ('ad000000-0000-4000-8000-000000000202', 'ad000000-0000-4000-8000-000000000101', 'mag-15', 'Mag du 15/10',
+   '2026-10-15 17:00+00', 3587, 'https://radio-a.test/mag-15.mp3', '2026-10-16 04:07+00'),
+  ('ad000000-0000-4000-8000-000000000203', 'ad000000-0000-4000-8000-000000000102', 'groove-15', 'Groove du 15/10',
+   '2026-10-15 22:00:01+00', 7187, 'https://radio-a.test/groove-15.mp3', '2026-10-16 04:07+00'),
+  ('ad000000-0000-4000-8000-000000000204', 'ad000000-0000-4000-8000-000000000103', 'eteinte-14', 'Éteinte du 14/10',
+   '2026-10-14 20:00+00', 3600, 'https://radio-b.test/eteinte-14.mp3', '2026-10-15 04:07+00');
+
+-- Les émissions de « Mes suivis » de la session courante, à at_time : « S1 nom à venir/nouveaux image dernier
+-- épisode (id, date) famille ».
+CREATE FUNCTION pg_temp.mes_emissions(a timestamp) RETURNS text
+LANGUAGE plpgsql AS $$
+DECLARE
+  resultat text;
+BEGIN
+  SELECT coalesce(string_agg(
+      'S' || right(s.target_id::text, 1) || ' ' || s.name || ' ' || s.upcoming_count || '/' || s.new_count
+      || ' ' || coalesce(s.image_url, '-') || ' ' || coalesce(right(s.last_episode_id::text, 3), '-')
+      || ' ' || coalesce(to_char(s.last_episode_at AT TIME ZONE 'UTC', 'DD/MM HH24:MI'), '-')
+      || ' ' || coalesce(s.show_family, '-'),
+      ' | ' ORDER BY s.ordre), '-')
+  INTO resultat
+  FROM public.app_follows(a) WITH ORDINALITY AS s(target_type, target_id, name, image_url,
+    upcoming_count, new_count, followed_at, last_episode_id, last_episode_at, show_family, ordre)
+  WHERE s.target_type = 'radio_show';
+  RETURN resultat;
+EXCEPTION WHEN OTHERS THEN
+  RETURN 'erreur ' || SQLSTATE;
+END $$;
+
+SELECT pg_temp.verifie('type radio_show accepté par la contrainte, politique restrictive à l''insertion seulement',
+  (SELECT (pg_get_constraintdef(oid) LIKE '%radio_show%')::text FROM pg_constraint
+   WHERE conname = 'user_follows_target_type_check') || ' | '
+  || (SELECT string_agg(p.permissive || ' ' || p.cmd || ' ' || array_to_string(p.roles, ','), ', ')
+      FROM pg_policies AS p
+      WHERE p.tablename = 'user_follows' AND p.policyname = 'Users can only follow visible radio shows'),
+  'true | RESTRICTIVE INSERT authenticated');
+
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.session_de('3d000000-0000-4000-8000-00000000000c');
+
+SELECT pg_temp.verifie('l''invité K suit S1 et S2',
+  pg_temp.essai($q$INSERT INTO public.user_follows (user_id, target_type, target_id) VALUES
+    ('3d000000-0000-4000-8000-00000000000c', 'radio_show', 'ad000000-0000-4000-8000-000000000101'),
+    ('3d000000-0000-4000-8000-00000000000c', 'radio_show', 'ad000000-0000-4000-8000-000000000102')$q$),
+  '2 ligne(s)');
+
+SELECT pg_temp.verifie('émission d''une station éteinte (42501, la RLS) ; inconnue, ou un lieu suivi comme émission (23503)',
+  pg_temp.essai($q$INSERT INTO public.user_follows (user_id, target_type, target_id) VALUES
+    ('3d000000-0000-4000-8000-00000000000c', 'radio_show', 'ad000000-0000-4000-8000-000000000103')$q$)
+  || ' | ' || pg_temp.essai($q$INSERT INTO public.user_follows (user_id, target_type, target_id) VALUES
+    ('3d000000-0000-4000-8000-00000000000c', 'radio_show', 'ad000000-0000-4000-8000-0000000001ff')$q$)
+  || ' | ' || pg_temp.essai($q$INSERT INTO public.user_follows (user_id, target_type, target_id) VALUES
+    ('3d000000-0000-4000-8000-00000000000c', 'radio_show', '1c000000-0000-4000-8000-000000000001')$q$)
+  || ' | ' || pg_temp.essai($q$INSERT INTO public.user_follows (user_id, target_type, target_id) VALUES
+    ('3d000000-0000-4000-8000-00000000000c', 'location', 'ad000000-0000-4000-8000-000000000101')$q$),
+  'erreur 42501 | erreur 23503 | erreur 23503 | erreur 23503');
+
+SELECT pg_temp.verifie('suivre S1 deux fois : sans erreur avec ON CONFLICT DO NOTHING, comme l''app',
+  pg_temp.essai($q$INSERT INTO public.user_follows (user_id, target_type, target_id) VALUES
+    ('3d000000-0000-4000-8000-00000000000c', 'radio_show', 'ad000000-0000-4000-8000-000000000101')
+    ON CONFLICT (user_id, target_type, target_id) DO NOTHING$q$),
+  '0 ligne(s)');
+
+SELECT pg_temp.verifie('K ne suit plus S2',
+  pg_temp.essai($q$DELETE FROM public.user_follows WHERE user_id = '3d000000-0000-4000-8000-00000000000c'
+    AND target_type = 'radio_show' AND target_id = 'ad000000-0000-4000-8000-000000000102'$q$),
+  '1 ligne(s)');
+SELECT pg_temp.session_de('3d000000-0000-4000-8000-00000000000b');
+SELECT pg_temp.verifie('H ne retire pas le suivi de K',
+  pg_temp.essai($q$DELETE FROM public.user_follows WHERE user_id = '3d000000-0000-4000-8000-00000000000c'$q$),
+  '0 ligne(s)');
+RESET ROLE;
+
+-- K suit S1 depuis le 1er octobre.
+UPDATE public.user_follows SET created_at = '2026-10-01 08:00+00'
+WHERE user_id = '3d000000-0000-4000-8000-00000000000c';
+
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.session_de('3d000000-0000-4000-8000-00000000000c');
+-- S1 : aucun événement ; 1 nouvel épisode (celui du 15, arrivé le 16 : depuis 7 jours et depuis le suivi ; celui du
+-- 8 est arrivé il y a plus de 7 jours) ; son dernier épisode (par aired_at) et sa famille.
+SELECT pg_temp.verifie('Mes suivis de K : l''émission, son visuel, son épisode nouveau, son dernier épisode, sa famille',
+  pg_temp.mes_emissions('2026-10-21 12:00') || ' || ' || pg_temp.mes_suivis('2026-10-21 12:00'),
+  'S1 Zz Le Mag Culturel 0/1 https://img.test/mag.webp 202 15/10 17:00 parole'
+  || ' || radio_show S1 Zz Le Mag Culturel 0/1 https://img.test/mag.webp');
+
+-- K suit de nouveau S2, maintenant : son épisode du 15 est arrivé avant le suivi.
+SELECT pg_temp.essai($q$INSERT INTO public.user_follows (user_id, target_type, target_id) VALUES
+  ('3d000000-0000-4000-8000-00000000000c', 'radio_show', 'ad000000-0000-4000-8000-000000000102')$q$);
+SELECT pg_temp.verifie('arrivé avant le suivi : pas nouveau ; tri : du nouveau d''abord, puis le nom',
+  pg_temp.mes_emissions('2026-10-21 12:00'),
+  'S1 Zz Le Mag Culturel 0/1 https://img.test/mag.webp 202 15/10 17:00 parole'
+  || ' | S2 Zz Nation Groove 0/0 - 203 15/10 22:00 musique');
+SELECT pg_temp.verifie('arrivé il y a plus de 7 jours : plus nouveau',
+  pg_temp.mes_emissions('2026-10-23 12:00'),
+  'S1 Zz Le Mag Culturel 0/0 https://img.test/mag.webp 202 15/10 17:00 parole'
+  || ' | S2 Zz Nation Groove 0/0 - 203 15/10 22:00 musique');
+RESET ROLE;
+
+-- La station 1 s'éteint : ses émissions sortent de « Mes suivis », les suivis restent en base.
+UPDATE public.radio_stations SET enabled = false WHERE id = 'ad000000-0000-4000-8000-0000000000a1';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.session_de('3d000000-0000-4000-8000-00000000000c');
+SELECT pg_temp.verifie('station éteinte : plus dans « Mes suivis » ; K lit encore ses lignes',
+  pg_temp.mes_suivis('2026-10-21 12:00') || ' | '
+  || (SELECT string_agg(right(target_id::text, 1), ',' ORDER BY target_id) FROM public.user_follows),
+  '- | 1,2');
+RESET ROLE;
+UPDATE public.radio_stations SET enabled = true WHERE id = 'ad000000-0000-4000-8000-0000000000a1';
+
+-- K suivait aussi S3 avant que sa station s'éteigne (écrit sans RLS) : la recopie l'emporte.
+INSERT INTO public.user_follows (user_id, target_type, target_id, created_at) VALUES
+  ('3d000000-0000-4000-8000-00000000000c', 'radio_show', 'ad000000-0000-4000-8000-000000000103', '2026-10-01 08:00+00');
+
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.session_de('3d000000-0000-4000-8000-000000000003');
+SELECT pg_temp.verifie('compte C : les suivis d''émissions recopiés, celle d''une station éteinte comprise',
+  (SELECT format('suivis +%s', c.follows)
+   FROM public.copy_guest_data('5e000000-0000-4000-8000-00000000000c') AS c),
+  'suivis +3');
+SELECT pg_temp.verifie('compte C : « Mes suivis », avec la date du suivi de l''invité',
+  pg_temp.mes_emissions('2026-10-21 12:00'),
+  'S1 Zz Le Mag Culturel 0/1 https://img.test/mag.webp 202 15/10 17:00 parole'
+  || ' | S2 Zz Nation Groove 0/0 - 203 15/10 22:00 musique');
+RESET ROLE;
+SELECT pg_temp.verifie('les suivis de K et de C, lus sans RLS',
+  pg_temp.suivis('3d000000-0000-4000-8000-00000000000c') || ' || '
+  || pg_temp.suivis('3d000000-0000-4000-8000-000000000003'),
+  'radio_show S1, radio_show S2, radio_show S3 || radio_show S1, radio_show S2, radio_show S3');
+
+-- Émission ou station supprimée -------------------------------------------------------------------------------
+
+DELETE FROM public.radio_shows WHERE id = 'ad000000-0000-4000-8000-000000000101';
+SELECT pg_temp.verifie('une émission supprimée emporte ses suivis',
+  pg_temp.suivis('3d000000-0000-4000-8000-00000000000c') || ' || '
+  || pg_temp.suivis('3d000000-0000-4000-8000-000000000003'),
+  'radio_show S2, radio_show S3 || radio_show S2, radio_show S3');
+DELETE FROM public.radio_stations WHERE id = 'ad000000-0000-4000-8000-0000000000a2';
+SELECT pg_temp.verifie('une station supprimée emporte les suivis de ses émissions',
+  pg_temp.suivis('3d000000-0000-4000-8000-00000000000c') || ' || '
+  || pg_temp.suivis('3d000000-0000-4000-8000-000000000003'),
+  'radio_show S2 || radio_show S2');
 
 ROLLBACK;

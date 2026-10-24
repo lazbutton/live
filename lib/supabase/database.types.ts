@@ -2894,8 +2894,11 @@ export type Database = {
         Returns: {
           followed_at: string
           image_url: string
+          last_episode_at: string
+          last_episode_id: string
           name: string
           new_count: number
+          show_family: string
           target_id: string
           target_type: string
           upcoming_count: number
@@ -3002,6 +3005,31 @@ export type Database = {
           slug: string
           starts_at: string
           state: string
+          style: string
+        }[]
+      }
+      app_radio_followed: {
+        Args: { p_at?: string; p_station: string }
+        Returns: {
+          description: string
+          episode_aired_at: string
+          episode_audio_url: string
+          episode_duration_s: number
+          episode_id: string
+          episode_page_url: string
+          family: string
+          followed_at: string
+          id: string
+          image_url: string
+          is_active: boolean
+          is_new: boolean
+          last_episode_at: string
+          letter: string
+          name: string
+          organizer_id: string
+          page_url: string
+          slots: Json
+          slug: string
           style: string
         }[]
       }
