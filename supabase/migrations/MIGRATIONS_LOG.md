@@ -1432,7 +1432,7 @@
     retireraient les deux clés (la garde de `lib/audience/app-audience.test.mjs` compare la page à la dernière).
 - Testée sur une base jetable : une copie privée de `scripts/db-test.sh` (Docker), puis, Docker Desktop quitté en
   cours de route par une autre session, un Postgres 17 nu en ICU avec les bouchons Supabase (et ceux de pg_cron et de
-  la file de pg_net) : les 32 fichiers de `supabase/tests` passent (578 cas). Nouveaux cas : `user_follows.test.sql` (le type et la politique, suivre et ne plus suivre une émission,
+  la file de pg_net) : les 33 fichiers de `supabase/tests` passent (595 cas, avec `20261024140000`). Nouveaux cas : `user_follows.test.sql` (le type et la politique, suivre et ne plus suivre une émission,
   inconnue ou un lieu suivi comme émission 23503, station éteinte 42501, « Mes suivis » : visuel, nouveau, dernier
   épisode, famille, suivi après l'arrivée, 7 jours, station éteinte, recopie invité → compte d'une station éteinte
   comprise, émission puis station supprimées), `app_radio.test.sql` (`app_radio_followed` : droits, anon refusé, ordre,
