@@ -1408,3 +1408,20 @@
   erreur (`UPDATE 0`). Vérifié en lecture seule : fonction `b0ca2c58` (attribution, nom filtré, prix libre, security
   definer), `public_contributor_label` rend « Camille Martin » et NULL pour une adresse e-mail, contrainte validée,
   465 événements dont aucun nom public avec « @ ».
+
+## 2026-10-24 — Des fiches plus riches : genres, public, réservation
+
+- `20261024170000_event_genres_audience_booking` (étape 1 de « Pour toi », `../live/docs/chantiers/pour-toi.md`,
+  choix 9 et 10) : la table `event_genres` (une liste fermée par catégorie, tenue dans les réglages du back-office),
+  ses 29 genres de départ (Spectacle 7, Concert 8, Danse 4, Atelier 6, Cinéma 4, insérés par le nom de la catégorie) ;
+  sur `events`, `genre_ids`, `audience`, `min_age`, `booking` et `details_to_confirm` (« lus, à confirmer », pour la
+  collecte de l'étape 2).
+- Trigger `events_sync_details` (après `events_normalize_category`) : les genres de la catégorie seulement, et
+  `is_young_audience` recalculé depuis `audience` quand elle est connue (`family`, `teens`). Trigger
+  `event_genres_forget` : un genre supprimé ou changé de catégorie quitte les événements.
+- Les événements existants ne changent pas. Contrat : `docs/API_APP.md`, « La fiche : genre, public, réservation ».
+- Tests : `supabase/tests/event_details.test.sql` (33 cas : listes de départ, genres de la catégorie, ordre, doublons,
+  changement de catégorie, jeune public d'après `audience`, « En famille » d'`app_events_in_range`, contraintes, genre
+  supprimé ou déplacé, RLS anon, membre et admin) ; cinq mutations des triggers, chacune attrapée. La suite entière
+  (34 fichiers) passe sur un Postgres 17 local en ICU, avec les bouchons de Supabase.
+- **Pas encore appliquée en prod.**
