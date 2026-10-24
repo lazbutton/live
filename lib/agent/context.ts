@@ -7,6 +7,7 @@ import type {
   OrganizerOption,
   TagOption,
 } from "@/app/(admin)/admin/components/events/types";
+import type { EventGenreOption } from "@/lib/events/event-details";
 import { fetchFestivalCandidates, type FestivalCandidate } from "@/lib/events/festivals";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -35,6 +36,8 @@ export type AgentReferences = {
   categories: CategoryOption[];
   /** Festivals de l'app : un événement importé est rattaché à celui qu'il nomme. */
   festivals: FestivalCandidate[];
+  /** Genres (event_genres) : ceux qu'une page ou l'agent nomme, dans la liste de la catégorie, sont repris. */
+  genres: EventGenreOption[];
 };
 
 export type AgentContext = {
@@ -59,7 +62,7 @@ export function hasTimeLeft(ctx: AgentContext, marginMs = 0) {
 }
 
 async function fetchReferences(supabase: SupabaseClient): Promise<AgentReferences> {
-  const [locationsRes, organizersRes, organizerLocationsRes, roomsRes, artistsRes, tagsRes, categoriesRes] = await Promise.all([
+  const [locationsRes, organizersRes, organizerLocationsRes, roomsRes, artistsRes, tagsRes, categoriesRes, genresRes] = await Promise.all([
     supabase
       .from("locations")
       .select(
@@ -75,10 +78,13 @@ async function fetchReferences(supabase: SupabaseClient): Promise<AgentReference
     supabase.from("artists").select("id, name, slug, image_url, origin_city, instagram_url").order("name"),
     supabase.from("tags").select("id, name").order("name"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("name"),
+    supabase.from("event_genres").select("id, category_id, name, phrase, display_order, is_active").order("display_order"),
   ]);
   for (const result of [locationsRes, organizersRes, organizerLocationsRes, roomsRes, artistsRes, tagsRes, categoriesRes]) {
     if (result.error) throw result.error;
   }
+  // Sans la table (migration pas encore appliquée), la collecte marche sans genres.
+  if (genresRes.error) console.warn("Genres indisponibles pour la collecte:", genresRes.error.message);
   const categories = (categoriesRes.data || []) as CategoryOption[];
   const festivals = await fetchFestivalCandidates(supabase, categories);
 
@@ -96,6 +102,7 @@ async function fetchReferences(supabase: SupabaseClient): Promise<AgentReference
     tags: (tagsRes.data || []) as TagOption[],
     categories,
     festivals,
+    genres: (genresRes.data || []) as EventGenreOption[],
   };
 }
 

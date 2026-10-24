@@ -45,6 +45,12 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   que lisent aussi les nombres de « Tout » ; ne pas refiltrer `hide_from_home` en TS ni en Dart. `events.category`
   est toujours l'id d'une catégorie (trigger `events_normalize_category`, qui convertit un nom écrit) ; le paramètre
   `category` des fonctions accepte encore l'id ou le nom.
+- Genre, pour qui, réservation d'un événement (`../live/docs/chantiers/pour-toi.md`, « Des fiches plus riches ») : des
+  listes fermées, `events.genre_ids` (`event_genres` de sa catégorie, tenus dans Réglages), `audience`, `min_age`,
+  `booking` ; valeurs et libellés dans `lib/events/event-details.ts`. Le trigger `events_sync_details` garde les genres
+  de la catégorie et recalcule `is_young_audience` depuis `audience` (`family`, `teens`) : ne pas le recalculer en TS.
+  La collecte les remplit quand la source les dit (rien n'est deviné), « lus, à confirmer » (`details_to_confirm`) ;
+  ce qui manque ou attend : « Fiches à compléter » (`/admin/fiches`).
 - Attribution publique d'une proposition (« Proposé par … ») : `events.community_contributor_label` ne vient que de
   `public_contributor_label()`, jamais d'une adresse e-mail (contrainte `events_community_contributor_label_not_email`) ;
   l'auteur d'une demande sans nom se reconnaît par l'e-mail de son compte (`get_user_emails`), jamais public.
