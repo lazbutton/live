@@ -647,6 +647,29 @@ function tagsOf(event: OnSortEvent) {
   return unique.length ? unique : undefined;
 }
 
+const REGISTRATION_LABELS: Record<string, string> = { link: "un lien", phone: "un téléphone", email: "un e-mail" };
+
+/** Ce qui, dans la fiche, dit pour qui, l'âge et la réservation (les preuves de la relecture). */
+function onSortDetailsEvidence(
+  event: OnSortEvent,
+  details: Pick<ScrapedEventData, "audience" | "min_age" | "booking">,
+  conditions: string,
+) {
+  const evidence = [
+    details.audience ? "Agenda On sort ! : catégorie Jeune public" : null,
+    details.min_age ? `Agenda On sort ! : âges ${event.age?.min}${event.age?.max ? ` à ${event.age.max}` : ""} ans` : null,
+  ];
+  if (details.booking) {
+    const written = /\b(reserv\w*|inscri\w*)\b/.test(normalizeName(conditions));
+    const means = [...new Set((event.registration || []).map((entry) => REGISTRATION_LABELS[entry?.type || ""]))].filter(Boolean);
+    evidence.push(
+      written ? conditions.trim().slice(0, 180) : `Agenda On sort ! : inscription par ${means.join(", ") || "un lien"}`,
+    );
+  }
+  const kept = evidence.filter((line): line is string => Boolean(line));
+  return kept.length ? kept : undefined;
+}
+
 /** Fiche On sort ! → données d'import communes (lieu, organisateur, catégorie, affiche, séances, tarifs). */
 export function onSortEventToScrapedData(event: OnSortEvent, today: string = parisToday()): ScrapedEventData {
   const ticketUrl = (event.registration || [])
@@ -680,6 +703,7 @@ export function onSortEventToScrapedData(event: OnSortEvent, today: string = par
     min_age: toMinAge(event.age?.min) ?? undefined,
     booking: readOnSortBooking(french(event.conditions), event.registration, price.price_min === 0),
   };
+  data.details_evidence = onSortDetailsEvidence(event, data, french(event.conditions));
   for (const key of Object.keys(data) as Array<keyof ScrapedEventData>) {
     if (data[key] === undefined) delete data[key];
   }
