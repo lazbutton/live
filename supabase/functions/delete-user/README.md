@@ -1,6 +1,40 @@
 # Edge Function : delete-user
 
-Cette Edge Function permet de supprimer un compte utilisateur avec les permissions admin nécessaires.
+Cette Edge Function supprime un compte utilisateur, avec ce que la suppression de l'utilisateur laisserait derrière
+elle, grâce aux permissions admin de la clé secrète. L'app l'appelle depuis « Supprimer mon compte » (`GdprRepository`
+de `../live`) ; un admin peut aussi l'appeler pour un autre compte (`userId`).
+
+## 🗑️ Ce qui est supprimé
+
+Dans cet ordre, avec la clé secrète : la RLS ne s'applique pas, donc un compte suspendu, qui ne peut pas supprimer
+lui-même ses événements en attente (`can_use_ugc_features()`), est traité comme les autres.
+
+1. Ses événements jamais publiés : encore en attente ou refusés (`events.created_by`, `status` `pending` ou
+   `rejected`). L'app supprime déjà ceux en attente avant l'appel, sauf pour un compte suspendu.
+2. Sur ses événements publiés, le nom public de l'attribution (« Proposé par … »,
+   `community_contributor_label`) et l'accord (`community_attribution_opt_in`).
+3. Dans le bucket `event-images`, les affiches de ses propositions (`user_requests.requested_by`,
+   `event_data->>'image_url'`) et des événements de l'étape 1, et les vignettes de ceux-ci, que plus rien
+   n'utilise : ni un événement restant (`image_url`, `image_card_url`), ni la proposition d'un autre compte. Une URL
+   est reconnue à son chemin, quel que soit l'hôte. Seulement dans `events/` (où l'app dépose les affiches) et
+   `cards/` (les vignettes, `docs/EVENT_IMAGE_CARDS.md`) : jamais un fichier du back-office, même si une ligne du
+   compte pointe dessus.
+4. L'utilisateur (`auth.admin.deleteUser`). Les clés étrangères vers `auth.users` emportent le reste en base :
+   propositions, favoris, suivis, masqués, préférences et jetons de notification, signalements, auteurs bloqués
+   (`ON DELETE CASCADE`) ; `events.created_by` passe à `NULL`.
+
+Restent ses événements publiés, sans auteur ni nom public, avec leur affiche.
+
+Une erreur de la base (la lecture des propositions, les étapes 1 et 2) arrête tout avant l'étape 4 : réponse 500,
+le compte est encore là et la demande peut être refaite. Les fichiers (étape 3) sont effacés au mieux : une lecture
+en erreur garde le fichier, et un fichier qui résiste (Storage en panne…) n'empêche pas la suppression du compte ;
+il est noté dans les journaux de la fonction (« Posters not removed ») et reste sans lien avec un compte, parmi les
+orphelins que liste `npm run storage:audit`.
+
+Essayer la fonction après un changement : `npm run test:delete-user` (`scripts/delete-user-test.sh`), sur une pile
+Supabase locale jetable (Supabase CLI + Docker, jamais la prod) : toutes les migrations, des comptes, des
+propositions, des événements et des fichiers, puis ce qui part et ce qui reste, compte suspendu, événement refusé,
+affiche partagée, fichier du back-office visé par une proposition, erreur de la base, Storage arrêté et admin compris.
 
 ## 🔒 Sécurité
 
@@ -38,6 +72,24 @@ final response = await SupabaseService.client.functions.invoke(
   },
 );
 ```
+
+## 📧 Une demande par e-mail
+
+La politique de confidentialité (`components/privacy-policy/account-deletion-section.tsx`) promet de supprimer le
+compte comme le fait l'app. « Delete user » du tableau de bord de Supabase ne fait que l'étape 4 : il laisse les
+affiches, les événements jamais publiés et le nom public. Un admin appelle donc la fonction pour le compte
+(`userId`, dans Authentication → Users), avec le jeton de sa propre session (les identifiants du back-office) :
+
+```bash
+read -r -p 'E-mail admin : ' ADMIN_EMAIL; read -r -s -p 'Mot de passe : ' ADMIN_PASSWORD; echo
+TOKEN=$(jq -n --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email: $email, password: $password}' |
+  curl -s -X POST 'https://<ref>.supabase.co/auth/v1/token?grant_type=password' \
+    -H 'apikey: <clé publishable>' -H 'Content-Type: application/json' -d @- | jq -r .access_token)
+curl -s -X POST 'https://<ref>.supabase.co/functions/v1/delete-user' \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"userId": "<id du compte>"}'
+```
+
+Réponse attendue : `{"success":true,…}`.
 
 ## 🔄 Webhook (Optionnel)
 

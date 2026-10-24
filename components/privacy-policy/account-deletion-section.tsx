@@ -13,15 +13,18 @@ export const ACCOUNT_DELETION_SUBJECT = "Supprimer mon compte OutLive";
  * « Supprimer votre compte OutLive », l'adresse que Google Play demande pour supprimer un compte sans
  * l'app (#supprimer-mon-compte). Ce qui part et ce qui reste suit le code :
  * - dans l'app, « Supprimer mon compte » (GdprRepository de ../live) supprime les événements du compte
- *   encore en attente et leurs affiches, puis appelle l'Edge Function delete-user
- *   (supabase/functions/delete-user), qui supprime l'utilisateur (auth.users) ;
+ *   encore en attente et leurs affiches, puis appelle l'Edge Function delete-user ; un admin l'appelle de
+ *   même pour une demande par e-mail (supabase/functions/delete-user/README.md). Avec la clé secrète, elle
+ *   supprime les événements du compte jamais publiés, en attente ou refusés (même d'un compte suspendu), le
+ *   nom public et l'accord de l'attribution sur ses événements publiés, les affiches de ses propositions et
+ *   des événements supprimés et leurs vignettes que plus rien n'utilise, puis l'utilisateur (auth.users) ;
  * - les clés étrangères vers auth.users font le reste (supabase/migrations/) : ON DELETE CASCADE pour
  *   event_likes, user_hidden_events, user_follows, blocked_users, user_notification_preferences,
  *   user_notification_categories, user_push_tokens, notification_logs, content_reports (auteur du
  *   signalement) et user_requests (les propositions) ; ON DELETE SET NULL pour events.created_by et
  *   content_reports.reported_user_id.
- * Les affiches des propositions (user_requests) ne sont pas effacées du stockage : d'où la ligne qui le
- * dit dans « Ce qui reste ». À retirer quand delete-user les effacera.
+ * Une affiche que Storage refuse d'effacer reste, sans lien avec le compte (journaux de delete-user) : une
+ * panne passagère, pas dite ici.
  */
 export function AccountDeletionSection() {
   return (
@@ -82,8 +85,11 @@ export function AccountDeletionSection() {
           </li>
           <li>vos signalements</li>
           <li>
-            vos propositions, et ceux de vos événements qui attendaient encore leur publication,
-            avec leur affiche
+            vos propositions, et ceux de vos événements qui n’ont pas été publiés (en attente ou
+            refusés), avec leur affiche
+          </li>
+          <li>
+            le nom affiché sur vos événements publiés, si vous aviez autorisé l’attribution publique
           </li>
         </ul>
       </PolicySubsection>
@@ -92,14 +98,8 @@ export function AccountDeletionSection() {
         <ul className="list-disc space-y-2 pl-6">
           <li>
             Les événements déjà publiés à partir de vos propositions&nbsp;: ils font partie de
-            l’agenda public et y restent avec leur affiche, sans lien avec votre compte, jusqu’à
-            30&nbsp;jours après leur date. Si vous aviez autorisé l’attribution publique, le nom
-            affiché reste avec eux&nbsp;: écrivez-nous pour le retirer.
-          </li>
-          <li>
-            L’affiche d’une proposition que l’équipe n’avait pas encore publiée&nbsp;: la
-            proposition est supprimée, mais le fichier de l’image peut rester dans notre stockage,
-            sans lien avec votre compte. Écrivez-nous pour qu’il soit effacé.
+            l’agenda public et y restent avec leur affiche, sans lien avec votre compte ni votre
+            nom, jusqu’à 30&nbsp;jours après leur date.
           </li>
           <li>
             Les signalements d’autres personnes qui visaient vos événements, sans lien avec votre
