@@ -1,5 +1,5 @@
 // Edge Function pour supprimer un compte utilisateur
-// Cette fonction utilise la service_role key pour avoir les permissions admin
+// Cette fonction utilise la clé secrète du projet pour avoir les permissions admin
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -7,6 +7,26 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Clés du projet, injectées par Supabase : les nouvelles (publishable, secrète,
+// nommée `default`) dès qu'elles existent, sinon les clés legacy (anon,
+// service_role), qui cessent de marcher une fois désactivées.
+function projectKey(kind: 'publishable' | 'secret'): string {
+  const keys = Deno.env.get(
+    kind === 'publishable' ? 'SUPABASE_PUBLISHABLE_KEYS' : 'SUPABASE_SECRET_KEYS',
+  )
+  if (keys) {
+    try {
+      const key = JSON.parse(keys)?.default
+      if (typeof key === 'string' && key) return key
+    } catch {
+      // Variable illisible : la clé legacy en repli.
+    }
+  }
+  return Deno.env.get(
+    kind === 'publishable' ? 'SUPABASE_ANON_KEY' : 'SUPABASE_SERVICE_ROLE_KEY',
+  ) ?? ''
 }
 
 serve(async (req) => {
@@ -28,10 +48,12 @@ serve(async (req) => {
       )
     }
 
-    // Créer un client Supabase avec la clé anon pour vérifier l'utilisateur
+    // Créer un client Supabase avec la clé publique pour vérifier l'utilisateur
+    // (la fonction vérifie le jeton elle-même : elle se déploie sans
+    // « Verify JWT », voir README.md)
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    
+    const supabaseAnonKey = projectKey('publishable')
+
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: { Authorization: authHeader },
@@ -68,11 +90,11 @@ serve(async (req) => {
       )
     }
 
-    // Créer un client admin avec service_role key
-    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    
+    // Créer un client admin avec la clé secrète
+    const supabaseServiceRoleKey = projectKey('secret')
+
     if (!supabaseServiceRoleKey) {
-      console.error('SUPABASE_SERVICE_ROLE_KEY is not set')
+      console.error('Secret key is not set')
       return new Response(
         JSON.stringify({ error: 'Server configuration error' }),
         { 
