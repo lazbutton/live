@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
+import type { EventGenreOption } from "@/lib/events/event-details";
 import { fetchFestivalCandidates, type FestivalCandidate } from "@/lib/events/festivals";
 import type { ImportedEventPayload, ImportedEventWarning } from "@/lib/events/imported-event-payload";
 
@@ -94,6 +95,8 @@ type ReferenceData = {
   categories: CategoryOption[];
   /** Festivals que l'import peut retenir (`fetchFestivalCandidates`). */
   festivals: FestivalCandidate[];
+  /** Genres (event_genres) : ceux que la page nomme sont repris. */
+  genres: EventGenreOption[];
 };
 
 const EMPTY_REFERENCES: ReferenceData = {
@@ -103,6 +106,7 @@ const EMPTY_REFERENCES: ReferenceData = {
   tags: [],
   categories: [],
   festivals: [],
+  genres: [],
 };
 
 async function fetchTags() {
@@ -149,6 +153,14 @@ async function fetchReferenceData(): Promise<ReferenceData> {
   ];
 
   const categories = (categoriesRes.data || []) as CategoryOption[];
+  // Sans les genres (migration pas encore appliquée), l'import marche sans eux.
+  const genres = await supabase
+    .from("event_genres")
+    .select("id, category_id, name, phrase, display_order, is_active")
+    .then(({ data, error }) => {
+      if (error) console.warn("Genres indisponibles pour l'import:", error);
+      return (data || []) as EventGenreOption[];
+    });
   // Sans les festivals (migration pas encore appliquée, erreur passagère), l'import marche sans rattachement.
   const festivals = await fetchFestivalCandidates(supabase, categories).catch((error) => {
     console.warn("Festivals indisponibles pour l'import:", error);
@@ -162,6 +174,7 @@ async function fetchReferenceData(): Promise<ReferenceData> {
     tags,
     categories,
     festivals,
+    genres,
   };
 }
 
@@ -311,6 +324,7 @@ export function EventCreationProvider({ children }: { children: React.ReactNode 
         organizers: refs.organizers,
         artists: refs.artists,
         festivals: refs.festivals,
+        genres: refs.genres,
         // Seuls les tags existants sont repris : les suggestions de l'IA ne créent rien.
         findOrCreateTagIds: (rawTagNames: string[]) => resolveTagIdsForImport({ rawTagNames, tags: refs.tags }),
         defaultStatus: "pending",

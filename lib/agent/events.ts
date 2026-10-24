@@ -8,6 +8,13 @@ import {
   resolveLocationFromImportedData,
   resolveOrganizerFromName,
 } from "@/lib/events/import-prefill";
+import {
+  audienceLabel,
+  bookingLabel,
+  detailsColumnsFromPrefill,
+  type EventAudience,
+  type EventBooking,
+} from "@/lib/events/event-details";
 import { festivalFiche, isFestivalCategory } from "@/lib/events/festivals";
 import type { ImportedEventPayload } from "@/lib/events/imported-event-payload";
 import { fetchPotentialDuplicateEvents } from "@/lib/events/potential-duplicates";
@@ -69,6 +76,16 @@ export type AgentEventResult = {
   category?: string | null;
   /** Jeune public (events.is_young_audience). */
   young_audience?: boolean;
+  /**
+   * Genres, pour qui et réservation lus sur la source (events.genre_ids, audience, min_age, booking) : « lus, à
+   * confirmer » dans l'admin. Absents : la source ne les dit pas.
+   */
+  genres?: string[];
+  /** Genres nommés hors de la liste de la catégorie : non repris (un genre qui manque à la liste ?). */
+  genres_unmatched?: string[];
+  audience?: string;
+  min_age?: number;
+  booking?: string;
   artists?: string[];
   artists_created?: string[];
   artists_unmatched?: string[];
@@ -116,6 +133,14 @@ export type AgentEventInput = {
   is_cancelled?: boolean;
   /** Jeune public : pensé pour les enfants ou les familles. */
   is_young_audience?: boolean;
+  /** Genres, par leur nom dans la liste de la catégorie (search, type « genre »). */
+  genres?: string[];
+  /** Pour qui, seulement si le texte le dit. */
+  audience?: EventAudience;
+  /** Âge minimum annoncé, en années. */
+  min_age?: number;
+  /** Réservation, seulement si le texte le dit. */
+  booking?: EventBooking;
   door_opening_time?: string;
   /** Festival dont l'événement fait partie, tel qu'annoncé (« dans le cadre du festival … »). */
   festival?: string;
@@ -426,7 +451,7 @@ export async function createAgentEvent(
 
   // Plateaux « A + B » et mentions « 1ère partie » : un nom par artiste, quelle que soit la source.
   const artistNames = splitArtistNames(data.artists);
-  const { prefill, warnings, festival } = await buildEventFormPrefillFromImport({
+  const { prefill, warnings, festival, genresUnmatched } = await buildEventFormPrefillFromImport({
     data: { ...data, artists: artistNames },
     sourceUrl: sourceUrl || undefined,
     owner,
@@ -435,6 +460,7 @@ export async function createAgentEvent(
     organizers: references.organizers,
     artists: references.artists,
     festivals: references.festivals,
+    genres: references.genres,
     findOrCreateTagIds: async (names) => matchExistingTagIds(names, references.tags),
     defaultStatus: "pending",
   });
@@ -572,6 +598,7 @@ export async function createAgentEvent(
   const publish = Boolean(source && source.status === "active") && missing.length === 0;
   const status = publish ? "approved" : "pending";
 
+  const details = detailsColumnsFromPrefill(prefill);
   const isPayWhatYouWant = Boolean(form.is_pay_what_you_want);
   const priceMin = toNullablePrice(form.price_min);
   const priceMax = toNullablePrice(form.price_max);
@@ -598,6 +625,9 @@ export async function createAgentEvent(
     is_featured: false,
     hide_from_home: false,
     tag_ids: prefill.tagIds || [],
+    // Genres, pour qui, réservation lus sur la source : « lus, à confirmer » dans l'admin. Connue, audience fixe aussi
+    // is_young_audience en base (trigger events_sync_details).
+    ...details,
     address: location?.address || announcedVenue || null,
     latitude: location?.latitude || null,
     longitude: location?.longitude || null,
@@ -626,7 +656,15 @@ export async function createAgentEvent(
     location_unmatched: !location && locationWarning?.value ? locationWarning.value : undefined,
     announced_venue: announcedVenue || undefined,
     category: category?.name ?? null,
-    young_audience: youngAudience || undefined,
+    // Connue, audience décide du jeune public en base (trigger events_sync_details) : elle le dit à sa place.
+    young_audience: details.audience ? undefined : youngAudience || undefined,
+    genres: details.genre_ids.length
+      ? references.genres.filter((genre) => details.genre_ids.includes(genre.id)).map((genre) => genre.name)
+      : undefined,
+    genres_unmatched: genresUnmatched.length ? genresUnmatched : undefined,
+    audience: audienceLabel(details.audience) ?? undefined,
+    min_age: details.min_age ?? undefined,
+    booking: bookingLabel(details.booking) ?? undefined,
     artists: references.artists.filter((artist) => artistIds.includes(artist.id)).map((artist) => artist.name),
     artists_created: artistsCreated.length ? artistsCreated : undefined,
     artists_unmatched: artistsUnmatched.length ? artistsUnmatched : undefined,
@@ -710,6 +748,17 @@ export async function createAgentEvent(
       missing,
       ...(festival.attached ? { festival_id: festival.attached.id, festival: festival.attached.title } : {}),
       ...(festival.unknownName ? { festival_unknown: festival.unknownName } : {}),
+      // Ce qui a été lu (« lus, à confirmer ») : le suivi de l'étape 2 de « Pour toi ».
+      ...(details.details_to_confirm
+        ? {
+            details: {
+              genres: result.genres ?? [],
+              audience: details.audience,
+              min_age: details.min_age,
+              booking: details.booking,
+            },
+          }
+        : {}),
     },
   });
 
@@ -745,6 +794,10 @@ function toImportedPayload(input: AgentEventInput, sourceUrl: string | null): Im
     is_full: input.is_full,
     is_cancelled: input.is_cancelled,
     is_young_audience: input.is_young_audience,
+    genres: input.genres,
+    audience: input.audience,
+    min_age: input.min_age,
+    booking: input.booking,
     door_opening_time: input.door_opening_time,
     festival_name: input.festival,
     festival_venues: input.festival_venues,

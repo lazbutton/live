@@ -3,6 +3,7 @@ import OpenAI from "openai";
 
 import { AI_MODEL_FULL, AI_MODEL_LIGHT, generationParams } from "@/lib/ai/openai-models";
 import { splitArtistNames } from "@/lib/events/artist-names";
+import { isEventAudience, isEventBooking, toMinAge, type EventAudience, type EventBooking } from "@/lib/events/event-details";
 
 import { fetchHtml, FetchHtmlError } from "./fetch-html";
 import { isAstrolabeTicketingUrl, readAstrolabeProgramText } from "./astrolabe";
@@ -65,6 +66,15 @@ export interface ScrapedEventData {
   is_cancelled?: boolean;
   /** Jeune public annoncé par la source (catégorie de l'agenda). */
   is_young_audience?: boolean;
+  /**
+   * Genres, pour qui, âge minimum et réservation, quand la page les dit (../live/docs/chantiers/pour-toi.md, « Des
+   * fiches plus riches ») : les genres par leur nom dans la liste de la catégorie (event_genres), le reste dans les
+   * listes fermées de lib/events/event-details.ts. Rien n'est deviné.
+   */
+  genres?: string[];
+  audience?: EventAudience;
+  min_age?: number;
+  booking?: EventBooking;
   /** Date douteuse (page qui se contredit) : à faire vérifier avant toute publication. */
   date_warning?: string;
   /** Correction appliquée à la date lue (année déduite du jour de la semaine). */
@@ -113,6 +123,8 @@ type SourceConfig = {
   /** Champs que l'IA peut remplir (null : tous). */
   aiFields: Set<string> | null;
   categories: string[];
+  /** Genres actifs de chaque catégorie, par nom de catégorie, dans l'ordre de la liste. */
+  genresByCategory: Record<string, string[]>;
 };
 
 /** Corrige les sélecteurs saisis sous forme d'attribut (`class="a b"`, `data-x="y"`). */
@@ -136,10 +148,10 @@ function normalizeConfiguredSelector(raw: string) {
 }
 
 async function loadSourceConfig($: CheerioDocument, args: ScrapeEventPageArgs): Promise<SourceConfig> {
-  const config: SourceConfig = { cssData: {}, aiHints: {}, aiFields: null, categories: [] };
+  const config: SourceConfig = { cssData: {}, aiHints: {}, aiFields: null, categories: [], genresByCategory: {} };
   const { supabase, organizer_id, location_id } = args;
 
-  const [cssResult, aiResult, categoriesResult] = await Promise.all([
+  const [cssResult, aiResult, categoriesResult, genresResult] = await Promise.all([
     organizer_id || location_id
       ? (organizer_id
           ? supabase.from("organizer_scraping_configs").select("*").eq("organizer_id", organizer_id)
@@ -154,7 +166,13 @@ async function loadSourceConfig($: CheerioDocument, args: ScrapeEventPageArgs): 
       : Promise.resolve({ data: null }),
     supabase
       .from("categories")
-      .select("name")
+      .select("id, name")
+      .eq("is_active", true)
+      .then((result: any) => result, () => ({ data: null })),
+    // Sans la table (migration pas encore appliquée), la lecture marche sans genres.
+    supabase
+      .from("event_genres")
+      .select("category_id, name, display_order")
       .eq("is_active", true)
       .then((result: any) => result, () => ({ data: null })),
   ]);
@@ -189,7 +207,15 @@ async function loadSourceConfig($: CheerioDocument, args: ScrapeEventPageArgs): 
     config.aiFields = new Set(aiRows.filter((row) => row.enabled).map((row) => row.field_name));
     for (const row of aiRows) if (row.ai_hint) config.aiHints[row.field_name] = row.ai_hint;
   }
-  config.categories = ((categoriesResult?.data || []) as Array<{ name: string }>).map((row) => row.name);
+  const categories = (categoriesResult?.data || []) as Array<{ id: string; name: string }>;
+  config.categories = categories.map((row) => row.name);
+  const genres = ((genresResult?.data || []) as Array<{ category_id: string; name: string; display_order: number }>)
+    .slice()
+    .sort((left, right) => left.display_order - right.display_order);
+  for (const genre of genres) {
+    const category = categories.find((row) => row.id === genre.category_id)?.name;
+    if (category) (config.genresByCategory[category] ||= []).push(genre.name);
+  }
   return config;
 }
 
@@ -346,6 +372,10 @@ const FULL_FIELDS: Record<string, unknown> = {
   image_url: NULLABLE_STRING,
   festival: NULLABLE_STRING,
   festival_venues: { type: "array", items: { type: "string" } },
+  genres: { type: "array", items: { type: "string" } },
+  audience: { type: ["string", "null"], description: "all | family | teens | adults" },
+  min_age: { type: ["integer", "null"] },
+  booking: { type: ["string", "null"], description: "none | reservation | online" },
 };
 
 /** Champs réglables par source dans « Champs IA » (organizer_ai_fields). */
@@ -378,6 +408,10 @@ const COMPLEMENT_FIELDS = [
   "price_max",
   "is_free",
   "is_pay_what_you_want",
+  "genres",
+  "audience",
+  "min_age",
+  "booking",
 ];
 
 const FIELD_GUIDANCE: Record<string, string> = {
@@ -406,6 +440,13 @@ const FIELD_GUIDANCE: Record<string, string> = {
     "nom du festival dont l'événement fait partie, seulement si la page le dit (« dans le cadre du festival X », titre « Festival X – soirée Y »), sans numéro d'édition ni année ; null pour la page d'un festival entier, ou quand un festival est seulement cité (un prix reçu à Cannes)",
   festival_venues:
     "page d'un festival entier seulement : les lieux où il se tient, tels qu'écrits, un par élément ; sinon liste vide",
+  genres: "genres de l'événement, seulement parmi ceux de sa catégorie (liste plus bas), écrits tels quels",
+  audience:
+    "pour qui, seulement si la page le dit : « all » (tout public, même avec un âge minimum), « family » (jeune public, en famille, pour les enfants), « teens » (ados, ou une tranche d'âge qui finit avant 18 ans), « adults » (public adulte, interdit ou déconseillé aux mineurs)",
+  min_age:
+    "âge minimum annoncé, en années : « dès 6 ans » 6, « à partir de 18 mois » 2, « déconseillé aux moins de 12 ans » 12 ; null sans âge écrit",
+  booking:
+    "réservation, seulement si la page le dit : « none » (sans réservation, places sur place sans réserver), « reservation » (sur réservation ou inscription : téléphone, e-mail, formulaire), « online » (billets vendus en ligne : lien ou bouton de billetterie)",
 };
 
 async function extractWithAI(args: {
@@ -439,6 +480,13 @@ async function extractWithAI(args: {
   const categoryRule = args.config.categories.length
     ? `- « category » : choisis exactement une valeur parmi ${args.config.categories.join(", ")} (ou null).`
     : "";
+  const genreLists = Object.entries(args.config.genresByCategory);
+  const genreRule =
+    fieldNames.includes("genres") && genreLists.length
+      ? `- « genres » : ceux de la catégorie de l'événement, parmi ${genreLists
+          .map(([category, names]) => `${category} (${names.join(", ")})`)
+          .join(" ; ")} ; liste vide si la page ne permet pas de le dire ou si sa catégorie n'en a pas.`
+      : "";
   const hints = Object.entries(args.config.aiHints)
     .map(([field, hint]) => `- ${field} : ${hint}`)
     .join("\n");
@@ -454,6 +502,7 @@ Règles :
   Sans année explicite, prends l'année où le jour de la semaine écrit correspond (« mercredi 7 octobre »),
   sinon la prochaine occurrence ; un événement déjà passé garde sa date passée.
 ${categoryRule}
+${genreRule}
 ${hints ? `Consignes propres à cette source :\n${hints}` : ""}
 ${Object.keys(args.known).length ? `Déjà connu (ne pas contredire) : ${JSON.stringify(args.known)}` : ""}
 
@@ -646,7 +695,13 @@ export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<Scrape
   const weakTitle = !data.title || looksLikeSlug(data.title);
   const hasEssentials = Boolean(data.title && !weakTitle && data.date);
   const missingComplement =
-    !data.description || !data.category || !data.artists?.length || data.price_min === undefined;
+    !data.description ||
+    !data.category ||
+    !data.artists?.length ||
+    data.price_min === undefined ||
+    !data.genres?.length ||
+    !data.audience ||
+    !data.booking;
   let method: ScrapeMethod = primary ? "structured" : "basic";
   let aiModel: string | undefined;
 
@@ -708,6 +763,10 @@ export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<Scrape
         data.festival_venues = data.festival_venues?.length ? data.festival_venues : cleanList(extracted.festival_venues, 10);
         data.category = data.category || extracted.category || undefined;
         data.tags = cleanList(extracted.tags, 6)?.map((tag) => tag.toLowerCase());
+        data.genres = data.genres?.length ? data.genres : cleanList(extracted.genres, 4);
+        if (!data.audience && isEventAudience(extracted.audience)) data.audience = extracted.audience;
+        if (data.min_age === undefined) data.min_age = toMinAge(extracted.min_age) ?? undefined;
+        if (!data.booking && isEventBooking(extracted.booking)) data.booking = extracted.booking;
         if (data.price_min === undefined) {
           if (extracted.is_free) data.price_min = 0;
           else if (typeof extracted.price_min === "number") data.price_min = extracted.price_min;

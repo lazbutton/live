@@ -222,10 +222,13 @@ SELECT pg_temp.verifie('émissions suivies : la table accepte les deux compteurs
   pg_temp.insere('radio_show_follow') || ' ' || pg_temp.insere('radio_followed_play') || ' '
   || pg_temp.insere('radio_show_unfollow'),
   'ok ok 23514');
-SELECT pg_temp.verifie('émissions suivies : les dix compteurs de la contrainte',
-  (SELECT count(*)::text FROM regexp_matches(
-     (SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'app_audience_counts_metric_check'),
-     '''[a-z_]+''', 'g')),
+-- Une migration d'après peut en ajouter (« Pour toi », 20261024190000), jamais en retirer.
+SELECT pg_temp.verifie('émissions suivies : la contrainte garde les huit compteurs d''avant et les deux des émissions',
+  (SELECT count(*)::text
+   FROM unnest(ARRAY['event_opened', 'ticket_tapped', 'search_no_result', 'when_sheet_used', 'event_liked',
+     'radio_live_play', 'radio_episode_play', 'festival_opened', 'radio_show_follow', 'radio_followed_play']) AS k
+   WHERE (SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'app_audience_counts_metric_check')
+     LIKE '%''' || k || '''%'),
   '10');
 
 ROLLBACK;
