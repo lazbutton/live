@@ -1381,7 +1381,7 @@
 - `20261024140000_community_attribution_without_email` : l'app envoyait l'e-mail d'un compte sans nom (connexion
   Apple native, code par e-mail) comme `contributor_display_name` ; avec l'accord d'attribution, il serait devenu le
   nom public de l'événement (« Proposé par … » sur la fiche de l'app, `communityContributorLabel` dans l'API v1).
-  L'app n'envoie plus que le nom du compte, sinon rien (PR de l'app à venir) ; la règle vit ici pour les versions déjà
+  L'app n'envoie plus que le nom du compte, sinon rien (lazbutton/live-app#211) ; la règle vit ici pour les versions déjà
   installées : `public_contributor_label(text)` (le nom sans les espaces autour ; NULL s'il est vide ou contient
   « @ »).
 - `convert_event_request_to_event` recopie de nouveau l'attribution : `20260415190000` et `20260415213000` (prix,
