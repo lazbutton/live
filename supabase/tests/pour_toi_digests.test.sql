@@ -59,7 +59,8 @@ INSERT INTO auth.users (id, email) VALUES
   ('3d000000-0000-4000-8000-000000000012', 'choix'),
   ('3d000000-0000-4000-8000-000000000013', 'aucune'),
   ('3d000000-0000-4000-8000-000000000014', 'lignes'),
-  ('3d000000-0000-4000-8000-000000000015', 'deja');
+  ('3d000000-0000-4000-8000-000000000015', 'deja'),
+  ('3d000000-0000-4000-8000-000000000016', 'sans-festival');
 
 INSERT INTO public.locations (id, name, address) VALUES
   ('1a000000-0000-4000-8000-000000000001', 'Zz Lieu Un', '1 rue A'),
@@ -67,7 +68,8 @@ INSERT INTO public.locations (id, name, address) VALUES
 
 INSERT INTO public.categories (id, name, is_active, display_order) VALUES
   ('2c000000-0000-4000-8000-000000000001', 'Zz Concert', true, 91),
-  ('2c000000-0000-4000-8000-000000000002', 'Spectacle', true, 92);
+  ('2c000000-0000-4000-8000-000000000002', 'Spectacle', true, 92),
+  ('2c000000-0000-4000-8000-000000000003', 'Festival', true, 93);
 
 INSERT INTO public.tags (id, name) VALUES
   ('4e000000-0000-4000-8000-000000000001', 'jeune public'),
@@ -189,10 +191,14 @@ UPDATE public.app_interests SET is_active = true WHERE slug = 'danse';
 
 -- La reprise des catégories cochées ------------------------------------------------------------------------------
 
--- « defaut » : toutes les catégories actives (le défaut de l'app) ; « choix » : Zz Concert et Spectacle ; « aucune » :
--- [] ; « lignes » : sans category_ids, une ligne Spectacle ; « deja » : une catégorie, mais déjà un goût.
+-- « defaut » : toutes les catégories actives (le défaut de l'app) ; « sans-festival » : toutes sauf Festival (le défaut
+-- d'avant le 2026-10-23) ; « choix » : Zz Concert et Spectacle ; « aucune » : [] ; « lignes » : sans category_ids,
+-- une ligne Spectacle ; « deja » : une catégorie, mais déjà un goût.
 INSERT INTO public.user_notification_preferences (user_id, category_ids)
 SELECT '3d000000-0000-4000-8000-000000000011', array_agg(c.id::text) FROM public.categories AS c WHERE c.is_active;
+INSERT INTO public.user_notification_preferences (user_id, category_ids)
+SELECT '3d000000-0000-4000-8000-000000000016', array_agg(c.id::text)
+FROM public.categories AS c WHERE c.is_active AND c.name <> 'Festival';
 INSERT INTO public.user_notification_preferences (user_id, category_ids) VALUES
   ('3d000000-0000-4000-8000-000000000012', ARRAY['2c000000-0000-4000-8000-000000000001', '2c000000-0000-4000-8000-000000000002']),
   ('3d000000-0000-4000-8000-000000000013', ARRAY[]::text[]),
@@ -202,7 +208,7 @@ INSERT INTO public.user_notification_categories (user_id, category_id) VALUES
   ('3d000000-0000-4000-8000-000000000013', '2c000000-0000-4000-8000-000000000001'),
   ('3d000000-0000-4000-8000-000000000014', '2c000000-0000-4000-8000-000000000002');
 
-SELECT pg_temp.verifie('reprise à blanc : un choix (Spectacle : Théâtre, Humour, Cirque), les lignes ; pas le défaut, ni [], ni qui a déjà un goût',
+SELECT pg_temp.verifie('reprise à blanc : un choix (Spectacle : Théâtre, Humour, Cirque), les lignes ; pas le défaut (avec ou sans Festival), ni [], ni qui a déjà un goût',
   pg_temp.reprise(false), 'choix=concerts,theatre,humour,cirque lignes=theatre,humour,cirque');
 SELECT pg_temp.verifie('à blanc, rien n''est écrit',
   (SELECT count(*)::text FROM public.user_interests

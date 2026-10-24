@@ -1493,5 +1493,11 @@
   11 règles cassées une à une, 10 attrapées (la onzième, « [] repris », ne change rien : une liste vide ne donne aucun
   goût). `digest.test.mjs` et `digest-routes.test.mjs` (« Pour toi », séries, titres). Les 36 fichiers de
   `supabase/tests/`, `node --test` (349), `tsc` et ESLint au vert.
+- Essai à blanc en prod le 2026-10-24 vers 9 h (accord de l'utilisateur, transaction annulée) : empreintes conformes,
+  mêmes nombres en anon avant et après (« Tout » 7 jours 16, 349 à venir, mêmes bulles), aucun destinataire de « Pour
+  toi » (personne n'a encore de goût), 50 séries à venir (135 dates). La reprise des catégories, à blanc, aurait
+  touché 32 comptes et 270 goûts : 25 comptes ont « toutes les catégories sauf Festival », le défaut d'avant le
+  2026-10-23 (Festival active depuis), et n'avaient rien choisi ; la règle met désormais Festival à part (test et
+  mutation ajoutés). Prod relue ensuite : inchangée.
 - **Pas encore appliquée en prod.** Elle passe avant la fusion de sa PR : les crons l'appellent. La reprise des
   catégories (`app_interests_from_categories(true)`) attend la sortie de l'app.

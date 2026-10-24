@@ -14,9 +14,9 @@
 --    règles de résumé (complets écartés, ce qui commence dans la plage).
 -- 3. app_interests_from_categories(apply) : les catégories déjà cochées pour les résumés deviennent des goûts
 --    (choix 6), une fois, le jour de la sortie de la version de l'app qui a « Pour toi » (avant, l'app installée
---    écrit encore ses catégories). Seulement un choix : toutes les catégories cochées, c'est le défaut de l'app, pas
---    un goût. Spectacle devient Théâtre, Humour et Cirque. Sans apply, rien n'est écrit : la liste de ce qui le
---    serait.
+--    écrit encore ses catégories). Seulement un choix : toutes les catégories cochées (Festival à part, active depuis
+--    le 2026-10-23), c'est le défaut de l'app, pas un goût. Spectacle devient Théâtre, Humour et Cirque. Sans apply,
+--    rien n'est écrit : la liste de ce qui le serait.
 --
 -- Fonctions des crons : `security invoker`, appelées par le service ; fermées à anon et authenticated. Prérequis :
 -- 20261024190000_create_pour_toi.sql. À appliquer d'un bloc (`psql --single-transaction`) ; pas de BEGIN ni de COMMIT
@@ -136,7 +136,9 @@ GRANT EXECUTE ON FUNCTION public.app_digest_for_me(timestamp, timestamp, timesta
 --
 -- Les catégories d'un utilisateur, comme les lisent les crons (getEffectiveNotificationCategoryIds) : category_ids
 -- s'il en a ([] : aucune), sinon ses lignes de user_notification_categories. Un choix : au moins une, et pas toutes
--- les catégories actives (le défaut de l'app). Pour chaque catégorie choisie, les goûts actifs qui la prennent ;
+-- les catégories actives (le défaut de l'app), Festival à part : active depuis le 2026-10-23 seulement, elle manque à
+-- 25 comptes qui n'ont rien choisi (prod, le 2026-10-24). Pour chaque catégorie choisie, les goûts actifs qui la
+-- prennent ;
 -- Spectacle, que les goûts découpent par ses tags, devient Théâtre, Humour et Cirque. Seulement pour qui n'a encore
 -- aucun goût : un choix fait dans l'app passe avant. Rend une ligne par utilisateur concerné, et ses goûts.
 CREATE OR REPLACE FUNCTION public.app_interests_from_categories(apply boolean DEFAULT false)
@@ -148,8 +150,12 @@ LANGUAGE sql
 VOLATILE
 SECURITY INVOKER
 AS $$
+  -- Le défaut : toutes les catégories actives, sauf Festival, active seulement depuis le 2026-10-23 (les
+  -- préférences écrites avant ne l'ont pas, sans que personne ait choisi).
   WITH actives AS (
-    SELECT array_agg(c.id::text) AS ids FROM public.categories AS c WHERE c.is_active
+    SELECT array_agg(c.id::text) AS ids
+    FROM public.categories AS c
+    WHERE c.is_active AND upper(btrim(c.name)) <> 'FESTIVAL'
   ),
   choix AS (
     SELECT p.user_id, p.category_ids AS ids
@@ -200,7 +206,7 @@ AS $$
 $$;
 
 COMMENT ON FUNCTION public.app_interests_from_categories(boolean) IS
-  'Choix 6 de « Pour toi » : les catégories cochées pour les résumés (un choix, pas toutes : le défaut) deviennent des goûts, pour qui n''en a pas encore ; Spectacle devient Théâtre, Humour et Cirque. Sans apply, rien n''est écrit (ce qui le serait). À lancer une fois, le jour de la sortie de la version de l''app qui a « Pour toi ». Migration 20261024210000.';
+  'Choix 6 de « Pour toi » : les catégories cochées pour les résumés (un choix, pas toutes, Festival à part : le défaut) deviennent des goûts, pour qui n''en a pas encore ; Spectacle devient Théâtre, Humour et Cirque. Sans apply, rien n''est écrit (ce qui le serait). À lancer une fois, le jour de la sortie de la version de l''app qui a « Pour toi ». Migration 20261024210000.';
 
 REVOKE ALL ON FUNCTION public.app_interests_from_categories(boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.app_interests_from_categories(boolean) TO service_role;
