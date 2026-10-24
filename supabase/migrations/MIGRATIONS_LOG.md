@@ -1183,3 +1183,23 @@
   Tentaculation, dans `organizers-images/radio-shows/` (WebP carrés, 21 à 284 Ko). Vérifié en anonyme : 11 émissions
   avec `image_url`, chaque image en 200 `image/webp` ; dans le programme d'hier, Écoute ta fac et Nation Groove ont
   le leur.
+
+## 2026-10-24 — Accès de 15 lieux et photo de la Tête Noire (données, pas une migration)
+
+- `locations.directions` des 15 lieux qui avaient 5 événements à venir ou plus dans l'app (326 des 350 dates),
+  d'après les horaires TAO, les parkings de la Métropole, les sites des lieux et acceslibre (méthode dans
+  `docs/LIEUX_ACCES.md`), liste relue par l'utilisateur : Théâtre d'Orléans, Théâtre de la Tête Noire, La
+  Passerelle, Artéphé, Espace Béraire, L'Astrolabe, L'Alliage, L'Unisson, Zigotastiques – le QG, L'Envolée, Le 108,
+  Java Pop, Le Bouillon, Orléans Comedy Club, L'Improviste Bar. Quatorze étaient vides ; L'Astrolabe avait
+  « En bus : Ligne 1, 2, 3, 5, 71 et LB arrêt Les Turbulences. / En tramway : Ligne B, arrêt Madeleine. / En
+  vélo+ : Une borne VÉLO+ se situe juste devant le bâtiment. / En voiture : Le Parking de la Patinoire, GRATUIT
+  les soirs de concerts » (quatre lignes).
+- `locations.image_url` de la Tête Noire, vide jusque-là : « Chapelle Notre-Dame-des-Aydes d'Orléans - façade vue
+  du Nord » (Wikimedia Commons, U4you, CC0), copiée en 1 280 × 1 707 dans
+  `locations-images/locations/1792812251913-udp175tffkr.jpg`.
+- **Écrit en prod le 2026-10-24 à 5 h 24 (heure de Paris)** par `node --env-file=.env.local
+  scripts/location-details.mjs <liste> --write --confirm=tkyuiltgvqcgebnqdgmb` : 15 lieux écrits, aucun laissé,
+  aucune copie en échec. Vérifié : les 15 textes relus en base et lus par la clé publique de l'app ; la photo
+  répond en 200 `image/jpeg`.
+- Retour arrière : la liste inverse par le même script (vide pour quatorze lieux, l'ancien texte ci-dessus pour
+  L'Astrolabe ; `image_url` de la Tête Noire à null), puis supprimer le fichier copié.
