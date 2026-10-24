@@ -1475,3 +1475,26 @@
   (médiane de 10, temps du serveur), 70 ms avec `app_interest_ids`.
 - À surveiller : si `20261024150000` (« Suivre une émission ») est appliquée après celle-ci sans les trois compteurs de
   « Pour toi », elle les retire d'`app_audience_add` (sa session est prévenue).
+
+## 2026-10-24 — Reprise des fiches à venir : genre, pour qui, âge, réservation (données)
+
+- `scripts/fill-event-details.mjs` (étape 3 de « Pour toi ») : la même lecture que la collecte (`scrapeEventPage`, l'IA
+  avec les genres de la catégorie ; le texte en base pour un post Instagram ou une page morte), seulement le vide.
+- Trois essais à blanc, avec l'accord de l'utilisateur, en lecture seule (419 événements à venir, 305 sources) : le
+  premier a montré l'IA deviner (une réservation qu'aucune phrase ne dit) ; le deuxième, des citations qui ne prouvent
+  pas la valeur (« Dès 18h30 » pris pour un âge, l'âge de deux personnages pris pour le public) ; le troisième, des
+  genres voisins pris pour des genres absents des listes. Chaque fois corrigé dans la lecture (lazbutton/live#81) :
+  citation dans la page, mots de la valeur dans la citation, genre hors liste écrit tel quel et signalé.
+- Relu par l'utilisateur sur une page de relecture. **Écrit en prod le 2026-10-24 à 13 h 43 (heure de Paris)**, avec
+  son accord : 372 événements écrits, 9 sautés (rien à écrire), aucun échec, aucun modifié depuis la lecture. Tags de
+  goût retirés sur les 45 dates proposées (choix de l'utilisateur), dont Cirque et Danse des Zigo Comedy Club.
+- Retenu : le public (« Tout public ») de 16 dates (11 spectacles « tout public dès N ans »), qui les aurait fait
+  quitter « En famille » ; la règle n'est pas tranchée (`plan-ecrit.json`, clé `held`).
+- Vérifié en lecture seule : 284 avec un genre, 83 avec un public, 112 avec un âge, 274 avec une réservation ; jeune
+  public 65 → 71 (La Petite Scène #2 à #4, Faire la Marguerite) ; 372 lignes `event.details_fill` dans le journal
+  d'audit ; la clé publique de l'app lit « Dès 6 ans · Sans réservation » pour « 20 ans ! La Passerelle fait son cirque ! ».
+- Sauvegardes : `~/Documents/Backups/outlive/fiches-reprise-2026-10-24/` (`sauvegarde-avant-ecriture.json`,
+  `plan.json`, `plan-ecrit.json`, `relecture.html`, `ecriture.log`, et les deux premiers essais à côté).
+- Retour arrière : `node --env-file=.env.local scripts/fill-event-details.mjs --rollback
+  --plan=<dossier>/plan-ecrit.json --confirm=tkyuiltgvqcgebnqdgmb --remove-tags-of=all` (remet l'avant là où personne n'a
+  changé la valeur depuis, tags et jeune public compris).

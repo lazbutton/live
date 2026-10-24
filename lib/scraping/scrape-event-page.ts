@@ -9,6 +9,7 @@ import { fetchHtml, FetchHtmlError } from "./fetch-html";
 import { isAstrolabeTicketingUrl, readAstrolabeProgramText } from "./astrolabe";
 import { isBilletwebUrl, readBilletwebDetails } from "./billetweb";
 import { checkDateAgainstText, findDoorsAndStart, parisToday, toParisWallClock } from "./dates";
+import { comparableText, quoteSupports } from "./detail-quotes";
 import { isMapadoEventUrl, readMapadoPrices } from "./mapado";
 import { onSortEventUid, scrapeOnSortEvent } from "./on-sort";
 import {
@@ -75,6 +76,8 @@ export interface ScrapedEventData {
   audience?: EventAudience;
   min_age?: number;
   booking?: EventBooking;
+  /** Les phrases de la page qui disent pour qui, l'âge ou la réservation (citées par l'IA, vérifiées). */
+  details_evidence?: string[];
   /** Date douteuse (page qui se contredit) : à faire vérifier avant toute publication. */
   date_warning?: string;
   /** Correction appliquée à la date lue (année déduite du jour de la semaine). */
@@ -110,6 +113,11 @@ export interface ScrapeEventPageArgs {
   prefetched?: { html: string; finalUrl: string };
   /** Désactive l'IA (tests, cron économe). */
   disableAI?: boolean;
+  /**
+   * Ce que l'appelant sait déjà de l'événement (la reprise des fiches en base) : le titre et la date en repli, la
+   * catégorie à la place de celle de la page ; donnés à l'IA comme « déjà connu ».
+   */
+  known?: { title?: string; date?: string; category?: string };
 }
 
 
@@ -374,8 +382,11 @@ const FULL_FIELDS: Record<string, unknown> = {
   festival_venues: { type: "array", items: { type: "string" } },
   genres: { type: "array", items: { type: "string" } },
   audience: { type: ["string", "null"], description: "all | family | teens | adults" },
+  audience_quote: NULLABLE_STRING,
   min_age: { type: ["integer", "null"] },
+  min_age_quote: NULLABLE_STRING,
   booking: { type: ["string", "null"], description: "none | reservation | online" },
+  booking_quote: NULLABLE_STRING,
 };
 
 /** Champs réglables par source dans « Champs IA » (organizer_ai_fields). */
@@ -410,8 +421,11 @@ const COMPLEMENT_FIELDS = [
   "is_pay_what_you_want",
   "genres",
   "audience",
+  "audience_quote",
   "min_age",
+  "min_age_quote",
   "booking",
+  "booking_quote",
 ];
 
 const FIELD_GUIDANCE: Record<string, string> = {
@@ -440,13 +454,18 @@ const FIELD_GUIDANCE: Record<string, string> = {
     "nom du festival dont l'événement fait partie, seulement si la page le dit (« dans le cadre du festival X », titre « Festival X – soirée Y »), sans numéro d'édition ni année ; null pour la page d'un festival entier, ou quand un festival est seulement cité (un prix reçu à Cannes)",
   festival_venues:
     "page d'un festival entier seulement : les lieux où il se tient, tels qu'écrits, un par élément ; sinon liste vide",
-  genres: "genres de l'événement, seulement parmi ceux de sa catégorie (liste plus bas), écrits tels quels",
+  genres:
+    "genres de l'événement d'après ce que la page en décrit (un comedy club ou du stand-up : Humour ; une pièce : Théâtre ; une scène d'improvisation : Impro), pris dans la liste de sa catégorie (plus bas) et écrits tels quels ; un genre qui n'y est pas (blues, folk, slam…) s'écrit tel quel plutôt que d'en prendre un voisin : il sera signalé ; liste vide si rien ne permet de le dire",
   audience:
-    "pour qui, seulement si la page le dit : « all » (tout public, même avec un âge minimum), « family » (jeune public, en famille, pour les enfants), « teens » (ados, ou une tranche d'âge qui finit avant 18 ans), « adults » (public adulte, interdit ou déconseillé aux mineurs)",
+    "pour qui, seulement si une phrase de la page le dit : « all » (tout public, ouvert à tous, adultes et ados ensemble), « family » (jeune public, en famille, pour les enfants), « teens » (seulement un public d'ados : « pour les ados », « 11-15 ans »), « adults » (public adulte, interdit ou déconseillé aux mineurs) ; un âge minimum seul (« dès 15 ans ») n'est pas un public ; null sinon, sans déduire du genre de l'événement ni de l'âge de ses personnages",
+  audience_quote: "la phrase de la page qui dit pour qui, recopiée mot pour mot ; null sans elle (audience est alors ignoré)",
   min_age:
-    "âge minimum annoncé, en années : « dès 6 ans » 6, « à partir de 18 mois » 2, « déconseillé aux moins de 12 ans » 12 ; null sans âge écrit",
+    "âge minimum écrit sur la page, en années : « dès 6 ans » 6, « à partir de 18 mois » 2, « déconseillé aux moins de 12 ans » 12 ; null sans âge écrit",
+  min_age_quote: "la phrase de la page qui donne l'âge, recopiée mot pour mot ; null sans elle",
   booking:
-    "réservation, seulement si la page le dit : « none » (sans réservation, places sur place sans réserver), « reservation » (sur réservation ou inscription : téléphone, e-mail, formulaire), « online » (billets vendus en ligne : lien ou bouton de billetterie)",
+    "réservation, seulement si la page le dit : « none » (écrit sans réservation, ou places en vente sur place seulement), « reservation » (sur réservation ou inscription : téléphone, e-mail, formulaire), « online » (billets vendus en ligne : lien ou bouton de billetterie) ; null sinon, sans déduire d'une entrée libre ou gratuite",
+  booking_quote:
+    "la phrase, le lien ou le bouton de la page qui le dit, recopié mot pour mot ; null sans lui (booking est alors ignoré)",
 };
 
 async function extractWithAI(args: {
@@ -691,6 +710,12 @@ export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<Scrape
     category: css.category,
   };
   if (primary?.is_free) data.price_min = 0;
+  if (args.known?.title && !data.title) data.title = args.known.title;
+  if (args.known?.date && !data.date) {
+    data.date = args.known.date;
+    data.time_known = true;
+  }
+  if (args.known?.category) data.category = args.known.category;
 
   const weakTitle = !data.title || looksLikeSlug(data.title);
   const hasEssentials = Boolean(data.title && !weakTitle && data.date);
@@ -722,6 +747,7 @@ export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<Scrape
         title: weakTitle ? undefined : data.title,
         date: data.date,
         location: data.location,
+        category: data.category,
         price_min: data.price_min,
       }).filter(([, value]) => value !== undefined),
     );
@@ -764,9 +790,32 @@ export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<Scrape
         data.category = data.category || extracted.category || undefined;
         data.tags = cleanList(extracted.tags, 6)?.map((tag) => tag.toLowerCase());
         data.genres = data.genres?.length ? data.genres : cleanList(extracted.genres, 4);
-        if (!data.audience && isEventAudience(extracted.audience)) data.audience = extracted.audience;
-        if (data.min_age === undefined) data.min_age = toMinAge(extracted.min_age) ?? undefined;
-        if (!data.booking && isEventBooking(extracted.booking)) data.booking = extracted.booking;
+        // Pour qui, l'âge et la réservation : seulement avec la phrase de la page qui les dit (rien n'est deviné).
+        const pageKey = comparableText(context);
+        const said = (quote: unknown): quote is string =>
+          typeof quote === "string" && comparableText(quote).length >= 4 && pageKey.includes(comparableText(quote));
+        const evidence: string[] = [];
+        // La citation doit aussi dire la valeur (detail-quotes.ts) : « Dès 18h30 » n'est pas un âge.
+        const keep = (field: "audience" | "min_age" | "booking", value: string | number, quote: unknown) => {
+          if (!said(quote) || !quoteSupports(field, value, quote)) return false;
+          if (!evidence.includes(quote.trim())) evidence.push(quote.trim());
+          return true;
+        };
+        if (
+          !data.audience &&
+          isEventAudience(extracted.audience) &&
+          keep("audience", extracted.audience, extracted.audience_quote)
+        ) {
+          data.audience = extracted.audience;
+        }
+        const minAge = toMinAge(extracted.min_age);
+        if (data.min_age === undefined && minAge !== null && keep("min_age", minAge, extracted.min_age_quote)) {
+          data.min_age = minAge;
+        }
+        if (!data.booking && isEventBooking(extracted.booking) && keep("booking", extracted.booking, extracted.booking_quote)) {
+          data.booking = extracted.booking;
+        }
+        if (evidence.length) data.details_evidence = evidence;
         if (data.price_min === undefined) {
           if (extracted.is_free) data.price_min = 0;
           else if (typeof extracted.price_min === "number") data.price_min = extracted.price_min;
