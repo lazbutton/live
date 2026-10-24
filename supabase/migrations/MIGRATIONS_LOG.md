@@ -1318,3 +1318,60 @@
   licence, lien Commons, image en 200 `image/jpeg`) ; « Photo : Thesupermat, CC BY-SA 4.0 » sur
   https://www.outlive.fr/artists/jeanne-added. L'API publique v1 rend le crédit une fois live-admin#68 déployée.
 - Retour arrière : `docs/ARTIST_PHOTOS.md`.
+
+## 2026-10-24 — Accès de 15 lieux et photo de la Tête Noire (données, pas une migration)
+
+- `locations.directions` des 15 lieux qui avaient 5 événements à venir ou plus dans l'app (326 des 350 dates),
+  d'après les horaires TAO, les parkings de la Métropole, les sites des lieux et acceslibre (méthode dans
+  `docs/LIEUX_ACCES.md`), liste relue par l'utilisateur : Théâtre d'Orléans, Théâtre de la Tête Noire, La
+  Passerelle, Artéphé, Espace Béraire, L'Astrolabe, L'Alliage, L'Unisson, Zigotastiques – le QG, L'Envolée, Le 108,
+  Java Pop, Le Bouillon, Orléans Comedy Club, L'Improviste Bar. Quatorze étaient vides ; L'Astrolabe avait
+  « En bus : Ligne 1, 2, 3, 5, 71 et LB arrêt Les Turbulences. / En tramway : Ligne B, arrêt Madeleine. / En
+  vélo+ : Une borne VÉLO+ se situe juste devant le bâtiment. / En voiture : Le Parking de la Patinoire, GRATUIT
+  les soirs de concerts » (quatre lignes).
+- `locations.image_url` de la Tête Noire, vide jusque-là : « Chapelle Notre-Dame-des-Aydes d'Orléans - façade vue
+  du Nord » (Wikimedia Commons, U4you, CC0), copiée en 1 280 × 1 707 dans
+  `locations-images/locations/1792812251913-udp175tffkr.jpg`.
+- **Écrit en prod le 2026-10-24 à 5 h 24 (heure de Paris)** par `node --env-file=.env.local
+  scripts/location-details.mjs <liste> --write --confirm=tkyuiltgvqcgebnqdgmb` : 15 lieux écrits, aucun laissé,
+  aucune copie en échec. Vérifié : les 15 textes relus en base et lus par la clé publique de l'app ; la photo
+  répond en 200 `image/jpeg`.
+- Retour arrière : la liste inverse par le même script (vide pour quatorze lieux, l'ancien texte ci-dessus pour
+  L'Astrolabe ; `image_url` de la Tête Noire à null), puis supprimer le fichier copié.
+
+## 2026-10-24 — Accès des 12 autres lieux actifs, photos du Musée des Beaux-Arts et de la Collégiale (données)
+
+- Même méthode, deuxième liste relue par l'utilisateur : `locations.directions` des 12 lieux qui avaient 1 à 4
+  événements à venir (L'Argonaute, MAM, Dropkick, CCNO, Chafouin, château de Saint-Jean-le-Blanc, Théâtre
+  Gérard-Philipe, Collégiale Saint-Pierre-le-Puellier, La Cave Végétale, La Ruche en Scène, Les Frangins, Musée des
+  Beaux-Arts d'Orléans), tous vides jusque-là. Avec le premier lot, les 27 lieux qui ont des dates à venir ont un
+  accès.
+- `locations.image_url`, vides jusque-là : Musée des Beaux-Arts, « Ensemble extension de l'hôtel de ville, hôtel de
+  région, musée des Beaux-Arts » (Commons, U4you, CC0), dans `locations-images/locations/1792813425106-03w8ncrfjl2n.jpg` ;
+  Collégiale, « Saint-pierre-le-puellier-ru-folie » (Commons, ManuD, domaine public), dans
+  `locations-images/locations/1792813423853-v4s3jq0k9n.jpg` ; les deux en 1 280 × 960.
+- **Écrit en prod le 2026-10-24 à 5 h 43 (heure de Paris)**, même commande : 12 lieux écrits, aucun laissé, aucune
+  copie en échec. Vérifié : les 12 textes relus en base (et les 15 du premier lot toujours en place), lus par la
+  clé publique de l'app ; les deux photos répondent en 200 `image/jpeg`.
+- Retour arrière : la liste inverse (accès à vide, `image_url` à null pour les deux photos), puis supprimer les
+  deux fichiers copiés.
+
+## 2026-10-24 — Adresses de 4 lieux, accès de L'Envolée et du Vinaigrier (données)
+
+- Relu par l'utilisateur, écrit le 2026-10-24 à 6 h 02 (heure de Paris) par `scripts/location-details.mjs`, qui sait
+  désormais corriger `address` (avec `latitude` et `longitude`) et `short_description` :
+  - L'Envolée : « 189 Rue Jean Zay » → « 193 Rue Jean Zay 45800 Saint-Jean-de-Braye », (47.91222, 1.972269) →
+    (47.912152, 1.973077) ; accès « Tram B, arrêt Léon Blum / Bus 2, arrêt Mairie Jean Zay » → « Tram B, arrêt Clos
+    du Hameau / Bus 2, arrêt Mairie Jean Zay / Parking relais Clos du Hameau ».
+  - CCNO : « 7 Rue du Bourdon Blanc » → « 37 Rue du Bourdon Blanc 45000 Orléans », (47.900785, 1.91336) →
+    (47.902308, 1.913061).
+  - Théâtre Gérard-Philipe : « Place Sainte-Beuve » → « 7 Place Sainte-Beuve 45100 Orléans », (47.837612, 1.936918)
+    → (47.838031, 1.937421).
+  - Collégiale Saint-Pierre-le-Puellier : « Cloître Saint-Pierre le Puellier » → « 13 Cloître Saint-Pierre le
+    Puellier 45000 Orléans », coordonnées inchangées (le numéro n'est pas dans la Base Adresse Nationale).
+  - Le Vinaigrier : accès « 📍Le Vinaigrier, Résidence Dessaux du Crous » → « Tram B, arrêt Cathédrale / Parking
+    Halles Charpenterie » ; description vide → « Dans la résidence Dessaux du Crous. ».
+- Vérifié : les 5 lieux relus en base et lus par la clé publique de l'app ; chacun garde sa ville
+  (`sync_location_city`), aucune ville créée, Orléans et Saint-Jean-de-Braye inchangées (centre déjà fixé).
+- Retour arrière : la liste inverse par le même script (anciennes adresses et coordonnées ci-dessus, anciens accès,
+  description vide).
