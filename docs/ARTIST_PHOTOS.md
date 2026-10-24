@@ -1,8 +1,8 @@
 # Photos des artistes
 
 Chantier U33 de `../live/docs/AMELIORATIONS.md`. Sur la fiche d'un événement, un artiste sans photo
-n'a que ses initiales. Le 2026-10-21, 4 artistes sur 195 avaient une photo ; le 2026-10-24, 8 sur 189, dont 4
-avec leur crédit, et 28 photos validées attendent la prochaine version de l'app (« Relecture du 2026-10-24 »).
+n'a que ses initiales. Le 2026-10-21, 4 artistes sur 195 avaient une photo ; le 2026-10-24, 36 sur 189, dont 32
+avec leur crédit (« Relecture du 2026-10-24 »).
 
 ## Règles (décision du 2026-10-21)
 
@@ -12,13 +12,14 @@ avec leur crédit, et 28 photos validées attendent la prochaine version de l'ap
   interdisent de reproduire les photos d'artistes, propriété de Deezer ou des ayants droit (§ VII).
 - **Le crédit s'affiche avec la photo**, partout où elle paraît (page de l'artiste dans l'app, page publique
   `/artists/[slug]`, et toute rangée qui montre la photo) : « Photo : <auteur>, <licence> », l'auteur menant à
-  la page Commons du fichier. Les licences CC BY et CC BY-SA l'exigent. Tant qu'une version de l'app en service
-  ne l'affiche pas, ne poser que des photos CC0 ou du domaine public (confirmé le 2026-10-24).
+  la page Commons du fichier. Les licences CC BY et CC BY-SA l'exigent. La règle du 2026-10-21 ne posait que des
+  photos CC0 ou du domaine public tant que l'app n'affichait pas le crédit ; le 2026-10-24, l'utilisateur a choisi
+  de poser aussi les CC BY et CC BY-SA sans attendre la prochaine version de l'app.
 - **Où en est le crédit, le 2026-10-24** : la page de l'artiste l'affiche dans l'app depuis live-app#162
-  (prochaine version), la page publique et l'API publique v1 (`artists[].imageCredit`, `imageLicense`,
-  `imageSourceUrl`) aussi. La 1.0.6 de l'App Store (avril 2026) montre la photo sans crédit, sur la page de
-  l'artiste et sur la fiche d'un événement. Les rangées d'artistes (fiche d'un événement dans l'app et sur le
-  web) montrent la photo en vignette et mènent à la page de l'artiste.
+  (prochaine version), la page publique aussi, et l'API publique v1 (`artists[].imageCredit`, `imageLicense`,
+  `imageSourceUrl`) avec live-admin#68. La 1.0.6 de l'App Store (avril 2026) montre la photo sans crédit, sur la
+  page de l'artiste et sur la fiche d'un événement, jusqu'à la prochaine version. Les rangées d'artistes (fiche
+  d'un événement dans l'app et sur le web) montrent la photo en vignette et mènent à la page de l'artiste.
 
 ## Colonnes d'`artists`
 
@@ -83,19 +84,12 @@ regardée, et sa provenance vérifiée : photo déposée par son auteur, licence
 autorisation enregistrée (VRT).
 
 - **38 photos proposées** (32 sûres, 6 probables), relues par l'utilisateur sur une page avec les vignettes, la
-  licence, le crédit et le degré de certitude. Les 32 sûres sont validées : `docs/artist-photos-2026-10-24.json`,
-  au format de `--plan`.
-- **4 posées le 2026-10-24** (CC0 ou domaine public) : Albertina Carri, Brad Mehldau, Marie Brassard, Marie
-  Chouinard. Vérifié en anonyme : photo, crédit et lien ; « Photo : Björn Milcke, Domaine public » sur la page
-  publique de Brad Mehldau.
-- **28 à poser à la sortie de la prochaine version** (CC BY ou CC BY-SA), puisque la 1.0.6 montre la photo sans
-  crédit. Depuis le checkout principal, simulation puis écriture ; les 4 déjà posées sont laissées :
-
-  ```bash
-  node --env-file=.env.local scripts/artist-photos.mjs --plan=docs/artist-photos-2026-10-24.json
-  node --env-file=.env.local scripts/artist-photos.mjs --plan=docs/artist-photos-2026-10-24.json --write --confirm=<ref du projet>
-  ```
-
+  licence, le crédit et le degré de certitude. Les 32 sûres sont validées et posées :
+  `docs/artist-photos-2026-10-24.json` (au format de `--plan`, avec l'heure de pose et l'adresse de chaque copie).
+- **Posées le 2026-10-24** : d'abord les 4 photos CC0 ou du domaine public (Albertina Carri, Brad Mehldau, Marie
+  Brassard, Marie Chouinard, vers 5 h 07), puis, à la demande de l'utilisateur, les 28 sous CC BY ou CC BY-SA
+  (vers 5 h 29). Vérifié en anonyme : 32 sur 32 conformes à la liste (photo, crédit, licence, lien, image en 200) ;
+  « Photo : Thesupermat, CC BY-SA 4.0 » sur la page publique de Jeanne Added.
 - **Les 6 probables, laissées de côté** : Abou Lagraa et Les 7 Doigts de la Main (photo déposée par la compagnie
   elle-même, sans autorisation VRT), La Jungle, Jean-Yves Masson, Nans Vincent et Philippe Gordiani (rien ne relie
   les photos à l'artiste de chez nous).
@@ -121,6 +115,4 @@ update public.artists set image_url = null
 where id = '<artist_id>' and image_url = '<adresse de la copie>';
 ```
 
-Copies du 2026-10-24, dans `organizers-images/artists/` : `1792811293227-emvyx9q4g7b.jpg` (Albertina Carri),
-`1792811213889-nohf7ijnec.jpg` (Brad Mehldau), `1792811215738-07gipxw8tcuc.jpg` (Marie Brassard),
-`1792811217088-3fvrtkdakwr.jpg` (Marie Chouinard).
+Les adresses des copies du 2026-10-24 sont dans `docs/artist-photos-2026-10-24.json` (champ `copie`).
