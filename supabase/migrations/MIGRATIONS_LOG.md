@@ -1339,7 +1339,7 @@
   par » ni « Suggestion communautaire ».
 - Tests : `supabase/tests/community_attribution.test.sql` (le nom public, la conversion avec et sans accord, avec et
   sans nom, l'e-mail d'une ancienne version écarté, le prix libre, le refus hors admin, la contrainte en insertion et
-  en mise à jour) ; `lib/admin-requests-core.test.mjs`. `npm run db:test` (31 fichiers), `node --test` (328),
+  en mise à jour) ; `lib/admin-requests-core.test.mjs`. `npm run db:test` (33 fichiers), `node --test` (334),
   `npx tsc --noEmit` et ESLint au vert.
 - **Pas encore appliquée en prod** (attendre l'accord ; vérifier d'abord le corps de la fonction en prod et compter
   les `community_contributor_label` qui contiennent « @ »).
