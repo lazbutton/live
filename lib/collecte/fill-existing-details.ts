@@ -217,7 +217,11 @@ export async function readDetails(supabase: Client, row: DetailsEventRow): Promi
       prefetched: { html: storedTextPage(row), finalUrl: textUrl },
       known,
     });
-    return { details: detailsOf(result.ok ? result.data : undefined), evidence: evidenceOf(`${row.title}. ${row.description || ""}`) };
+    return {
+      details: detailsOf(result.ok ? result.data : undefined),
+      // Les phrases citées par la lecture, à défaut celles qui parlent d'âge, de public ou de réservation.
+      evidence: (result.ok && result.data.details_evidence) || evidenceOf(`${row.title}. ${row.description || ""}`),
+    };
   };
 
   const url = row.sourceUrl && /^https?:\/\//.test(row.sourceUrl) ? row.sourceUrl : null;
@@ -236,7 +240,8 @@ export async function readDetails(supabase: Client, row: DetailsEventRow): Promi
     if (!result.ok) throw new Error(result.error);
     page = {
       details: detailsOf(result.data),
-      evidence: evidenceOf(prefetched ? pageText(prefetched.html) : result.data.description || ""),
+      evidence:
+        result.data.details_evidence || evidenceOf(prefetched ? pageText(prefetched.html) : result.data.description || ""),
       ai: result.metadata.ai_processed,
     };
   } catch (error) {
