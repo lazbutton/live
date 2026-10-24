@@ -105,11 +105,17 @@ function withoutTracking(raw: string) {
 }
 
 /**
- * Télécharge une photo de Commons (upload.wikimedia.org seulement), en se présentant comme Wikimedia le
- * demande : avec un User-Agent de navigateur, les téléchargements en série finissent en HTTP 429.
+ * Hôtes des fichiers de Commons : les originaux, et les vignettes, que l'API donne aussi sur
+ * thumb.wikimedia.org (constaté le 2026-10-24).
+ */
+const COMMONS_FILE_HOSTS = new Set(["upload.wikimedia.org", "thumb.wikimedia.org"]);
+
+/**
+ * Télécharge une photo de Commons (upload.wikimedia.org ou thumb.wikimedia.org seulement), en se présentant
+ * comme Wikimedia le demande : avec un User-Agent de navigateur, les téléchargements en série finissent en HTTP 429.
  */
 export async function downloadCommonsPhoto(url: string): Promise<Buffer> {
-  if (new URL(url).hostname !== "upload.wikimedia.org") throw new Error("Adresse hors de Wikimedia Commons");
+  if (!COMMONS_FILE_HOSTS.has(new URL(url).hostname)) throw new Error("Adresse hors de Wikimedia Commons");
   for (let attempt = 1; ; attempt += 1) {
     const response = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(30_000) });
     if (response.ok) {
