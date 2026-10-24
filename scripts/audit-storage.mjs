@@ -44,13 +44,20 @@ const bucketReferences = {
     ["events", "image_url"],
     // Vignettes (cards/…, docs/EVENT_IMAGE_CARDS.md) : une remplacée devient orpheline.
     ["events", "image_card_url"],
-    ["major_events", "image_url"],
+    // Affiches des propositions de l'app (events/…), dans le JSON de la demande : en attente, ou refusées
+    // que l'auteur peut corriger et renvoyer.
+    ["user_requests", "event_data->>image_url"],
+    // Multi-événements : adresses saisies dans le back-office (image principale, logo).
+    ["major_events", "hero_image_url"],
+    ["major_events", "logo_url"],
     ["notification_settings", "in_app_popup_image_url"],
   ],
   "locations-images": [["locations", "image_url"]],
   "organizers-images": [
     ["organizers", "logo_url"],
     ["artists", "image_url"],
+    // Visuels gardés des émissions de la radio (radio-shows/…, lib/radio/show-images.ts).
+    ["radio_shows", "image_url"],
   ],
 };
 
@@ -72,19 +79,23 @@ async function fetchReferencedPaths(bucket) {
     const pageSize = 1000;
 
     while (true) {
+      // Sous un alias : la colonne peut être un chemin dans du JSON (event_data->>image_url).
       const { data, error } = await supabase
         .from(table)
-        .select(column)
+        .select(`url:${column}`)
         .not(column, "is", null)
         .range(offset, offset + pageSize - 1);
 
       if (error) {
-        if (error.code === "42P01" || error.code === "42703") break;
-        throw new Error(`${table}.${column}: ${error.message}`);
+        // Jamais ignorée : une colonne ou une table absente (renommée…) ferait de ses fichiers des orphelins.
+        const missing = ["42703", "42P01", "PGRST205"].includes(error.code);
+        throw new Error(
+          `${table}.${column}: ${error.message}${missing ? " (à corriger dans bucketReferences)" : ""}`,
+        );
       }
 
       for (const row of data ?? []) {
-        const objectPath = extractObjectPath(row[column], bucket);
+        const objectPath = extractObjectPath(row.url, bucket);
         if (objectPath) referenced.add(objectPath);
       }
 
@@ -146,24 +157,36 @@ if (selectedBucket && buckets.length === 0) {
   process.exit(1);
 }
 
+// Tous les buckets sont lus avant la première suppression : une lecture qui échoue arrête l'audit sans rien
+// effacer, même dans les buckets d'avant.
+const audits = [];
+try {
+  for (const bucket of buckets) {
+    const [objects, referenced] = await Promise.all([
+      listObjects(bucket),
+      fetchReferencedPaths(bucket),
+    ]);
+
+    const orphans = objects.filter((object) => {
+      const createdAt = new Date(object.created_at ?? object.updated_at ?? 0).getTime();
+      return (
+        !referenced.has(object.path) &&
+        Number.isFinite(createdAt) &&
+        createdAt > 0 &&
+        createdAt < cutoff
+      );
+    });
+    audits.push({ bucket, objects, referenced, orphans });
+  }
+} catch (error) {
+  console.error(`Audit arrêté, rien n'a été supprimé. ${error.message}`);
+  process.exit(1);
+}
+
 let totalOrphans = 0;
 let totalOrphanBytes = 0;
 
-for (const bucket of buckets) {
-  const [objects, referenced] = await Promise.all([
-    listObjects(bucket),
-    fetchReferencedPaths(bucket),
-  ]);
-
-  const orphans = objects.filter((object) => {
-    const createdAt = new Date(object.created_at ?? object.updated_at ?? 0).getTime();
-    return (
-      !referenced.has(object.path) &&
-      Number.isFinite(createdAt) &&
-      createdAt > 0 &&
-      createdAt < cutoff
-    );
-  });
+for (const { bucket, objects, referenced, orphans } of audits) {
   const orphanBytes = orphans.reduce(
     (sum, object) => sum + Number(object.metadata?.size ?? 0),
     0,
