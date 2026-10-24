@@ -186,7 +186,7 @@ for name in \
   'events/1_a-proposition.jpg' 'events/2_a-publiee.jpg' 'events/3_a-attente.jpg' 'events/4_partagee.jpg' \
   'events/5_b-proposition.jpg' 'events/7_a special (1).jpg' 'events/8_a-refusee.jpg' 'events/9_a-publiee-bis.jpg' \
   'events/12_a-evenement-refuse.jpg' 'admin-racine.jpg' 'admin-popups/popup.jpg' \
-  'cards/v2/a-attente.webp' 'cards/v2/partagee.webp' 'cards/v2/admin.webp' \
+  'cards/v2/a-attente.webp' 'cards/v2/a-refuse.webp' 'cards/v2/partagee.webp' 'cards/v2/admin.webp' \
   'events/10_c-proposition.jpg' 'events/11_c-attente.jpg' 'events/13_d-proposition.jpg' 'events/14_e-attente.jpg'; do
   upload "$name"
 done
@@ -196,7 +196,7 @@ sql -c "update storage.objects set owner = '$user_c', owner_id = '$user_c' where
 
 # A (suspendu) : des propositions dans tous les états, dont certaines qui visent des fichiers qui ne sont pas les
 # siens (la proposition d'un autre, le back-office, une vignette, un chemin qui remonte) ; des événements en
-# attente (l'un avec une affiche et une vignette partagées avec un événement publié de B), publiés et refusé.
+# attente (l'un avec une affiche et une vignette partagées avec un événement publié de B), un refusé, des publiés.
 sql -v a="$user_a" -v b="$user_b" -v c="$user_c" -v d="$user_d" -v e="$user_e" -v pub="$public_url" <<'EOF'
 insert into public.user_requests (request_type, status, requested_by, event_data) values
   ('event_creation', 'pending',   :'a', jsonb_build_object('title', 'A en attente', 'image_url', :'pub' || '/events/1_a-proposition.jpg')),
@@ -239,6 +239,9 @@ update public.events
 set image_card_url = :'pub' || '/cards/v2/a-attente.webp', image_width = 10, image_height = 10, image_color = '#000000'
 where id = '00000000-0000-0000-0000-0000000000e3';
 update public.events
+set image_card_url = :'pub' || '/cards/v2/a-refuse.webp', image_width = 10, image_height = 10, image_color = '#000000'
+where id = '00000000-0000-0000-0000-0000000000e8';
+update public.events
 set image_card_url = :'pub' || '/cards/v2/partagee.webp', image_width = 10, image_height = 10, image_color = '#000000'
 where id in ('00000000-0000-0000-0000-0000000000e4', '00000000-0000-0000-0000-0000000000e5');
 update public.events
@@ -246,7 +249,7 @@ set image_card_url = :'pub' || '/cards/v2/admin.webp', image_width = 10, image_h
 where id = '00000000-0000-0000-0000-0000000000e7';
 EOF
 
-event_ids="'00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000e6', '00000000-0000-0000-0000-0000000000e8'"
+published_ids="'00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000e6'"
 
 # --- Les refus ---------------------------------------------------------------------------------------------
 
@@ -264,17 +267,17 @@ check "le compte d'un autre reste" 1 "$(sql -c "select count(*) from auth.users 
 e5_updated_at="$(sql -c "select updated_at from public.events where id = '00000000-0000-0000-0000-0000000000e5'")"
 check "A : 200" 200 "$(call_delete_user "$token_a" '{}')"
 check "A : le compte est supprimé" 0 "$(sql -c "select count(*) from auth.users where id = '$user_a'")"
-check "A : ses événements en attente sont supprimés" 0 \
-  "$(sql -c "select count(*) from public.events where id in ('00000000-0000-0000-0000-0000000000e3', '00000000-0000-0000-0000-0000000000e4')")"
-check "A : ses événements publiés et refusé restent, sans auteur ni nom public" \
-  "E2 A publié|||false|true E6 A publié bis|||false|true E8 A refusé|||false|true" \
-  "$(sql -c "select string_agg(concat_ws('|', title, coalesce(created_by::text, ''), coalesce(community_contributor_label, ''), community_attribution_opt_in::text, community_submission::text), ' ' order by title) from public.events where id in ($event_ids)")"
+check "A : ses événements en attente et refusé sont supprimés" 0 \
+  "$(sql -c "select count(*) from public.events where id in ('00000000-0000-0000-0000-0000000000e3', '00000000-0000-0000-0000-0000000000e4', '00000000-0000-0000-0000-0000000000e8')")"
+check "A : ses événements publiés restent, sans auteur ni nom public" \
+  "E2 A publié|||false|true E6 A publié bis|||false|true" \
+  "$(sql -c "select string_agg(concat_ws('|', title, coalesce(created_by::text, ''), coalesce(community_contributor_label, ''), community_attribution_opt_in::text, community_submission::text), ' ' order by title) from public.events where id in ($published_ids)")"
 check "A : le nom public de B reste, sa ligne n'est pas réécrite" "Bob|true|$e5_updated_at" \
   "$(sql -c "select concat_ws('|', community_contributor_label, community_attribution_opt_in::text, updated_at) from public.events where id = '00000000-0000-0000-0000-0000000000e5'")"
 check "A : ses propositions sont supprimées, pas celle de B" "0|1" \
   "$(sql -c "select count(*) filter (where event_data->>'title' like 'A %') || '|' || count(*) filter (where requested_by = '$user_b') from public.user_requests")"
 check "A : les fichiers qui restent" \
-  "admin-popups/popup.jpg admin-racine.jpg cards/v2/admin.webp cards/v2/partagee.webp events/10_c-proposition.jpg events/11_c-attente.jpg events/12_a-evenement-refuse.jpg events/13_d-proposition.jpg events/14_e-attente.jpg events/2_a-publiee.jpg events/4_partagee.jpg events/5_b-proposition.jpg events/9_a-publiee-bis.jpg" \
+  "admin-popups/popup.jpg admin-racine.jpg cards/v2/admin.webp cards/v2/partagee.webp events/10_c-proposition.jpg events/11_c-attente.jpg events/13_d-proposition.jpg events/14_e-attente.jpg events/2_a-publiee.jpg events/4_partagee.jpg events/5_b-proposition.jpg events/9_a-publiee-bis.jpg" \
   "$(files_in_bucket)"
 check "A : une affiche effacée ne se charge plus" non \
   "$([ "$(curl -s -o /dev/null -w '%{http_code}' "$public_url/events/1_a-proposition.jpg")" = 200 ] && echo oui || echo non)"

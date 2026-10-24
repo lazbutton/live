@@ -15,17 +15,16 @@ export const ACCOUNT_DELETION_SUBJECT = "Supprimer mon compte OutLive";
  * - dans l'app, « Supprimer mon compte » (GdprRepository de ../live) supprime les événements du compte
  *   encore en attente et leurs affiches, puis appelle l'Edge Function delete-user ; un admin l'appelle de
  *   même pour une demande par e-mail (supabase/functions/delete-user/README.md). Avec la clé secrète, elle
- *   supprime les événements du compte encore en attente (même d'un compte suspendu), le nom public et
- *   l'accord de l'attribution sur ses autres événements, les affiches de ses propositions et de ses
- *   événements en attente et leurs vignettes que plus rien n'utilise, puis l'utilisateur (auth.users) ;
+ *   supprime les événements du compte jamais publiés, en attente ou refusés (même d'un compte suspendu), le
+ *   nom public et l'accord de l'attribution sur ses événements publiés, les affiches de ses propositions et
+ *   des événements supprimés et leurs vignettes que plus rien n'utilise, puis l'utilisateur (auth.users) ;
  * - les clés étrangères vers auth.users font le reste (supabase/migrations/) : ON DELETE CASCADE pour
  *   event_likes, user_hidden_events, user_follows, blocked_users, user_notification_preferences,
  *   user_notification_categories, user_push_tokens, notification_logs, content_reports (auteur du
  *   signalement) et user_requests (les propositions) ; ON DELETE SET NULL pour events.created_by et
  *   content_reports.reported_user_id.
  * Une affiche que Storage refuse d'effacer reste, sans lien avec le compte (journaux de delete-user) : une
- * panne passagère, pas dite ici. Les événements du compte que l'équipe a refusés restent aussi, sans auteur
- * ni nom public : la page ne le dit pas.
+ * panne passagère, pas dite ici.
  */
 export function AccountDeletionSection() {
   return (
@@ -86,8 +85,8 @@ export function AccountDeletionSection() {
           </li>
           <li>vos signalements</li>
           <li>
-            vos propositions, et ceux de vos événements qui attendaient encore leur publication,
-            avec leur affiche
+            vos propositions, et ceux de vos événements qui n’ont pas été publiés (en attente ou
+            refusés), avec leur affiche
           </li>
           <li>
             le nom affiché sur vos événements publiés, si vous aviez autorisé l’attribution publique

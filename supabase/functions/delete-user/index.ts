@@ -133,10 +133,11 @@ async function removeUnusedFiles(
 
 // Ce que la suppression du compte n'emporte pas d'elle-même : les clés étrangères vers
 // auth.users suppriment ses propositions (user_requests) et vident events.created_by, mais
-// laissent les fichiers des affiches, ses événements encore en attente et le nom public
-// (« Proposé par … ») de ses événements publiés. Avec la clé secrète, un compte suspendu, que
-// la RLS empêche de supprimer ses événements en attente, est traité comme les autres. Lève sur
-// une erreur de la base : le compte n'est pas encore supprimé, la demande peut être refaite.
+// laissent les fichiers des affiches, ses événements jamais publiés (en attente ou refusés) et
+// le nom public (« Proposé par … ») de ses événements publiés. Avec la clé secrète, un compte
+// suspendu, que la RLS empêche de supprimer ses événements en attente, est traité comme les
+// autres. Lève sur une erreur de la base : le compte n'est pas encore supprimé, la demande peut
+// être refaite.
 async function deleteAccountContent(admin: SupabaseClient, userId: string) {
   const requests = await admin
     .from('user_requests')
@@ -145,13 +146,13 @@ async function deleteAccountContent(admin: SupabaseClient, userId: string) {
   if (requests.error) throw requests.error
 
   // Les lignes supprimées, pas celles lues : leurs affiches et vignettes.
-  const pendingEvents = await admin
+  const unpublishedEvents = await admin
     .from('events')
     .delete()
     .eq('created_by', userId)
-    .eq('status', 'pending')
+    .in('status', ['pending', 'rejected'])
     .select('image_url, image_card_url')
-  if (pendingEvents.error) throw pendingEvents.error
+  if (unpublishedEvents.error) throw unpublishedEvents.error
 
   // Seulement les lignes qui ont un nom ou un accord (updated_at des autres intact).
   const attribution = await admin
@@ -164,18 +165,17 @@ async function deleteAccountContent(admin: SupabaseClient, userId: string) {
   const posters = posterFiles(
     [
       ...requests.data.map((request) => request.event_data?.image_url),
-      ...pendingEvents.data.map((event) => event.image_url),
+      ...unpublishedEvents.data.map((event) => event.image_url),
     ],
     MEMBER_POSTERS,
   )
   const cards = posterFiles(
-    pendingEvents.data.map((event) => event.image_card_url),
+    unpublishedEvents.data.map((event) => event.image_card_url),
     CARDS,
   )
   const removedFiles = await removeUnusedFiles(admin, userId, posters, cards)
-  console.log(
-    `Account content deleted: ${pendingEvents.data.length} pending events, ${removedFiles} files`,
-  )
+  const deletedEvents = unpublishedEvents.data.length
+  console.log(`Account content deleted: ${deletedEvents} unpublished events, ${removedFiles} files`)
 }
 
 serve(async (req) => {
