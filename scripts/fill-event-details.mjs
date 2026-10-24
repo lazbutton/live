@@ -12,6 +12,8 @@
  *       → écrit le plan relu, tel quel (journal d'audit : event.details_fill) ; saute un événement modifié depuis
  *   node --env-file=.env.local scripts/fill-event-details.mjs --rollback --plan=<dossier>/plan.json --confirm=<ref>
  *       → remet l'état d'avant là où la reprise a écrit (journal d'audit : event.details_fill_undo)
+ *   node scripts/fill-event-details.mjs --review --plan=<dossier>/plan.json
+ *       → refait relecture.html à partir du plan, sans rien relire
  *
  * Prérequis : la migration 20261024170000_event_genres_audience_booking (event_genres et les colonnes).
  */
@@ -23,12 +25,13 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-if (!supabaseUrl || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+const reviewOnly = process.argv.includes("--review");
+if (!reviewOnly && (!supabaseUrl || !process.env.SUPABASE_SERVICE_ROLE_KEY)) {
   console.error("Variables requises: NEXT_PUBLIC_SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY (--env-file=.env.local).");
   process.exit(1);
 }
 
-const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
+const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split(".")[0] : "";
 const args = process.argv.slice(2);
 const option = (name) => args.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
 const list = (name) => new Set((option(name) || "").split(",").map((value) => value.trim()).filter(Boolean));
@@ -43,8 +46,34 @@ const { formatDetailsReview } = await jiti.import(path.join(root, "lib/collecte/
 const { parisToday } = await jiti.import(path.join(root, "lib/scraping/dates.ts"));
 const { createServiceClient } = await jiti.import(path.join(root, "lib/supabase/service.ts"));
 
-const supabase = createServiceClient();
 const actor = "script:fill-event-details";
+const readOnLabel = (iso) =>
+  new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" }).format(
+    new Date(iso),
+  );
+
+if (reviewOnly) {
+  const planPath = option("plan");
+  if (!planPath || !fs.existsSync(planPath)) {
+    console.error("--plan=<dossier>/plan.json : le plan de la simulation.");
+    process.exit(1);
+  }
+  const plan = JSON.parse(fs.readFileSync(planPath, "utf8"));
+  const target = path.join(path.dirname(planPath), "relecture.html");
+  fs.writeFileSync(
+    target,
+    formatDetailsReview(plan.proposals, {
+      readOn: readOnLabel(plan.readOn),
+      eventsRead: plan.eventsRead,
+      eventsToFill: plan.eventsToFill ?? plan.proposals.length,
+      sourcesRead: plan.sourcesRead ?? 0,
+    }),
+  );
+  console.log(`Relecture refaite : ${target}`);
+  process.exit(0);
+}
+
+const supabase = createServiceClient();
 
 if (writeMode || rollbackMode) {
   if (option("confirm") !== projectRef) {
@@ -124,14 +153,28 @@ const proposals = reprise.planDetails(read, readings, { genres, tags });
 fs.mkdirSync(out, { recursive: true });
 fs.writeFileSync(
   path.join(out, "plan.json"),
-  JSON.stringify({ projectRef, readOn: new Date().toISOString(), today, eventsRead: rows.length, proposals }, null, 2),
-);
-const readOn = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" }).format(
-  new Date(),
+  JSON.stringify(
+    {
+      projectRef,
+      readOn: new Date().toISOString(),
+      today,
+      eventsRead: rows.length,
+      eventsToFill: toFill.length,
+      sourcesRead: groups.length,
+      proposals,
+    },
+    null,
+    2,
+  ),
 );
 fs.writeFileSync(
   path.join(out, "relecture.html"),
-  formatDetailsReview(proposals, { readOn, eventsRead: rows.length, eventsToFill: toFill.length, sourcesRead: groups.length }),
+  formatDetailsReview(proposals, {
+    readOn: readOnLabel(new Date().toISOString()),
+    eventsRead: rows.length,
+    eventsToFill: toFill.length,
+    sourcesRead: groups.length,
+  }),
 );
 
 const filled = proposals.filter((proposal) => Object.keys(proposal.fill).length > 0);

@@ -89,9 +89,9 @@ function evidence(proposal: DetailsProposal) {
   const reading = proposal.reading;
   const lines = reading.evidence.map((line) => `<li>${esc(line)}</li>`).join("");
   const error = reading.pageError ? `<p class="note">Page illisible (${esc(reading.pageError)}) : lu sur le texte en base.</p>` : "";
-  return `<details><summary>Lu sur ${esc(methodLabels[reading.method])}</summary>${error}${
+  return `<div class="source"><p class="note">Lu sur ${esc(methodLabels[reading.method])}</p>${error}${
     lines ? `<ul class="evidence">${lines}</ul>` : `<p class="note">Aucune phrase sur l'âge, le public ou la réservation.</p>`
-  }</details>`;
+  }</div>`;
 }
 
 function showRow(show: Show) {
@@ -191,7 +191,8 @@ h1 { margin: 0; font-size: clamp(30px, 5vw, 44px); line-height: 1.05; letter-spa
 h2 { margin: 0; font-size: 22px; letter-spacing: -0.01em; font-weight: 750; text-wrap: balance; }
 h3 { margin: 0; font-size: 16px; font-weight: 700; display: flex; gap: 8px; align-items: baseline; }
 .lede { margin: 0; max-width: 68ch; color: var(--ink-2); }
-.totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; margin: 8px 0 0; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.totals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 8px 0 0; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+@media (max-width: 560px) { .totals { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .totals div { background: var(--bg); padding: 12px 14px; display: grid; gap: 2px; }
 .totals dt { font-size: 12px; color: var(--ink-3); }
 .totals dd { margin: 0; font: 600 22px/1.2 var(--font-data); font-variant-numeric: tabular-nums; }
@@ -215,11 +216,10 @@ td:first-child { width: 40%; }
 .chip-drop { text-decoration: line-through; color: var(--ink-2); }
 .none { font-size: 13px; color: var(--ink-3); }
 .flag { display: inline-block; margin-bottom: 6px; padding: 2px 8px; border-radius: 6px; background: var(--live-bg); color: var(--live); font-size: 13px; font-weight: 650; }
-details { font-size: 13px; color: var(--ink-2); }
-summary { cursor: pointer; color: var(--ink-3); }
-summary:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
-.evidence { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
-.note { margin: 6px 0 0; color: var(--ink-3); }
+.source { font-size: 13px; color: var(--ink-2); display: grid; gap: 4px; }
+a:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+.evidence { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.note { margin: 0; color: var(--ink-3); }
 ul.plain { margin: 0; padding-left: 18px; display: grid; gap: 6px; max-width: 80ch; }
 .filter { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .filter input { font: inherit; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); min-width: 0; flex: 1 1 240px; max-width: 420px; }
