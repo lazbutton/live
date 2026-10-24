@@ -1444,4 +1444,27 @@
   épisode retirée, le tri, anon, `is_active`, chacun des deux compteurs) : toutes repérées. Types régénérés (copie
   privée de `scripts/db-types.sh`) : `app_follows` et `app_radio_followed`, rien d'autre ; `tsc`, `eslint` et les
   331 tests node passent (la garde des compteurs d'audience compare la page à cette migration).
-- **Pas appliquée en prod** : avec l'accord de l'utilisateur, après un essai à blanc.
+- **Essai à blanc en prod le 2026-10-24 à 8 h 09** (heure de Paris, accord de l'utilisateur), dans une transaction
+  annulée, par psql (identifiants de `supabase db dump --linked --dry-run`, `SET LOCAL ROLE postgres`, `lock_timeout`
+  5 s ; 4 s en tout, la migration environ 1 s) :
+  - avant : les empreintes (md5 de `pg_get_functiondef`, des contraintes, des politiques de `user_follows`, des
+    déclencheurs de `radio_shows`) identiques à celles d'une base locale avec toutes les migrations sauf celle-ci, sauf
+    le commentaire d'`app_audience_add` (celui de `20261023142000`, le corps est le même) ; `user_follows` vide (aucun
+    suivi en prod) ; `user_follows`, `radio_shows`, `copy_guest_data` à postgres, RLS non forcée ; l'import horaire
+    de la radio marche (7 épisodes arrivés le 24 vers 6 h, 1 140 au premier import du 23) ;
+  - après : les 20 empreintes de la base locale ; « Mes suivis » de chacun et le message des suivis inchangés (aucune
+    ligne, personne ne suit) ; un invité fictif (créé et annulé dans la transaction) suit Le Mag Culturel :
+    `app_radio_followed` rend son dernier épisode (jeudi 22 octobre, 3 593 s, active, pas nouveau), `app_follows` sa
+    ligne (`radio_show`, `parole`) ; une émission inconnue est refusée (23503) ; après un épisode inséré comme
+    l'import, il est nouveau (`is_new`, `new_count` 1) ; ne plus suivre le retire ; anon refusé (42501) ;
+    `app_audience_add` accepte les deux compteurs ; `app_radio_followed` 1,4 ms, `app_follows` 2,8 ms (exécution) ;
+  - après l'annulation : les empreintes de départ, aucun suivi d'émission.
+- **Appliquée en prod le 2026-10-24 à 8 h 10** (heure de Paris), avec l'accord de l'utilisateur, juste après l'essai :
+  empreintes de départ revérifiées en lecture, puis `psql --single-transaction -c 'SET ROLE postgres' -c "SET
+  lock_timeout = '5s'" -f 20261024150000_add_radio_show_follows.sql` (le fichier de la PR #74 au commit `2f04cc6`,
+  sha256 `df7670e6d6e327bc…`), en une seconde, sans erreur. Après, en lecture : les 20 empreintes de la base locale,
+  aucun suivi d'émission. Par l'API publique (clé anon) : `rpc/app_radio_followed` 401 (42501, la fonction est connue
+  du cache de schéma), `rpc/app_follows` et `user_follows` 401 comme avant, `rpc/app_radio_shows` et `radio_shows`
+  200, `rpc/app_audience_add` 200 (un jour hors fenêtre : 0, rien d'écrit). Retour arrière (essayé en local :
+  migration, retour, migration, empreintes identiques) : `radio-suivre-base-retour-arriere.sql.txt` dans les notes de
+  la session (généré depuis les migrations d'avant) ; il efface les suivis d'émissions.
