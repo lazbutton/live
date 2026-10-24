@@ -65,8 +65,11 @@ export function AppSection() {
           masqués et vos préférences de notification passent de la session invitée au compte.
         </p>
         <Retention>
-          jusqu’à sa suppression, depuis l’application (section 3). Désinstaller l’application ne
-          la supprime pas&nbsp;: elle reste dans notre base, sans e-mail ni nom.
+          jusqu’à sa suppression depuis l’application (section 3), et au plus 13&nbsp;mois après
+          sa dernière utilisation&nbsp;: sans ouverture de l’application ni geste enregistré
+          pendant 13&nbsp;mois, elle est supprimée de notre base avec ce qui lui est rattaché
+          (sections 2.4 et 2.5). Désinstaller l’application ne la supprime pas tout de suite&nbsp;:
+          elle part au bout de ces 13&nbsp;mois.
         </Retention>
       </PolicySubsection>
 

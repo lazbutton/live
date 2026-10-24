@@ -62,6 +62,9 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   l'auteur d'une demande sans nom se reconnaît par l'e-mail de son compte (`get_user_emails`), jamais public.
 - Données d'un invité (session anonyme) recopiées sur le compte qui se connecte : `copy_guest_data()`
   (`security definer`, l'id de la session invitée sert de preuve ; `docs/API_APP.md`).
+- Sessions invitées sans trace depuis 13 mois : supprimées chaque nuit par `purge_inactive_guest_sessions()`
+  (`/api/cron/cleanup`) ; la trace (connexion, rafraîchissements, gestes de l'invité, jamais ce que le serveur
+  écrit pour lui) est dans `inactive_guest_sessions()`. Politique de confidentialité, section 2.2.
 - Festivals (`../live/docs/fonctionnalites/festivals.md`) : une fiche de la catégorie Festival ; ses événements y sont rattachés
   par `events.festival_id` (pas de festival dans un festival : déclencheur `check_event_festival`), ses lieux dans
   `festival_locations` (le premier est le `location_id` de la fiche ; clé `id`, jamais `(festival_id,

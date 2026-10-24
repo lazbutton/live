@@ -49,7 +49,8 @@ export function AccountDeletionSection() {
         <p>
           La suppression est immédiate et vous déconnecte. Elle vaut aussi pour une session
           invitée (section 2.2) qui, sans e-mail ni nom, ne peut être supprimée que depuis
-          l’application. Sans session, notre base ne garde rien qui soit rattaché à ce téléphone.
+          l’application, ou l’est d’elle-même après 13&nbsp;mois sans utilisation. Sans session,
+          notre base ne garde rien qui soit rattaché à ce téléphone.
         </p>
       </PolicySubsection>
 

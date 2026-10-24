@@ -110,7 +110,22 @@ export async function GET(request: NextRequest) {
       console.error("❌ Erreur lors de la rétention technique:", error);
       results.technicalCleanupError = error.message;
     }
-    
+
+    // 5. Supprimer les sessions invitées sans trace depuis 13 mois, avec ce qui leur est rattaché
+    // (règle : migration 20261024180000 ; ../live/docs/fonctionnalites/compte.md, « La session, sans compte »).
+    // 500 au plus par nuit : has_more dit s'il en reste pour la suivante.
+    try {
+      const { data: guestSessions, error: guestSessionsError } =
+        await supabase.rpc("purge_inactive_guest_sessions");
+
+      if (guestSessionsError) throw guestSessionsError;
+      results.guestSessions = guestSessions;
+      console.log("👤 Sessions invitées inactives supprimées", guestSessions);
+    } catch (error: any) {
+      console.error("❌ Erreur lors de la purge des sessions invitées:", error);
+      results.guestSessionsError = error.message;
+    }
+
     console.log("✅ Nettoyage terminé");
     
     return NextResponse.json({
