@@ -1,8 +1,8 @@
 /**
- * Festivals (../live/docs/FESTIVALS.md, § 4) : un festival est un événement de la catégorie Festival qui contient
- * les autres (`events.festival_id`), avec ses lieux à lui (`festival_locations`). Ici, ce que l'admin en calcule :
- * la catégorie, les dates qu'il couvre, les alertes de son programme, et les événements qui le nomment
- * (suggestions du programme).
+ * Festivals (../live/docs/fonctionnalites/festivals.md, « Règles » et « Données et code ») : un festival est un
+ * événement de la catégorie Festival qui contient les autres (`events.festival_id`), avec ses lieux à lui
+ * (`festival_locations`). Ici, ce que l'admin en calcule : la catégorie, les dates qu'il couvre, les alertes de
+ * son programme, et les événements qui le nomment (suggestions du programme).
  *
  * Les dates sont celles de la base : l'heure de Paris étiquetée UTC (`parseDateWithoutTimezone`), comparées en
  * heure murale.
@@ -211,11 +211,12 @@ function sameFestivalName(left: string, right: string) {
 }
 
 /**
- * Le festival dont fait partie un événement importé (../live/docs/FESTIVALS.md, § 4, « À l'import ») : parmi ceux
- * dont les dates couvrent la sienne, celui qui porte le nom relevé (`festivalName` : lu par l'IA, donné à
- * `create_event`), sinon celui que son titre nomme (« Fulgurances Électroniques – Micro »). Les noms se comparent
- * sans « festival », numéro d'édition, accents ni casse (`festivalNameKey`). Le plus court l'emporte (le plus
- * précis). `outOfDates` : un festival du nom relevé existe, mais ses dates ne couvrent pas l'événement.
+ * Le festival dont fait partie un événement importé (../live/docs/fonctionnalites/festivals.md, « Données et
+ * code », à l'import) : parmi ceux dont les dates couvrent la sienne, celui qui porte le nom relevé
+ * (`festivalName` : lu par l'IA, donné à `create_event`), sinon celui que son titre nomme (« Fulgurances
+ * Électroniques – Micro »). Les noms se comparent sans « festival », numéro d'édition, accents ni casse
+ * (`festivalNameKey`). Le plus court l'emporte (le plus précis). `outOfDates` : un festival du nom relevé existe,
+ * mais ses dates ne couvrent pas l'événement.
  */
 export function findFestivalForImport(
   festivals: ReadonlyArray<FestivalCandidate>,

@@ -1,6 +1,6 @@
 /*
  * Radio : ce que publie le site WordPress de Radio Campus Orléans (thème « rco »), lu en lecture seule
- * (`../live/docs/RADIO_CAMPUS.md`, § 2 et § 4) :
+ * (`../live/docs/fonctionnalites/radio.md`, « Pour qui » et « Le contrat avec live-admin ») :
  * - l'API WordPress des émissions (`/wp-json/wp/v2/show`) : id, slug, nom, page, date de modification ;
  * - la page de chaque émission : le style (`.rco-show-style`), les créneaux
  *   (`.rco-show-infos-dates-time li`, « Jeudi 22h00 • 00h00 »), le lien du flux, la présentation ;
@@ -23,7 +23,8 @@ export type RadioSlot = {
 
 /**
  * Famille par défaut d'une émission à sa création : parole pour ces 19, musique pour les autres
- * (RADIO_CAMPUS.md, § 4). Ensuite modifiable dans le back-office ; l'import n'y touche plus.
+ * (`../live/docs/fonctionnalites/radio.md`, « Le contrat avec live-admin »). Ensuite modifiable dans le
+ * back-office ; l'import n'y touche plus.
  */
 export const SPOKEN_SHOW_SLUGS = new Set([
   "quoique-ten-dises",
