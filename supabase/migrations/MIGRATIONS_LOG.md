@@ -1162,7 +1162,27 @@
   jour ; `is_user_safety_suspended` / `can_use_ugc_features` lisent app_meta ; l'auto-réhabilitation échoue,
   vérifiée aussi de bout en bout via GoTrue réel) ; fixtures de `events_rls.test.sql` (u09 via app_meta) et
   `lib/api/app/routes.test.mjs` (`jwt-suspended`). `npm run db:test`, `node --test`, `npx tsc --noEmit` au vert.
-- **Pas encore appliquée en prod** (attendre l'accord ; prévoir les PR de l'app en même temps).
+- Relevé en prod le 24/10/2026 (lecture seule, psql `BEGIN READ ONLY`) : `is_user_safety_suspended()` encore celle de
+  `20260324100000` (elle lit `raw_user_meta_data`), ni la fonction ni le déclencheur du garde-fou ; seule
+  `can_use_ugc_features()` l'appelle (7 policies : `events` ×3, `user_requests` ×2, `content_reports`,
+  `blocked_users`). Aucun des 280 comptes (257 invités) n'a de clé de suspension, ni dans `raw_user_meta_data` ni
+  dans `raw_app_meta_data` : les deux UPDATE de reprise ne touchent aucune ligne. Le back-office de `main` écrit déjà
+  la suspension dans `app_metadata`, que la base ne lisait pas encore. L'app publiée (1.0.6) la lit dans
+  `user_metadata` : elle ne verra plus qu'un compte est suspendu, le serveur le refuse toujours.
+- Essai à blanc le 24/10/2026 sur une base locale jetable dans l'état de la prod (toutes les migrations sauf
+  celle-ci et `20261024043000` ; les fonctions en jeu, leurs droits et les déclencheurs d'`auth.users` identiques à
+  ceux de la prod) : 4 comptes
+  d'essai (suspendu avec les 4 clés, suspension levée, admin, invité), la faille d'avant reproduite ; migration en
+  une transaction ; 9 contrôles (reprise vers `app_metadata`, `user_metadata` nettoyé sans perdre le reste, lecture,
+  `can_use_ugc_features`, faille refermée, inscription) ; retour arrière complet, puis migration rejouée : états
+  identiques à l'avant et à l'après. `npm run db:test` (copie isolée du script) : tous les fichiers passent.
+- Retour arrière. Si les inscriptions ou les mises à jour de compte échouent, retirer le seul déclencheur :
+  `DROP TRIGGER IF EXISTS strip_ugc_suspension_from_user_metadata ON auth.users;` (la suspension reste lue dans
+  `app_metadata`, que l'utilisateur ne peut pas écrire : rien ne se rouvre). Retour complet, qui rouvre la faille :
+  retirer déclencheur et fonction, recopier la suspension d'`app_metadata` vers `raw_user_meta_data` pour les
+  suspendus, remettre le corps de `20260324100000` et son commentaire (essayé en local : l'état d'avant à
+  l'identique).
+- **Pas encore appliquée en prod** (attendre l'accord).
 
 ## 2026-10-23 — Radio : les visuels gardés des émissions (`radio_shows.image_url`)
 
@@ -1183,3 +1203,33 @@
   Tentaculation, dans `organizers-images/radio-shows/` (WebP carrés, 21 à 284 Ko). Vérifié en anonyme : 11 émissions
   avec `image_url`, chaque image en 200 `image/webp` ; dans le programme d'hier, Écoute ta fac et Nation Groove ont
   le leur.
+
+## 2026-10-24 — La table `event_notifications` supprimée (anciens rappels par événement)
+
+- `20261024043000_drop_event_notifications` : la table des rappels individuels de l'ancien système (« 1 jour,
+  3 heures ou 1 heure avant »), abandonné en mars 2026, voulue supprimée par l'utilisateur le 24/10/2026
+  (`../live/docs/FEUILLE_DE_ROUTE.md`). Partent avec elle ses index, contraintes, 4 policies et 2 déclencheurs,
+  `calculate_notification_scheduled_at()` (son déclencheur) et `update_event_notifications_updated_at()`, qui ne
+  servait à rien ; `update_notification_preferences_updated_at()` reste (trois autres tables). Sans CASCADE.
+- Relevé en prod le 24/10/2026 (lecture seule) : 0 ligne ; aucune vue, policy d'une autre table, clé étrangère,
+  publication ni tâche pg_cron ne la cite ; aucune fonction hors son déclencheur et `check_rls_policies()` (le nom
+  dans une liste de tables ; cette fonction échoue de toute façon, en prod aussi, sur `p.polrelid`, absent de la
+  vue `pg_policies`) ; la seule Edge Function, `delete-user`, n'y touche pas.
+- Qui s'en servait : le back-office, plus depuis mars 2026 (crons de rappels, `/api/events/[id]/notifications`) ;
+  l'app de `main`, plus depuis le 21/10 (live-app `92aa71a`). L'app publiée, 1.0.6 (avril 2026, live-app
+  `7c3f3a2`), comme la 1.0.4 et la 1.0.5, fait au lancement et au réenregistrement du jeton un UPDATE qui désactive
+  les anciens rappels du compte (aucune ligne touchée), dans un try/catch : sans la table, PostgREST répond 404
+  (PGRST205), l'erreur est attrapée et journalisée, sans autre effet. La 1.0.3 (décembre 2025) avait encore l'écran
+  des rappels : un rappel ne s'y active plus.
+- Sauvegarde (lecture seule, 24/10/2026 à 02:30 UTC) dans `~/Documents/Backups/outlive/event-notifications-2026-10-24/`
+  sur la machine de l'utilisateur, hors dépôt : le contenu (CSV, en-tête seul : la table était vide), sa définition
+  extraite du dump du schéma `public` de la prod (`schema.sql`), `SHA256SUMS`, `README.txt` (comment restaurer).
+- Essai à blanc le 24/10/2026 sur une base locale jetable dans l'état de la prod : migration en une transaction,
+  rejouée sans erreur ; `supabase/tests/drop_event_notifications.test.sql` (4 cas : ni table ni fonction des anciens
+  rappels, la fonction updated_at partagée garde ses trois tables, un événement et un compte se suppriment) ;
+  restauration depuis la sauvegarde : définition identique à celle d'avant (colonnes, contraintes, index,
+  déclencheurs, policies, droits, commentaires), puis migration rejouée. `npm run db:test` (copie isolée du script) :
+  tous les fichiers passent. `lib/supabase/database.types.ts` régénéré (`npm run db:types`) : la table en moins.
+  `docs/EVENT_NOTIFICATIONS_DIRECT_SUPABASE.md` (le mode d'emploi de la table) retiré.
+- Retour arrière : dans la sauvegarde, `\i schema.sql` (psql, rôle postgres), puis `\copy` du CSV s'il a des lignes.
+- **Pas encore appliquée en prod** (attendre l'accord).
