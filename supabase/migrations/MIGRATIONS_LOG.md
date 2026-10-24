@@ -1408,3 +1408,36 @@
   erreur (`UPDATE 0`). Vérifié en lecture seule : fonction `b0ca2c58` (attribution, nom filtré, prix libre, security
   definer), `public_contributor_label` rend « Camille Martin » et NULL pour une adresse e-mail, contrainte validée,
   465 événements dont aucun nom public avec « @ ».
+
+## 2026-10-24 — Une demande complétée dans le formulaire garde son attribution
+
+- `20261024170000_mark_event_request_converted` : « Compléter » une demande dans la file (le chemin obligé des
+  demandes « depuis un lien », que `convert_event_request_to_event` refuse, et des affiches seules) enregistre
+  l'événement par le formulaire, puis `markRequestConverted` marquait la demande convertie par une mise à jour directe
+  de `user_requests` : rien n'était recopié sur l'événement, ni « Proposé par » ni « Suggestion communautaire ».
+  `mark_event_request_converted(request_id, event_id)` (`security definer`, admin seulement, 42501 sinon ; exécutable
+  par authenticated seulement) recopie l'origine communautaire, l'accord et, avec l'accord seulement,
+  `public_contributor_label(contributor_display_name)`, puis marque la demande convertie, relue par l'admin. La
+  demande doit être en attente et l'événement créé par l'admin qui appelle ; pour une demande déjà convertie en ce
+  même événement, rejouer ne change rien ; sinon erreur, rien d'écrit.
+- L'événement passe au demandeur (`created_by` = `requested_by`), comme avec `convert_event_request_to_event` (choix
+  de l'utilisateur, 2026-10-24) : « Mes suggestions » de l'app le montre, et « Bloquer aussi l'auteur », que l'app
+  offre dès que `community_submission` est vrai, vise `events.created_by` : resté à l'admin, un membre aurait pu
+  bloquer l'admin et ne plus voir aucun de ses événements. Le demandeur peut le modifier ou le supprimer tant qu'il
+  est en attente (policies « … their own pending events »).
+- `markRequestConverted` (`event-request-utils.ts`) appelle la fonction ; ses appelants ne changent pas
+  (`events-page.tsx`, la file des demandes).
+- Limite : les dates supplémentaires créées dans le même enregistrement du formulaire ne sont pas liées à la demande
+  (seul le premier événement l'est) ; elles restent à l'admin, sans attribution.
+- Tests : `supabase/tests/mark_event_request_converted.test.sql` (27 vérifications : l'attribution avec et sans
+  accord, avec et sans nom, l'e-mail d'une ancienne version écarté, le passage au demandeur et « Mes suggestions »
+  sous la RLS, rejouer, les refus — demande traitée ou inconnue, événement inconnu, d'un autre admin ou de la
+  collecte, hors admin — et les droits). Sur une pile Supabase locale (auth, PostgREST) et `next dev` : deux demandes
+  « depuis un lien » envoyées par `POST /api/user-requests`, complétées par les appels du formulaire (insertion de
+  l'événement, puis la fonction), relues en anon : « Proposé par Camille Martin », et « Suggestion communautaire »
+  pour l'e-mail d'une ancienne version ; chaque membre retrouve son événement dans « Mes suggestions » ; membre et
+  anon refusés. `npm run db:test` (34 fichiers, 590 vérifications), `node --test` (334), `npx tsc --noEmit` et ESLint
+  au vert.
+- **Pas encore appliquée en prod.** À appliquer avant de fusionner la PR (Vercel déploie `main`) : sans la fonction,
+  « Compléter » enregistre l'événement mais la demande reste en attente (« Demande non synchronisée »). Prérequis :
+  `20261024140000`, en prod depuis le 2026-10-24 à 6 h 25.
