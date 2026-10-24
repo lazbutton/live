@@ -1190,8 +1190,8 @@
   lisaient `app_events_in_zone` puis retiraient en Dart les événements en cours de 12 h ou moins, les masqués, ceux
   des auteurs bloqués et, sur « Tout », ceux retirés de l'accueil ; une catégorie se comparait à son id et à son nom
   (`../live/docs/FEUILLE_DE_ROUTE.md`, § 2, « Des règles encore en Dart », maintenant). L'app lira
-  `app_events_in_range` (PR de l'app à venir, à sortir après cette migration), qui a déjà les trois premières règles,
-  et cette migration ajoute :
+  `app_events_in_range` (PR de l'app lazbutton/live-app#203, à fusionner après cette migration), qui a déjà les trois
+  premières règles, et cette migration ajoute :
   - `app_on_tout(events)`, la règle de « Tout » (`NOT hide_from_home`), une colonne calculée pour PostgREST (lue ou
     filtrée par l'app ; vérifié sur PostgREST v13.0.5 local, `select` et filtre sur `rpc/app_events_in_range`) ; les
     nombres de « Tout » la lisent (`app_event_counts` sans catégorie, `app_zone_counts`, `app_cities`, redéfinies
