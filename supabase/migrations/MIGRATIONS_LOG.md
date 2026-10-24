@@ -1217,4 +1217,12 @@
   nouveau fichier) puis sur Postgres 17 nu en ICU (avec lui ; `app_radio` y manque de la file de pg_net).
 - Types : `app_on_tout` et `resolve_event_category` ajoutés à la main dans `lib/supabase/database.types.ts`, au format
   du générateur (Docker arrêté sur la machine) ; à régénérer au prochain `npm run db:types`.
-- **Pas encore appliquée en prod** (attendre l'accord ; essai à blanc et retour arrière dans la PR).
+- **Essai à blanc en prod le 2026-10-24 vers 5 h 30** (heure de Paris, accord de l'utilisateur), dans une transaction
+  annulée, par psql (identifiants de `supabase db dump --linked --dry-run`) : les quatre définitions de départ étaient
+  bien celles de `20261021220000` et `20261023170000` (empreintes), la migration est passée sans erreur, et les
+  empreintes d'après sont celles de la base locale. La conversion touche 2 événements (« Concert », dont un archivé) ;
+  aucun texte ne désigne une catégorie inconnue. En anon, avant et après, mêmes nombres : « Tout » sur 7 jours 17/17,
+  350 à venir (2 hors de « Tout »), 48 concerts, zones 328/347/347/347, villes 347. « Toutes les dates » (200 cartes,
+  anon) : 4,6 ms d'exécution. Après l'essai, la prod est restée telle quelle (empreintes de départ, aucun trigger).
+  Sauvegarde et retour arrière prêts : `~/Documents/Backups/outlive/regles-accueil-2026-10-24/`.
+- **Pas encore appliquée en prod** (attendre l'accord pour l'application).
