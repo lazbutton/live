@@ -2,7 +2,9 @@
 -- radio_live_grid(), l'import horaire par pg_cron, les visuels gardés (migrations
 -- 20261023140000_create_radio_tables.sql, 20261023141000_create_app_radio_functions.sql,
 -- 20261023143000_schedule_radio_import.sql et 20261023235000_add_radio_show_images.sql ; les
--- compteurs d'audience de 20261023142000 sont dans app_audience.test.sql).
+-- compteurs d'audience de 20261023142000 sont dans app_audience.test.sql), et « Tes émissions »,
+-- app_radio_followed() (20261024150000_add_radio_show_follows.sql ; le suivi lui-même est dans
+-- user_follows.test.sql).
 --
 -- Sur une base jetable avec toutes les migrations et aucun événement : scripts/db-test.sh.
 -- Jamais en prod : tout se passe dans une transaction annulée, mais le script s'arrête de lui-même
@@ -479,5 +481,149 @@ SELECT vault.create_secret('s3cret-du-cron', 'radio_import_cron_secret');
 SELECT pg_temp.verifie('radio_request_import avec le secret : un GET de la route, avec le secret',
   (public.radio_request_import() IS NOT NULL)::text || ' | ' || pg_temp.file_radio(),
   'true | GET https://www.outlive.fr/api/cron/radio-import Bearer s3cret-du-cron');
+
+-- « Tes émissions » : app_radio_followed (20261024150000_add_radio_show_follows.sql) ---------------------------
+-- U (le compte d'auditeur) suit Le Mag Culturel depuis le 20 octobre, Nation Groove depuis le 23 à 8 h UTC (après
+-- l'arrivée de son épisode du 22), Vieille émission (en pause : son dernier épisode a 49 jours), La Méridienne
+-- (aucun épisode), l'émission de la station B (éteinte) et celle d'une station C (allumée). V, un invité, suit
+-- Blockchain. Les épisodes arrivent dans OutLive le lendemain de leur diffusion vers 6 h (04:07 UTC), à l'import.
+
+INSERT INTO auth.users (id, email, is_anonymous) VALUES
+  ('ad000000-0000-4000-8000-000000000002', NULL, true),
+  ('ad000000-0000-4000-8000-000000000003', 'rien@test.local', false);
+INSERT INTO public.organizers (id, name) VALUES ('ad000000-0000-4000-8000-0000000000b4', 'Radio C');
+INSERT INTO public.radio_stations (id, organizer_id, name, frequency, stream_url, status_url, site_url, enabled) VALUES
+  ('ad000000-0000-4000-8000-0000000000a3', 'ad000000-0000-4000-8000-0000000000b4', 'Radio C', '95.5',
+   'https://flux.test/c', 'https://flux.test/status-json.xsl', 'https://radio-c.test/', true);
+SELECT pg_temp.emission('31', 'Émission de C', '[{"weekday": 5, "start": "19:00", "end": "20:00"}]', 'musique',
+  'ad000000-0000-4000-8000-0000000000a3');
+SELECT pg_temp.episode('31', '31', '2026-10-16 19:00:00');
+
+UPDATE public.radio_episodes AS e SET created_at = c.arrivee
+FROM (VALUES
+  ('ad000000-0000-4000-8000-000000000201'::uuid, '2026-10-23 04:07+00'::timestamptz),  -- Nation Groove du 22
+  ('ad000000-0000-4000-8000-000000000202', '2026-10-16 04:07+00'),                     -- Nation Groove du 15
+  ('ad000000-0000-4000-8000-000000000204', '2026-10-17 04:07+00'),                     -- Blockchain du 16
+  ('ad000000-0000-4000-8000-000000000205', '2026-10-23 04:07+00'),                     -- Mag Culturel du 22, 17:00
+  ('ad000000-0000-4000-8000-000000000206', '2026-10-23 04:07+00'),                     -- et 17:05
+  ('ad000000-0000-4000-8000-000000000209', '2026-09-05 04:07+00'),                     -- Vieille émission
+  ('ad000000-0000-4000-8000-000000000231', '2026-10-17 04:07+00')                      -- Émission de C
+) AS c(id, arrivee)
+WHERE e.id = c.id;
+
+-- Écrits sans RLS : l'émission de B, suivie avant que sa station s'éteigne.
+INSERT INTO public.user_follows (user_id, target_type, target_id, created_at) VALUES
+  ('ad000000-0000-4000-8000-000000000001', 'radio_show', 'ad000000-0000-4000-8000-000000000104', '2026-10-20 10:00+00'),
+  ('ad000000-0000-4000-8000-000000000001', 'radio_show', 'ad000000-0000-4000-8000-000000000101', '2026-10-23 08:00+00'),
+  ('ad000000-0000-4000-8000-000000000001', 'radio_show', 'ad000000-0000-4000-8000-000000000108', '2026-08-01 08:00+00'),
+  ('ad000000-0000-4000-8000-000000000001', 'radio_show', 'ad000000-0000-4000-8000-000000000107', '2026-10-01 08:00+00'),
+  ('ad000000-0000-4000-8000-000000000001', 'radio_show', 'ad000000-0000-4000-8000-000000000121', '2026-10-01 08:00+00'),
+  ('ad000000-0000-4000-8000-000000000001', 'radio_show', 'ad000000-0000-4000-8000-000000000131', '2026-10-01 08:00+00'),
+  ('ad000000-0000-4000-8000-000000000002', 'radio_show', 'ad000000-0000-4000-8000-000000000103', '2026-10-01 08:00+00');
+
+-- « Tes émissions » de la session courante, dans l'ordre rendu : « nom JJ/MM HH:MM durée nouveau|- active|pause »
+-- (le dernier épisode ; « - » sans épisode), ou l'erreur.
+CREATE FUNCTION pg_temp.suivies(station uuid, a timestamp) RETURNS text
+LANGUAGE plpgsql AS $$
+DECLARE
+  resultat text;
+BEGIN
+  SELECT coalesce(string_agg(
+      f.name || ' ' || coalesce(to_char(f.episode_aired_at AT TIME ZONE 'UTC', 'DD/MM HH24:MI'), '-')
+      || ' ' || coalesce(f.episode_duration_s::text, '-')
+      || ' ' || CASE WHEN f.is_new THEN 'nouveau' ELSE '-' END
+      || ' ' || CASE WHEN f.is_active THEN 'active' ELSE 'pause' END,
+      ' | ' ORDER BY f.n), '')
+  INTO resultat
+  FROM public.app_radio_followed(station, a) WITH ORDINALITY AS f(id, slug, name, style, family, slots,
+    last_episode_at, organizer_id, description, page_url, letter, image_url, is_active, episode_id,
+    episode_aired_at, episode_duration_s, episode_audio_url, episode_page_url, is_new, followed_at, n);
+  RETURN resultat;
+EXCEPTION WHEN OTHERS THEN
+  RETURN 'erreur ' || SQLSTATE;
+END $$;
+GRANT EXECUTE ON FUNCTION pg_temp.suivies(uuid, timestamp) TO anon, authenticated;
+
+SELECT pg_temp.verifie('app_radio_followed : authenticated (invités compris), pas anon ni public',
+  has_function_privilege('authenticated', 'public.app_radio_followed(uuid, timestamp)', 'execute')::text || ' '
+  || has_function_privilege('anon', 'public.app_radio_followed(uuid, timestamp)', 'execute')::text || ' '
+  || (SELECT coalesce(bool_or(a.grantee = 0), false)::text
+      FROM pg_proc AS p, aclexplode(p.proacl) AS a
+      WHERE p.oid = 'public.app_radio_followed(uuid, timestamp)'::regprocedure),
+  'true false false');
+
+SELECT pg_temp.session();
+SELECT pg_temp.verifie('anon : refusé',
+  pg_temp.suivies('ad000000-0000-4000-8000-0000000000a1', '2026-10-23 19:12:04'), 'erreur 42501');
+RESET ROLE;
+
+SELECT pg_temp.session('ad000000-0000-4000-8000-000000000001');
+-- Le plus récent épisode d'abord, sans épisode à la fin ; le Mag Culturel est nouveau (arrivé ce matin, depuis le
+-- suivi), Nation Groove non (arrivé avant le suivi) ; en pause gardée ; ni la station éteinte, ni la station C.
+SELECT pg_temp.verifie('vendredi 19:12 : les émissions suivies de la station, actives ou en pause',
+  pg_temp.suivies('ad000000-0000-4000-8000-0000000000a1', '2026-10-23 19:12:04'),
+  'Nation Groove 22/10 22:00 7187 - active | Le Mag Culturel 22/10 17:05 3600 nouveau active'
+  || ' | Vieille émission 04/09 16:00 3600 - pause | La Méridienne - - - pause');
+
+SELECT pg_temp.verifie('colonnes d''une ligne : celles d''app_radio_shows, le dernier épisode, le suivi',
+  (SELECT f.slug || ' ' || f.family || ' ' || f.letter || ' ' || f.slots::text || ' '
+     || to_char(f.last_episode_at AT TIME ZONE 'UTC', 'DD/MM HH24:MI') || ' ' || coalesce(f.image_url, 'null') || ' '
+     || f.page_url || ' ' || right(f.episode_id::text, 3) || ' ' || f.episode_audio_url || ' '
+     || f.episode_page_url || ' ' || to_char(f.followed_at AT TIME ZONE 'UTC', 'DD/MM HH24:MI')
+   FROM public.app_radio_followed('ad000000-0000-4000-8000-0000000000a1', '2026-10-23 19:12:04') AS f
+   WHERE f.name = 'Le Mag Culturel'),
+  'emission-04 parole M [{"end": "18:00", "start": "17:00", "weekday": 4}] 22/10 17:05 null https://radio.test/04/'
+  || ' 206 https://radio.test/06.mp3 https://radio.test/podcast/06/ 20/10 10:00');
+
+SELECT pg_temp.verifie('une autre station : seulement ses émissions ; la station éteinte : rien',
+  pg_temp.suivies('ad000000-0000-4000-8000-0000000000a3', '2026-10-23 19:12:04') || ' || '
+  || pg_temp.suivies('ad000000-0000-4000-8000-0000000000a2', '2026-10-23 19:12:04'),
+  'Émission de C 16/10 19:00 3600 nouveau active || ');
+
+-- Huit jours après son arrivée, le Mag Culturel du 22 n'est plus nouveau ; Vieille émission en pause, toujours là.
+SELECT pg_temp.verifie('samedi 31 : plus rien de nouveau',
+  pg_temp.suivies('ad000000-0000-4000-8000-0000000000a1', '2026-10-31 12:00:00'),
+  'Nation Groove 22/10 22:00 7187 - active | Le Mag Culturel 22/10 17:05 3600 - active'
+  || ' | Vieille émission 04/09 16:00 3600 - pause | La Méridienne - - - pause');
+-- En pause : 45 jours sans épisode (radio_show_is_active), comme « Toutes les émissions ».
+SELECT pg_temp.verifie('en pause 45 jours après son dernier épisode, toujours suivie',
+  pg_temp.suivies('ad000000-0000-4000-8000-0000000000a1', '2026-12-06 22:00:01'),
+  'Nation Groove 22/10 22:00 7187 - active | Le Mag Culturel 22/10 17:05 3600 - pause'
+  || ' | Vieille émission 04/09 16:00 3600 - pause | La Méridienne - - - pause');
+RESET ROLE;
+
+SELECT pg_temp.session('ad000000-0000-4000-8000-000000000002');
+SELECT pg_temp.verifie('un autre utilisateur (invité) : les siennes seulement',
+  pg_temp.suivies('ad000000-0000-4000-8000-0000000000a1', '2026-10-23 19:12:04'),
+  'Blockchain 16/10 20:00 3600 nouveau active');
+RESET ROLE;
+
+SELECT pg_temp.session('ad000000-0000-4000-8000-000000000003');
+SELECT pg_temp.verifie('rien de suivi : aucune ligne',
+  pg_temp.suivies('ad000000-0000-4000-8000-0000000000a1', '2026-10-23 19:12:04'), '');
+RESET ROLE;
+
+-- L'import du vendredi 30 vers 6 h ajoute le Mag Culturel du jeudi 29 (created_at : maintenant, comme l'import).
+SELECT pg_temp.episode('41', '04', '2026-10-29 17:00:00', 3587);
+SELECT pg_temp.session('ad000000-0000-4000-8000-000000000001');
+SELECT pg_temp.verifie('un nouvel épisode importé : en tête, nouveau (sans p_at : maintenant)',
+  (SELECT string_agg(f.name || ' ' || to_char(f.episode_aired_at AT TIME ZONE 'UTC', 'DD/MM HH24:MI') || ' '
+     || f.is_new::text, ' | ' ORDER BY f.n)
+   FROM public.app_radio_followed('ad000000-0000-4000-8000-0000000000a1') WITH ORDINALITY AS f(id, slug, name,
+     style, family, slots, last_episode_at, organizer_id, description, page_url, letter, image_url, is_active,
+     episode_id, episode_aired_at, episode_duration_s, episode_audio_url, episode_page_url, is_new, followed_at, n)
+   WHERE f.episode_id IS NOT NULL),
+  'Le Mag Culturel 29/10 17:00 true | Nation Groove 22/10 22:00 false | Vieille émission 04/09 16:00 false');
+RESET ROLE;
+
+-- La station A s'éteint : rien ; les suivis restent.
+UPDATE public.radio_stations SET enabled = false WHERE id = 'ad000000-0000-4000-8000-0000000000a1';
+SELECT pg_temp.session('ad000000-0000-4000-8000-000000000001');
+SELECT pg_temp.verifie('station éteinte : « Tes émissions » vide',
+  pg_temp.suivies('ad000000-0000-4000-8000-0000000000a1', '2026-10-23 19:12:04'), '');
+RESET ROLE;
+UPDATE public.radio_stations SET enabled = true WHERE id = 'ad000000-0000-4000-8000-0000000000a1';
+SELECT pg_temp.verifie('station éteinte : les suivis restent en base',
+  (SELECT count(*)::text FROM public.user_follows WHERE user_id = 'ad000000-0000-4000-8000-000000000001'), '6');
 
 ROLLBACK;

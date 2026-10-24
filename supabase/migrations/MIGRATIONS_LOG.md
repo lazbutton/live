@@ -1409,6 +1409,66 @@
   definer), `public_contributor_label` rend « Camille Martin » et NULL pour une adresse e-mail, contrainte validée,
   465 événements dont aucun nom public avec « @ ».
 
+## 2026-10-24 — Suivre une émission de radio : le type `radio_show`, « Tes émissions », les émissions dans « Mes suivis »
+
+- `20261024150000_add_radio_show_follows` : étape 1 de `../live/docs/chantiers/radio-suivre.md` (choix et maquettes
+  validés par l'utilisateur le 2026-10-24). Contrat : `docs/API_APP.md`, « Suivis » et « Radio ». Sans notification
+  pour commencer : `follows_digest` ne change pas (étape 4).
+  - `user_follows.target_type` accepte `radio_show` (contrainte refaite) ; `check_user_follow_target()` refuse une
+    émission qui n'existe pas (23503) ; une émission d'une station éteinte, que la RLS cache, est refusée par une
+    politique restrictive d'insertion (« Users can only follow visible radio shows », 42501) : pas dans le trigger,
+    pour que `copy_guest_data` (inchangée, security definer) emporte les suivis déjà en base d'une station éteinte
+    depuis ; `trg_radio_shows_delete_follows` retire les suivis d'une émission supprimée (une station supprimée
+    aussi, par la cascade).
+  - `app_follows(at_time)` (DROP puis CREATE, droits compris : le type de retour change) : les émissions suivies
+    d'une station allumée, `upcoming_count` 0, `new_count` leurs épisodes arrivés (`radio_episodes.created_at`) depuis
+    7 jours et depuis le suivi, et trois colonnes en fin (`last_episode_id`, `last_episode_at`, `show_family`, null
+    pour les autres suivis). Les lieux, organisateurs et artistes : la définition de `20261023190000`, inchangée.
+  - `app_radio_followed(p_station, p_at)` : « Tes émissions », les émissions suivies de la station, actives ou en
+    pause (`is_active`), avec les colonnes d'`app_radio_shows`, leur dernier épisode et `is_new` ; authenticated
+    seulement.
+  - `app_audience_add` et la contrainte d'`app_audience_counts` : `radio_show_follow` et `radio_followed_play` en
+    plus (dix compteurs). `20261023142000` et `20261023180000`, qui posaient ces listes, ne se rejouent plus : elles
+    retireraient les deux clés (la garde de `lib/audience/app-audience.test.mjs` compare la page à la dernière).
+- Testée sur une base jetable : une copie privée de `scripts/db-test.sh` (Docker), puis, Docker Desktop quitté en
+  cours de route par une autre session, un Postgres 17 nu en ICU avec les bouchons Supabase (et ceux de pg_cron et de
+  la file de pg_net) : les 33 fichiers de `supabase/tests` passent (595 cas, avec `20261024140000`). Nouveaux cas : `user_follows.test.sql` (le type et la politique, suivre et ne plus suivre une émission,
+  inconnue ou un lieu suivi comme émission 23503, station éteinte 42501, « Mes suivis » : visuel, nouveau, dernier
+  épisode, famille, suivi après l'arrivée, 7 jours, station éteinte, recopie invité → compte d'une station éteinte
+  comprise, émission puis station supprimées), `app_radio.test.sql` (`app_radio_followed` : droits, anon refusé, ordre,
+  colonnes, autre station, station éteinte, nouveau, 7 jours, en pause à 45 jours, sans épisode, autre utilisateur,
+  rien de suivi, un épisode importé), `follows_digest.test.sql` (un suivi d'émission avec un épisode arrivé dans la
+  fenêtre : les messages ne changent pas), `app_audience.test.sql` (les deux compteurs). 19 règles faussées une à une
+  (la politique, le trigger, la contrainte, la suppression, « nouveau » sans le suivi ou sans les 7 jours dans les
+  deux fonctions, le premier épisode pour le dernier, la famille, toutes les stations, actives seulement, sans
+  épisode retirée, le tri, anon, `is_active`, chacun des deux compteurs) : toutes repérées. Types régénérés (copie
+  privée de `scripts/db-types.sh`) : `app_follows` et `app_radio_followed`, rien d'autre ; `tsc`, `eslint` et les
+  331 tests node passent (la garde des compteurs d'audience compare la page à cette migration).
+- **Essai à blanc en prod le 2026-10-24 à 8 h 09** (heure de Paris, accord de l'utilisateur), dans une transaction
+  annulée, par psql (identifiants de `supabase db dump --linked --dry-run`, `SET LOCAL ROLE postgres`, `lock_timeout`
+  5 s ; 4 s en tout, la migration environ 1 s) :
+  - avant : les empreintes (md5 de `pg_get_functiondef`, des contraintes, des politiques de `user_follows`, des
+    déclencheurs de `radio_shows`) identiques à celles d'une base locale avec toutes les migrations sauf celle-ci, sauf
+    le commentaire d'`app_audience_add` (celui de `20261023142000`, le corps est le même) ; `user_follows` vide (aucun
+    suivi en prod) ; `user_follows`, `radio_shows`, `copy_guest_data` à postgres, RLS non forcée ; l'import horaire
+    de la radio marche (7 épisodes arrivés le 24 vers 6 h, 1 140 au premier import du 23) ;
+  - après : les 20 empreintes de la base locale ; « Mes suivis » de chacun et le message des suivis inchangés (aucune
+    ligne, personne ne suit) ; un invité fictif (créé et annulé dans la transaction) suit Le Mag Culturel :
+    `app_radio_followed` rend son dernier épisode (jeudi 22 octobre, 3 593 s, active, pas nouveau), `app_follows` sa
+    ligne (`radio_show`, `parole`) ; une émission inconnue est refusée (23503) ; après un épisode inséré comme
+    l'import, il est nouveau (`is_new`, `new_count` 1) ; ne plus suivre le retire ; anon refusé (42501) ;
+    `app_audience_add` accepte les deux compteurs ; `app_radio_followed` 1,4 ms, `app_follows` 2,8 ms (exécution) ;
+  - après l'annulation : les empreintes de départ, aucun suivi d'émission.
+- **Appliquée en prod le 2026-10-24 à 8 h 10** (heure de Paris), avec l'accord de l'utilisateur, juste après l'essai :
+  empreintes de départ revérifiées en lecture, puis `psql --single-transaction -c 'SET ROLE postgres' -c "SET
+  lock_timeout = '5s'" -f 20261024150000_add_radio_show_follows.sql` (le fichier de la PR #74 au commit `2f04cc6`,
+  sha256 `df7670e6d6e327bc…`), en une seconde, sans erreur. Après, en lecture : les 20 empreintes de la base locale,
+  aucun suivi d'émission. Par l'API publique (clé anon) : `rpc/app_radio_followed` 401 (42501, la fonction est connue
+  du cache de schéma), `rpc/app_follows` et `user_follows` 401 comme avant, `rpc/app_radio_shows` et `radio_shows`
+  200, `rpc/app_audience_add` 200 (un jour hors fenêtre : 0, rien d'écrit). Retour arrière (essayé en local :
+  migration, retour, migration, empreintes identiques) : `radio-suivre-base-retour-arriere.sql.txt` dans les notes de
+  la session (généré depuis les migrations d'avant) ; il efface les suivis d'émissions.
+
 ## 2026-10-24 — Des fiches plus riches : genres, public, réservation
 
 - `20261024170000_event_genres_audience_booking` (étape 1 de « Pour toi », `../live/docs/chantiers/pour-toi.md`,

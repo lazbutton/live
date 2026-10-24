@@ -1,7 +1,7 @@
 /*
  * Mesure d'audience de l'app (U41) : compteurs quotidiens sans identité, écrits par l'app via
  * `app_audience_add` (migrations 20261021013000, 20261023142000 pour la radio, 20261023180000 pour les
- * festivals) et lus ici pour la page « Audience de l'app ».
+ * festivals, 20261024150000 pour les émissions suivies) et lus ici pour la page « Audience de l'app ».
  * Chaque téléphone envoie les totaux d'un jour au plus tôt le lendemain : les derniers jours se
  * complètent encore quelques jours.
  */
@@ -17,6 +17,9 @@ export const APP_AUDIENCE_METRICS = [
   { key: "event_liked", label: "Cœurs" },
   { key: "radio_live_play", label: "Direct écouté" },
   { key: "radio_episode_play", label: "Épisode écouté" },
+  { key: "radio_show_follow", label: "Émission suivie" },
+  // Un épisode lancé depuis « Tes émissions » (la page de la radio) : il compte aussi dans radio_episode_play.
+  { key: "radio_followed_play", label: "« Tes émissions » écouté" },
 ] as const;
 
 export type AppAudienceMetric = (typeof APP_AUDIENCE_METRICS)[number]["key"];

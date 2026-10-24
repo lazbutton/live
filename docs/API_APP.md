@@ -1305,8 +1305,8 @@ pas encore migrée).
 app_audience_add(day date, counts jsonb) returns integer
 ```
 
-Migration `20261021013000_create_app_audience_counts.sql` (compteurs ajoutés par `20261023142000` et
-`20261023180000`), tests `supabase/tests/app_audience.test.sql` ; lecture dans l'admin : « Audience de l'app »
+Migration `20261021013000_create_app_audience_counts.sql` (compteurs ajoutés par `20261023142000`,
+`20261023180000` et `20261024150000`), tests `supabase/tests/app_audience.test.sql` ; lecture dans l'admin : « Audience de l'app »
 (`/admin/audience`, `lib/audience/app-audience.ts`). Conditions
 de la CNIL pour se passer de consentement, et ce qui y répond (U41) :
 `../live/docs/fonctionnalites/audience-et-plantages.md`.
@@ -1319,6 +1319,8 @@ et `radio_episode_play` (un épisode lancé), depuis `20261023180000_add_festiva
 `festival_opened` (la page d'un festival s'ouvre : la fiche d'un festival qui a un programme ; elle compte aussi
 dans `event_opened`). En prod depuis le 2026-10-23 à 16:24, ces huit compteurs sont acceptés, ceux de la radio
 compris (la migration de la radio n'y est pas encore, la liste est la même). Depuis
+`20261024150000_add_radio_show_follows.sql` : `radio_show_follow` (une émission suivie) et `radio_followed_play` (un
+épisode lancé depuis « Tes émissions » ; il compte aussi dans `radio_episode_play`). Depuis
 `20261024190000_create_pour_toi.sql`, ceux de « Pour toi » : `for_me_opened` (la page ouverte), `interests_changed`
 (un goût choisi ou retiré), `for_me_to_all` (« Voir dans Tout » touché depuis « Pour toi ») ; sa liste reprend
 `radio_show_follow` et `radio_followed_play` (« Suivre une émission »), pour qu'aucun ordre d'application ne retire
@@ -1394,20 +1396,26 @@ Migrations `20261021140000_add_events_published_at.sql`, `20261021141000_create_
 lieu, un organisateur ou un artiste, « Mes suivis », la notification qui va avec. Les festivals en favori s'y ajoutent
 avec `20261023160000_add_festival_follows_and_see_also.sql` (tests `supabase/tests/festival_follows_see_also.test.sql`,
 en prod depuis le 2026-10-23) : un cœur sur un festival vaut suivi de son programme, sans ligne dans `user_follows`.
+Les émissions de radio s'y ajoutent avec `20261024150000_add_radio_show_follows.sql` (en prod depuis le 2026-10-24 ;
+tests `supabase/tests/user_follows.test.sql` et `app_radio.test.sql`, `../live/docs/chantiers/radio-suivre.md`) : le type
+`radio_show`, les émissions dans « Mes suivis » et « Tes émissions » sur la page de la radio (plus bas, « Radio »).
 
 ### Table `user_follows`
 
 | Colonne | |
 | --- | --- |
 | `user_id` | l'utilisateur (invités compris : une session anonyme suit comme un compte) |
-| `target_type` | `location` (un lieu, y compris un lieu qui organise : sa page dans l'app est celle du lieu), `organizer` (une ligne d'`organizers`) ou `artist` |
-| `target_id` | l'id de la cible dans `locations`, `organizers` ou `artists` |
-| `created_at` | début du suivi : ce qui était publié avant n'est ni « nouveau » ni notifié |
+| `target_type` | `location` (un lieu, y compris un lieu qui organise : sa page dans l'app est celle du lieu), `organizer` (une ligne d'`organizers`), `artist` ou, depuis `20261024150000`, `radio_show` (une émission de radio) |
+| `target_id` | l'id de la cible dans `locations`, `organizers`, `artists` ou `radio_shows` |
+| `created_at` | début du suivi : ce qui était publié avant (un épisode arrivé avant) n'est ni « nouveau » ni notifié |
 
 Clé primaire `(user_id, target_type, target_id)`. Chacun ne lit, n'ajoute et ne retire que ses lignes
 (RLS) ; anon : rien ; pas de mise à jour. Une cible qui n'existe pas est refusée (`23503`, HTTP 409), un
-type inconnu aussi (`23514`, HTTP 400) ; une ligne pour un autre utilisateur, `42501` (HTTP 403). Un lieu,
-un organisateur ou un artiste supprimé emporte ses suivis, un compte supprimé aussi.
+type inconnu aussi (`23514`, HTTP 400) ; une ligne pour un autre utilisateur, `42501` (HTTP 403), comme une
+émission d'une station éteinte (`radio_stations.enabled` à faux : la RLS la cache, on ne suit pas ce qu'on ne voit
+pas ; les suivis déjà en base restent, et `copy_guest_data` les recopie). Un lieu, un organisateur, un artiste ou
+une émission supprimé emporte ses suivis (une station supprimée, ceux de ses émissions), un compte supprimé aussi.
+Une version de l'app qui ne connaît pas `radio_show` ignore ces lignes (`FollowTargetType.fromValue` rend `null`).
 
 ```dart
 // Suivre, sans erreur si c'est déjà fait.
@@ -1428,7 +1436,8 @@ await supabase.from('user_follows').select('target_type, target_id, created_at')
 ```sql
 app_follows(at_time timestamp default null)
   returns table (target_type text, target_id uuid, name text, image_url text,
-                 upcoming_count integer, new_count integer, followed_at timestamptz)
+                 upcoming_count integer, new_count integer, followed_at timestamptz,
+                 last_episode_id uuid, last_episode_at timestamptz, show_family text)
 ```
 
 Une ligne par suivi de l'appelant dont la cible existe : son nom et son image (lieu : sa photo ;
@@ -1441,10 +1450,22 @@ qu'il organise, chacun une fois ; depuis `20261023190000`, sans les fiches que l
 puis le nom. `at_time` : « maintenant » en heure de Paris (tests) ; null, maintenant. Exécutable par
 authenticated.
 
+Une émission de radio suivie (`radio_show`, depuis `20261024150000`), d'une station allumée seulement : son nom, son
+visuel gardé (`image_url`, null : la pochette que l'app dessine), `upcoming_count` à 0, `new_count` ses épisodes
+arrivés dans OutLive (`radio_episodes.created_at`, l'heure de l'import) depuis 7 jours et depuis le début du suivi
+(« 1 nouvel épisode »), et trois colonnes en fin, null pour les autres suivis : `last_episode_id` et
+`last_episode_at` (son dernier épisode, par `aired_at`, l'heure de Paris étiquetée UTC ; null sans épisode),
+`show_family` (`musique` ou `parole`). Même tri. Le type de retour a changé : une app qui lit l'ancienne forme
+ignore les colonnes en plus.
+
 ```dart
 final rows = await supabase.rpc('app_follows') as List<dynamic>;
 // [{"target_type":"location","target_id":"…","name":"L’Astrolabe","image_url":"https://…",
-//   "upcoming_count":12,"new_count":2,"followed_at":"2026-10-21T08:00:00+00:00"}]
+//   "upcoming_count":12,"new_count":2,"followed_at":"2026-10-21T08:00:00+00:00",
+//   "last_episode_id":null,"last_episode_at":null,"show_family":null},
+//  {"target_type":"radio_show","target_id":"…","name":"Le Mag Culturel","image_url":null,
+//   "upcoming_count":0,"new_count":1,"followed_at":"2026-10-29T15:05:12+00:00",
+//   "last_episode_id":"…","last_episode_at":"2026-10-29T17:00:00+00:00","show_family":"parole"}]
 ```
 
 ### `events.published_at`
@@ -1502,8 +1523,10 @@ l'app. Le contrat est celui de `../live/docs/fonctionnalites/radio.md` (« Le co
 2026-10-23), recopié ici ; un changement se fait des deux côtés ensemble. Migrations
 `20261023140000_create_radio_tables.sql`,
 `20261023141000_create_app_radio_functions.sql`, `20261023142000_add_radio_audience_metrics.sql` et
-`20261023143000_schedule_radio_import.sql` ; tests `supabase/tests/app_radio.test.sql` et
-`lib/radio/*.test.mjs` (fixtures enregistrées le 2026-10-23 dans `lib/radio/fixtures/`).
+`20261023143000_schedule_radio_import.sql`, puis `20261023235000_add_radio_show_images.sql` (les visuels) et
+`20261024150000_add_radio_show_follows.sql` (suivre une émission, « Tes émissions ») ; tests
+`supabase/tests/app_radio.test.sql` et `lib/radio/*.test.mjs` (fixtures enregistrées le 2026-10-23 dans
+`lib/radio/fixtures/`).
 
 **Radio Campus Orléans** : station `e2f7ade2-f5d2-4408-90b4-f8bfca383399` (id fixe, le même en local et en
 prod), organisateur `9d6d803d-4a7e-4118-beba-1744a1159b99`. Elle est créée avec `enabled = false` : la RLS
@@ -1587,6 +1610,38 @@ app_radio_shows(p_station uuid, p_at timestamp = null)
   migration en prod.
 - `p_at` (heure de Paris, sans fuseau) remplace « maintenant » pour les tests ; l'app ne l'envoie pas.
 - Les épisodes d'une émission : la table directement.
+
+**« Tes émissions »** (depuis `20261024150000`, `../live/docs/chantiers/radio-suivre.md`) : les émissions que
+l'appelant suit (`user_follows`, `radio_show`, plus haut dans « Suivis »), en tête de la page de la radio.
+
+```sql
+app_radio_followed(p_station uuid, p_at timestamp = null)
+  returns table (id uuid, slug text, name text, style text, family text, slots jsonb,
+                 last_episode_at timestamptz, organizer_id uuid, description text, page_url text,
+                 letter text, image_url text, is_active boolean,
+                 episode_id uuid, episode_aired_at timestamptz, episode_duration_s integer,
+                 episode_audio_url text, episode_page_url text, is_new boolean, followed_at timestamptz)
+```
+
+- Une ligne par émission de `p_station` suivie par l'appelant, **active ou en pause** (un suivi tient l'été) : les
+  colonnes d'`app_radio_shows`, puis `is_active` (un épisode depuis 45 jours, la règle d'`app_radio_shows` ; à faux,
+  l'app dit « dernier épisode le 2 juillet »).
+- Son **dernier épisode**, par `aired_at` : `episode_id`, `episode_aired_at` (l'heure de Paris étiquetée UTC),
+  `episode_duration_s`, `episode_audio_url`, `episode_page_url` ; tous null si elle n'en a aucun.
+- **`is_new`** : ce dernier épisode est arrivé dans OutLive (`radio_episodes.created_at`, l'heure de l'import, le
+  lendemain matin de la diffusion) depuis 7 jours et depuis le début du suivi. L'app le retire dès que l'épisode est
+  commencé sur le téléphone : la base ne sait pas ce qu'on écoute.
+- `followed_at` : le début du suivi. Tri : le plus récent épisode d'abord (sans épisode à la fin), puis le nom.
+- Exécutable par `authenticated` seulement (invités compris) ; anon : `42501`. Sans session, l'app ne l'appelle pas.
+  Une station éteinte : aucune ligne.
+
+```dart
+final rows = await supabase.rpc('app_radio_followed', params: {'p_station': station}).select();
+// [{"id":"…","slug":"la-mag-culturel","name":"Le Mag Culturel", …, "letter":"M","image_url":null,
+//   "is_active":true,"episode_id":"…","episode_aired_at":"2026-10-29T17:00:00+00:00","episode_duration_s":3587,
+//   "episode_audio_url":"https://orleans.radiocampus.org/wp-content/uploads/…mp3","episode_page_url":"https://…",
+//   "is_new":true,"followed_at":"2026-10-29T15:05:12+00:00"}]
+```
 
 ```dart
 const station = 'e2f7ade2-f5d2-4408-90b4-f8bfca383399';
@@ -1672,9 +1727,12 @@ stale-while-revalidate=10`), CORS comme les autres routes v1. Lue par l'app via 
   ajoutés, remplacés ou retirés dans le back-office : `POST /api/admin/radio/shows/[id]/image` (multipart,
   `file`, 4 Mo au plus ; un logo détouré est posé entier sur le noir, le reste recadré au centre) et
   `DELETE` (l'émission reprend sa pochette), admin seulement.
-- **Mesure d'audience** (U41) : `radio_live_play` (le direct lancé) et `radio_episode_play` (un épisode
-  lancé), acceptés par `app_audience_add` (voir « Mesure d'audience » plus haut).
-- **Suivre une émission** (plus tard) : `user_follows` (U8) gagnera le type `radio_show`.
+- **Mesure d'audience** (U41) : `radio_live_play` (le direct lancé), `radio_episode_play` (un épisode
+  lancé), et depuis `20261024150000` `radio_show_follow` (une émission suivie) et `radio_followed_play` (un épisode
+  lancé depuis « Tes émissions »), acceptés par `app_audience_add` (voir « Mesure d'audience » plus haut).
+- **Suivre une émission** (`20261024150000`) : `user_follows` (U8) a le type `radio_show` (« Suivis », plus haut) ;
+  « Tes émissions » : `app_radio_followed`. Le message des suivis (`follows-digest`) ne les lit pas encore : les
+  nouveaux épisodes y entreront avec l'étape 4 de `../live/docs/chantiers/radio-suivre.md`.
 
 ## Incohérences relevées, non corrigées
 

@@ -1,6 +1,6 @@
 -- Tests de la mesure d'audience de l'app (U41) : app_audience_counts et app_audience_add()
--- (migration 20261021013000_create_app_audience_counts.sql ; compteurs de la radio, 20261023142000, et des
--- festivals, 20261023180000).
+-- (migration 20261021013000_create_app_audience_counts.sql ; compteurs de la radio, 20261023142000, des
+-- festivals, 20261023180000, et des émissions suivies, 20261024150000).
 --
 -- Sur une base jetable avec toutes les migrations et aucun événement : scripts/db-test.sh.
 -- Jamais en prod : tout se passe dans une transaction annulée, mais le script s'arrête de lui-même
@@ -203,5 +203,32 @@ END $$;
 SELECT pg_temp.verifie('festivals : la table accepte festival_opened, refuse une clé inconnue',
   pg_temp.insere('festival_opened') || ' ' || pg_temp.insere('festival_inconnu'),
   'ok 23514');
+
+-- Suivre une émission (20261024150000_add_radio_show_follows.sql) : une émission suivie, un épisode lancé depuis
+-- « Tes émissions » ---------------------------------------------------------------------------------------------
+
+SET LOCAL ROLE anon;
+SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
+SELECT pg_temp.verifie('émissions suivies : les deux compteurs comptés avec le reste de l''envoi, une clé inconnue ignorée',
+  pg_temp.ajoute(pg_temp.jour(-5),
+    '{"radio_show_follow": 2, "radio_followed_play": 3, "radio_episode_play": 3, "radio_show_unfollow": 1}'),
+  '3');
+RESET ROLE;
+SELECT pg_temp.verifie('émissions suivies : les compteurs du jour',
+  (SELECT string_agg(c.metric || '=' || c.count, ' ' ORDER BY c.metric)
+   FROM public.app_audience_counts AS c WHERE c.day = pg_temp.jour(-5)),
+  'radio_episode_play=3 radio_followed_play=3 radio_show_follow=2');
+SELECT pg_temp.verifie('émissions suivies : la table accepte les deux compteurs, refuse une clé inconnue',
+  pg_temp.insere('radio_show_follow') || ' ' || pg_temp.insere('radio_followed_play') || ' '
+  || pg_temp.insere('radio_show_unfollow'),
+  'ok ok 23514');
+-- Une migration d'après peut en ajouter (« Pour toi », 20261024190000), jamais en retirer.
+SELECT pg_temp.verifie('émissions suivies : la contrainte garde les huit compteurs d''avant et les deux des émissions',
+  (SELECT count(*)::text
+   FROM unnest(ARRAY['event_opened', 'ticket_tapped', 'search_no_result', 'when_sheet_used', 'event_liked',
+     'radio_live_play', 'radio_episode_play', 'festival_opened', 'radio_show_follow', 'radio_followed_play']) AS k
+   WHERE (SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'app_audience_counts_metric_check')
+     LIKE '%''' || k || '''%'),
+  '10');
 
 ROLLBACK;

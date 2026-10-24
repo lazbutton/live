@@ -1,6 +1,6 @@
 -- Tests de events.published_at (20261021140000_add_events_published_at.sql) et de follows_digest()
 -- (20261021142000_create_follows_digest.sql) : ce que la notification des suivis envoie, à qui,
--- et qu'elle n'envoie rien deux fois.
+-- et qu'elle n'envoie rien deux fois ; un suivi d'émission de radio (20261024150000) n'y change rien.
 --
 -- Sur une base jetable avec toutes les migrations et aucun événement : scripts/db-test.sh.
 -- Jamais en prod : tout se passe dans une transaction annulée, mais le script s'arrête de lui-même
@@ -183,6 +183,23 @@ INSERT INTO public.user_hidden_events (event_id, user_id) VALUES
 INSERT INTO public.blocked_users (blocker_user_id, blocked_user_id) VALUES
   ('3d000000-0000-4000-8000-000000000003', '3d000000-0000-4000-8000-00000000000f');
 
+-- U1 suit aussi une émission de radio (20261024150000_add_radio_show_follows.sql), dont un épisode est arrivé dans
+-- la fenêtre : le message des suivis ne la lit pas encore (étape 4 de ../live/docs/chantiers/radio-suivre.md). Les
+-- messages attendus plus bas sont ceux d'avant la migration.
+INSERT INTO public.organizers (id, name) VALUES
+  ('0a000000-0000-4000-8000-000000000002', 'Zz Radio');
+INSERT INTO public.radio_stations (id, organizer_id, name, frequency, stream_url, status_url, site_url, enabled) VALUES
+  ('ad000000-0000-4000-8000-0000000000a1', '0a000000-0000-4000-8000-000000000002', 'Zz Radio', '88.3',
+   'https://flux.test/a', 'https://flux.test/status-json.xsl', 'https://radio-a.test/', true);
+INSERT INTO public.radio_shows (id, station_id, source_id, slug, name, family, page_url) VALUES
+  ('ad000000-0000-4000-8000-000000000101', 'ad000000-0000-4000-8000-0000000000a1', 1, 'mag', 'Zz Le Mag Culturel',
+   'parole', 'https://radio-a.test/mag/');
+INSERT INTO public.radio_episodes (id, show_id, guid, title, aired_at, duration_s, audio_url, created_at) VALUES
+  ('ad000000-0000-4000-8000-000000000201', 'ad000000-0000-4000-8000-000000000101', 'mag-15', 'Mag du 15/10',
+   '2026-10-15 17:00+00', 3587, 'https://radio-a.test/mag-15.mp3', '2026-10-20 12:30+00');
+INSERT INTO public.user_follows (user_id, target_type, target_id, created_at) VALUES
+  ('3d000000-0000-4000-8000-000000000001', 'radio_show', 'ad000000-0000-4000-8000-000000000101', '2026-10-01 08:00+00');
+
 -- Premier passage ----------------------------------------------------------------------------------
 -- U1 : l'expo E13 (en cours, en tête : tri par date), E01, E02 (que L1 organise au 108), E03, E04,
 -- E07 ; ni E05 (publié il y a plus
@@ -193,6 +210,11 @@ SELECT pg_temp.verifie('premier passage',
   pg_temp.digest('2026-10-21 08:00+00'),
   'U1 E13/L1 E01/L1 E02/L1 E03/L1 E04/L1 E07/L1 | U2 E06/O1 E07/R1'
   || ' | U3 E13/L1 E01/L1 E02/L1 E07/L1 | U4 E13/L1 E04/L1 E07/L1');
+
+SELECT pg_temp.verifie('un suivi d''émission ne produit aucune ligne',
+  (SELECT count(*)::text FROM public.follows_digest('2026-10-21 08:00+00') AS d
+   WHERE d.target_type NOT IN ('location', 'organizer', 'artist', 'festival')),
+  '0');
 
 SELECT pg_temp.verifie('chaque ligne porte le titre, la date et le nom de la cible',
   (SELECT string_agg(d.event_title || ' ' || to_char(d.event_date AT TIME ZONE 'UTC', 'DD/MM HH24:MI')
