@@ -270,17 +270,17 @@ export async function readDetails(supabase: Client, row: DetailsEventRow): Promi
 }
 
 /**
- * Tags de goût (ceux des bulles de « Pour toi ») et ce qui les confirme : un genre lu, ou la catégorie de
- * l'événement. Un tag qu'aucun ne confirme, alors que la lecture a trouvé des genres, est proposé au retrait.
+ * Tags de goût (ceux des bulles de « Pour toi ») et ce qui les confirme : un genre lu (ou voisin : une comédie est
+ * aussi du théâtre), ou la catégorie de l'événement. Un tag qu'aucun ne confirme, alors que la lecture a trouvé des
+ * genres, est proposé au retrait ; il n'est retiré qu'avec l'accord de l'utilisateur (--remove-tags-of).
  */
 const TASTE_TAGS: Record<string, { genres: string[]; categories: string[] }> = {
-  theatre: { genres: ["theatre"], categories: [] },
-  humour: { genres: ["humour"], categories: [] },
+  theatre: { genres: ["theatre", "humour", "impro"], categories: [] },
+  humour: { genres: ["humour", "theatre", "impro"], categories: [] },
   cirque: { genres: ["cirque"], categories: [] },
   acrobaties: { genres: ["cirque"], categories: [] },
   danse: { genres: ["contemporaine", "hip hop", "classique", "traditionnelle"], categories: ["danse"] },
   electro: { genres: ["electro"], categories: ["dj set"] },
-  conference: { genres: [], categories: ["rencontre"] },
 };
 
 /** Le plan de la reprise : pour chaque événement, ce que sa source remplit, sans rien écrire. */

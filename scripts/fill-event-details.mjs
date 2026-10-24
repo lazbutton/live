@@ -8,8 +8,9 @@
  *       → simulation : lit les sources (IA comprise), écrit <dossier>/plan.json et <dossier>/relecture.html ;
  *         rien n'est écrit en base
  *   node --env-file=.env.local scripts/fill-event-details.mjs --write --plan=<dossier>/plan.json --confirm=<ref>
- *       [--skip=<id,…>] [--keep-tags | --keep-tags-of=<id,…>]
- *       → écrit le plan relu, tel quel (journal d'audit : event.details_fill) ; saute un événement modifié depuis
+ *       [--skip=<id,…>] [--remove-tags-of=<id,…> | --remove-tags-of=all]
+ *       → écrit le plan relu, tel quel (journal d'audit : event.details_fill) ; saute un événement modifié depuis ;
+ *         les tags proposés au retrait ne le sont que pour les événements nommés par --remove-tags-of
  *   node --env-file=.env.local scripts/fill-event-details.mjs --rollback --plan=<dossier>/plan.json --confirm=<ref>
  *       → remet l'état d'avant là où la reprise a écrit (journal d'audit : event.details_fill_undo)
  *   node scripts/fill-event-details.mjs --review --plan=<dossier>/plan.json
@@ -91,11 +92,12 @@ if (writeMode || rollbackMode) {
     process.exit(1);
   }
   const skip = list("skip");
-  const keepTagsOf = list("keep-tags-of");
+  // Les tags ne sont retirés qu'avec l'accord de l'utilisateur, événement par événement (ou tous : all).
+  const removeTagsOf = list("remove-tags-of");
   const proposals = plan.proposals
     .filter((proposal) => !skip.has(proposal.id))
     .map((proposal) =>
-      args.includes("--keep-tags") || keepTagsOf.has(proposal.id) ? { ...proposal, tagsToRemove: [] } : proposal,
+      removeTagsOf.has("all") || removeTagsOf.has(proposal.id) ? proposal : { ...proposal, tagsToRemove: [] },
     );
 
   if (rollbackMode) {

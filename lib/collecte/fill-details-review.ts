@@ -230,7 +230,7 @@ ul.plain { margin: 0; padding-left: 18px; display: grid; gap: 6px; max-width: 80
 <header class="wrap">
   <p class="eyebrow">OutLive · « Pour toi », étape 3 · essai à blanc du ${esc(meta.readOn)}</p>
   <h1>Reprise des fiches</h1>
-  <p class="lede">Ce que l'écriture poserait sur les fiches à venir : le genre, pour qui, l'âge et la réservation, quand la source les dit. Elle ne remplit que ce qui est vide et ne touche à rien d'autre, sauf les tags que tu valides plus bas. Rien n'est écrit tant que tu n'as pas dit oui.</p>
+  <p class="lede">Ce que l'écriture poserait sur les fiches à venir : le genre, pour qui, l'âge et la réservation, quand la source les dit (chaque valeur avec la phrase qui la prouve). Elle ne remplit que ce qui est vide et ne touche à rien d'autre, sauf les tags que tu choisis plus bas. Rien n'est écrit tant que tu n'as pas dit oui.</p>
   <dl class="totals">
     <div><dt>Fiches à venir lues</dt><dd>${meta.eventsRead}</dd></div>
     <div><dt>À compléter</dt><dd>${meta.eventsToFill}</dd></div>
@@ -250,7 +250,7 @@ ul.plain { margin: 0; padding-left: 18px; display: grid; gap: 6px; max-width: 80
   </section>
   <section id="tags">
     <h2>Tags à retirer <span class="count">${tagShows.length}</span></h2>
-    <p>Des tags de goût (Théâtre, Humour, Cirque, Danse…) que la lecture ne confirme pas : ils font entrer l'événement dans de mauvaises bulles de « Pour toi ». Retirés seulement si tu le valides.</p>
+    <p>Des tags de goût (Théâtre, Humour, Cirque, Danse…) que la lecture ne confirme pas : ils font entrer l'événement dans de mauvaises bulles de « Pour toi ». Rien n'est retiré sans ton accord : dis lesquels retirer, spectacle par spectacle, ou tous.</p>
     ${tagShows.length ? table(tagRows, "<th>Spectacle</th><th>Tags retirés</th><th>Ce que dit la source</th>") : `<p>Aucun.</p>`}
   </section>
   <section id="hors-liste">

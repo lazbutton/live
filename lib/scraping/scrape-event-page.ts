@@ -455,7 +455,7 @@ const FIELD_GUIDANCE: Record<string, string> = {
   festival_venues:
     "page d'un festival entier seulement : les lieux où il se tient, tels qu'écrits, un par élément ; sinon liste vide",
   genres:
-    "genres de l'événement d'après ce que la page en décrit (un comedy club ou du stand-up : Humour ; une pièce : Théâtre ; une scène d'improvisation : Impro), seulement parmi ceux de sa catégorie (liste plus bas), écrits tels quels ; liste vide si rien ne permet de le dire",
+    "genres de l'événement d'après ce que la page en décrit (un comedy club ou du stand-up : Humour ; une pièce : Théâtre ; une scène d'improvisation : Impro), pris dans la liste de sa catégorie (plus bas) et écrits tels quels ; un genre qui n'y est pas (blues, folk, slam…) s'écrit tel quel plutôt que d'en prendre un voisin : il sera signalé ; liste vide si rien ne permet de le dire",
   audience:
     "pour qui, seulement si une phrase de la page le dit : « all » (tout public, ouvert à tous, adultes et ados ensemble), « family » (jeune public, en famille, pour les enfants), « teens » (seulement un public d'ados : « pour les ados », « 11-15 ans »), « adults » (public adulte, interdit ou déconseillé aux mineurs) ; un âge minimum seul (« dès 15 ans ») n'est pas un public ; null sinon, sans déduire du genre de l'événement ni de l'âge de ses personnages",
   audience_quote: "la phrase de la page qui dit pour qui, recopiée mot pour mot ; null sans elle (audience est alors ignoré)",
