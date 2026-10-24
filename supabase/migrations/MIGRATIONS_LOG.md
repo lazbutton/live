@@ -1520,10 +1520,12 @@
   suppression refusée qui n'arrête pas les autres, les lots de 500, les droits). Contre-épreuves : retirer un à un les
   signaux de la session, le jeton push, les suivis, les propositions, lire `refreshed_at` sans UTC, compter les
   préférences, passer à 12 mois, retirer la limite, l'exception ou le filtre des invités : chaque fois un cas échoue.
-  `npm run db:test` (copie isolée du script, image Supabase), avec `main` fusionnée (genres, « Pour toi ») : les 36 fichiers passent (660 cas). Le cron en local
-  (`next dev` sur la pile locale) : `"guestSessions": {"failed": 0, "deleted": 1, "has_more": false}`, l'invité actif
-  gardé. `lib/supabase/database.types.ts` régénéré (les deux fonctions) ; `node --test` (334), tsc, ESLint (aucune
-  erreur) et `next build` au vert.
+  `npm run db:test` (copie isolée du script, image Supabase), avec `main` fusionnée (genres, « Pour toi ») : les 36
+  fichiers passent (660 cas). Le cron en local (`next dev` sur la pile locale) : `"guestSessions": {"failed": 0,
+  "deleted": 1, "has_more": false}`, l'invité actif gardé. `lib/supabase/database.types.ts` régénéré (les deux
+  fonctions) ; `node --test` (334), tsc, ESLint (aucune erreur) et `next build` au vert. Les goûts de « Pour toi »
+  (`user_interests`, arrivés après) partent aussi en cascade ; choisir un goût passe par une session rafraîchie : la
+  trace n'a pas besoin d'eux.
 - Politique de confidentialité (`components/privacy-policy/`) : la conservation de la session invitée (section 2.2) et
   sa suppression (section 3) disent les 13 mois. À appliquer en prod avant la fin de 2026 pour que la page dise vrai :
   les premières sessions passent 13 mois le 5 janvier 2027.
