@@ -1,7 +1,9 @@
 # Accès et photos des lieux
 
-Chantier U13 de `../live/docs/AMELIORATIONS.md`, côté admin. La fiche d'un événement de l'app affiche
-l'accès du lieu sous son adresse, sous l'intitulé « Accès » (`locations.directions`).
+Chantier U13 de la refonte (`../live/docs/HISTORIQUE.md`), côté admin ; la suite, « L'accès des lieux » (U33),
+est dans `../live/docs/FEUILLE_DE_ROUTE.md` (« Chantiers »). La fiche d'un événement de l'app
+(`../live/docs/fonctionnalites/fiche.md`, « Les sections, dans l'ordre ») affiche l'accès du lieu sous son
+adresse, sous l'intitulé « Accès » (`locations.directions`).
 
 ## Écrire l'accès
 

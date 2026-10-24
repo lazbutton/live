@@ -1,5 +1,5 @@
 /*
- * Photos d'artistes sous licence libre (U33 de ../live/docs/AMELIORATIONS.md), prises sur Wikimedia
+ * Photos d'artistes sous licence libre (U33 ; ../live/docs/fonctionnalites/lieux.md, « Règles »), prises sur Wikimedia
  * Commons : l'image (P18) de la fiche Wikidata de l'artiste. La fiche est trouvée par le nom de l'artiste
  * dans Wikidata, sinon par MusicBrainz, qui relie les musiciens à la leur. Seules CC BY, CC BY-SA, CC0 et le
  * domaine public passent ; l'auteur, la licence et la page Commons accompagnent la photo
