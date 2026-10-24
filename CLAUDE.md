@@ -40,6 +40,9 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   `20261020181000` appliquée) ; contrat dans `docs/API_APP.md`, tests SQL dans `supabase/tests/`. Genre de prix
   (« Gratuit », prix libre, non renseigné) : colonne générée
   `events.price_kind`, lue par `formatGenericPriceLabel` ; ne pas le recalculer en TS ni en Dart.
+- Attribution publique d'une proposition (« Proposé par … ») : `events.community_contributor_label` ne vient que de
+  `public_contributor_label()`, jamais d'une adresse e-mail (contrainte `events_community_contributor_label_not_email`) ;
+  l'auteur d'une demande sans nom se reconnaît par l'e-mail de son compte (`get_user_emails`), jamais public.
 - Données d'un invité (session anonyme) recopiées sur le compte qui se connecte : `copy_guest_data()`
   (`security definer`, l'id de la session invitée sert de preuve ; `docs/API_APP.md`).
 - Festivals (`../live/docs/FESTIVALS.md`) : une fiche de la catégorie Festival ; ses événements y sont rattachés

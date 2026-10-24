@@ -282,7 +282,7 @@ export function RequestsWorkspaceKanban() {
   const { openEventCreation } = useEventCreation();
 
   const loadItems = React.useCallback(async () => {
-    const nextItems = await fetchAdminRequestItems();
+    const nextItems = await fetchAdminRequestItems({ withRequesterEmails: true });
     setItems(nextItems);
     return nextItems;
   }, []);
@@ -293,7 +293,7 @@ export function RequestsWorkspaceKanban() {
     (async () => {
       setLoading(true);
       try {
-        const nextItems = await fetchAdminRequestItems();
+        const nextItems = await fetchAdminRequestItems({ withRequesterEmails: true });
         if (!mounted) return;
         setItems(nextItems);
       } catch (error) {

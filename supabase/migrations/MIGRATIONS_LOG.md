@@ -1183,3 +1183,28 @@
   Tentaculation, dans `organizers-images/radio-shows/` (WebP carrés, 21 à 284 Ko). Vérifié en anonyme : 11 émissions
   avec `image_url`, chaque image en 200 `image/webp` ; dans le programme d'hier, Écoute ta fac et Nation Groove ont
   le leur.
+
+## 2026-10-24 — L'attribution publique d'une proposition, jamais une adresse e-mail
+
+- `20261024140000_community_attribution_without_email` : l'app envoyait l'e-mail d'un compte sans nom (connexion
+  Apple native, code par e-mail) comme `contributor_display_name` ; avec l'accord d'attribution, il serait devenu le
+  nom public de l'événement (« Proposé par … » sur la fiche de l'app, `communityContributorLabel` dans l'API v1).
+  L'app n'envoie plus que le nom du compte, sinon rien (PR de l'app à venir) ; la règle vit ici pour les versions déjà
+  installées : `public_contributor_label(text)` (le nom sans les espaces autour ; NULL s'il est vide ou contient
+  « @ »).
+- `convert_event_request_to_event` recopie de nouveau l'attribution : `20260415190000` et `20260415213000` (prix,
+  venues de l'app) avaient réécrit la fonction d'après une version antérieure à `20260411160000`, sans
+  `community_submission`, `community_attribution_opt_in` ni `community_contributor_label`. Corps de `20260415213000`
+  (prix libre) inchangé par ailleurs.
+- `events` : un nom public qui contiendrait « @ » est effacé, puis refusé par la contrainte
+  `events_community_contributor_label_not_email`, quel que soit le chemin.
+- Le back-office montre l'e-mail du compte (`get_user_emails`) quand une demande n'a pas de nom (file des demandes).
+- Une demande complétée dans le formulaire d'événement (`markRequestConverted`, le chemin des demandes « depuis un
+  lien » et des affiches seules) ne recopie toujours aucune attribution : pas d'e-mail possible, mais ni « Proposé
+  par » ni « Suggestion communautaire ».
+- Tests : `supabase/tests/community_attribution.test.sql` (le nom public, la conversion avec et sans accord, avec et
+  sans nom, l'e-mail d'une ancienne version écarté, le prix libre, le refus hors admin, la contrainte en insertion et
+  en mise à jour) ; `lib/admin-requests-core.test.mjs`. `npm run db:test` (31 fichiers), `node --test` (328),
+  `npx tsc --noEmit` et ESLint au vert.
+- **Pas encore appliquée en prod** (attendre l'accord ; vérifier d'abord le corps de la fonction en prod et compter
+  les `community_contributor_label` qui contiennent « @ »).
