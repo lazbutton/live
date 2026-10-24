@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /*
- * Accès et photos des lieux, d'après une liste relue (docs/LIEUX_ACCES.md) : `locations.directions` et
- * `locations.image_url`. Une valeur ne s'écrit que si elle est encore celle relevée dans la liste.
+ * Accès, photos, adresses et descriptions des lieux, d'après une liste relue (docs/LIEUX_ACCES.md) :
+ * `locations.directions`, `image_url`, `address` (avec `latitude` et `longitude`) et `short_description`.
+ * Une valeur ne s'écrit que si elle est encore celle relevée dans la liste.
  *
  *   node --env-file=.env.local scripts/location-details.mjs lieux.json
  *       → simulation : relit chaque lieu, affiche avant → après, rien n'est écrit
@@ -11,9 +12,13 @@
  * Liste (JSON), un objet par lieu :
  *   { "id": "<uuid>", "name": "<pour les messages>",
  *     "directions": { "before": <texte ou null>, "after": "<texte>" },
- *     "image": { "before": <url ou null>, "source": <url à copier, ou null pour retirer la photo> } }
- * `directions` et `image` sont facultatifs. Une photo copiée va dans locations-images/locations/,
- * comme les envois de l'admin.
+ *     "image": { "before": <url ou null>, "source": <url à copier, ou null pour retirer la photo> },
+ *     "address": { "before": "<texte>", "after": "<texte>", "latitude": <nombre>, "longitude": <nombre> },
+ *     "shortDescription": { "before": <texte ou null>, "after": "<texte>" } }
+ * Tout est facultatif sauf `id`, `latitude` et `longitude` compris : sans elles, la nouvelle adresse garde les
+ * coordonnées du lieu.
+ * Une photo copiée va dans locations-images/locations/, comme les envois de l'admin. Une adresse passe, comme
+ * dans l'admin, par les déclencheurs qui en tirent la ville (`sync_location_city`).
  */
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -51,11 +56,18 @@ const supabase = createServiceClient();
 const plan = JSON.parse(readFileSync(planPath, "utf8"));
 const show = (value) => (value == null ? "∅" : JSON.stringify(value));
 const totals = { written: 0, upToDate: 0, changed: 0, failed: 0 };
+/** Champs texte de la liste : clé dans la liste, colonne, nom dans les messages. */
+const TEXT_FIELDS = [
+  ["directions", "directions", "accès"],
+  ["address", "address", "adresse"],
+  ["shortDescription", "short_description", "description"],
+];
+const GUARDED = ["directions", "image_url", "address", "latitude", "longitude", "short_description"];
 
 for (const entry of plan) {
   const { data: current, error } = await supabase
     .from("locations")
-    .select("id, name, directions, image_url")
+    .select(`id, name, ${GUARDED.join(", ")}`)
     .eq("id", entry.id)
     .maybeSingle();
   if (error) throw new Error(`Lecture du lieu ${entry.id} impossible (${error.message})`);
@@ -67,17 +79,27 @@ for (const entry of plan) {
   console.log(`\n${current.name} (${current.id})`);
   const update = {};
 
-  if (entry.directions) {
-    const { before = null, after } = entry.directions;
-    if (current.directions === after) {
-      console.log("  accès déjà à jour");
+  for (const [key, column, label] of TEXT_FIELDS) {
+    if (!entry[key]) continue;
+    const { before = null, after } = entry[key];
+    if (current[column] === after) {
+      console.log(`  ${label} déjà à jour`);
       totals.upToDate += 1;
-    } else if (current.directions !== before) {
-      console.log(`  ! accès changé depuis la liste : ${show(current.directions)} — laissé`);
+    } else if (current[column] !== before) {
+      console.log(`  ! ${label} changé depuis la liste : ${show(current[column])} — laissé`);
       totals.changed += 1;
     } else {
-      console.log(`  accès : ${show(current.directions)}\n      → ${show(after)}`);
-      update.directions = after;
+      update[column] = after;
+      if (key === "address" && entry.address.latitude != null && entry.address.longitude != null) {
+        update.latitude = entry.address.latitude;
+        update.longitude = entry.address.longitude;
+        console.log(
+          `  ${label} : ${show(current.address)} (${current.latitude}, ${current.longitude})\n` +
+            `      → ${show(after)} (${update.latitude}, ${update.longitude})`,
+        );
+      } else {
+        console.log(`  ${label} : ${show(current[column])}\n      → ${show(after)}`);
+      }
     }
   }
 
@@ -108,8 +130,9 @@ for (const entry of plan) {
   if (!writeMode || Object.keys(update).length === 0) continue;
   // Écrit seulement si rien n'a bougé depuis la lecture.
   let query = supabase.from("locations").update(update).eq("id", current.id);
-  query = current.directions == null ? query.is("directions", null) : query.eq("directions", current.directions);
-  query = current.image_url == null ? query.is("image_url", null) : query.eq("image_url", current.image_url);
+  for (const column of GUARDED) {
+    query = current[column] == null ? query.is(column, null) : query.eq(column, current[column]);
+  }
   const { data: written, error: writeError } = await query.select("id");
   if (writeError) throw new Error(`Écriture du lieu ${current.id} impossible (${writeError.message})`);
   if (written?.length) {

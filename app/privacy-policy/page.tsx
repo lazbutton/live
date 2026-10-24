@@ -1,409 +1,331 @@
 import type { Metadata } from "next";
 
+import {
+  ACCOUNT_DELETION_SUBJECT,
+  AccountDeletionSection,
+} from "@/components/privacy-policy/account-deletion-section";
+import { AppSection } from "@/components/privacy-policy/app-section";
+import {
+  ACCOUNT_DELETION_ANCHOR,
+  ContactEmailLink,
+  ExternalLink,
+  LINK_CLASS,
+  PolicySection,
+  Quote,
+} from "@/components/privacy-policy/policy-blocks";
+import { SiteSection } from "@/components/privacy-policy/site-section";
 import { buildPublicMetadata } from "@/lib/metadata";
 
+/*
+ * Politique de confidentialité de l'app OutLive et du site, à https://www.outlive.fr/privacy-policy :
+ * l'adresse donnée à Google Play et à l'App Store. La suppression du compte sans l'app :
+ * https://www.outlive.fr/privacy-policy#supprimer-mon-compte (Play Console).
+ */
 export const metadata: Metadata = buildPublicMetadata({
-  title: "Politique de confidentialite",
+  title: "Politique de confidentialité",
   description:
-    "Politique de confidentialite du site OutLive Admin, des espaces organisateurs et des traitements relies a Supabase, Apple, Firebase et aux integrations associees.",
+    "Ce que l’application OutLive et le site outlive.fr font de vos données, combien de temps elles sont gardées, vos droits et comment supprimer votre compte.",
   path: "/privacy-policy",
 });
 
-const LAST_UPDATED = "21 mars 2026";
+const LAST_UPDATED = "24 octobre 2026";
+
+/** Le sommaire : les ancres des sections, dans l'ordre de leurs numéros. */
+const CONTENTS = [
+  { id: "responsable", title: "Responsable du traitement" },
+  { id: "application", title: "L’application OutLive" },
+  { id: ACCOUNT_DELETION_ANCHOR, title: "Supprimer votre compte OutLive" },
+  { id: "site", title: "Le site outlive.fr et l’administration" },
+  { id: "bases-legales", title: "Bases légales" },
+  { id: "prestataires", title: "Prestataires et services tiers" },
+  { id: "conservation", title: "Durées de conservation" },
+  { id: "securite", title: "Sécurité" },
+  { id: "transferts", title: "Transferts hors de l’Union européenne" },
+  { id: "droits", title: "Vos droits" },
+  { id: "modifications", title: "Modifications de cette politique" },
+  { id: "cnil", title: "Autorité de contrôle" },
+];
 
 export default function PrivacyPolicyPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto max-w-4xl px-4 py-12">
-        <h1 className="mb-8 text-4xl font-bold">Politique de confidentialite</h1>
+        <h1 className="mb-8 text-4xl font-bold">Politique de confidentialité</h1>
 
-        <div className="prose prose-lg max-w-none space-y-6">
-          <section>
-            <p className="mb-4 text-muted-foreground">
-              <strong>Derniere mise a jour :</strong> {LAST_UPDATED}
+        <div className="space-y-12 text-base leading-relaxed sm:text-lg">
+          <section className="space-y-4">
+            <p className="text-muted-foreground">
+              <strong>Dernière mise à jour&nbsp;:</strong> {LAST_UPDATED}
             </p>
             <p>
-              Cette politique couvre le site <strong>OutLive Admin</strong>, les espaces
-              <strong> admin</strong> et <strong>organisateur</strong>, les routes API
-              Next.js associees, ainsi que les traitements realises pour administrer la
-              plateforme OutLive et piloter certaines fonctionnalites de l&apos;application
-              mobile, notamment les invitations et les notifications push.
+              Cette politique couvre l’application <strong>OutLive</strong>, l’agenda culturel
+              d’Orléans et de ses environs pour iPhone et Android, et le site{" "}
+              <strong>outlive.fr</strong>, avec ses pages publiques et ses espaces
+              d’administration et des organisateurs.
             </p>
             <p>
-              Elle explique quelles donnees nous traitons, pourquoi nous les utilisons,
-              avec quels prestataires elles peuvent etre partagees, et quels sont vos droits.
+              Elle dit quelles données nous traitons, pourquoi, combien de temps nous les gardons,
+              avec quels prestataires, et quels sont vos droits. OutLive n’affiche aucune
+              publicité, n’utilise aucun traceur publicitaire et ne vend aucune donnée.
             </p>
+
+            <aside className="space-y-2 rounded-lg bg-muted p-4">
+              <p className="font-semibold">Supprimer votre compte OutLive</p>
+              <p>
+                Dans l’application&nbsp;: Profil › <Quote>Mes données</Quote> ›{" "}
+                <Quote>Supprimer mon compte</Quote>. Sans l’application&nbsp;: écrivez à{" "}
+                <ContactEmailLink subject={ACCOUNT_DELETION_SUBJECT} /> depuis l’adresse de votre
+                compte.{" "}
+                <a href={`#${ACCOUNT_DELETION_ANCHOR}`} className={LINK_CLASS}>
+                  Ce qui est supprimé, ce qui reste et les délais
+                </a>
+              </p>
+            </aside>
+
+            <nav aria-label="Sommaire" className="rounded-lg border p-4">
+              <p className="mb-2 font-semibold">Sommaire</p>
+              <ol className="list-decimal space-y-1 pl-6">
+                {CONTENTS.map((entry) => (
+                  <li key={entry.id}>
+                    <a href={`#${entry.id}`} className={LINK_CLASS}>
+                      {entry.title}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </nav>
           </section>
 
-          <section>
-            <h2 className="mb-4 mt-8 text-2xl font-semibold">
-              1. Responsable du traitement
-            </h2>
+          <PolicySection id="responsable" title="1. Responsable du traitement">
             <p>
-              Le service OutLive est responsable des traitements realises via ce site pour
-              l&apos;administration de la plateforme, la gestion des comptes organisateurs,
-              la moderation des contenus et l&apos;envoi de communications operationnelles.
+              OutLive est responsable des traitements décrits dans cette politique, pour
+              l’application comme pour le site&nbsp;: l’agenda, les comptes et les sessions, les
+              propositions et leur modération, les notifications et l’administration de la
+              plateforme.
             </p>
-            <div className="mt-4 rounded-lg bg-muted p-4">
+            <div className="rounded-lg bg-muted p-4">
               <p>
-                <strong>Email :</strong> lazbutton@proton.me
+                <strong>E-mail&nbsp;:</strong> <ContactEmailLink />
               </p>
               <p className="mt-2">
-                <strong>Adresse :</strong> 3 Rue de la Cholerie, 45000 Orleans
+                <strong>Adresse&nbsp;:</strong> 3 rue de la Cholerie, 45000 Orléans
               </p>
             </div>
-          </section>
+          </PolicySection>
 
-          <section>
-            <h2 className="mb-4 mt-8 text-2xl font-semibold">
-              2. Donnees traitees
-            </h2>
-            <p>Selon votre usage du service, nous pouvons traiter les categories suivantes :</p>
+          <AppSection />
+
+          <AccountDeletionSection />
+
+          <SiteSection />
+
+          <PolicySection id="bases-legales" title="5. Bases légales">
             <ul className="list-disc space-y-2 pl-6">
               <li>
-                <strong>Donnees de compte et d&apos;authentification :</strong> adresse
-                email, mot de passe gere par Supabase Auth, identifiants de session, role,
-                informations de compte necessaires a l&apos;acces admin ou organisateur.
+                <strong>L’exécution du service que vous demandez&nbsp;:</strong> dans
+                l’application, la session invitée, le compte, les favoris, suivis, événements
+                masqués et auteurs bloqués, les propositions et les notifications choisies&nbsp;;
+                sur le site, les comptes d’administration et d’organisateur, les invitations,
+                l’accès aux espaces et l’administration des contenus.
               </li>
               <li>
-                <strong>Donnees de profil et d&apos;organisation :</strong> nom, prenom,
-                email, organisateur rattache, permissions et historique d&apos;acces.
+                <strong>Votre consentement&nbsp;:</strong> l’autorisation des notifications,
+                retirable dans les réglages du téléphone, et l’attribution publique d’une
+                proposition.
               </li>
               <li>
-                <strong>Donnees de gestion de contenu :</strong> evenements, lieux,
-                organisateurs, multi-evenements, categories, tags, descriptions, horaires,
-                tarifs, liens externes, demandes utilisateur, feedbacks et contenus de
-                moderation.
+                <strong>Notre intérêt légitime&nbsp;:</strong> la sécurité et la prévention des
+                abus (vérification des liens, signalements, modération, journaux), les rapports de
+                plantage et les statistiques anonymes de l’application, que vous pouvez refuser
+                dans l’application, la mesure d’audience du site et l’assistance.
               </li>
               <li>
-                <strong>Medias et fichiers :</strong> images televersees dans le cadre des
-                fiches evenement, lieu ou organisateur.
-              </li>
-              <li>
-                <strong>Donnees d&apos;invitations et d&apos;audit :</strong> email du
-                destinataire, token d&apos;invitation, date d&apos;expiration, role invite,
-                journaux d&apos;actions d&apos;equipe et traces d&apos;administration.
-              </li>
-              <li>
-                <strong>Donnees de notifications push :</strong> token push, plateforme
-                (`ios`, `android`, `web`), identifiant d&apos;appareil si fourni,
-                version d&apos;application si fournie, journaux d&apos;envoi et contenu des
-                notifications operationnelles.
-              </li>
-              <li>
-                <strong>Donnees techniques :</strong> cookies de session, preference de
-                theme, etat de certaines interfaces, donnees de cache local, journaux
-                techniques, informations de navigateur et donnees de consultation du site.
-              </li>
-              <li>
-                <strong>Donnees liees aux imports :</strong> URLs source, identifiants de
-                pages Facebook, contenu public de pages evenement ou agenda, et donnees
-                extraites lors des imports ou du scraping assiste.
+                <strong>Nos obligations légales&nbsp;:</strong> lorsque la loi impose de conserver
+                ou de communiquer certaines informations.
               </li>
             </ul>
-          </section>
+          </PolicySection>
 
-          <section>
-            <h2 className="mb-4 mt-8 text-2xl font-semibold">
-              3. Finalites des traitements
-            </h2>
-            <ul className="list-disc space-y-2 pl-6">
-              <li>ouvrir et securiser l&apos;acces aux espaces admin et organisateur ;</li>
-              <li>gerer les roles, equipes, invitations et habilitations ;</li>
-              <li>creer, modifier, publier, moderer ou supprimer les contenus OutLive ;</li>
-              <li>traiter les demandes utilisateur et les feedbacks ;</li>
-              <li>televerser et servir les images liees aux contenus ;</li>
-              <li>
-                envoyer des emails d&apos;invitation et des notifications push relatives au
-                service ;
-              </li>
-              <li>
-                exploiter les outils d&apos;import depuis une URL, Facebook ou un agenda, et
-                eventuellement enrichir ces imports via une extraction assistee par IA ;
-              </li>
-              <li>assurer la maintenance, la securite, l&apos;audit et la prevention des abus ;</li>
-              <li>mesurer l&apos;usage du site et ameliorer l&apos;experience d&apos;administration.</li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="mb-4 mt-8 text-2xl font-semibold">
-              4. Bases legales
-            </h2>
-            <ul className="list-disc space-y-2 pl-6">
-              <li>
-                <strong>Execution du service et mesures precontractuelles :</strong> gestion
-                des comptes, invitations, acces aux espaces et administration des contenus.
-              </li>
-              <li>
-                <strong>Interet legitime :</strong> securite, journalisation, prevention des
-                fraudes, moderation, support, pilotage de la plateforme et mesure
-                d&apos;audience raisonnable du site.
-              </li>
-              <li>
-                <strong>Consentement ou choix utilisateur lorsque requis :</strong> par
-                exemple pour certaines notifications poussees selon les preferences
-                configurees dans l&apos;application mobile.
-              </li>
-              <li>
-                <strong>Obligations legales :</strong> lorsque la loi impose la conservation
-                ou la communication de certaines informations.
-              </li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="mb-4 mt-8 text-2xl font-semibold">
-              5. Prestataires et services tiers
-            </h2>
+          <PolicySection id="prestataires" title="6. Prestataires et services tiers">
             <p>
-              Nous ne vendons pas vos donnees personnelles. Nous les partageons uniquement
-              avec les prestataires necessaires au fonctionnement du service ou lorsque la loi
-              l&apos;impose.
+              Nous ne vendons pas vos données et ne les partageons pas à des fins publicitaires.
+              Les prestataires suivants les traitent pour le fonctionnement du service, chacun
+              pour ce qui le concerne&nbsp;:
             </p>
             <ul className="list-disc space-y-3 pl-6">
               <li>
-                <strong>Supabase</strong> : authentification, base de donnees, stockage
-                d&apos;images et gestion des sessions.
-                {" "}
-                <a
-                  href="https://supabase.com/privacy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Politique de confidentialite de Supabase
-                </a>
+                <strong>Supabase&nbsp;:</strong> base de données, connexion aux comptes et stockage
+                des images, pour l’application et le site.{" "}
+                <ExternalLink href="https://supabase.com/privacy">
+                  Politique de confidentialité de Supabase
+                </ExternalLink>
               </li>
               <li>
-                <strong>Vercel</strong> : hebergement du site et mesure d&apos;audience via
-                Vercel Analytics.
-                {" "}
-                <a
-                  href="https://vercel.com/legal/privacy-policy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Politique de confidentialite de Vercel
-                </a>
+                <strong>Vercel&nbsp;:</strong> hébergement du site et de l’API qu’appelle
+                l’application (lecture des affiches, propositions, jetons de notification), et
+                mesure d’audience du site (Vercel Analytics).{" "}
+                <ExternalLink href="https://vercel.com/legal/privacy-policy">
+                  Politique de confidentialité de Vercel
+                </ExternalLink>
               </li>
               <li>
-                <strong>Google Firebase Cloud Messaging (FCM)</strong> : envoi des
-                notifications push vers les appareils Android.
-                {" "}
-                <a
-                  href="https://firebase.google.com/support/privacy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Informations de confidentialite Firebase
-                </a>
+                <strong>Google Firebase&nbsp;:</strong> rapports de plantage de l’application
+                (Crashlytics) et envoi des notifications sur Android (Firebase Cloud Messaging).{" "}
+                <ExternalLink href="https://firebase.google.com/support/privacy">
+                  Informations de confidentialité de Firebase
+                </ExternalLink>
               </li>
               <li>
-                <strong>Apple Push Notification service (APNs)</strong> : envoi des
-                notifications push vers les appareils iOS.
-                {" "}
-                <a
-                  href="https://www.apple.com/legal/privacy/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Politique de confidentialite Apple
-                </a>
+                <strong>Apple&nbsp;:</strong> envoi des notifications sur iPhone (Apple Push
+                Notification service) et connexion avec Apple.{" "}
+                <ExternalLink href="https://www.apple.com/legal/privacy/">
+                  Politique de confidentialité d’Apple
+                </ExternalLink>
               </li>
               <li>
-                <strong>Resend</strong> : envoi des emails d&apos;invitation lorsque la
-                fonctionnalite email est activee sur le projet.
-                {" "}
-                <a
-                  href="https://resend.com/legal/privacy-policy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Politique de confidentialite Resend
-                </a>
+                <strong>Google&nbsp;:</strong> connexion avec Google sur Android, et vérification
+                des liens proposés (Google Safe Browsing).{" "}
+                <ExternalLink href="https://policies.google.com/privacy">
+                  Règles de confidentialité de Google
+                </ExternalLink>
               </li>
               <li>
-                <strong>OpenAI</strong> : uniquement si l&apos;option de scraping assiste par IA
-                est configuree. Dans ce cas, l&apos;URL source, le titre, la description, les
-                metadonnees Open Graph/Twitter et une partie du contenu textuel de la page
-                analysee peuvent etre transmises a OpenAI pour extraire des informations
-                structurees sur un evenement.
-                {" "}
-                <a
-                  href="https://openai.com/policies/privacy-policy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Politique de confidentialite OpenAI
-                </a>
+                <strong>OpenAI&nbsp;:</strong> lecture des affiches proposées dans
+                l’application&nbsp;; dans l’administration, si l’option est configurée,
+                extraction des informations d’une page d’événement (son adresse, son titre, sa
+                description, ses métadonnées Open Graph et Twitter et une partie de son texte).{" "}
+                <ExternalLink href="https://openai.com/policies/privacy-policy">
+                  Politique de confidentialité d’OpenAI
+                </ExternalLink>
               </li>
               <li>
-                <strong>Meta / Facebook Graph API</strong> : uniquement si vous utilisez les
-                outils d&apos;import Facebook. Dans ce cas, l&apos;identifiant de page Facebook et
-                les donnees publiques d&apos;evenements demandees a l&apos;API peuvent etre traites.
-                {" "}
-                <a
-                  href="https://www.facebook.com/privacy/policy/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Politique de confidentialite Meta
-                </a>
+                <strong>Resend&nbsp;:</strong> e-mails de connexion de l’application et
+                invitations des organisateurs.{" "}
+                <ExternalLink href="https://resend.com/legal/privacy-policy">
+                  Politique de confidentialité de Resend
+                </ExternalLink>
+              </li>
+              <li>
+                <strong>CARTO&nbsp;:</strong> fonds de carte de l’application.{" "}
+                <ExternalLink href="https://carto.com/privacy">
+                  Politique de confidentialité de CARTO
+                </ExternalLink>
+              </li>
+              <li>
+                <strong>Meta (API Graph de Facebook)&nbsp;:</strong> pour les outils d’import de
+                l’administration, l’identifiant d’une page Facebook et les données publiques
+                d’événements demandées à l’API.{" "}
+                <ExternalLink href="https://www.facebook.com/privacy/policy/">
+                  Politique de confidentialité de Meta
+                </ExternalLink>
+              </li>
+              <li>
+                <strong>Proton&nbsp;:</strong> notre messagerie, où arrivent vos e-mails.{" "}
+                <ExternalLink href="https://proton.me/legal/privacy">
+                  Politique de confidentialité de Proton
+                </ExternalLink>
               </li>
             </ul>
-          </section>
+          </PolicySection>
 
-          <section>
-            <h2 className="mb-4 mt-8 text-2xl font-semibold">
-              6. Cookies, session et stockage local
-            </h2>
+          <PolicySection id="conservation" title="7. Durées de conservation">
             <p>
-              Le site utilise des cookies et mecanismes techniques de stockage local pour :
-            </p>
-            <ul className="list-disc space-y-2 pl-6">
-              <li>maintenir votre session d&apos;authentification Supabase ;</li>
-              <li>faire fonctionner certaines API protegees cote navigateur ;</li>
-              <li>memoriser des preferences d&apos;interface, comme le theme ;</li>
-              <li>conserver certains etats d&apos;interface et caches locaux utiles au confort d&apos;usage.</li>
-            </ul>
-            <p>
-              Ces mecanismes sont principalement techniques et necessaires au fonctionnement du
-              service. Le site embarque egalement Vercel Analytics pour mesurer l&apos;usage et la
-              performance du produit.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="mb-4 mt-8 text-2xl font-semibold">
-              7. Durees de conservation
-            </h2>
-            <p>
-              Nous conservons les donnees pendant la duree necessaire aux finalites
-              operationnelles, contractuelles et legales du service. Certaines durees sont deja
-              automatisees dans la plateforme :
+              Pour l’application, la durée de chaque donnée est donnée avec elle (section 2), et
+              ce que devient chacune quand vous supprimez votre compte, section 3. Pour le site et
+              l’administration&nbsp;:
             </p>
             <ul className="list-disc space-y-2 pl-6">
               <li>
-                <strong>Invitations organisateur :</strong> expiration automatique apres 7 jours
-                si elles ne sont pas acceptees.
+                <strong>invitations des organisateurs&nbsp;:</strong> expirées après 7&nbsp;jours
+                si elles ne sont pas acceptées
               </li>
               <li>
-                <strong>Logs de notifications :</strong> suppression automatique au-dela de 90 jours.
+                <strong>trace des notifications envoyées&nbsp;:</strong> effacée après 90&nbsp;jours
               </li>
               <li>
-                <strong>Tokens push inactifs :</strong> suppression automatique au-dela d&apos;1 an
-                sans mise a jour.
+                <strong>jetons de notification&nbsp;:</strong> effacés après un an sans mise à jour
               </li>
               <li>
-                <strong>Evenements approuves passes :</strong> certains evenements passes peuvent
-                etre purges automatiquement 30 jours apres leur date.
+                <strong>événements publiés&nbsp;:</strong> effacés 30&nbsp;jours après leur date
               </li>
               <li>
-                <strong>Comptes, contenus, images et journaux d&apos;audit :</strong> conservation
-                pendant la duree necessaire a l&apos;exploitation du service, a la gestion des acces,
-                au suivi editorial et a la securite, puis suppression ou anonymisation lorsque cela
-                n&apos;est plus necessaire.
+                <strong>journaux d’audit des équipes et de l’administration&nbsp;:</strong> effacés
+                après 180&nbsp;jours
+              </li>
+              <li>
+                <strong>journaux de la collecte d’événements&nbsp;:</strong> effacés après
+                90&nbsp;jours
+              </li>
+              <li>
+                <strong>comptes, contenus et images&nbsp;:</strong> gardés le temps nécessaire à
+                l’exploitation du service, à la gestion des accès, au suivi éditorial et à la
+                sécurité, puis supprimés ou anonymisés
               </li>
             </ul>
-          </section>
+          </PolicySection>
 
-          <section>
-            <h2 className="mb-4 mt-8 text-2xl font-semibold">
-              8. Securite
-            </h2>
+          <PolicySection id="securite" title="8. Sécurité">
             <ul className="list-disc space-y-2 pl-6">
-              <li>communications chiffrees via HTTPS ;</li>
-              <li>authentification et sessions gerees via Supabase ;</li>
-              <li>segmentation des acces admin / organisateur et controles RLS cote base ;</li>
-              <li>journalisation de certaines actions sensibles de gestion d&apos;equipe ;</li>
-              <li>restriction des acces aux cles serveur et aux integrations tierces.</li>
+              <li>des échanges chiffrés (HTTPS)</li>
+              <li>des comptes et des sessions gérés par Supabase</li>
+              <li>
+                des accès séparés entre l’administration et les organisateurs, et des règles
+                d’accès dans la base (RLS)
+              </li>
+              <li>la journalisation des actions sensibles de gestion des équipes</li>
+              <li>un accès restreint aux clés des serveurs et aux intégrations tierces</li>
             </ul>
             <p>
-              Aucun systeme n&apos;offre une securite absolue, mais nous cherchons a limiter
-              l&apos;acces aux donnees au strict necessaire.
+              Aucun système n’offre une sécurité absolue, mais nous limitons l’accès aux données
+              au strict nécessaire.
             </p>
-          </section>
+          </PolicySection>
 
-          <section>
-            <h2 className="mb-4 mt-8 text-2xl font-semibold">
-              9. Transferts hors Union europeenne
-            </h2>
+          <PolicySection id="transferts" title="9. Transferts hors de l’Union européenne">
             <p>
-              Certains prestataires mentionnes ci-dessus peuvent traiter des donnees en dehors de
-              l&apos;Union europeenne, notamment selon leur infrastructure ou la configuration du
-              projet. Lorsque c&apos;est le cas, nous nous appuyons sur les mecanismes contractuels et
-              garanties proposes par ces prestataires.
+              Certains prestataires cités plus haut, comme Google, Apple, OpenAI ou Vercel,
+              peuvent traiter des données hors de l’Union européenne, notamment aux États-Unis,
+              selon leur infrastructure ou la configuration du service. Nous nous appuyons alors
+              sur les mécanismes contractuels et les garanties qu’ils proposent.
             </p>
-          </section>
+          </PolicySection>
 
-          <section>
-            <h2 className="mb-4 mt-8 text-2xl font-semibold">
-              10. Vos droits
-            </h2>
-            <p>
-              Sous reserve de la legislation applicable, vous disposez notamment des droits suivants :
-            </p>
+          <PolicySection id="droits" title="10. Vos droits">
+            <p>Dans les conditions prévues par la loi, vous disposez des droits suivants&nbsp;:</p>
             <ul className="list-disc space-y-2 pl-6">
-              <li>droit d&apos;acces ;</li>
-              <li>droit de rectification ;</li>
-              <li>droit a l&apos;effacement ;</li>
-              <li>droit a la limitation du traitement ;</li>
-              <li>droit a la portabilite ;</li>
-              <li>droit d&apos;opposition ;</li>
-              <li>droit de definir des directives sur le sort de vos donnees apres votre deces ;</li>
-              <li>droit d&apos;introduire une reclamation aupres de la CNIL.</li>
+              <li>droit d’accès</li>
+              <li>droit de rectification</li>
+              <li>droit à l’effacement</li>
+              <li>droit à la limitation du traitement</li>
+              <li>droit à la portabilité</li>
+              <li>droit d’opposition</li>
+              <li>droit de définir des directives sur le sort de vos données après votre décès</li>
+              <li>droit d’introduire une réclamation auprès de la CNIL</li>
             </ul>
-            <p className="mt-4">
-              Pour exercer vos droits, ecrivez-nous a{" "}
-              <a
-                href="mailto:lazbutton@proton.me"
-                className="text-primary hover:underline"
-              >
-                lazbutton@proton.me
-              </a>
-              .
-            </p>
-          </section>
-
-          <section>
-            <h2 className="mb-4 mt-8 text-2xl font-semibold">
-              11. Modifications de cette politique
-            </h2>
             <p>
-              Cette politique peut evoluer pour refleter les changements du service, des
-              integrations tierces ou des obligations legales. Toute mise a jour substantielle
-              sera publiee sur cette page avec une nouvelle date de mise a jour.
+              Dans l’application, <Quote>Mes données</Quote> vous permet d’exporter vos données
+              (<Quote>Exporter mes données</Quote>) et de supprimer votre compte (section
+              3)&nbsp;; le profil, de refuser les rapports de plantage et les statistiques
+              anonymes. Pour exercer vos autres droits, écrivez-nous à <ContactEmailLink />.
             </p>
-          </section>
+          </PolicySection>
 
-          <section>
-            <h2 className="mb-4 mt-8 text-2xl font-semibold">
-              12. Autorite de controle
-            </h2>
+          <PolicySection id="modifications" title="11. Modifications de cette politique">
             <p>
-              Si vous estimez que le traitement de vos donnees personnelles n&apos;est pas conforme
-              a la reglementation applicable, vous pouvez introduire une reclamation aupres de la{" "}
-              <a
-                href="https://www.cnil.fr"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                CNIL
-              </a>
-              .
+              Cette politique évolue avec le service, ses prestataires et les obligations légales.
+              Toute mise à jour importante est publiée sur cette page, avec sa date.
             </p>
-          </section>
+          </PolicySection>
+
+          <PolicySection id="cnil" title="12. Autorité de contrôle">
+            <p>
+              Si vous estimez que le traitement de vos données n’est pas conforme à la
+              réglementation, vous pouvez introduire une réclamation auprès de la{" "}
+              <ExternalLink href="https://www.cnil.fr">CNIL</ExternalLink>.
+            </p>
+          </PolicySection>
         </div>
       </div>
     </div>
   );
 }
-
