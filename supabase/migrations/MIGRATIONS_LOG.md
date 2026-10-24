@@ -1225,4 +1225,15 @@
   350 à venir (2 hors de « Tout »), 48 concerts, zones 328/347/347/347, villes 347. « Toutes les dates » (200 cartes,
   anon) : 4,6 ms d'exécution. Après l'essai, la prod est restée telle quelle (empreintes de départ, aucun trigger).
   Sauvegarde et retour arrière prêts : `~/Documents/Backups/outlive/regles-accueil-2026-10-24/`.
-- **Pas encore appliquée en prod** (attendre l'accord pour l'application).
+- **Appliquée en prod le 2026-10-24 à 5 h 36** (heure de Paris), avec l'accord de l'utilisateur, juste après l'essai :
+  état revérifié en lecture (mêmes empreintes de départ, les 2 mêmes textes « Concert »), puis `psql --single-transaction
+  -c 'SET ROLE postgres' -c "SET lock_timeout = '5s'" -f 20261024120000_app_home_rules.sql`, en une seconde, sans
+  erreur (`UPDATE 2`). Après, en lecture : les empreintes d'après, le trigger actif, les 2 événements à l'id de
+  Concert, plus aucun texte qui ne soit pas un id ; anon ne peut pas appeler `resolve_event_category`, il lit
+  `app_on_tout`. En anon, les mêmes nombres qu'avant (« Tout » 7 jours 17/17, 350 à venir dont 2 hors de « Tout »,
+  48 concerts, zones 328/347/347/347, villes 347). Par l'API publique (clé anon, les requêtes de la PR de l'app) :
+  toutes en 200 ; « Toutes les dates » 200 cartes avec `app_on_tout`, « À la une » (aucune en prod), la carte du soir
+  filtrée, `app_event_counts`, et `app_events_in_zone` des versions installées. Temps serveur, `select` carte complet,
+  10 appels : `app_events_in_zone` 32,5 ms (médiane), `app_events_in_range` 45,5 ms (33 au mieux) ; les premiers appels
+  après le changement de schéma, plus lents (1,2 s puis 0,2 s). Sauvegarde, sorties et retour arrière :
+  `~/Documents/Backups/outlive/regles-accueil-2026-10-24/`. La PR de l'app (lazbutton/live-app#203) peut être fusionnée.
