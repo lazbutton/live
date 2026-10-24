@@ -412,8 +412,9 @@ fiche ne le dit pas, et rien n'est deviné.
   consigne), l'outil `create_event` de l'agent, l'agenda On sort ! (catégorie Jeune public, âge de l'agenda,
   conditions et inscription) et les imports du back-office. Ce qu'une source a dit arrive « lu, à confirmer »
   (`details_to_confirm`) : le formulaire le signale, la vue « Fiches à compléter » (`/admin/fiches`) liste les
-  événements à venir sans genre, sans public, sans réservation ou à confirmer, les plus proches d'abord. La reprise des
-  fiches déjà en base est l'étape 3.
+  événements à venir sans genre, sans public, sans réservation ou à confirmer, les plus proches d'abord. Les fiches déjà
+  en base sont reprises une fois par `scripts/fill-event-details.mjs` (étape 3) : la même lecture, seulement le vide,
+  une simulation et une page de relecture avant l'écriture du plan relu.
 
 ## Festivals : `events.festival_id`, `festival_locations`, `app_festival_events`
 

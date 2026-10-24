@@ -110,6 +110,11 @@ export interface ScrapeEventPageArgs {
   prefetched?: { html: string; finalUrl: string };
   /** Désactive l'IA (tests, cron économe). */
   disableAI?: boolean;
+  /**
+   * Ce que l'appelant sait déjà de l'événement (la reprise des fiches en base) : le titre et la date en repli, la
+   * catégorie à la place de celle de la page ; donnés à l'IA comme « déjà connu ».
+   */
+  known?: { title?: string; date?: string; category?: string };
 }
 
 
@@ -691,6 +696,12 @@ export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<Scrape
     category: css.category,
   };
   if (primary?.is_free) data.price_min = 0;
+  if (args.known?.title && !data.title) data.title = args.known.title;
+  if (args.known?.date && !data.date) {
+    data.date = args.known.date;
+    data.time_known = true;
+  }
+  if (args.known?.category) data.category = args.known.category;
 
   const weakTitle = !data.title || looksLikeSlug(data.title);
   const hasEssentials = Boolean(data.title && !weakTitle && data.date);
@@ -722,6 +733,7 @@ export async function scrapeEventPage(args: ScrapeEventPageArgs): Promise<Scrape
         title: weakTitle ? undefined : data.title,
         date: data.date,
         location: data.location,
+        category: data.category,
         price_min: data.price_min,
       }).filter(([, value]) => value !== undefined),
     );

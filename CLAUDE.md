@@ -50,7 +50,8 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   `booking` ; valeurs et libellés dans `lib/events/event-details.ts`. Le trigger `events_sync_details` garde les genres
   de la catégorie et recalcule `is_young_audience` depuis `audience` (`family`, `teens`) : ne pas le recalculer en TS.
   La collecte les remplit quand la source les dit (rien n'est deviné), « lus, à confirmer » (`details_to_confirm`) ;
-  ce qui manque ou attend : « Fiches à compléter » (`/admin/fiches`).
+  ce qui manque ou attend : « Fiches à compléter » (`/admin/fiches`). Fiches déjà en base : `scripts/fill-event-details.mjs`
+  (simulation et page de relecture d'abord, puis le plan relu écrit tel quel, retour arrière).
 - Attribution publique d'une proposition (« Proposé par … ») : `events.community_contributor_label` ne vient que de
   `public_contributor_label()`, jamais d'une adresse e-mail (contrainte `events_community_contributor_label_not_email`) ;
   l'auteur d'une demande sans nom se reconnaît par l'e-mail de son compte (`get_user_emails`), jamais public.
