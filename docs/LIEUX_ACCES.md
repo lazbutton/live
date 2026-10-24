@@ -18,11 +18,14 @@ Parking des Mails, gratuit après 18 h et le week-end
 - **Bus** : seulement si le tram est à plus de 250 m. L'arrêt le plus proche, avec les lignes qui roulent
   le soir : celles qui y passent encore après 22 h en semaine, dans les deux sens, pour rentrer après un
   spectacle (le 24/10/2026, autour des lieux relevés : 1, 2 et 3 ; les 4 à 7, 40 et 45 s'arrêtent vers
-  21 h 30). Sans la navette O (20, de jour), le Noctambus (N), les lignes scolaires (50 à 66) ni les bus
-  qui remplacent le tram (LA, LB). Des lignes qui se suivent : « Bus 2 à 7 ».
+  21 h 30). Pour un lieu dont les événements sont de jour (expositions), les lignes qui y passent
+  l'après-midi (château de Saint-Jean-le-Blanc : le 5). Sans la navette O (20, de jour), le Noctambus (N),
+  les lignes scolaires (50 à 66) ni les bus qui remplacent le tram (LA, LB). Des lignes qui se suivent :
+  « Bus 2 à 7 ».
 - **Distances** : à vol d'oiseau depuis les coordonnées du lieu ; entre deux arrêts presque aussi proches,
   le plus court à pied l'emporte (Orléans Comedy Club : Cathédrale, 290 m à pied, plutôt que Jeanne d'Arc,
-  430 m).
+  430 m). Un arrêt à plus de 650 m à pied ne compte pas (MAM : Saint-Marceau, 500 m à vol d'oiseau mais
+  790 m à pied).
 - **Parking** : celui que donne le site du lieu, avec ses mots (« libres d'accès » n'est pas « gratuit »),
   sinon le parc public le plus proche (400 m au plus), sous son nom dans le jeu de la Métropole
   (« Parking Cathédrale »).
@@ -85,15 +88,19 @@ valeur écrite est toujours en place ; puis supprimer du stockage le fichier cop
 
 ## Relevé du 2026-10-24
 
-Les 15 lieux qui avaient 5 événements à venir ou plus dans l'app (326 des 350 dates) ont leur accès en
-prod, relu par l'utilisateur ; le détail est dans `supabase/migrations/MIGRATIONS_LOG.md`. La Tête Noire a
-maintenant une photo CC0 de Commons ; neuf des quatorze autres en avaient déjà une.
+Les 27 lieux qui avaient des événements à venir dans l'app (les 350 dates) ont leur accès en prod, relu par
+l'utilisateur, en deux lots : les 15 qui en avaient 5 ou plus, puis les 12 autres ; le détail est dans
+`supabase/migrations/MIGRATIONS_LOG.md`. Photos posées : la Tête Noire et le Musée des Beaux-Arts (CC0), la
+Collégiale Saint-Pierre-le-Puellier (domaine public) ; 13 autres lieux actifs en avaient déjà une.
 
 Reste :
 
-- **Photos** : rien de libre sur Commons ni sur leurs sites pour l'Espace Béraire, L'Unisson, Zigotastiques –
-  le QG, L'Envolée et L'Improviste Bar. À demander aux lieux.
-- **Les 12 lieux suivants** (1 à 4 dates à venir), même méthode.
+- **Photos** : rien de libre sur Commons, et des photos « tous droits réservés » sur leurs sites, pour 11 lieux
+  actifs : Espace Béraire, L'Unisson, Zigotastiques – le QG, L'Envolée, L'Improviste Bar, MAM, Chafouin,
+  château de Saint-Jean-le-Blanc, Théâtre Gérard-Philipe, La Cave Végétale, Les Frangins. À demander aux lieux.
+- **Adresses en base**, sans effet sur l'accès : L'Envolée est au 193 rue Jean Zay (189 en base), le CCNO au
+  37 rue du Bourdon Blanc (7), le Théâtre Gérard-Philipe au 7 place Sainte-Beuve, la Collégiale au
+  13 cloître Saint-Pierre-le-Puellier.
 - **Le Vinaigrier** : son accès (« 📍Le Vinaigrier, Résidence Dessaux du Crous ») est une précision
   d'adresse, pas un accès.
 
@@ -115,4 +122,11 @@ sites des lieux.
 | Le 108 | deux fiches qui se contredisent, au nom des compagnies (Éventail, Céphise) | rien |
 | Le Bouillon | [fiche](https://acceslibre.beta.gouv.fr/app/45-orleans/a/centre-culturel/erp/le-bouillon-2/) (44 %) : de plain-pied, toilettes adaptées, parking PMR | salles accessibles ; prévenir de sa venue |
 | Orléans Comedy Club | pas de fiche | bar et salle accessibles |
-| Java Pop, L'Improviste Bar | pas de fiche | rien |
+| L'Argonaute | celle du complexe sportif seulement | rien |
+| MAM | [fiche](https://acceslibre.beta.gouv.fr/app/45-orleans/a/theatre/erp/maison-des-arts-et-de-la-musique/) (20 %) : entrée de plain-pied, places PMR sur place | rien |
+| CCNO | [fiche](https://acceslibre.beta.gouv.fr/app/45-orleans/a/theatre/erp/centre-choregraphique-national-dorleans/) (32 %) : entrée de plain-pied, toilettes adaptées, pas de parking | « accessible », sans détail |
+| Chafouin | celles du 108 | rien |
+| Théâtre Gérard-Philipe | [fiche](https://acceslibre.beta.gouv.fr/app/45-orleans/a/theatre/erp/theatre-gerard-philipe-3/) (12 %) : entrée de plain-pied | fermé pour travaux depuis juin 2025 |
+| La Ruche en Scène | [fiche](https://acceslibre.beta.gouv.fr/app/45-orleans/a/theatre/erp/la-ruche-en-scene/) (24 %) : entrée de plain-pied, toilettes adaptées | rien |
+| Musée des Beaux-Arts | [fiche](https://acceslibre.beta.gouv.fr/app/45-orleans/a/musee/erp/musee-des-beaux-arts-7/) (28 %) : entrée de plain-pied, toilettes adaptées, places PMR à proximité | collections du XIXe (entresols) inaccessibles ; deux fauteuils prêtés à l'accueil |
+| Java Pop, L'Improviste Bar, Dropkick, château de Saint-Jean-le-Blanc, Collégiale, La Cave Végétale, Les Frangins | pas de fiche | rien |

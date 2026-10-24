@@ -1203,3 +1203,20 @@
   répond en 200 `image/jpeg`.
 - Retour arrière : la liste inverse par le même script (vide pour quatorze lieux, l'ancien texte ci-dessus pour
   L'Astrolabe ; `image_url` de la Tête Noire à null), puis supprimer le fichier copié.
+
+## 2026-10-24 — Accès des 12 autres lieux actifs, photos du Musée des Beaux-Arts et de la Collégiale (données)
+
+- Même méthode, deuxième liste relue par l'utilisateur : `locations.directions` des 12 lieux qui avaient 1 à 4
+  événements à venir (L'Argonaute, MAM, Dropkick, CCNO, Chafouin, château de Saint-Jean-le-Blanc, Théâtre
+  Gérard-Philipe, Collégiale Saint-Pierre-le-Puellier, La Cave Végétale, La Ruche en Scène, Les Frangins, Musée des
+  Beaux-Arts d'Orléans), tous vides jusque-là. Avec le premier lot, les 27 lieux qui ont des dates à venir ont un
+  accès.
+- `locations.image_url`, vides jusque-là : Musée des Beaux-Arts, « Ensemble extension de l'hôtel de ville, hôtel de
+  région, musée des Beaux-Arts » (Commons, U4you, CC0), dans `locations-images/locations/1792813425106-03w8ncrfjl2n.jpg` ;
+  Collégiale, « Saint-pierre-le-puellier-ru-folie » (Commons, ManuD, domaine public), dans
+  `locations-images/locations/1792813423853-v4s3jq0k9n.jpg` ; les deux en 1 280 × 960.
+- **Écrit en prod le 2026-10-24 à 5 h 43 (heure de Paris)**, même commande : 12 lieux écrits, aucun laissé, aucune
+  copie en échec. Vérifié : les 12 textes relus en base (et les 15 du premier lot toujours en place), lus par la
+  clé publique de l'app ; les deux photos répondent en 200 `image/jpeg`.
+- Retour arrière : la liste inverse (accès à vide, `image_url` à null pour les deux photos), puis supprimer les
+  deux fichiers copiés.
