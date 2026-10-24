@@ -115,4 +115,5 @@ chantiers en conception sont dans `../live/docs/chantiers/`. Avant de toucher à
 sa fonctionnalité (`../live/docs/fonctionnalites/`) et, pour qui elle est faite, `../live/docs/PERSONAS.md`. Les
 anciens documents (plans de refacto et de refonte, relevé des améliorations, conceptions des festivals, de la radio et
 des villes) sont retirés : `../live/docs/HISTORIQUE.md`, « Retrouver un ancien document », dit où ils sont. Les
-migrations et leur journal les citent encore : c'est leur histoire.
+migrations et leur journal les citent encore : c'est leur histoire. Un renvoi vers une doc de l'app, dans le code ou
+ici, cite la fiche et sa section par son nom (« Les pochettes »), pas par un numéro de § : les numéros changent.
