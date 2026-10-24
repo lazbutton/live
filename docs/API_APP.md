@@ -1183,6 +1183,23 @@ final rows = await supabase.rpc(
 `follows` est arrivé avec les suivis (la fonction a été recréée) : une version de l'app qui ne le lit pas
 l'ignore ; une version qui le lit doit accepter son absence (base pas encore migrée).
 
+## Sessions invitées sans trace depuis 13 mois : `purge_inactive_guest_sessions`
+
+Migration `20261024180000_purge_inactive_guest_sessions.sql` (la règle complète en tête du fichier), tests
+`supabase/tests/purge_inactive_guest_sessions.test.sql`. Chaque nuit, `/api/cron/cleanup` supprime d'`auth.users`
+les sessions invitées dont la dernière trace a plus de 13 mois, avec tout ce qui leur est rattaché (cascade) ;
+`inactive_guest_sessions()` les liste. Deux fonctions du service role, ni anon ni authenticated.
+
+- La trace : la création de la session, sa connexion, chacun de ses rafraîchissements (l'app en fait un à
+  chaque ouverture, une fois le jeton d'accès expiré), et les gestes de l'invité (favori, masqué, suivi,
+  enregistrement du jeton push, blocage, signalement, feedback, proposition). Pas ce que le serveur écrit pour
+  lui : préférences de notification réécrites par une migration, trace des envois.
+- Les comptes ne sont jamais touchés ; la session invitée d'un téléphone passé à un compte part 13 mois après
+  sa dernière trace (ses données sont déjà sur le compte, `copy_guest_data`).
+- Pour l'app : rouverte après la purge, son rafraîchissement répond `400 refresh_token_not_found` ;
+  supabase_flutter retire la session (`signedOut`), et le prochain geste qui écrit en ouvre une nouvelle.
+- Une table nouvelle où l'invité écrit peut ajouter sa date à la trace ; une écriture du serveur, jamais.
+
 ## Mesure d'audience : `app_audience_add`, sans identité
 
 ```sql

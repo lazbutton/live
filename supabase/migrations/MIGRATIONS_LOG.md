@@ -1400,3 +1400,57 @@
   `npx tsc --noEmit` et ESLint au vert.
 - **Pas encore appliquée en prod** (attendre l'accord ; vérifier d'abord le corps de la fonction en prod et compter
   les `community_contributor_label` qui contiennent « @ »).
+
+## 2026-10-24 — Les sessions invitées sans trace depuis 13 mois, supprimées chaque nuit
+
+- `20261024180000_purge_inactive_guest_sessions` (règle complète en tête du fichier) : une session invitée (utilisateur
+  anonyme d'`auth.users`) restait en base pour toujours, avec ses favoris, masqués, suivis, préférences et jeton de
+  notification, même l'app désinstallée. Durée choisie par l'utilisateur le 2026-10-24 : 13 mois sans trace.
+  - `inactive_guest_sessions()` : les sessions invitées dont la dernière trace a plus de 13 mois. La trace : création,
+    connexion, chaque rafraîchissement de la session (`auth.users.updated_at`, `auth.sessions.updated_at` et
+    `refreshed_at`, `auth.refresh_tokens`), et les gestes de l'invité (favori, masqué, suivi, jeton push, blocage,
+    signalement, feedback, proposition). Pas les préférences de notification ni leurs catégories, ni la trace des
+    envois, ni le compteur d'analyses d'affiche : le serveur les écrit sans l'invité.
+  - `purge_inactive_guest_sessions()` : les supprime d'`auth.users` (cascade), la plus ancienne d'abord, 500 au plus par
+    appel, une par une (une suppression refusée est comptée dans `failed` et journalisée, les autres passent ;
+    `lock_timeout` 5 s). Rend `{"deleted", "failed", "has_more"}`. Appelée par `/api/cron/cleanup` (étape 5).
+  - Les deux : `security definer`, `search_path` vide, `execute` au service role seulement.
+- Ce qui fait vivre une session invitée, vérifié le 2026-10-24 sur une pile locale (GoTrue v2.183.0, celle du projet lié
+  en décembre, PostgREST v14.1) : la connexion anonyme écrit `created_at`, `last_sign_in_at`, `updated_at`, une session
+  et un jeton de rafraîchissement ; un rafraîchissement (ce que fait l'app à chaque ouverture, le jeton d'accès expiré
+  au bout d'une heure) met à jour `auth.users.updated_at`, `auth.sessions.updated_at` et `refreshed_at`, crée un jeton
+  et révoque l'ancien, sans toucher `last_sign_in_at`. Un favori écrit par PostgREST ne touche aucune date d'`auth`.
+  Bout en bout : un invité vieilli de 14 mois et un invité actif ; `rpc/purge_inactive_guest_sessions` refusé à anon
+  (401) et à l'invité (403), avec la clé de service `{"failed": 0, "deleted": 1, "has_more": false}` ; le vieil invité
+  part avec sa session, ses jetons et son favori, l'événement reste ; son jeton de rafraîchissement répond ensuite
+  `400 refresh_token_not_found` (gotrue 2.18 de l'app : session retirée, `signedOut`) ; l'invité actif se rafraîchit
+  toujours.
+- Relevé en prod le 2026-10-24 (lecture seule, transaction annulée, accord de l'utilisateur ; des nombres seulement) :
+  257 sessions invitées, 23 comptes ; la plus ancienne date du 5 décembre 2025 : **aucune n'a 13 mois aujourd'hui**.
+  Si rien ne bouge, les premières partent en janvier 2027 (42, dernière trace en décembre 2025), puis 2 en février,
+  45 en avril, 58 en mai, 24 en juin. 256 ont une session (1 sans) ; 186 de ces sessions n'ont jamais été
+  rafraîchies (un seul jeton, rien après leur première heure : l'app n'a servi qu'une fois), les 70 autres l'ont été,
+  et `refreshed_at`, `auth.users.updated_at` et les jetons le disent ensemble ; 37 invités sont revenus plus d'un jour
+  après leur création. Aucun geste de l'invité (favori, jeton push…) plus récent que sa
+  dernière trace d'`auth` d'une heure ou plus ; en revanche les préférences de 14 invités l'étaient de 3 à 16 jours :
+  23 lignes de préférences réécrites dans la même minute le 2026-05-04 (`20260504163000_normalize_event_categories_set`
+  normalise leurs `category_ids`), d'où leur exclusion. Les
+  invités possèdent 111 jetons push, 68 préférences, 580 catégories, 126 envois tracés, 1 favori ; aucune proposition,
+  aucun événement, aucun fichier du stockage. Clés étrangères vers `auth.users` : toutes en cascade ou `SET NULL` ;
+  seule `organizer_audit_log.performed_by` (non nulle, `SET NULL`) refuserait une suppression, et aucun invité n'y
+  figure. Aucun déclencheur `DELETE` sur `auth.users` ; `postgres` peut y supprimer. `auth.audit_log_entries` est vide.
+- Tests : `supabase/tests/purge_inactive_guest_sessions.test.sql` (21 cas : chaque trace garde à elle seule une session
+  ancienne, préférences et envois ne la gardent pas, sans session, de part et d'autre des 13 mois, `refreshed_at` lue en
+  UTC dans une séance en UTC+14, les cascades et l'événement gardé sans auteur, le compte jamais touché, une
+  suppression refusée qui n'arrête pas les autres, les lots de 500, les droits). Contre-épreuves : retirer un à un les
+  signaux de la session, le jeton push, les suivis, les propositions, lire `refreshed_at` sans UTC, compter les
+  préférences, passer à 12 mois, retirer la limite, l'exception ou le filtre des invités : chaque fois un cas échoue.
+  `npm run db:test` (copie isolée du script, image Supabase) : les 34 fichiers passent (584 cas). Le cron en local
+  (`next dev` sur la pile locale) : `"guestSessions": {"failed": 0, "deleted": 1, "has_more": false}`, l'invité actif
+  gardé. `lib/supabase/database.types.ts` régénéré (les deux fonctions) ; `node --test` (334), tsc, ESLint (aucune
+  erreur) et `next build` au vert.
+- Politique de confidentialité (`components/privacy-policy/`) : la conservation de la session invitée (section 2.2) et
+  sa suppression (section 3) disent les 13 mois. À appliquer en prod avant la fin de 2026 pour que la page dise vrai :
+  les premières sessions passent 13 mois le 5 janvier 2027.
+- **Pas encore appliquée en prod** (attendre l'accord). Sans elle, l'étape 5 du cron journalise une erreur
+  (`guestSessionsError`) et le reste du ménage continue.

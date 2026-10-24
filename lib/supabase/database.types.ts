@@ -3224,6 +3224,13 @@ export type Database = {
           user_id: string
         }[]
       }
+      inactive_guest_sessions: {
+        Args: never
+        Returns: {
+          last_activity: string
+          user_id: string
+        }[]
+      }
       is_admin: { Args: never; Returns: boolean }
       is_event_approved_for_public_event_artists: {
         Args: { target_event_id: string }
@@ -3278,6 +3285,7 @@ export type Database = {
         Args: { display_name: string }
         Returns: string
       }
+      purge_inactive_guest_sessions: { Args: never; Returns: Json }
       radio_live_grid: {
         Args: { p_at?: string; p_station: string }
         Returns: {
