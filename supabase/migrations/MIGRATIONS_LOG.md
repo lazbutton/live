@@ -1520,7 +1520,7 @@
   suppression refusée qui n'arrête pas les autres, les lots de 500, les droits). Contre-épreuves : retirer un à un les
   signaux de la session, le jeton push, les suivis, les propositions, lire `refreshed_at` sans UTC, compter les
   préférences, passer à 12 mois, retirer la limite, l'exception ou le filtre des invités : chaque fois un cas échoue.
-  `npm run db:test` (copie isolée du script, image Supabase) : les 34 fichiers passent (584 cas). Le cron en local
+  `npm run db:test` (copie isolée du script, image Supabase), avec `main` fusionnée (genres, « Pour toi ») : les 36 fichiers passent (660 cas). Le cron en local
   (`next dev` sur la pile locale) : `"guestSessions": {"failed": 0, "deleted": 1, "has_more": false}`, l'invité actif
   gardé. `lib/supabase/database.types.ts` régénéré (les deux fonctions) ; `node --test` (334), tsc, ESLint (aucune
   erreur) et `next build` au vert.
