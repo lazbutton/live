@@ -7,8 +7,8 @@ extendZodWithOpenApi(z);
 
 /*
  * « Ce qui passe » sur une radio : `GET /api/v1/radio/{stationId}/live`. Contrat entre live-admin et
- * l'app (`../live/docs/RADIO_CAMPUS.md`, § 4), recopié dans docs/API_APP.md, « Radio ». Une réponse
- * peut gagner un champ, jamais en perdre ni en renommer.
+ * l'app (`../live/docs/fonctionnalites/radio.md`, « Le contrat avec live-admin »), recopié dans
+ * docs/API_APP.md, « Radio ». Une réponse peut gagner un champ, jamais en perdre ni en renommer.
  */
 
 const parisDateTime = (example: string) =>

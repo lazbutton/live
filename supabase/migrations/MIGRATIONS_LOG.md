@@ -1162,7 +1162,35 @@
   jour ; `is_user_safety_suspended` / `can_use_ugc_features` lisent app_meta ; l'auto-réhabilitation échoue,
   vérifiée aussi de bout en bout via GoTrue réel) ; fixtures de `events_rls.test.sql` (u09 via app_meta) et
   `lib/api/app/routes.test.mjs` (`jwt-suspended`). `npm run db:test`, `node --test`, `npx tsc --noEmit` au vert.
-- **Pas encore appliquée en prod** (attendre l'accord ; prévoir les PR de l'app en même temps).
+- Relevé en prod le 24/10/2026 (lecture seule, psql `BEGIN READ ONLY`) : `is_user_safety_suspended()` encore celle de
+  `20260324100000` (elle lit `raw_user_meta_data`), ni la fonction ni le déclencheur du garde-fou ; seule
+  `can_use_ugc_features()` l'appelle (7 policies : `events` ×3, `user_requests` ×2, `content_reports`,
+  `blocked_users`). Aucun des 280 comptes (257 invités) n'a de clé de suspension, ni dans `raw_user_meta_data` ni
+  dans `raw_app_meta_data` : les deux UPDATE de reprise ne touchent aucune ligne. Le back-office de `main` écrit déjà
+  la suspension dans `app_metadata`, que la base ne lisait pas encore. L'app publiée (1.0.6) la lit dans
+  `user_metadata` : elle ne verra plus qu'un compte est suspendu, le serveur le refuse toujours.
+- Essai à blanc le 24/10/2026 sur une base locale jetable dans l'état de la prod (toutes les migrations sauf
+  celle-ci et `20261024043000` ; les fonctions en jeu, leurs droits et les déclencheurs d'`auth.users` identiques à
+  ceux de la prod) : 4 comptes
+  d'essai (suspendu avec les 4 clés, suspension levée, admin, invité), la faille d'avant reproduite ; migration en
+  une transaction ; 9 contrôles (reprise vers `app_metadata`, `user_metadata` nettoyé sans perdre le reste, lecture,
+  `can_use_ugc_features`, faille refermée, inscription) ; retour arrière complet, puis migration rejouée : états
+  identiques à l'avant et à l'après. `npm run db:test` (copie isolée du script) : tous les fichiers passent.
+- Retour arrière. Si les inscriptions ou les mises à jour de compte échouent, retirer le seul déclencheur :
+  `DROP TRIGGER IF EXISTS strip_ugc_suspension_from_user_metadata ON auth.users;` (la suspension reste lue dans
+  `app_metadata`, que l'utilisateur ne peut pas écrire : rien ne se rouvre). Retour complet, qui rouvre la faille :
+  retirer déclencheur et fonction, recopier la suspension d'`app_metadata` vers `raw_user_meta_data` pour les
+  suspendus, remettre le corps de `20260324100000` et son commentaire (essayé en local : l'état d'avant à
+  l'identique).
+- **Appliquée en prod le 24/10/2026 à 05:06 (03:06 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de `main`, sha256 `bf93c530…`), sans
+  erreur, en 0,4 s (`UPDATE 0`, `UPDATE 0`). Vérifié en lecture seule : aucune clé de suspension, ni dans
+  `user_metadata` ni dans `app_metadata` (280 comptes) ; `is_user_safety_suspended()` lit `app_metadata`, toujours
+  `SECURITY DEFINER` avec les mêmes droits ; les deux déclencheurs d'`auth.users` (rôle, suspension) actifs ; empreinte
+  identique à celle de l'essai local. Puis, avec le même accord, dans une transaction annulée : un compte fictif
+  inscrit avec `ugc_suspended` dans `user_metadata` la perd (son nom reste), la même clé ajoutée ensuite est effacée,
+  et suspendu par `app_metadata` il le reste (`is_user_safety_suspended()` vrai, `can_use_ugc_features()` faux) ;
+  rien n'est resté.
 
 ## 2026-10-23 — Radio : les visuels gardés des émissions (`radio_shows.image_url`)
 
@@ -1183,6 +1211,96 @@
   Tentaculation, dans `organizers-images/radio-shows/` (WebP carrés, 21 à 284 Ko). Vérifié en anonyme : 11 émissions
   avec `image_url`, chaque image en 200 `image/webp` ; dans le programme d'hier, Écoute ta fac et Nation Groove ont
   le leur.
+
+## 2026-10-24 — La table `event_notifications` supprimée (anciens rappels par événement)
+
+- `20261024043000_drop_event_notifications` : la table des rappels individuels de l'ancien système (« 1 jour,
+  3 heures ou 1 heure avant »), abandonné en mars 2026, voulue supprimée par l'utilisateur le 24/10/2026
+  (`../live/docs/FEUILLE_DE_ROUTE.md`). Partent avec elle ses index, contraintes, 4 policies et 2 déclencheurs,
+  `calculate_notification_scheduled_at()` (son déclencheur) et `update_event_notifications_updated_at()`, qui ne
+  servait à rien ; `update_notification_preferences_updated_at()` reste (trois autres tables). Sans CASCADE.
+- Relevé en prod le 24/10/2026 (lecture seule) : 0 ligne ; aucune vue, policy d'une autre table, clé étrangère,
+  publication ni tâche pg_cron ne la cite ; aucune fonction hors son déclencheur et `check_rls_policies()` (le nom
+  dans une liste de tables ; cette fonction échoue de toute façon, en prod aussi, sur `p.polrelid`, absent de la
+  vue `pg_policies`) ; la seule Edge Function, `delete-user`, n'y touche pas.
+- Qui s'en servait : le back-office, plus depuis mars 2026 (crons de rappels, `/api/events/[id]/notifications`) ;
+  l'app de `main`, plus depuis le 21/10 (live-app `92aa71a`). L'app publiée, 1.0.6 (avril 2026, live-app
+  `7c3f3a2`), comme la 1.0.4 et la 1.0.5, fait au lancement et au réenregistrement du jeton un UPDATE qui désactive
+  les anciens rappels du compte (aucune ligne touchée), dans un try/catch : sans la table, PostgREST répond 404
+  (PGRST205), l'erreur est attrapée et journalisée, sans autre effet. La 1.0.3 (décembre 2025) avait encore l'écran
+  des rappels : un rappel ne s'y active plus.
+- Sauvegarde (lecture seule, 24/10/2026 à 02:30 UTC) dans `~/Documents/Backups/outlive/event-notifications-2026-10-24/`
+  sur la machine de l'utilisateur, hors dépôt : le contenu (CSV, en-tête seul : la table était vide), sa définition
+  extraite du dump du schéma `public` de la prod (`schema.sql`), `SHA256SUMS`, `README.txt` (comment restaurer).
+- Essai à blanc le 24/10/2026 sur une base locale jetable dans l'état de la prod : migration en une transaction,
+  rejouée sans erreur ; `supabase/tests/drop_event_notifications.test.sql` (4 cas : ni table ni fonction des anciens
+  rappels, la fonction updated_at partagée garde ses trois tables, un événement et un compte se suppriment) ;
+  restauration depuis la sauvegarde : définition identique à celle d'avant (colonnes, contraintes, index,
+  déclencheurs, policies, droits, commentaires), puis migration rejouée. `npm run db:test` (copie isolée du script) :
+  tous les fichiers passent. `lib/supabase/database.types.ts` régénéré (`npm run db:types`) : la table en moins.
+  `docs/EVENT_NOTIFICATIONS_DIRECT_SUPABASE.md` (le mode d'emploi de la table) retiré.
+- Retour arrière : dans la sauvegarde, `\i schema.sql` (psql, rôle postgres), puis `\copy` du CSV s'il a des lignes.
+- **Appliquée en prod le 24/10/2026 à 05:07 (03:07 UTC)**, après `20261023230000`, avec l'accord de l'utilisateur
+  (psql, `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche au commit
+  `541f1cf`, sha256 `6b6c09ce…`), sans erreur (`DROP TABLE` en 0,13 s). Vérifié en lecture seule : ni la table ni
+  les deux fonctions ; `update_notification_preferences_updated_at()` garde ses trois tables ; plus aucun
+  déclencheur de clé étrangère vers elle sur `events` et `auth.users` ; `app_events()` rend 389 événements ;
+  empreinte identique à celle de l'essai local. En anon par l'API publique : `event_notifications` répond 404
+  (PGRST205, ce que recevra la 1.0.6), `rpc/app_events` 200.
+
+## 2026-10-24 — L'accueil de l'app : ses dernières règles en Dart passent en SQL
+
+- `20261024120000_app_home_rules` (règle complète en tête du fichier) : « Toutes les dates » et « À la une » de l'app
+  lisaient `app_events_in_zone` puis retiraient en Dart les événements en cours de 12 h ou moins, les masqués, ceux
+  des auteurs bloqués et, sur « Tout », ceux retirés de l'accueil ; une catégorie se comparait à son id et à son nom
+  (`../live/docs/FEUILLE_DE_ROUTE.md`, « Défauts relevés le 2026-10-24 », la ligne « Des règles encore en
+  Dart », maintenant). L'app lira `app_events_in_range` (PR de l'app lazbutton/live-app#203, à fusionner après cette
+  migration), qui a déjà les trois premières règles, et cette migration ajoute :
+  - `app_on_tout(events)`, la règle de « Tout » (`NOT hide_from_home`), une colonne calculée pour PostgREST (lue ou
+    filtrée par l'app ; vérifié sur PostgREST v13.0.5 local, `select` et filtre sur `rpc/app_events_in_range`) ; les
+    nombres de « Tout » la lisent (`app_event_counts` sans catégorie, `app_zone_counts`, `app_cities`, redéfinies
+    depuis `20261023170000`, mêmes signatures) ;
+  - `app_events_in_range` (redéfinie depuis `20261021220000`, même signature) : masqués et auteurs bloqués en
+    sous-requêtes non corrélées (`NOT IN`, sous-plans hachés, `(SELECT auth.uid())`), la catégorie demandée résolue
+    une fois. Les `NOT EXISTS` corrélés relisaient `user_hidden_events` pour chaque événement (et `auth.uid()` pour
+    chacune de ses lignes), l'`EXISTS` sur `categories` tournait pour chaque événement d'une autre catégorie. Mesuré
+    en local (PostgREST, ~430 événements sur un an, 200 cartes) : un compte qui a masqué 40 événements, ~50–80 ms
+    avant, ~3–5 ms après ; anon ~10–15 ms avant, ~4–5 ms après (`app_events_in_zone` : ~2,5–3,5 ms) ;
+  - `events.category` toujours l'id de sa catégorie : `resolve_event_category(text)` (security definer, fermée à anon
+    et authenticated) et le trigger `events_normalize_category` (BEFORE INSERT OR UPDATE OF category, le premier par
+    son nom), puis la conversion des lignes existantes. Un texte qui ne désigne aucune catégorie reste tel quel. En
+    prod le 2026-10-24 (lecture anon) : 1 événement visible sur 389 a un nom (« Concert ») ; les autres lignes
+    (en attente, archivées) se comptent à l'essai.
+- Tests : `supabase/tests/app_home_rules.test.sql` (30 cas : la catégorie à l'écriture, par un admin connecté sans
+  droit sur les fonctions, et rejouée par la conversion ; « Tout » et ses nombres ; masqués, auteurs bloqués, un
+  événement sans auteur gardé malgré `NOT IN` ; catégorie par id, nom, texte inconnu, inactive ; plan : aucun nœud
+  qui lit `user_hidden_events`, `blocked_users` ou `categories` ni aucun sous-plan ne tourne plus d'une fois).
+  Contre-épreuves : l'ancienne `app_events_in_range` échoue au plan (9 passages au lieu de 1), un `NOT IN` sans le
+  cas sans auteur et une règle de « Tout » cassée échouent aussi, cette dernière dans `app_calendar`, `app_zone`,
+  `festival_counts` et `app_free_family`. Toute la suite passe sur l'image Supabase (avec la migration, avant le
+  nouveau fichier) puis sur Postgres 17 nu en ICU (avec lui ; `app_radio` y manque de la file de pg_net).
+- Types : `app_on_tout` et `resolve_event_category` ajoutés à la main dans `lib/supabase/database.types.ts`, au format
+  du générateur (Docker arrêté sur la machine) ; à régénérer au prochain `npm run db:types`.
+- **Essai à blanc en prod le 2026-10-24 vers 5 h 30** (heure de Paris, accord de l'utilisateur), dans une transaction
+  annulée, par psql (identifiants de `supabase db dump --linked --dry-run`) : les quatre définitions de départ étaient
+  bien celles de `20261021220000` et `20261023170000` (empreintes), la migration est passée sans erreur, et les
+  empreintes d'après sont celles de la base locale. La conversion touche 2 événements (« Concert », dont un archivé) ;
+  aucun texte ne désigne une catégorie inconnue. En anon, avant et après, mêmes nombres : « Tout » sur 7 jours 17/17,
+  350 à venir (2 hors de « Tout »), 48 concerts, zones 328/347/347/347, villes 347. « Toutes les dates » (200 cartes,
+  anon) : 4,6 ms d'exécution. Après l'essai, la prod est restée telle quelle (empreintes de départ, aucun trigger).
+  Sauvegarde et retour arrière prêts : `~/Documents/Backups/outlive/regles-accueil-2026-10-24/`.
+- **Appliquée en prod le 2026-10-24 à 5 h 36** (heure de Paris), avec l'accord de l'utilisateur, juste après l'essai :
+  état revérifié en lecture (mêmes empreintes de départ, les 2 mêmes textes « Concert »), puis `psql --single-transaction
+  -c 'SET ROLE postgres' -c "SET lock_timeout = '5s'" -f 20261024120000_app_home_rules.sql`, en une seconde, sans
+  erreur (`UPDATE 2`). Après, en lecture : les empreintes d'après, le trigger actif, les 2 événements à l'id de
+  Concert, plus aucun texte qui ne soit pas un id ; anon ne peut pas appeler `resolve_event_category`, il lit
+  `app_on_tout`. En anon, les mêmes nombres qu'avant (« Tout » 7 jours 17/17, 350 à venir dont 2 hors de « Tout »,
+  48 concerts, zones 328/347/347/347, villes 347). Par l'API publique (clé anon, les requêtes de la PR de l'app) :
+  toutes en 200 ; « Toutes les dates » 200 cartes avec `app_on_tout`, « À la une » (aucune en prod), la carte du soir
+  filtrée, `app_event_counts`, et `app_events_in_zone` des versions installées. Temps serveur, `select` carte complet,
+  10 appels : `app_events_in_zone` 32,5 ms (médiane), `app_events_in_range` 45,5 ms (33 au mieux) ; les premiers appels
+  après le changement de schéma, plus lents (1,2 s puis 0,2 s). Sauvegarde, sorties et retour arrière :
+  `~/Documents/Backups/outlive/regles-accueil-2026-10-24/`. La PR de l'app (lazbutton/live-app#203) peut être fusionnée.
 
 ## 2026-10-24 — Accès de 15 lieux et photo de la Tête Noire (données, pas une migration)
 

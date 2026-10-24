@@ -4,9 +4,9 @@ import type { Database } from "@/lib/supabase/database.types";
 
 /*
  * Plafond de l'analyse d'affiche de l'app (POST /api/mobile/events/extract-from-image), ouverte à
- * tous depuis le 2026-10-21 (../live/docs/AMELIORATIONS.md, § 5) : « Proposer un événement » ne
- * demande le compte qu'à l'envoi. Compté en base, par session et par jour (heure de Paris), par
- * take_poster_analysis() (migration 20261021200000_create_poster_analysis_quota.sql).
+ * tous depuis le 2026-10-21 (../live/docs/fonctionnalites/proposer.md, « Règles » et « Décisions ») :
+ * « Proposer un événement » ne demande le compte qu'à l'envoi. Compté en base, par session et par jour
+ * (heure de Paris), par take_poster_analysis() (migration 20261021200000_create_poster_analysis_quota.sql).
  */
 
 /** Analyses par jour pour une session, invitée ou compte. */
