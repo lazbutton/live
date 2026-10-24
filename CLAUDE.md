@@ -50,8 +50,18 @@ npm run db:test          # tests SQL de supabase/tests/ sur une base locale jeta
   `booking` ; valeurs et libellés dans `lib/events/event-details.ts`. Le trigger `events_sync_details` garde les genres
   de la catégorie et recalcule `is_young_audience` depuis `audience` (`family`, `teens`) : ne pas le recalculer en TS.
   La collecte les remplit quand la source les dit (rien n'est deviné), « lus, à confirmer » (`details_to_confirm`) ;
+<<<<<<< HEAD
   ce qui manque ou attend : « Fiches à compléter » (`/admin/fiches`). Fiches déjà en base : `scripts/fill-event-details.mjs`
   (simulation et page de relecture d'abord, puis le plan relu écrit tel quel, retour arrière).
+=======
+  ce qui manque ou attend : « Fiches à compléter » (`/admin/fiches`).
+- « Pour toi », la page de ce qui te plaît (`../live/docs/chantiers/pour-toi.md`) : les goûts dans `app_interests`
+  (tenus ici, sans nouvelle version de l'app), les choix dans `user_interests` ; un goût prend un événement par
+  `app_interest_ids(events)` (colonne calculée ; le jeune public seulement par « En famille »), la page par `for_me`
+  d'`app_events_in_range` et d'`app_event_counts` (`app_is_for_me` : un goût choisi, ou un suivi), les bulles par
+  `app_interest_counts`. Rien de cela ne se refait en TS ni en Dart ; les résumés de notification passent par
+  `app_for_me_profile_of`.
+>>>>>>> origin/main
 - Attribution publique d'une proposition (« Proposé par … ») : `events.community_contributor_label` ne vient que de
   `public_contributor_label()`, jamais d'une adresse e-mail (contrainte `events_community_contributor_label_not_email`) ;
   l'auteur d'une demande sans nom se reconnaît par l'e-mail de son compte (`get_user_emails`), jamais public.
