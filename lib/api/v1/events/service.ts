@@ -56,7 +56,7 @@ function buildSelect(view: "summary" | "full") {
         locations(id, name, is_organizer, image_url)
       ),
       event_artists(
-        artist:artists(id, name, slug, artist_type_label, origin_city, image_url),
+        artist:artists(id, name, slug, artist_type_label, origin_city, image_url, image_credit, image_license, image_source_url),
         role_label,
         sort_index
       )`;
@@ -71,7 +71,7 @@ function buildSelect(view: "summary" | "full") {
       locations(id, name, address, image_url, latitude, longitude, is_organizer)
     ),
     event_artists(
-      artist:artists(id, name, slug, artist_type_label, origin_city, tag_ids, short_description, image_url, website_url, instagram_url, soundcloud_url, deezer_url),
+      artist:artists(id, name, slug, artist_type_label, origin_city, tag_ids, short_description, image_url, image_credit, image_license, image_source_url, website_url, instagram_url, soundcloud_url, deezer_url),
       role_label,
       sort_index
     )`;

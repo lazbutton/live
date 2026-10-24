@@ -1183,3 +1183,18 @@
   Tentaculation, dans `organizers-images/radio-shows/` (WebP carrés, 21 à 284 Ko). Vérifié en anonyme : 11 émissions
   avec `image_url`, chaque image en 200 `image/webp` ; dans le programme d'hier, Écoute ta fac et Nation Groove ont
   le leur.
+
+## 2026-10-24 — Photos libres des artistes : 4 posées
+
+- Données seulement, pas de migration (colonnes du crédit : `20261021160000_add_artist_image_credit`). Relecture
+  dans `docs/ARTIST_PHOTOS.md`, « Relecture du 2026-10-24 » : 32 photos validées par l'utilisateur, dans
+  `docs/artist-photos-2026-10-24.json`.
+- **4 posées le 2026-10-24 entre 05:06 et 05:08 (heure de Paris)**, CC0 ou domaine public, par `node
+  --env-file=.env.local scripts/artist-photos.mjs --plan=… --write --confirm=tkyuiltgvqcgebnqdgmb` : Albertina Carri,
+  Brad Mehldau, Marie Brassard, Marie Chouinard, dans `organizers-images/artists/` (JPEG de 87 à 417 Ko). La première
+  passe a refusé Albertina Carri : l'API de Commons donne désormais ses vignettes sur `thumb.wikimedia.org`, que
+  `downloadCommonsPhoto` accepte depuis (même PR).
+- Vérifié en anonyme : 8 artistes avec photo, dont ces 4 avec crédit, licence et lien Commons ; chaque image en 200
+  `image/jpeg` ; « Photo : Björn Milcke, Domaine public » sur https://www.outlive.fr/artists/brad-mehldau.
+- Les 28 autres (CC BY, CC BY-SA) attendent la prochaine version de l'app : la 1.0.6 de l'App Store montre la photo
+  d'un artiste sans crédit. Retour arrière : `docs/ARTIST_PHOTOS.md`.
