@@ -374,6 +374,47 @@ plus bas), comme une plage du calendrier.
 - **`app_events_in_range`** : les masqués et les auteurs bloqués en sous-requêtes lues une fois par requête, la
   catégorie demandée résolue une fois. Mêmes lignes, même signature ; rien n'est plus relu pour chaque événement.
 
+## La fiche : genre, public, réservation (`events.genre_ids`, `audience`, `min_age`, `booking`)
+
+Étape 1 de « Pour toi » (`../live/docs/chantiers/pour-toi.md`, « Des fiches plus riches » et « live-admin : les
+fiches »), migration `20261024170000_event_genres_audience_booking.sql`, tests
+`supabase/tests/event_details.test.sql`. Des listes fermées, jamais du texte libre ; null (vide pour `genre_ids`) : la
+fiche ne le dit pas, et rien n'est deviné.
+
+| Colonne | Type | Valeurs |
+| --- | --- | --- |
+| `genre_ids` | `uuid[]`, jamais null | les genres de l'événement, ids d'`event_genres` de sa catégorie ; vide par défaut |
+| `audience` | texte ou `null` | `all` (« Tout public »), `family` (« En famille »), `teens` (« Ados »), `adults` (« Adultes ») |
+| `min_age` | entier ou `null` | âge minimum annoncé, de 1 à 18 ans (« dès 18 mois » : 2) |
+| `booking` | texte ou `null` | `none` (« Sans réservation »), `reservation` (« Sur réservation »), `online` (« Billetterie en ligne ») |
+| `details_to_confirm` | booléen | lus par la collecte, pas encore confirmés dans le back-office ; pas pour l'app |
+
+- **`event_genres`** (`id`, `category_id`, `name`, `phrase`, `display_order`, `is_active`) : une liste par catégorie,
+  tenue dans le back-office (Réglages, « Genres »). `phrase` dit le genre dans une phrase (« le jazz », « l'humour »,
+  apostrophe droite : l'app la rend typographique). Lisible par tous (les actifs ; les admins voient aussi les autres),
+  écrite par les admins. Au départ : Spectacle (Théâtre, Humour, Impro, Cirque, Marionnettes, Magie, Conte), Concert
+  (Rock, Jazz, Rap et hip-hop, Électro, Classique, Chanson, Pop, Musiques du monde), Danse (Contemporaine, Hip-hop,
+  Classique, Traditionnelle), Atelier (Arts plastiques, Textile, Cuisine, Écriture, Musique, Numérique), Cinéma
+  (Documentaire, Fiction, Animation, Courts métrages).
+- **Le trigger `events_sync_details`**, à l'écriture : `genre_ids` ne garde que les genres de la catégorie de
+  l'événement (inactifs compris), chacun une fois, dans l'ordre de la liste ; changer de catégorie retire ceux de
+  l'ancienne. Un genre supprimé, ou rangé dans une autre catégorie, quitte les événements (`event_genres_forget`).
+- **`is_young_audience`** reste, recalculé depuis `audience` quand elle est connue : vrai pour `family` et `teens`,
+  faux pour `all` et `adults` (un « tout public dès 6 ans » n'est pas du jeune public). Sans `audience`, il reste tel
+  qu'écrit. « En famille » (U5, paramètre `family`) le lit toujours, comme les versions installées de l'app ; ni l'app
+  ni l'admin ne le recalculent.
+- L'app lit `audience`, `min_age` et `booking` dans la fiche (`EventSelects.detail`) pour sa ligne de repères
+  (« Dès 6 ans · Sans réservation », `../live/docs/fonctionnalites/fiche.md`, « Le haut »), sur `events` par id. Un
+  `select` qui les nomme échoue (400) sur une base qui n'a pas la migration : la version de l'app qui les lit sort
+  après elle. `app_events()` et les fonctions qui rendent `setof events` les portent aussi ; aucune ne filtre dessus.
+- Écrits par le formulaire d'un événement du back-office (« Genre, public et réservation »), et par la collecte quand la
+  source les dit : la lecture des pages par IA (`scrape-event-page.ts`, avec les genres de chaque catégorie dans sa
+  consigne), l'outil `create_event` de l'agent, l'agenda On sort ! (catégorie Jeune public, âge de l'agenda,
+  conditions et inscription) et les imports du back-office. Ce qu'une source a dit arrive « lu, à confirmer »
+  (`details_to_confirm`) : le formulaire le signale, la vue « Fiches à compléter » (`/admin/fiches`) liste les
+  événements à venir sans genre, sans public, sans réservation ou à confirmer, les plus proches d'abord. La reprise des
+  fiches déjà en base est l'étape 3.
+
 ## Festivals : `events.festival_id`, `festival_locations`, `app_festival_events`
 
 Décision du 2026-10-23 (`../live/docs/fonctionnalites/festivals.md`, « Règles », « Données et code » et

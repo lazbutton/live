@@ -30,6 +30,12 @@ export type ImportedEventPayload = {
   festival_name?: string;
   /** Pour un festival : les lieux que nomme son texte (« le Dropkick, le 108 et l'Astrolabe »). */
   festival_venues?: string[];
+  /** Genres nommés par la source, rapprochés de la liste de la catégorie (event_genres). */
+  genres?: string[];
+  /** Pour qui, âge minimum, réservation (lib/events/event-details.ts) ; une valeur hors liste est ignorée. */
+  audience?: string;
+  min_age?: number;
+  booking?: string;
   metadata?: Record<string, unknown>;
   [key: string]: unknown;
 };
@@ -76,4 +82,8 @@ export const IMPORTED_EVENT_FIELD_LABELS: Partial<
   tags: "Tags",
   festival_name: "Festival",
   festival_venues: "Lieux du festival",
+  genres: "Genre",
+  audience: "Pour qui",
+  min_age: "Âge minimum",
+  booking: "Réservation",
 };

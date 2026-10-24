@@ -1408,3 +1408,30 @@
   erreur (`UPDATE 0`). Vérifié en lecture seule : fonction `b0ca2c58` (attribution, nom filtré, prix libre, security
   definer), `public_contributor_label` rend « Camille Martin » et NULL pour une adresse e-mail, contrainte validée,
   465 événements dont aucun nom public avec « @ ».
+
+## 2026-10-24 — Des fiches plus riches : genres, public, réservation
+
+- `20261024170000_event_genres_audience_booking` (étape 1 de « Pour toi », `../live/docs/chantiers/pour-toi.md`,
+  choix 9 et 10) : la table `event_genres` (une liste fermée par catégorie, tenue dans les réglages du back-office),
+  ses 29 genres de départ (Spectacle 7, Concert 8, Danse 4, Atelier 6, Cinéma 4, insérés par le nom de la catégorie) ;
+  sur `events`, `genre_ids`, `audience`, `min_age`, `booking` et `details_to_confirm` (« lus, à confirmer », pour la
+  collecte de l'étape 2).
+- Trigger `events_sync_details` (après `events_normalize_category`) : les genres de la catégorie seulement, et
+  `is_young_audience` recalculé depuis `audience` quand elle est connue (`family`, `teens`). Trigger
+  `event_genres_forget` : un genre supprimé ou changé de catégorie quitte les événements.
+- Les événements existants ne changent pas. Contrat : `docs/API_APP.md`, « La fiche : genre, public, réservation ».
+- Tests : `supabase/tests/event_details.test.sql` (33 cas : listes de départ, genres de la catégorie, ordre, doublons,
+  changement de catégorie, jeune public d'après `audience`, « En famille » d'`app_events_in_range`, contraintes, genre
+  supprimé ou déplacé, RLS anon, membre et admin) ; cinq mutations des triggers, chacune attrapée. La suite entière
+  (34 fichiers) passe sur un Postgres 17 local en ICU, avec les bouchons de Supabase.
+- État de la prod relevé avant, en lecture seule : ni `event_genres` ni les colonnes ; les catégories Spectacle,
+  Concert, Danse, Atelier et Cinéma se résolvent par leur nom ; 465 événements, dont 65 en jeune public.
+- Répétée en prod dans une transaction annulée, avec l'accord de l'utilisateur : `INSERT 0 29` (Atelier 6, Cinéma 4,
+  Concert 8, Danse 4, Spectacle 7), aucun événement touché, 465 et 65 avant comme après, 29 genres lus par anon,
+  `app_events()` porte les colonnes ; après le ROLLBACK, plus de table.
+- **Appliquée en prod le 2026-10-24 à 8 h 10 (heure de Paris)**, avec l'accord de l'utilisateur : psql
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la PR (sha256 `15b791120e35869e…`),
+  sans erreur. Vérifié en lecture seule : 29 genres, 465 événements dont 65 en jeune public, aucun touché ;
+  `sync_event_details` et `forget_event_genre` identiques à la base locale des tests (empreintes `2b3ef990`,
+  `519ea553`) ; la clé publique de l'app lit `event_genres` (29) et la sélection de la fiche (`EventSelects.detail`,
+  avec `audience`, `min_age`, `booking`) en 200.
