@@ -1435,3 +1435,43 @@
   `sync_event_details` et `forget_event_genre` identiques à la base locale des tests (empreintes `2b3ef990`,
   `519ea553`) ; la clé publique de l'app lit `event_genres` (29) et la sélection de la fiche (`EventSelects.detail`,
   avec `audience`, `min_age`, `booking`) en 200.
+
+## 2026-10-24 — « Pour toi » : les goûts et la règle de la page
+
+- `20261024190000_create_pour_toi` (étape 4 de `../live/docs/chantiers/pour-toi.md`) : `app_interests` (les douze
+  goûts de la fiche, posés par les noms de leurs catégories et tags ; lisibles par tous, écrits par les admins),
+  `user_interests` (les goûts choisis, chacun les siens, comme `user_follows`), `app_interest_ids(events)` (colonne
+  calculée : les goûts qui prennent un événement ; le jeune public seulement par « En famille »), la règle de la page
+  (`app_for_me_profile_of`, `app_for_me_profile`, `app_is_for_me` : un goût choisi, ou un lieu, un organisateur, un
+  artiste suivi), `for_me` sur `app_events_in_range` et `app_event_counts` (supprimées puis recréées : PGRST203),
+  `app_interest_counts` (les bulles, à partir de 5 événements ou choisies), `copy_guest_data` (les goûts aussi, une
+  colonne `interests` de plus) et trois compteurs d'audience (`for_me_opened`, `interests_changed`, `for_me_to_all` ;
+  la liste reprend ceux de `20261024150000`, « Suivre une émission »).
+- Vérifié sur la lecture de la prod faite pour les maquettes (vendredi 23 octobre 18 h, 353 événements, clé publique) :
+  les douze bulles et les quatre semaines des cinq personnes de la fiche sont ceux des planches validées (Concerts 48…
+  En famille 56 ; Inès 32, Julien 8, Monique 23, Lucas 17, Camille 31), une fois « Kid Francescoli » ramené à l'id de
+  sa catégorie comme l'a fait `20261024120000` en prod. Sous une liste courte, les planches disaient « 7 autres
+  événements dans “Tout” » ce week-end-là : `for_me => false` en compte 5, car « Tout » n'a pas les deux événements
+  retirés de l'accueil (`hide_from_home`) que les planches comptaient.
+- Tests : `supabase/tests/pour_toi.test.sql` (43 cas : la règle d'un goût, les trois valeurs de `for_me` pour cinq
+  utilisateurs, les comptes de « Tout », de « Pour toi » et des autres, les bulles et leur seuil, la zone, un goût
+  inactif, la RLS et les droits, la recopie invité → compte, les compteurs) ; 15 règles cassées une à une, chacune
+  attrapée. Les 34 fichiers de `supabase/tests/` passent (Postgres 17 local en ICU, comme la prod).
+- Essai à blanc en prod le 2026-10-24 vers 8 h (accord de l'utilisateur, transaction annulée) : empreintes de départ
+  conformes (`app_audience_add` 2655acba : la migration de « Suivre une émission » n'était pas en prod), migration
+  sans erreur, mêmes nombres avant et après en anon (« Tout » 7 jours 17/17, 350 à venir dont 2 hors « Tout »,
+  48 concerts, zones 328/347/347/347), les douze goûts posés avec leurs catégories et tags, aucune ligne pour toi sans
+  session. Bulles d'aujourd'hui (Orléans · 25 km) : Concerts 48, DJ sets et électro 11, Théâtre 80, Humour 50,
+  Cirque 30, Danse 57, Cinéma 8, Ateliers 43, En famille 56 ; les cinq personnes de la fiche sur les quatre semaines
+  suivantes : Inès 33, Julien 6, Monique 24, Lucas 20, Camille 31. Sauvegarde des quatre fonctions d'avant et retour
+  arrière (testé en local : empreintes d'avant retrouvées, les autres tests passent) :
+  `~/Documents/Backups/outlive/pour-toi-2026-10-24/`.
+- **Appliquée en prod le 2026-10-24 à 8 h 13 (heure de Paris)**, avec l'accord de l'utilisateur : psql
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de cette PR (sha256 `af6c866d9b5c4a13…`),
+  sans erreur. Vérifié : les empreintes d'après (`app_events_in_range` 78383a47, `app_event_counts` 9a653e81,
+  `app_interest_ids` e79be31c…) ; par l'API publique, l'appel des versions installées de l'app en 200 et « Tout »
+  inchangé (17 sur 7 jours), `app_interests` lisible, `app_interest_counts` (les neuf bulles ci-dessus),
+  `user_interests` refusé à anon (401), `app_interest_ids` sur les cartes ; 200 cartes du `select` de l'app : 62 ms
+  (médiane de 10, temps du serveur), 70 ms avec `app_interest_ids`.
+- À surveiller : si `20261024150000` (« Suivre une émission ») est appliquée après celle-ci sans les trois compteurs de
+  « Pour toi », elle les retire d'`app_audience_add` (sa session est prévenue).
