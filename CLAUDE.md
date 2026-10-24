@@ -12,6 +12,7 @@ npm run lint
 node --test "lib/**/*.test.mjs"  # tests (node:test), sans dépendance ; guillemets : sous-dossiers compris
 npm run db:types         # régénère lib/supabase/database.types.ts depuis les migrations (Docker)
 npm run db:test          # tests SQL de supabase/tests/ sur une base locale jetable (Docker)
+npm run test:delete-user # l'Edge Function delete-user sur une pile Supabase locale jetable (Docker)
 ```
 
 ## Base de données — ce repo est la source de vérité
