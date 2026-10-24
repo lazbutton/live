@@ -53,8 +53,14 @@ Services Dart : `lib/services/notification_api_service.dart`, `lib/services/user
 ## Tokens push : `POST` et `DELETE /api/notifications/register-token`
 
 Appelés par `PushNotificationService` (`lib/services/push_notification_service.dart`) : POST à
-l'obtention du token, à son rafraîchissement et à la connexion ; DELETE seulement pour remplacer un
-ancien identifiant iOS `ios_user_…` par un vrai token APNs. JWT, ou cookie de session pour le navigateur.
+l'obtention du token, à son rafraîchissement et à la connexion (notifications autorisées et session
+ouverte) ; DELETE juste avant « Se déconnecter », la session encore là (`AuthRepository.signOut`). JWT, ou
+cookie de session pour le navigateur.
+
+Un token est celui d'un téléphone, où une seule session est ouverte : POST le retire des autres
+utilisateurs (l'invité devenu compte, un compte déconnecté hors ligne, qui n'a pas pu le retirer), sans quoi
+le téléphone recevrait un résumé par utilisateur. Un échec de ce retrait est journalisé, l'enregistrement
+tient.
 
 | Champ | Type | |
 | --- | --- | --- |
