@@ -60,6 +60,7 @@ import {
 } from "@/lib/events/potential-duplicates";
 import { logAdminAction } from "@/lib/admin-audit-log";
 import { AGENDA_TYPES, parseAgendaTypes } from "@/lib/events/agenda-types";
+import { genreIdsForCategory, genresOfCategory, toMinAge, type EventGenreOption } from "@/lib/events/event-details";
 import { describeFestivalError, festivalCategoryId, isFestivalCategory } from "@/lib/events/festivals";
 
 import { EntitySwitchRow } from "../directory/entity-sheet";
@@ -73,6 +74,7 @@ import {
   type FestivalProgrammeEvent,
   type ProgrammeEventRow,
 } from "./event-festival-sections";
+import { EventDetailsFields, type EventDetailsValue } from "./event-details-fields";
 import { EventImageUpload } from "./event-image-upload";
 import {
   AsideSection,
@@ -213,6 +215,9 @@ function emptyForm(): EventFormData {
     hide_from_home: false,
     show_on_app: true,
     is_young_audience: false,
+    audience: "",
+    min_age: "",
+    booking: "",
     agenda_types: [],
     major_event_id: "",
     festival_id: "",
@@ -324,6 +329,10 @@ export function EventFormSheet({
   const [selectedOrganizerIds, setSelectedOrganizerIds] = React.useState<string[]>([]);
   const [selectedArtistIds, setSelectedArtistIds] = React.useState<string[]>([]);
   const [selectedTagIds, setSelectedTagIds] = React.useState<string[]>([]);
+  const [selectedGenreIds, setSelectedGenreIds] = React.useState<string[]>([]);
+  // Les genres de toutes les catégories (event_genres), lus une fois à la première ouverture.
+  const [genres, setGenres] = React.useState<EventGenreOption[]>([]);
+  const [genresLoading, setGenresLoading] = React.useState(false);
   const [createdLocations, setCreatedLocations] = React.useState<LocationData[]>([]);
   const [createdOrganizers, setCreatedOrganizers] = React.useState<OrganizerOption[]>([]);
   const [createdArtists, setCreatedArtists] = React.useState<ArtistOption[]>([]);
@@ -442,6 +451,9 @@ export function EventFormSheet({
         hide_from_home: Boolean(event.hide_from_home),
         show_on_app: event.show_on_app !== false,
         is_young_audience: Boolean(event.is_young_audience),
+        audience: event.audience || "",
+        min_age: event.min_age != null ? String(event.min_age) : "",
+        booking: event.booking || "",
         agenda_types: parseAgendaTypes(event.agenda_types),
         major_event_id: event.major_event_events?.major_event_id || "",
         festival_id: event.festival_id || "",
@@ -463,6 +475,7 @@ export function EventFormSheet({
       setSelectedArtistIds(artistIds);
 
       setSelectedTagIds(event.tag_ids || []);
+      setSelectedGenreIds(event.genre_ids || []);
       setImagePreview(event.image_url || null);
       setShowEndDate(Boolean(event.end_date));
       return;
@@ -495,6 +508,7 @@ export function EventFormSheet({
     setSelectedOrganizerIds(prefill?.organizerIds || []);
     setSelectedArtistIds(prefill?.artistIds || []);
     setSelectedTagIds(prefill?.tagIds || []);
+    setSelectedGenreIds(prefill?.genreIds || []);
     setFestivalLocationIds(prefill?.festivalLocationIds || []);
     setImagePreview(merged.image_url ? merged.image_url : null);
     setShowEndDate(Boolean(merged.end_date));
@@ -562,6 +576,28 @@ export function EventFormSheet({
     }
 
     void loadMajorEvents();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  // Genres (event_genres) : relus à chaque ouverture, pour qu'un genre ajouté dans les réglages y soit.
+  React.useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+    setGenresLoading(true);
+    void supabase
+      .from("event_genres")
+      .select("id, category_id, name, phrase, display_order, is_active")
+      .order("display_order")
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) console.error("Genres indisponibles:", error);
+        setGenres((data || []) as EventGenreOption[]);
+        setGenresLoading(false);
+      });
 
     return () => {
       cancelled = true;
@@ -1061,6 +1097,7 @@ export function EventFormSheet({
       formData.festival_id && programme.length > 0
         ? "Un festival qui a un programme ne peut pas faire partie d’un festival."
         : null,
+    minAge: formData.min_age.trim() && toMinAge(formData.min_age) === null ? "De 1 à 18 ans." : null,
   };
 
   const blockingIssues = [
@@ -1074,6 +1111,7 @@ export function EventFormSheet({
     errors.price ? { label: "prix", target: "event-price-min" } : null,
     errors.slots ? { label: "dates supplémentaires", target: "event-when" } : null,
     errors.festival ? { label: "festival", target: "event-festival" } : null,
+    errors.minAge ? { label: "âge minimum", target: "event-min-age" } : null,
   ].filter((issue): issue is { label: string; target: string } => Boolean(issue));
 
   function jumpTo(targetId: string) {
@@ -1152,7 +1190,12 @@ export function EventFormSheet({
         is_featured: Boolean(formData.is_featured),
         hide_from_home: Boolean(formData.hide_from_home),
         show_on_app: Boolean(formData.show_on_app),
+        // Recalculé par la base depuis audience quand elle est connue (events_sync_details) ; sinon la valeur lue.
         is_young_audience: Boolean(formData.is_young_audience),
+        audience: formData.audience || null,
+        min_age: toMinAge(formData.min_age),
+        booking: formData.booking || null,
+        genre_ids: genreIdsForCategory(selectedGenreIds, genres, formData.category.trim()),
         agenda_types: parseAgendaTypes(formData.agenda_types),
         tag_ids: selectedTagIds.length > 0 ? selectedTagIds : [],
         // Envoyé seulement s'il y a un festival, choisi ou à retirer : une fiche sans festival s'enregistre aussi
@@ -1540,6 +1583,7 @@ export function EventFormSheet({
   const totalOccurrences = 1 + additionalTimeSlots.filter((slot) => slot.start.trim()).length;
   const startParsed = parseLocalDateTime(formData.date);
 
+  const categoryGenres = genresOfCategory(genres, formData.category.trim(), selectedGenreIds);
   const completeness: CompletenessItem[] = [
     { key: "title", label: "Titre", done: Boolean(formData.title.trim()), required: true, targetId: "event-title" },
     { key: "date", label: "Date et heure", done: Boolean(formData.date), required: true, targetId: "event-start-date" },
@@ -1559,6 +1603,11 @@ export function EventFormSheet({
     { key: "image", label: "Affiche", done: hasImage, targetId: "event-image" },
     { key: "description", label: "Description", done: Boolean(formData.description.trim()), targetId: "event-description" },
     { key: "price", label: "Tarif", done: priceMode !== "unknown", targetId: "event-pricing" },
+    ...(categoryGenres.length > 0
+      ? [{ key: "genres", label: "Genre", done: selectedGenreIds.some((id) => categoryGenres.some((genre) => genre.id === id)), targetId: "event-details" }]
+      : []),
+    { key: "audience", label: "Pour qui", done: Boolean(formData.audience), targetId: "event-details" },
+    { key: "booking", label: "Réservation", done: Boolean(formData.booking), targetId: "event-details" },
     { key: "organizers", label: "Organisateur", done: selectedOrganizerIds.length > 0, targetId: "event-organizers" },
   ];
 
@@ -1962,6 +2011,38 @@ export function EventFormSheet({
                       </div>
                     </FormBlock>
 
+                    {/* Genre, pour qui, réservation */}
+                    <FormBlock
+                      id="event-details"
+                      title="Genre, public et réservation"
+                      description="Ce que la fiche de l’app dit sous la date et le lieu (« Dès 6 ans · Sans réservation ») ; rien si la source ne le dit pas."
+                    >
+                      <EventDetailsFields
+                        categoryId={formData.category.trim()}
+                        genres={genres}
+                        genresLoading={genresLoading}
+                        value={{
+                          genreIds: selectedGenreIds,
+                          audience: formData.audience,
+                          minAge: formData.min_age,
+                          booking: formData.booking,
+                        }}
+                        onChange={(next: EventDetailsValue) => {
+                          setDirty(true);
+                          setSelectedGenreIds(next.genreIds);
+                          setFormData((previous) => ({
+                            ...previous,
+                            audience: next.audience,
+                            min_age: next.minAge,
+                            booking: next.booking,
+                          }));
+                        }}
+                        minAgeError={errors.minAge}
+                        legacyYoungAudience={formData.is_young_audience}
+                        disabled={busy}
+                      />
+                    </FormBlock>
+
                     {/* Programme d'un festival */}
                     {isFestival || programme.length > 0 ? (
                       <FormBlock
@@ -2292,14 +2373,6 @@ export function EventFormSheet({
                       description="Reste visible dans les catégories."
                       checked={formData.hide_from_home}
                       onCheckedChange={(checked) => patchForm({ hide_from_home: checked })}
-                      disabled={busy}
-                    />
-                    <PropertySwitch
-                      id="event-young-audience"
-                      label="Jeune public"
-                      description="Pensé pour les enfants ou les familles. Coché par la collecte quand la source le dit."
-                      checked={formData.is_young_audience}
-                      onCheckedChange={(checked) => patchForm({ is_young_audience: checked })}
                       disabled={busy}
                     />
                   </div>
