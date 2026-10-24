@@ -1183,3 +1183,38 @@
   Tentaculation, dans `organizers-images/radio-shows/` (WebP carrés, 21 à 284 Ko). Vérifié en anonyme : 11 émissions
   avec `image_url`, chaque image en 200 `image/webp` ; dans le programme d'hier, Écoute ta fac et Nation Groove ont
   le leur.
+
+## 2026-10-24 — L'accueil de l'app : ses dernières règles en Dart passent en SQL
+
+- `20261024120000_app_home_rules` (règle complète en tête du fichier) : « Toutes les dates » et « À la une » de l'app
+  lisaient `app_events_in_zone` puis retiraient en Dart les événements en cours de 12 h ou moins, les masqués, ceux
+  des auteurs bloqués et, sur « Tout », ceux retirés de l'accueil ; une catégorie se comparait à son id et à son nom
+  (`../live/docs/FEUILLE_DE_ROUTE.md`, § 2, « Des règles encore en Dart », maintenant). L'app lira
+  `app_events_in_range` (PR de l'app à venir, à sortir après cette migration), qui a déjà les trois premières règles,
+  et cette migration ajoute :
+  - `app_on_tout(events)`, la règle de « Tout » (`NOT hide_from_home`), une colonne calculée pour PostgREST (lue ou
+    filtrée par l'app ; vérifié sur PostgREST v13.0.5 local, `select` et filtre sur `rpc/app_events_in_range`) ; les
+    nombres de « Tout » la lisent (`app_event_counts` sans catégorie, `app_zone_counts`, `app_cities`, redéfinies
+    depuis `20261023170000`, mêmes signatures) ;
+  - `app_events_in_range` (redéfinie depuis `20261021220000`, même signature) : masqués et auteurs bloqués en
+    sous-requêtes non corrélées (`NOT IN`, sous-plans hachés, `(SELECT auth.uid())`), la catégorie demandée résolue
+    une fois. Les `NOT EXISTS` corrélés relisaient `user_hidden_events` pour chaque événement (et `auth.uid()` pour
+    chacune de ses lignes), l'`EXISTS` sur `categories` tournait pour chaque événement d'une autre catégorie. Mesuré
+    en local (PostgREST, ~430 événements sur un an, 200 cartes) : un compte qui a masqué 40 événements, ~50–80 ms
+    avant, ~3–5 ms après ; anon ~10–15 ms avant, ~4–5 ms après (`app_events_in_zone` : ~2,5–3,5 ms) ;
+  - `events.category` toujours l'id de sa catégorie : `resolve_event_category(text)` (security definer, fermée à anon
+    et authenticated) et le trigger `events_normalize_category` (BEFORE INSERT OR UPDATE OF category, le premier par
+    son nom), puis la conversion des lignes existantes. Un texte qui ne désigne aucune catégorie reste tel quel. En
+    prod le 2026-10-24 (lecture anon) : 1 événement visible sur 389 a un nom (« Concert ») ; les autres lignes
+    (en attente, archivées) se comptent à l'essai.
+- Tests : `supabase/tests/app_home_rules.test.sql` (30 cas : la catégorie à l'écriture, par un admin connecté sans
+  droit sur les fonctions, et rejouée par la conversion ; « Tout » et ses nombres ; masqués, auteurs bloqués, un
+  événement sans auteur gardé malgré `NOT IN` ; catégorie par id, nom, texte inconnu, inactive ; plan : aucun nœud
+  qui lit `user_hidden_events`, `blocked_users` ou `categories` ni aucun sous-plan ne tourne plus d'une fois).
+  Contre-épreuves : l'ancienne `app_events_in_range` échoue au plan (9 passages au lieu de 1), un `NOT IN` sans le
+  cas sans auteur et une règle de « Tout » cassée échouent aussi, cette dernière dans `app_calendar`, `app_zone`,
+  `festival_counts` et `app_free_family`. Toute la suite passe sur l'image Supabase (avec la migration, avant le
+  nouveau fichier) puis sur Postgres 17 nu en ICU (avec lui ; `app_radio` y manque de la file de pg_net).
+- Types : `app_on_tout` et `resolve_event_category` ajoutés à la main dans `lib/supabase/database.types.ts`, au format
+  du générateur (Docker arrêté sur la machine) ; à régénérer au prochain `npm run db:types`.
+- **Pas encore appliquée en prod** (attendre l'accord ; essai à blanc et retour arrière dans la PR).

@@ -2990,6 +2990,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      app_on_tout: {
+        Args: { e: Database["public"]["Tables"]["events"]["Row"] }
+        Returns: boolean
+      }
       app_organizer_counts: {
         Args: {
           at_time?: string
@@ -3349,6 +3353,7 @@ export type Database = {
         }
         Returns: string
       }
+      resolve_event_category: { Args: { category: string }; Returns: string }
       slugify_artist_label: { Args: { value: string }; Returns: string }
       slugify_city_label: { Args: { value: string }; Returns: string }
       take_poster_analysis: {
