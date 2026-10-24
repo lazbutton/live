@@ -25,6 +25,7 @@ import type { AdminModerationReason, AdminRequestItem } from "@/lib/admin-reques
 import {
   formatRequestAgeShort,
   getModerationReasonLabel,
+  getRequestContributorLabel,
   getRequestTypeLabel,
   safeDomainFromUrl,
 } from "@/lib/admin-requests";
@@ -326,8 +327,7 @@ export function RequestInspector({
 
   const isProcessing = processingId === item.id;
   const sourceDomain = item.sourceUrl ? safeDomainFromUrl(item.sourceUrl) : null;
-  const contributor =
-    item.contributorDisplayName || item.requestedBy || "Contributeur inconnu";
+  const contributor = getRequestContributorLabel(item);
   const description =
     typeof item.raw.event_data?.description === "string"
       ? item.raw.event_data.description.trim()

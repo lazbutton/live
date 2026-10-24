@@ -15,7 +15,11 @@ import {
 } from "lucide-react";
 
 import type { AdminRequestItem } from "@/lib/admin-requests";
-import { formatRequestAgeShort, safeDomainFromUrl } from "@/lib/admin-requests";
+import {
+  formatRequestAgeShort,
+  getRequestContributorLabel,
+  safeDomainFromUrl,
+} from "@/lib/admin-requests";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -90,8 +94,7 @@ export function RequestCard({
 }) {
   const isProcessing = processingId === item.id;
   const signal = getPrimarySignal(item);
-  const contributor =
-    item.contributorDisplayName || item.requestedBy || "Contributeur inconnu";
+  const contributor = getRequestContributorLabel(item);
   const sourceDomain = item.sourceUrl
     ? safeDomainFromUrl(item.sourceUrl)
     : null;

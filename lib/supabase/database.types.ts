@@ -3274,6 +3274,10 @@ export type Database = {
         }
         Returns: string
       }
+      public_contributor_label: {
+        Args: { display_name: string }
+        Returns: string
+      }
       radio_live_grid: {
         Args: { p_at?: string; p_station: string }
         Returns: {
