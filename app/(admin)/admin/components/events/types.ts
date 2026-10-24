@@ -151,6 +151,8 @@ export type EventFormPrefill = Partial<{
   tagIds: string[];
   /** Genres reconnus (event_genres de la catégorie). */
   genreIds: string[];
+  /** Genre, public ou réservation lus par la collecte : « lus, à confirmer » (events.details_to_confirm). */
+  detailsToConfirm: boolean;
   /**
    * Autres séances (format datetime-local) : un événement par date à l'enregistrement, avec le lien de
    * billetterie de la séance quand la page en donne un par séance.

@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase/client";
 import { fromDatetimeLocal } from "@/lib/date-utils";
 import { compressImage } from "@/lib/image-compression";
 import { fetchRemoteImageBlob } from "@/lib/events/remote-image";
+import { detailsColumnsFromPrefill } from "@/lib/events/event-details";
 import { toNullablePrice } from "@/lib/events/price-utils";
 import { fetchPotentialDuplicateEvents } from "@/lib/events/potential-duplicates";
 import { logAdminAction } from "@/lib/admin-audit-log";
@@ -110,6 +111,8 @@ export async function createPendingEventFromPrefill({
     is_featured: false,
     hide_from_home: false,
     tag_ids: prefill.tagIds || [],
+    // Genres, pour qui, réservation lus sur la page : « lus, à confirmer ».
+    ...detailsColumnsFromPrefill(prefill),
     address: location?.address || null,
     latitude: location?.latitude || null,
     longitude: location?.longitude || null,

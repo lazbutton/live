@@ -20,6 +20,7 @@ import { parseDateWithoutTimezone } from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SelectSearchable } from "@/components/ui/select-searchable";
+import type { EventGenreOption } from "@/lib/events/event-details";
 import type { FestivalCandidate } from "@/lib/events/festivals";
 import type { ImportedEventPayload } from "@/lib/events/imported-event-payload";
 
@@ -34,6 +35,7 @@ export type AgendaImportReferences = {
   tags: TagOption[];
   categories: CategoryOption[];
   festivals: FestivalCandidate[];
+  genres: EventGenreOption[];
 };
 
 type PreviewEvent = {
@@ -241,6 +243,7 @@ export function AgendaImportPanel({
           organizers: references.organizers,
           artists: references.artists,
           festivals: references.festivals,
+          genres: references.genres,
           findOrCreateTagIds: (rawTagNames) => resolveTagIdsForImport({ rawTagNames, tags: references.tags }),
           defaultStatus: "pending",
         });

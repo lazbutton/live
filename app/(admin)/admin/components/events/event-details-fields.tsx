@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Check } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   EVENT_AUDIENCES,
@@ -70,6 +71,8 @@ export function EventDetailsFields({
   onChange,
   minAgeError,
   legacyYoungAudience,
+  toConfirm,
+  onConfirm,
   disabled,
 }: {
   /** Catégorie choisie (son id) : ses genres sont proposés. */
@@ -81,6 +84,9 @@ export function EventDetailsFields({
   minAgeError?: string | null;
   /** Coché « Jeune public » avant « Pour qui », sans public choisi depuis. */
   legacyYoungAudience?: boolean;
+  /** Lus par la collecte, pas encore confirmés (events.details_to_confirm) : « C'est juste » les confirme. */
+  toConfirm?: boolean;
+  onConfirm?: () => void;
   disabled?: boolean;
 }) {
   const offered = genresOfCategory(genres, categoryId, value.genreIds);
@@ -94,6 +100,20 @@ export function EventDetailsFields({
 
   return (
     <div className="space-y-5">
+      {toConfirm ? (
+        <div className="flex flex-wrap items-center gap-2.5 rounded-lg border border-warning/30 bg-warning/[0.07] px-3.5 py-2.5">
+          <Sparkles className="h-4 w-4 shrink-0 text-warning" />
+          <p className="min-w-0 flex-1 text-[13px]">
+            Lus par la collecte, à confirmer : vérifie-les sur la source, corrige si besoin.
+          </p>
+          {onConfirm ? (
+            <Button type="button" size="sm" variant="outline" className="h-8" onClick={onConfirm} disabled={disabled}>
+              <Check className="h-3.5 w-3.5" />
+              C’est juste
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       <Field
         label="Genre"
         hint={
