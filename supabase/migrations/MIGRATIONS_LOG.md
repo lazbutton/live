@@ -1182,7 +1182,15 @@
   retirer déclencheur et fonction, recopier la suspension d'`app_metadata` vers `raw_user_meta_data` pour les
   suspendus, remettre le corps de `20260324100000` et son commentaire (essayé en local : l'état d'avant à
   l'identique).
-- **Pas encore appliquée en prod** (attendre l'accord).
+- **Appliquée en prod le 24/10/2026 à 05:06 (03:06 UTC)**, avec l'accord de l'utilisateur (psql,
+  `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de `main`, sha256 `bf93c530…`), sans
+  erreur, en 0,4 s (`UPDATE 0`, `UPDATE 0`). Vérifié en lecture seule : aucune clé de suspension, ni dans
+  `user_metadata` ni dans `app_metadata` (280 comptes) ; `is_user_safety_suspended()` lit `app_metadata`, toujours
+  `SECURITY DEFINER` avec les mêmes droits ; les deux déclencheurs d'`auth.users` (rôle, suspension) actifs ; empreinte
+  identique à celle de l'essai local. Puis, avec le même accord, dans une transaction annulée : un compte fictif
+  inscrit avec `ugc_suspended` dans `user_metadata` la perd (son nom reste), la même clé ajoutée ensuite est effacée,
+  et suspendu par `app_metadata` il le reste (`is_user_safety_suspended()` vrai, `can_use_ugc_features()` faux) ;
+  rien n'est resté.
 
 ## 2026-10-23 — Radio : les visuels gardés des émissions (`radio_shows.image_url`)
 
@@ -1232,4 +1240,10 @@
   tous les fichiers passent. `lib/supabase/database.types.ts` régénéré (`npm run db:types`) : la table en moins.
   `docs/EVENT_NOTIFICATIONS_DIRECT_SUPABASE.md` (le mode d'emploi de la table) retiré.
 - Retour arrière : dans la sauvegarde, `\i schema.sql` (psql, rôle postgres), puis `\copy` du CSV s'il a des lignes.
-- **Pas encore appliquée en prod** (attendre l'accord).
+- **Appliquée en prod le 24/10/2026 à 05:07 (03:07 UTC)**, après `20261023230000`, avec l'accord de l'utilisateur
+  (psql, `--single-transaction`, `SET ROLE postgres`, `lock_timeout` 5 s, le fichier de la branche au commit
+  `541f1cf`, sha256 `6b6c09ce…`), sans erreur (`DROP TABLE` en 0,13 s). Vérifié en lecture seule : ni la table ni
+  les deux fonctions ; `update_notification_preferences_updated_at()` garde ses trois tables ; plus aucun
+  déclencheur de clé étrangère vers elle sur `events` et `auth.users` ; `app_events()` rend 389 événements ;
+  empreinte identique à celle de l'essai local. En anon par l'API publique : `event_notifications` répond 404
+  (PGRST205, ce que recevra la 1.0.6), `rpc/app_events` 200.
